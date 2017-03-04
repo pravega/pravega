@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream;
 
@@ -31,22 +19,37 @@ import java.util.UUID;
 public interface Transaction<Type> {
     enum Status {
         OPEN,
-        SEALED,
+        COMMITTING,
         COMMITTED,
+        ABORTING,
         ABORTED
     }
 
     /**
      * Returns a unique ID that can be used to identify this transaction.
+     *
+     * @return Unique identifier of the transaction
      */
     UUID getTxnId();
     
     /**
-     * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that the message will not be
-     * visible to anyone until {@link #commit()} is called.
+     * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that
+     * the message will not be visible to anyone until {@link #commit()} is called.
+     *
+     * A routing key will automatically be inferred from the transactionID.
+     * So all events written this way will be fully ordered and contiguous when read.
+     *
+     * @param event The Event to write.
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
+     */
+    void writeEvent(Type event) throws TxnFailedException;
+    
+    /**
+     * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that
+     * the message will not be visible to anyone until {@link #commit()} is called.
      *
      * @param routingKey The Routing Key to use for writing.
-     * @param event      The Event to write.
+     * @param event The Event to write.
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
     void writeEvent(String routingKey, Type event) throws TxnFailedException;
@@ -58,6 +61,14 @@ public interface Transaction<Type> {
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
     void flush() throws TxnFailedException;
+
+    /**
+     * Send a transaction heartbeat and increase transaction's timeout by lease amount of milliseconds.
+     *
+     * @param lease Additional amount of time in milliseconds by which to increase transaction's timeout.
+     * @throws PingFailedException Ping failed.
+     */
+    void ping(long lease) throws PingFailedException;
 
     /**
      * Causes all messages previously written to the transaction to go into the stream contiguously.
@@ -75,6 +86,8 @@ public interface Transaction<Type> {
 
     /**
      * Gets the status of the transaction.
+     *
+     *  @return Current status of the transaction
      */
     Status checkStatus();
 }

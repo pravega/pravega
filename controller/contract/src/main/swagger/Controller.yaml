@@ -1,0 +1,236 @@
+# Description of the Pravega Controller APIs.
+swagger: '2.0'
+info:
+  version: "0.0.1"
+  title: Pravega Controller APIs
+basePath: /v1
+schemes:
+  - http
+paths:
+  /scopes:
+    get:
+      operationId: listScopes
+      description: List all scopes in the system
+      produces:
+        - application/json
+      responses:
+        200:
+          description: List of scope objects
+          schema:
+            $ref: "#/definitions/ScopesList"
+        500:
+          description: Server error
+    post:
+      operationId: createScope
+      description: Creates a new scope
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: CreateScopeRequest
+          description: The scope configuration
+          required: true
+          schema:
+            type: object
+            properties:
+              scopeName:
+                type: string
+      produces:
+        - application/json
+      responses:
+        201:
+          description: Successfully created the scope
+          schema:
+            type: object
+            properties:
+              scopeName:
+                type: string
+        409:
+          description: Scope already exists
+        500:
+          description: Server error
+  /scopes/{scopeName}:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+    delete:
+      operationId: deleteScope
+      responses:
+        204:
+          description: Successfully deleted the scope
+        404:
+          description: Scope not found
+        412:
+          description: Cannot delete scope which has non-empty list of streams
+        500:
+          description: Server error
+  /scopes/{scopeName}/streams:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+    get:
+      operationId: listStreams
+      description: List streams within the given scope
+      produces:
+        - application/json
+      responses:
+        200:
+          description: List of stream objects
+          schema:
+            $ref: "#/definitions/StreamsList"
+        404:
+          description: Scope not found
+        500:
+          description: Server error
+    post:
+      operationId: createStream
+      description: Creates a new stream
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: CreateStreamRequest
+          description: The stream configuration
+          required: true
+          schema:
+            type: object
+            properties:
+              streamName:
+                type: string
+              scalingPolicy:
+                  $ref: "#/definitions/ScalingConfig"
+              retentionPolicy:
+                  $ref: "#/definitions/RetentionConfig"
+      produces:
+        - application/json
+      responses:
+        201:
+          description: Successful created the stream
+          schema:
+            $ref: "#/definitions/StreamProperty"
+        404:
+          description: Scope not found
+        409:
+          description: Stream already exists
+        500:
+          description: Server error
+  /scopes/{scopeName}/streams/{streamName}:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+      - in: path
+        name: streamName
+        description: Stream name
+        required: true
+        type: string
+    get:
+      operationId: getStream
+      description: Fetch the stream properties
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Found stream configuration
+          schema:
+            $ref: "#/definitions/StreamProperty"
+        404:
+          description: Scope or stream not found
+        500:
+          description: Server error
+    put:
+      operationId: updateStream
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: UpdateStreamRequest
+          description: The new stream configuration
+          required: true
+          schema:
+            type: object
+            properties:
+              scalingPolicy:
+                  $ref: "#/definitions/ScalingConfig"
+              retentionPolicy:
+                  $ref: "#/definitions/RetentionConfig"
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Successfully updated the stream configuration
+          schema:
+            $ref: "#/definitions/StreamProperty"
+        404:
+          description: Scope or stream not found
+        500:
+          description: Server error
+    delete:
+      operationId: deleteStream
+      responses:
+        501:
+          description: Not Implemented
+
+definitions:
+  StreamsList:
+    type: object
+    properties:
+      streams:
+        type: array
+        items:
+          $ref: "#/definitions/StreamProperty"
+  ScopesList:
+    type: object
+    properties:
+      scopes:
+        type: array
+        items:
+          $ref: "#/definitions/ScopeProperty"
+  ScopeProperty:
+    type: object
+    properties:
+      scopeName:
+        type: string
+  StreamProperty:
+    type: object
+    properties:
+      scopeName:
+        type: string
+      streamName:
+        type: string
+      scalingPolicy:
+          $ref: "#/definitions/ScalingConfig"
+      retentionPolicy:
+          $ref: "#/definitions/RetentionConfig"
+  ScalingConfig:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+        - FIXED_NUM_SEGMENTS
+        - BY_RATE_IN_KBYTES_PER_SEC
+        - BY_RATE_IN_EVENTS_PER_SEC
+      targetRate:
+        type: integer
+        format: int64
+      scaleFactor:
+        type: integer
+        format: int32
+      minSegments:
+        type: integer
+        format: int32
+  RetentionConfig:
+    type: object
+    properties:
+      retentionTimeMillis:
+        type: integer
+        format: int64

@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream.impl;
 
@@ -21,6 +9,7 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
@@ -36,6 +25,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
+import lombok.Cleanup;
+import lombok.val;
+
 import org.junit.Test;
 
 import static java.util.Collections.singletonList;
@@ -45,8 +37,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-
-import lombok.val;
 
 public class ReaderGroupStateManagerTest {
 
@@ -67,15 +57,18 @@ public class ReaderGroupStateManagerTest {
             }
         };
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
                                                                                                       config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegment, 1L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader();
         Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
@@ -114,8 +107,9 @@ public class ReaderGroupStateManagerTest {
             }
         };
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -123,7 +117,9 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegmentA, 1L);
         segments.put(initialSegmentB, 2L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader();
         Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
@@ -152,16 +148,19 @@ public class ReaderGroupStateManagerTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
 
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
                                                                                                       config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 1L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
         ReaderGroupStateManager readerState = new ReaderGroupStateManager("testReader",
                 stateSynchronizer,
                 controller,
@@ -184,9 +183,10 @@ public class ReaderGroupStateManagerTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
 
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -197,7 +197,9 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 1), 1L);
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1",
                 stateSynchronizer,
@@ -262,8 +264,9 @@ public class ReaderGroupStateManagerTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -276,7 +279,9 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 3), 3L);
         segments.put(new Segment(scope, stream, 4), 4L);
         segments.put(new Segment(scope, stream, 5), 5L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1",
                 stateSynchronizer,

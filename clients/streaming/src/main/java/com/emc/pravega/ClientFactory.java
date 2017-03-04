@@ -1,16 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega;
 
@@ -30,6 +21,8 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.RebalancerUtils;
 
 import java.net.URI;
@@ -60,10 +53,21 @@ import java.net.URI;
  * Otherwise this can be done by creating new reader by calling:
  * {@link RebalancerUtils#rebalance(java.util.Collection, int)} .
  */
-public interface ClientFactory {
+public interface ClientFactory extends AutoCloseable {
 
-    public static ClientFactory withScope(String scope, URI controllerUri) {
-        return new ClientFactoryImpl(scope, controllerUri);
+    /**
+     * Creates a new instance of Client Factory.
+     *
+     * @param scope The scope string.
+     * @param controllerUri The URI for controller.
+     * @return Instance of ClientFactory implementation.
+     */
+    static ClientFactory withScope(String scope, URI controllerUri) {
+        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri.getHost(), controllerUri.getPort()));
+    }
+
+    static ClientFactory withScope(String scope, Controller controller) {
+        return new ClientFactoryImpl(scope, controller);
     }
 
     /**
@@ -73,6 +77,7 @@ public interface ClientFactory {
      * @param config The writer configuration.
      * @param s The Serializer.
      * @param <T> The type of events.
+     * @return Newly created writer object
      */
     <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
     
@@ -84,8 +89,10 @@ public interface ClientFactory {
      * @param config The writer configuration.
      * @param s The Serializer.
      * @param <T> The type of events.
+     * @return Newly created idempotent writer object
      */
-    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
+    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
+            EventWriterConfig config);
 
     /**
      * Creates a new manually managed reader that will read from the specified stream at the
@@ -101,6 +108,7 @@ public interface ClientFactory {
      * @param config The reader configuration.
      * @param startingPosition The StartingPosition to use.
      * @param <T> The type of events.
+     * @return Newly created reader object (manually managed)
      */
     <T> EventStreamReader<T> createReader(String streamName, Serializer<T> s, ReaderConfig config,
             Position startingPosition);
@@ -123,6 +131,7 @@ public interface ClientFactory {
      * @param s The serializer for events.
      * @param config The readers configuration.
      * @param <T> The type of events.
+     * @return Newly created reader object that is a part of reader group
      */
     <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config);
 
@@ -133,6 +142,7 @@ public interface ClientFactory {
      * @param serializer The serializer for updates.
      * @param config The client configuration
      * @param <T> The type of events
+     * @return Revisioned stream client
      */
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config);
@@ -147,11 +157,18 @@ public interface ClientFactory {
      * @param updateSerializer The serializer for updates.
      * @param initSerializer The serializer for the initial update.
      * @param config The synchronizer configuration
+     * @return Newly created StateSynchronizer that will work on the given stream
      */
     <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
     StateSynchronizer<StateT> createStateSynchronizer(String streamName,
                                                       Serializer<UpdateT> updateSerializer,
                                                       Serializer<InitT> initSerializer,
                                                       SynchronizerConfig config);
+    
+    /**
+     * See @see java.lang.AutoCloseable#close() .
+     */
+    @Override
+    void close();
 
 }

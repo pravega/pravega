@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.common.metrics;
 
 import com.emc.pravega.common.util.ComponentConfig;
@@ -47,9 +34,9 @@ public class MetricsConfig extends ComponentConfig {
     public final static String DEFAULT_STATSD_HOST = "localhost";
     public final static int DEFAULT_STATSD_PORT = 8125;
 
-    private static boolean enableStatistics = true;
-    private static long dynamicCacheSize = 1000000L;
-    private static long dynamicTTLSeconds = 120L;
+    private boolean enableStatistics = true;
+    private long dynamicCacheSize = 1000000L;
+    private long dynamicTTLSeconds = 120L;
     private int yammerStatsOutputFrequencySeconds;
     private String yammerMetricsPrefix;
     private String yammerCSVEndpoint;
@@ -73,21 +60,21 @@ public class MetricsConfig extends ComponentConfig {
     /**
      * Gets a value indicating the status of enable statistics.
      */
-    public static boolean enableStatistics() {
+    public boolean enableStatistics() {
         return enableStatistics;
     }
 
     /**
      * Gets cache size for dynamic metrics.
      */
-    public static long getDynamicCacheSize() {
+    public long getDynamicCacheSize() {
         return dynamicCacheSize;
     }
 
     /**
      * Gets cache TTL for dynamic metrics.
      */
-    public static long getDynamicTTLSeconds() {
+    public long getDynamicTTLSeconds() {
         return dynamicTTLSeconds;
     }
 
@@ -128,7 +115,7 @@ public class MetricsConfig extends ComponentConfig {
 
 
     @Override
-    protected void refresh() throws ConfigurationException {
+    public void refresh() throws ConfigurationException {
         this.enableStatistics = getBooleanProperty(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
         this.dynamicCacheSize = getInt64Property(DYNAMIC_CACHE_SIZE, DEFAULT_DYNAMIC_CACHE_SIZE);
         this.dynamicTTLSeconds = getInt64Property(DYNAMIC_TTL_SECONDS, DEFAULT_DYNAMIC_TTL_SECONDS);

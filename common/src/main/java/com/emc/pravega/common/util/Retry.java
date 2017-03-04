@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.common.util;
 
@@ -28,6 +16,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -74,6 +64,14 @@ public final class Retry {
         return new RetryWithBackoff(initialMillis, multiplier, attempts, maxDelay);
     }
 
+    public static RetryUnconditionally indefinitelyWithExpBackoff(long initialMillis, int multiplier, long maxDelay, Consumer<Throwable> consumer) {
+        Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
+        Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
+        Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
+        RetryWithBackoff params = new RetryWithBackoff(initialMillis, multiplier, Integer.MAX_VALUE, maxDelay);
+        return new RetryUnconditionally(consumer, params);
+    }
+
     /**
      * Returned by {@link Retry#withExpBackoff(long, int, int)} to set the retry schedule.
      * Used to invoke {@link #retryingOn(Class)}. Note this object is reusable so this can be done more than once.
@@ -91,28 +89,52 @@ public final class Retry {
             this.maxDelay = maxDelay;
         }
 
-        public <RetryT extends Exception> RetryingOnException<RetryT> retryingOn(Class<RetryT> retryType) {
+        public <RetryT extends Exception> RetryExceptionally<RetryT> retryingOn(Class<RetryT> retryType) {
             Preconditions.checkNotNull(retryType);
-            return new RetryingOnException<>(retryType, this);
+            return new RetryExceptionally<>(retryType, this);
+        }
+
+        public RetryConditionally retryWhen(Predicate<Throwable> predicate) {
+            Preconditions.checkNotNull(predicate);
+            return new RetryConditionally(predicate, this);
         }
     }
 
     /**
      * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
-     * Any subtype of this exception will be retried unless the subtype is passed to {@link RetryingOnException#throwingOn(Class)}.
+     * Any subtype of this exception will be retried unless the subtype is passed to {@link RetryExceptionally#throwingOn(Class)}.
      */
-    public static final class RetryingOnException<RetryT extends Exception> {
+    public static final class RetryExceptionally<RetryT extends Exception> {
         private final Class<RetryT> retryType;
         private final RetryWithBackoff params;
 
-        private RetryingOnException(Class<RetryT> retryType, RetryWithBackoff params) {
+        private RetryExceptionally(Class<RetryT> retryType, RetryWithBackoff params) {
             this.retryType = retryType;
             this.params = params;
         }
 
-        public <ThrowsT extends Exception> ThrowingOnException<RetryT, ThrowsT> throwingOn(Class<ThrowsT> throwType) {
+        public <ThrowsT extends Exception> RetryAndThrowExceptionally<RetryT, ThrowsT> throwingOn(Class<ThrowsT> throwType) {
             Preconditions.checkNotNull(throwType);
-            return new ThrowingOnException<>(retryType, throwType, params);
+            return new RetryAndThrowExceptionally<>(retryType, throwType, params);
+        }
+    }
+
+    /**
+     * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
+     * Any exception will be retried based on the predicate unless the subtype is passed to {@link RetryConditionally#throwingOn(Class)}.
+     */
+    public static final class RetryConditionally {
+        private final Predicate<Throwable> predicate;
+        private final RetryWithBackoff params;
+
+        private RetryConditionally(Predicate<Throwable> predicate, RetryWithBackoff params) {
+            this.predicate = predicate;
+            this.params = params;
+        }
+
+        public <ThrowsT extends Exception> RetryAndThrowConditionally<ThrowsT> throwingOn(Class<ThrowsT> throwType) {
+            Preconditions.checkNotNull(throwType);
+            return new RetryAndThrowConditionally<>(predicate, throwType, params);
         }
     }
 
@@ -121,24 +143,17 @@ public final class Retry {
         ReturnT attempt() throws RetryableET, NonRetryableET;
     }
 
-    /**
-     * Returned by {@link RetryingOnException#throwingOn(Class)} to add the type of exception that should cause the
-     * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
-     * that subtype was passed as the RetryType to {@link RetryWithBackoff#retryingOn(Class)}
-     */
-    public static final class ThrowingOnException<RetryT extends Exception, ThrowsT extends Exception> {
-        private final Class<RetryT> retryType;
-        private final Class<ThrowsT> throwType;
-        private final RetryWithBackoff params;
+    public static abstract class RetryAndThrowBase<ThrowsT extends Exception> {
+        final Class<ThrowsT> throwType;
+        final RetryWithBackoff params;
 
-        private ThrowingOnException(Class<RetryT> retryType, Class<ThrowsT> throwType, RetryWithBackoff params) {
-            this.retryType = retryType;
+        private RetryAndThrowBase(Class<ThrowsT> throwType, RetryWithBackoff params) {
             this.throwType = throwType;
             this.params = params;
         }
 
         @SuppressWarnings("unchecked")
-        public <ReturnT> ReturnT run(Retryable<ReturnT, RetryT, ThrowsT> r) throws ThrowsT {
+        public <RetryT extends Exception, ReturnT> ReturnT run(Retryable<ReturnT, RetryT, ThrowsT> r) throws ThrowsT {
             Preconditions.checkNotNull(r);
             long delay = params.initialMillis;
             Exception last = null;
@@ -197,7 +212,25 @@ public final class Retry {
             return result;
         }
 
-        private boolean canRetry(final Throwable e) {
+        abstract boolean canRetry(final Throwable e);
+    }
+
+    /**
+     * Returned by {@link RetryExceptionally#throwingOn(Class)} to add the type of exception that should cause the
+     * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
+     * that subtype was passed as the RetryType to {@link RetryWithBackoff#retryingOn(Class)}
+     */
+    public static final class RetryAndThrowExceptionally<RetryT extends Exception, ThrowsT extends Exception>
+        extends RetryAndThrowBase<ThrowsT> {
+        private final Class<RetryT> retryType;
+
+        private RetryAndThrowExceptionally(Class<RetryT> retryType, Class<ThrowsT> throwType, RetryWithBackoff params) {
+            super(throwType, params);
+            this.retryType = retryType;
+        }
+
+        @Override
+        boolean canRetry(final Throwable e) {
             Class<? extends Throwable> type = getErrorType(e);
             if (throwType.isAssignableFrom(type) && retryType.isAssignableFrom(throwType)) {
                 return false;
@@ -215,6 +248,45 @@ public final class Retry {
                     return e.getClass();
                 }
             }
+        }
+    }
+
+    /**
+     * Returned by {@link RetryExceptionally#throwingOn(Class)} to add the type of exception that should cause the
+     * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
+     * the predicate passed to {@link RetryWithBackoff#retryingOn(Class)} says otherwise
+     */
+    public static final class RetryAndThrowConditionally<ThrowsT extends Exception>
+            extends RetryAndThrowBase<ThrowsT> {
+        private final Predicate<Throwable> predicate;
+
+        private RetryAndThrowConditionally(Predicate<Throwable> predicate, Class<ThrowsT> throwType, RetryWithBackoff params) {
+            super(throwType, params);
+            this.predicate = predicate;
+        }
+
+        @Override
+        boolean canRetry(final Throwable e) {
+            return predicate.test(e);
+        }
+    }
+
+    /**
+     * Returned by {@link Retry#indefinitelyWithExpBackoff(long, int, long, Consumer)} (Class)} to
+     * retry indefinitely. Its can retry method always returns true.
+     */
+    public static final class RetryUnconditionally extends RetryAndThrowBase<Exception> {
+        private final Consumer<Throwable> consumer;
+
+        RetryUnconditionally(Consumer<Throwable> consumer, RetryWithBackoff params) {
+            super(Exception.class, params);
+            this.consumer = consumer;
+        }
+
+        @Override
+        boolean canRetry(final Throwable e) {
+            consumer.accept(e);
+            return true;
         }
     }
 }

@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.fault;
 
@@ -47,9 +35,6 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     //The store for reading and writing the host to container mapping.
     private final HostControllerStore hostStore;
 
-    //The name of the cluster which has to be monitored.
-    private final String clusterName;
-
     //The host to containers balancer.
     private final ContainerBalancer segBalancer;
 
@@ -76,20 +61,16 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     /**
      * The leader instance which monitors the data node cluster.
      *
-     * @param clusterName           The unique name for this cluster.
      * @param hostStore             The store for reading and writing the host to container mapping.
      * @param balancer              The host to segment container balancer implementation.
      * @param minRebalanceInterval  The minimum interval between any two rebalance operations in seconds.
      *                              0 indicates there can be no waits between retries.
      */
-    public SegmentMonitorLeader(String clusterName, HostControllerStore hostStore, ContainerBalancer balancer,
-            int minRebalanceInterval) {
-        Preconditions.checkNotNull(clusterName, "clusterName");
+    public SegmentMonitorLeader(HostControllerStore hostStore, ContainerBalancer balancer, int minRebalanceInterval) {
         Preconditions.checkNotNull(hostStore, "hostStore");
         Preconditions.checkNotNull(balancer, "balancer");
         Preconditions.checkArgument(minRebalanceInterval >= 0, "minRebalanceInterval should not be negative");
 
-        this.clusterName = clusterName;
         this.hostStore = hostStore;
         this.segBalancer = balancer;
         this.minRebalanceInterval = Duration.ofSeconds(minRebalanceInterval);
@@ -127,7 +108,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
         hostsChange.release();
 
         //Start cluster monitor.
-        pravegaServiceCluster = new ClusterZKImpl(client, clusterName);
+        pravegaServiceCluster = new ClusterZKImpl(client);
 
         //Add listener to track host changes on the monitored pravega cluster.
         pravegaServiceCluster.addListener((type, host) -> {
@@ -159,12 +140,8 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                 hostsChange.acquire();
                 log.debug("Received rebalance event");
 
-                //Wait here until the rebalance timer is zero so that we honour the minimum rebalance interval.
-                if (timeoutTimer != null && timeoutTimer.getRemaining().getSeconds() > 0) {
-                    log.info("Waiting for {} seconds before attempting to rebalance",
-                            timeoutTimer.getRemaining().getSeconds());
-                    Thread.sleep(timeoutTimer.getRemaining().getSeconds() * 1000);
-                }
+                //Wait here until the rebalance timer is zero so that we honor the minimum rebalance interval.
+                waitForRebalance();
 
                 //Clear all events that has been received until this point.
                 hostsChange.drainPermits();
@@ -185,6 +162,17 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                     throw e;
                 }
             }
+        }
+    }
+
+    /**
+     * Blocks until the rebalance timer is zero so that we honor the minimum rebalance interval.
+     */
+    private void waitForRebalance() throws InterruptedException {
+        if (timeoutTimer != null && timeoutTimer.getRemaining().getSeconds() > 0) {
+            log.info("Waiting for {} seconds before attempting to rebalance",
+                    timeoutTimer.getRemaining().getSeconds());
+            Thread.sleep(timeoutTimer.getRemaining().getSeconds() * 1000);
         }
     }
 

@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.state.impl;
 
@@ -43,7 +31,13 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     private StateT currentState;
     private Segment segment;
     private RevisionImpl initialRevision;
-    
+
+    /**
+     * Creates a new instance of StateSynchronizer class.
+     *
+     * @param segment The segment.
+     * @param client  The revisioned stream client this state synchronizer builds upon."
+     */
     public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT>> client) {
         this.segment = segment;
         this.initialRevision = new RevisionImpl(segment, 0, 0);
@@ -60,7 +54,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         StateT state = getState();
         return state == null ? initialRevision : state.getRevision();
     }
-    
+
     @Override
     public void fetchUpdates() {
         val iter = client.readFrom(getRevision());
@@ -123,7 +117,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             return init == null ? null : new UpdateOrInit<>(init);
         });
     }
-    
+
     private void conditionallyWrite(Function<StateT, UpdateOrInit<StateT>> generator) {
         while (true) {
             StateT state = getState();
@@ -150,17 +144,17 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             }
         }
     }
-     
+
     @Synchronized
     private boolean isNewer(Revision revision) {
         return currentState == null || currentState.getRevision().compareTo(revision) < 0;
     }
-    
+
     @Synchronized
     private void updateCurrentState(StateT newValue) {
         if (newValue != null && isNewer(newValue.getRevision())) {
             currentState = newValue;
         }
     }
-    
+
 }

@@ -14,9 +14,10 @@ import org.apache.thrift.TEnum;
 public enum TxnState implements org.apache.thrift.TEnum {
   UNKNOWN(0),
   OPEN(1),
-  SEALED(2),
+  COMMITTING(2),
   COMMITTED(3),
-  ABORTED(4);
+  ABORTING(4),
+  ABORTED(5);
 
   private final int value;
 
@@ -42,10 +43,12 @@ public enum TxnState implements org.apache.thrift.TEnum {
       case 1:
         return OPEN;
       case 2:
-        return SEALED;
+        return COMMITTING;
       case 3:
         return COMMITTED;
       case 4:
+        return ABORTING;
+      case 5:
         return ABORTED;
       default:
         return null;

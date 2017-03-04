@@ -14,7 +14,9 @@ import org.apache.thrift.TEnum;
 public enum CreateStreamStatus implements org.apache.thrift.TEnum {
   SUCCESS(0),
   FAILURE(1),
-  STREAM_EXISTS(2);
+  STREAM_EXISTS(2),
+  SCOPE_NOT_FOUND(3),
+  INVALID_STREAM_NAME(4);
 
   private final int value;
 
@@ -41,6 +43,10 @@ public enum CreateStreamStatus implements org.apache.thrift.TEnum {
         return FAILURE;
       case 2:
         return STREAM_EXISTS;
+      case 3:
+        return SCOPE_NOT_FOUND;
+      case 4:
+        return INVALID_STREAM_NAME;
       default:
         return null;
     }

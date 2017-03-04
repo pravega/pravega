@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.host.handler;
 
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
@@ -31,6 +18,7 @@ import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -62,12 +50,18 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private Channel serverChannel;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
+    private final SegmentStatsRecorder statsRecorder;
 
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
+        this(ssl, port, streamSegmentStore, null);
+    }
+
+    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore, SegmentStatsRecorder statsRecorder) {
         this.ssl = ssl;
         this.port = port;
         this.store = streamSegmentStore;
-        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
+        this.statsRecorder = statsRecorder;
+        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
     }
 
     public void startListening() {
@@ -115,7 +109,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh)));
+                         new PravegaRequestProcessor(store, lsh, statsRecorder),
+                         statsRecorder));
              }
          });
 

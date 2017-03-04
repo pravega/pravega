@@ -1,16 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.common.netty;
 
@@ -30,6 +21,7 @@ import com.google.common.base.Preconditions;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.CorruptedFrameException;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
@@ -212,7 +204,14 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            in.skipBytes(length);
+            int skipped = 0;
+            while (skipped < length) {
+                int skipBytes = in.skipBytes(length - skipped);
+                if (skipBytes < 0) {
+                    throw new CorruptedFrameException("Not enough bytes in buffer. Was attempting to read: " + length);
+                }
+                skipped += skipBytes;
+            }
             return new Padding(length);
         }
     }
@@ -384,7 +383,6 @@ public final class WireCommands {
         }
     }
     
-
     @Data
     public static final class AppendSetup implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.APPEND_SETUP;
@@ -655,8 +653,14 @@ public final class WireCommands {
 
     @Data
     public static final class CreateSegment implements Request, WireCommand {
+        public static final byte NO_SCALE = (byte) 0;
+        public static final byte IN_KBYTES_PER_SEC = (byte) 1;
+        public static final byte IN_EVENTS_PER_SEC = (byte) 2;
+
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final String segment;
+        final byte scaleType;
+        final int targetRate;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -666,11 +670,16 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segment);
+            out.writeInt(targetRate);
+            out.writeByte(scaleType);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new CreateSegment(segment);
+            int desiredRate = in.readInt();
+            byte scaleType = in.readByte();
+
+            return new CreateSegment(segment, scaleType, desiredRate);
         }
     }
 
@@ -692,6 +701,56 @@ public final class WireCommands {
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new SegmentCreated(segment);
+        }
+    }
+
+    @Data
+    public static final class UpdateSegmentPolicy implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.UPDATE_SEGMENT_POLICY;
+        final String segment;
+        final byte scaleType;
+        final int targetRate;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.updateSegmentPolicy(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+            out.writeInt(targetRate);
+            out.writeByte(scaleType);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            int desiredRate = in.readInt();
+            byte scaleType = in.readByte();
+
+            return new UpdateSegmentPolicy(segment, scaleType, desiredRate);
+        }
+    }
+
+    @Data
+    public static final class SegmentPolicyUpdated implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENT_POLICY_UPDATED;
+        final String segment;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.segmentPolicyUpdated(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            return new SegmentPolicyUpdated(segment);
         }
     }
 
@@ -884,7 +943,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new SegmentSealed(segment);
         }
     }
 
@@ -905,7 +964,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new DeleteSegment(segment);
         }
     }
 
@@ -926,7 +985,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new SegmentDeleted(segment);
         }
     }
     

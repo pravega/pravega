@@ -1,88 +1,62 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
-import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * ZK stream metadata store.
  */
+@Slf4j
 public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
-    private static final long INITIAL_DELAY = 1;
-    private static final long PERIOD = 1;
-    private static final long TIMEOUT = 60 * 60 * 1000;
-    private final ScheduledExecutorService executor;
+    private final ZKStoreHelper storeHelper;
 
     public ZKStreamMetadataStore(ScheduledExecutorService executor) {
-        this.executor = executor;
-        initialize(ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient());
+        this(ZKUtils.getCuratorClient(), executor);
     }
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
-        this.executor = executor;
-        initialize(client);
+        initialize();
+        storeHelper = new ZKStoreHelper(client, executor);
     }
 
-    private void initialize(CuratorFramework client) {
-
-        // Garbage collector for completed transactions
-        ZKStream.initialize(client);
-
-        this.executor.scheduleAtFixedRate(() -> {
-            // find completed transactions to be gc'd
-            try {
-                final long currentTime = System.currentTimeMillis();
-
-                ZKStream.getAllCompletedTx().get().entrySet().stream()
-                        .forEach(x -> {
-                            CompletedTxRecord completedTxRecord = CompletedTxRecord.parse(x.getValue().getData());
-                            if (currentTime - completedTxRecord.getCompleteTime() > TIMEOUT) {
-                                try {
-                                    ZKStream.deletePath(x.getKey(), true);
-                                } catch (Exception e) {
-                                    // TODO: log and ignore
-                                }
-                            }
-                        });
-            } catch (Exception e) {
-                // TODO: log!
-            }
-            // find completed transactions to be gc'd
-        }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
+    private void initialize() {
+        METRICS_PROVIDER.start();
     }
 
     @Override
-    ZKStream newStream(final String name) {
-        return new ZKStream(name);
+    ZKStream newStream(final String scope, final String name) {
+        return new ZKStream(scope, name, storeHelper);
     }
 
     @Override
-    public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
-        return ZKStream.getAllActiveTx();
+    ZKScope newScope(final String scopeName) {
+        return new ZKScope(scopeName, storeHelper);
     }
+
+    @Override
+    public CompletableFuture<List<String>> listScopes() {
+        return storeHelper.listScopes();
+    }
+
+    @Override
+    public CompletableFuture<Void> checkpoint(final String readerGroup, final String readerId, final ByteBuffer checkpointBlob) {
+        return storeHelper.checkPoint(readerGroup, readerId, checkpointBlob.array());
+    }
+
+    @Override
+    public CompletableFuture<ByteBuffer> readCheckpoint(final String readerGroup, final String readerId) {
+        return storeHelper.readCheckPoint(readerGroup, readerId);
+    }
+
 }

@@ -1,29 +1,9 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream.impl.segment;
-
-import static com.emc.pravega.common.Exceptions.handleInterrupted;
-
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
-import javax.annotation.concurrent.GuardedBy;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
@@ -39,21 +19,33 @@ import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+
+import static com.emc.pravega.common.Exceptions.handleInterrupted;
 
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     private final RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 5);
     private final ConnectionFactory connectionFactory;
-    private final String segment;
+
     @GuardedBy("lock")
     private CompletableFuture<ClientConnection> connection = null;
     private final Object lock = new Object();
@@ -110,7 +102,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             this.result = new AtomicReference<>(new CompletableFuture<>());
         }
 
-        private boolean await() {
+        @Override
+        public boolean await(long timeout) {
+            FutureHelpers.await(result.get(), timeout);
+            return result.get().isDone();
+        }
+        
+        public boolean await() {
             return FutureHelpers.await(result.get());
         }
 
@@ -139,13 +137,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
     }
 
-    public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, String segment) {
+    public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment) {
+        super(segment);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(connectionFactory);
         Preconditions.checkNotNull(segment);
         this.controller = controller;
         this.connectionFactory = connectionFactory;
-        this.segment = segment;
     }
 
     @Override
@@ -158,7 +156,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public ReadFuture read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
-        ReadSegment request = new ReadSegment(segment, offset, length);
+        ReadSegment request = new ReadSegment(segmentId.getScopedName(), offset, length);
+        
         ReadFutureImpl read = new ReadFutureImpl(request);
         outstandingRequests.put(read.request.getOffset(), read);
         getConnection().thenApply((ClientConnection c) -> {
@@ -191,7 +190,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 return connection;
             }
         }
-        return controller.getEndpointForSegment(segment).thenCompose((PravegaNodeUri uri) -> {
+        return controller.getEndpointForSegment(segmentId.getScopedName()).thenCompose((PravegaNodeUri uri) -> {
             synchronized (lock) {
                 if (connection == null) {
                     connection = connectionFactory.establishConnection(uri, responseProcessor);
@@ -240,7 +239,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         infoRequests.add(result);
         getConnection().thenApply(c -> {
             try {
-                c.send(new GetStreamSegmentInfo(segment));
+                c.send(new GetStreamSegmentInfo(segmentId.getScopedName()));
             } catch (ConnectionFailedException e) {
                 closeConnection(e);
             }

@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.common.cluster.zkImpl;
 
@@ -21,7 +9,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.ClusterListener;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.util.CollectionHelpers;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -65,13 +52,11 @@ public class ClusterZKImpl implements Cluster {
     private final static int INIT_SIZE = 3;
 
     private final CuratorFramework client;
-    private final String clusterName;
 
     private final Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();
 
-    public ClusterZKImpl(CuratorFramework zkClient, String clusterName) {
-        this.clusterName = clusterName;
+    public ClusterZKImpl(CuratorFramework zkClient) {
         this.client = zkClient;
         if (client.getState().equals(CuratorFrameworkState.LATENT)) {
             client.start();
@@ -89,7 +74,7 @@ public class ClusterZKImpl implements Cluster {
         Preconditions.checkNotNull(host, "host");
         Exceptions.checkArgument(!entryMap.containsKey(host), "host", "host is already registered to cluster.");
 
-        String hostPath = ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS, host.getIpAddr() + ":" + host.getPort());
+        String hostPath = ZKPaths.makePath(PATH_CLUSTER, HOSTS, host.getIpAddr() + ":" + host.getPort());
         PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, hostPath,
                 SerializationUtils.serialize(host));
 
@@ -167,7 +152,7 @@ public class ClusterZKImpl implements Cluster {
     @Override
     public void close() throws Exception {
         synchronized (entryMap) {
-            CollectionHelpers.forEach(entryMap.values(), this::close);
+            entryMap.values().forEach(this::close);
             cache.ifPresent(this::close);
         }
     }
@@ -184,24 +169,24 @@ public class ClusterZKImpl implements Cluster {
     }
 
     private void initializeCache() throws Exception {
-        cache = Optional.of(new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS), true));
+        cache = Optional.of(new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, HOSTS), true));
         cache.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
     }
 
     private PathChildrenCacheListener pathChildrenCacheListener(final ClusterListener listener) {
         return (client, event) -> {
-            log.debug("Event {} generated on cluster:{}", event, clusterName);
+            log.debug("Event {} generated on cluster", event);
             switch (event.getType()) {
                 case CHILD_ADDED:
-                    log.info("Node {} added to cluster:{}", getServerName(event), clusterName);
+                    log.info("Node {} added to cluster", getServerName(event));
                     listener.onEvent(HOST_ADDED, (Host) SerializationUtils.deserialize(event.getData().getData()));
                     break;
                 case CHILD_REMOVED:
-                    log.info("Node {} removed from cluster:{}", getServerName(event), clusterName);
+                    log.info("Node {} removed from cluster", getServerName(event));
                     listener.onEvent(HOST_REMOVED, (Host) SerializationUtils.deserialize(event.getData().getData()));
                     break;
                 case CHILD_UPDATED:
-                    log.warn("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
+                    log.warn("Invalid usage: Node {} updated externally for cluster", getServerName(event));
                     break;
                 case CONNECTION_LOST:
                     log.error("Connection lost with Zookeeper");

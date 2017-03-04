@@ -1,22 +1,14 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.Timer;
+import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
-import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -28,51 +20,57 @@ import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
+import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.google.common.collect.LinkedListMultimap;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 
-import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
+import javax.annotation.concurrent.GuardedBy;
+
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
+
+import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_BYTES;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_LATENCY;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
 
 /**
- * Process incomming Append requests and write them to the appropriate store.
+ * Process incoming Append requests and write them to the appropriate store.
  */
 @Slf4j
 public class AppendProcessor extends DelegatingRequestProcessor {
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    static final int HIGH_WATER_MARK = 128 * 1024;
-    static final int LOW_WATER_MARK = 64 * 1024;
+    private static final int HIGH_WATER_MARK = 128 * 1024;
+    private static final int LOW_WATER_MARK = 64 * 1024;
 
-    static AtomicLong pendBytes = new AtomicLong();
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
-    static {
-        STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes::get);
-    }
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     private final RequestProcessor next;
     private final Object lock = new Object();
+    private final SegmentStatsRecorder statsRecorder;
 
     @GuardedBy("lock")
     private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
@@ -82,9 +80,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private Append outstandingAppend = null;
 
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
+        this(store, connection, next, null);
+    }
+
+    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder) {
         this.store = store;
         this.connection = connection;
         this.next = next;
+        this.statsRecorder = statsRecorder;
     }
 
     /**
@@ -97,34 +100,27 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     public void setupAppend(SetupAppend setupAppend) {
         String newSegment = setupAppend.getSegment();
         UUID newConnection = setupAppend.getConnectionId();
-        CompletableFuture<AppendContext> future = store.getLastAppendContext(newSegment, newConnection, TIMEOUT);
-        future.handle(new BiFunction<AppendContext, Throwable, Void>() {
-            @Override
-            public Void apply(AppendContext info, Throwable u) {
-                try {
-                    if (u != null) {
-                        handleException(newSegment, u);
-                        return null;
-                    }
-                    long eventNumber;
-                    if (info == null) {
-                        eventNumber = 0;
-                    } else {
-                        if (!info.getClientId().equals(newConnection)) {
-                            throw new IllegalStateException("Wrong connection Info returned");
+        store.getStreamSegmentInfo(newSegment, true, TIMEOUT)
+                .whenComplete((info, u) -> {
+                    try {
+                        if (u != null) {
+                            handleException(newSegment, u);
+                        } else {
+                            long eventNumber = info.getAttributes().getOrDefault(newConnection, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                            if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                                // First append to this segment.
+                                eventNumber = 0;
+                            }
+
+                            synchronized (lock) {
+                                latestEventNumbers.putIfAbsent(newConnection, eventNumber);
+                            }
+                            connection.send(new AppendSetup(newSegment, newConnection, eventNumber));
                         }
-                        eventNumber = info.getEventNumber();
+                    } catch (Throwable e) {
+                        handleException(newSegment, e);
                     }
-                    synchronized (lock) {
-                        latestEventNumbers.putIfAbsent(newConnection, eventNumber);
-                    }
-                    connection.send(new AppendSetup(newSegment, newConnection, eventNumber));
-                } catch (Throwable e) {
-                    handleException(newSegment, e);
-                }
-                return null;
-            }
-        });
+                });
     }
 
     /**
@@ -134,19 +130,23 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     public void performNextWrite() {
         Append append;
+        long numOfEvents = 1;
+
         synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
                 return;
             }
+
             UUID writer = waitingAppends.keys().iterator().next();
             List<Append> appends = waitingAppends.get(writer);
             if (appends.get(0).isConditional()) {
                 append = appends.remove(0);
             } else {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
-                Append last = null;
+                Append first = appends.get(0);
+                Append last = first;
                 int i = -1;
-                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext();) {
+                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
                     Append a = iterator.next();
                     if (a.isConditional()) {
                         break;
@@ -155,77 +155,96 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     toAppend[i] = a.getData();
                     last = a;
                     iterator.remove();
-                }                
+                }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
-                append = new Append(last.getSegment(), writer, last.getEventNumber(), data, null);
+                if (last != null) {
+                    numOfEvents = last.getEventNumber() - first.getEventNumber() + 1;
+                }
+
+                String segment = last != null ? last.getSegment() : first.getSegment();
+                long eventNumber = last != null ? last.getEventNumber() : first.getEventNumber();
+                append = new Append(segment, writer, eventNumber, data, null);
             }
             outstandingAppend = append;
         }
-        write(append);
+        write(append, numOfEvents);
     }
 
     /**
      * Write the provided append to the store, and upon completion ack it back to the producer.
      */
-    private void write(Append toWrite) {
-        ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
+    private void write(final Append toWrite, long numOfEvents) {
+        Timer timer = new Timer();
+        ByteBuf buf = toWrite.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
-        AppendContext context = new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber());
+
+        val attributes = Arrays.asList(new AttributeUpdate(
+                        toWrite.getConnectionId(),
+                        AttributeUpdateType.ReplaceIfGreater,
+                        toWrite.getEventNumber()),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, numOfEvents));
+
         CompletableFuture<Void> future;
         String segment = toWrite.getSegment();
         if (toWrite.isConditional()) {
-            future = store.append(segment, toWrite.getExpectedLength(), bytes, context, TIMEOUT);
+            future = store.append(segment, toWrite.getExpectedLength(), bytes, attributes, TIMEOUT);
         } else {
-            future = store.append(segment, bytes, context, TIMEOUT);
+            future = store.append(segment, bytes, attributes, TIMEOUT);
         }
-        future.handle(new BiFunction<Void, Throwable, Void>() {
-            @Override
-            public Void apply(Void t, Throwable u) {
-                try {
-                    boolean conditionalFailed = u != null
-                            && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
-                    synchronized (lock) {
-                        if (outstandingAppend != toWrite) {
-                            throw new IllegalStateException(
-                                    "Synchronization error in: " + AppendProcessor.this.getClass().getName());
-                        }
-                        toWrite.getData().release();
-                        outstandingAppend = null;
-                        if (u != null && !conditionalFailed) {
-                            waitingAppends.removeAll(context.getClientId());
-                            latestEventNumbers.remove(context.getClientId());
-                        }
+        future.whenComplete((t, u) -> {
+            try {
+                boolean conditionalFailed = u != null && (ExceptionHelpers.getRealException(u) instanceof BadOffsetException);
+                synchronized (lock) {
+                    if (outstandingAppend != toWrite) {
+                        throw new IllegalStateException(
+                                "Synchronization error in: " + AppendProcessor.this.getClass().getName());
                     }
-                    if (u != null) {
-                        if (conditionalFailed) {
-                            connection.send(new ConditionalCheckFailed(context.getClientId(), context.getEventNumber()));
-                        } else {
-                            handleException(segment, u);
-                        }
-                    } else {
-                        connection.send(new DataAppended(context.getClientId(),  context.getEventNumber()));
+
+                    toWrite.getData().release();
+                    outstandingAppend = null;
+                    if (u != null && !conditionalFailed) {
+                        waitingAppends.removeAll(toWrite.getConnectionId());
+                        latestEventNumbers.remove(toWrite.getConnectionId());
                     }
-                    pauseOrResumeReading();
-                    performNextWrite();
-                } catch (Throwable e) {
-                    handleException(segment, e);
                 }
-                return null;
+
+                if (u != null) {
+                    if (conditionalFailed) {
+                        connection.send(new ConditionalCheckFailed(toWrite.getConnectionId(), toWrite.getEventNumber()));
+                    } else {
+                        handleException(segment, u);
+                    }
+                } else {
+                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
+                    DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_WRITE_LATENCY, toWrite.getSegment()), timer.getElapsedMillis());
+                    connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
+
+                    if (statsRecorder != null) {
+                        statsRecorder.record(segment, bytes.length, (int) numOfEvents);
+                    }
+                }
+
+                pauseOrResumeReading();
+                performNextWrite();
+            } catch (Throwable e) {
+                handleException(segment, e);
             }
         });
     }
 
-    // TODO: Duplicated in LogServiceRequestProcessor.
     private void handleException(String segment, Throwable u) {
         if (u == null) {
-            IllegalStateException exception = new IllegalStateException("Neither offset nor exception!?");
-            log.error("Error on segment: " + segment, exception);
+            IllegalStateException exception = new IllegalStateException("No exception to handle.");
+            log.error("Error (Segment = '{}', Operation = 'append')", segment, exception);
             throw exception;
         }
+
         if (u instanceof CompletionException) {
             u = u.getCause();
         }
+
+        log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
         if (u instanceof StreamSegmentExistsException) {
             connection.send(new SegmentAlreadyExists(segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
@@ -238,7 +257,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown exception on append for segment " + segment, u);
         }
     }
 
@@ -250,12 +268,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         int bytesWaiting;
         synchronized (lock) {
             bytesWaiting = waitingAppends.values()
-                .stream()
-                .mapToInt(a -> a.getData().readableBytes())
-                .sum();
+                    .stream()
+                    .mapToInt(a -> a.getData().readableBytes())
+                    .sum();
         }
-        // Registered gauge value
-        pendBytes.set(bytesWaiting);
 
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();

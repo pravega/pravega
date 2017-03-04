@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.store.stream.tables;
 
@@ -107,11 +95,14 @@ public class TableHelper {
      * @return
      */
     public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable) {
-        final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
-        final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
+        Optional<HistoryRecord> record = HistoryRecord.readRecord(historyTable, 0);
+        if (record.isPresent() && timestamp > record.get().getEventTime()) {
+            final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
+            final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
-        final Optional<HistoryRecord> record = findRecordInHistoryTable(startingOffset, timestamp, historyTable);
-        return record.isPresent() ? record.get().getSegments() : new ArrayList<>();
+            record = findRecordInHistoryTable(startingOffset, timestamp, historyTable);
+        }
+        return record.map(HistoryRecord::getSegments).orElse(new ArrayList<>());
     }
 
     /**

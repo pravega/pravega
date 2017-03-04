@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.Exceptions;
@@ -26,20 +13,12 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.SerializationUtils;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.recipes.cache.NodeCache;
-import org.apache.curator.framework.recipes.cache.NodeCacheListener;
-import org.apache.curator.utils.ZKPaths;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,6 +33,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+
+import javax.annotation.concurrent.GuardedBy;
+
+import org.apache.commons.lang.SerializationUtils;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.cache.NodeCache;
+import org.apache.curator.framework.recipes.cache.NodeCacheListener;
+import org.apache.curator.utils.ZKPaths;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * ZK based implementation for SegmentContainerManager. The controller updates the segmentContainer ownership in zk.
@@ -89,28 +78,26 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      *                                 cluster (i.e., number of containers).
      * @param zkClient                 ZooKeeper client.
      * @param pravegaServiceEndpoint   Pravega service endpoint details.
-     * @param clusterName              Cluster Name.
      * @throws NullPointerException If containerRegistry is null.
      * @throws NullPointerException If segmentToContainerMapper is null.
      * @throws NullPointerException If logger is null.
      */
     public ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry,
                                      SegmentToContainerMapper segmentToContainerMapper,
-                                     CuratorFramework zkClient, Host pravegaServiceEndpoint, String clusterName) {
+                                     CuratorFramework zkClient, Host pravegaServiceEndpoint) {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
         Preconditions.checkNotNull(zkClient, "zkClient");
         Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
-        Exceptions.checkNotNullOrEmpty(clusterName, "clusterName");
 
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
         this.handles = new HashMap<>();
 
         this.client = zkClient;
-        this.clusterPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
+        this.clusterPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         this.segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
-        this.cluster = new ClusterZKImpl(zkClient, clusterName);
+        this.cluster = new ClusterZKImpl(zkClient);
 
         this.host = pravegaServiceEndpoint;
     }
@@ -197,7 +184,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
             segContainerHostMapping.start(); //NodeCache recipe is used listen to events on the mapping data.
             segContainerHostMapping.getListenable().addListener(getSegmentContainerListener(timeout, host));
         } catch (Exception e) {
-            throw new RuntimeStreamingException(
+            throw new RuntimeException(
                     "Unable to start zk based cache which has the segContainer to Host mapping", e);
         }
     }

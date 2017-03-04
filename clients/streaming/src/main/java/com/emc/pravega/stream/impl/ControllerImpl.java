@@ -1,26 +1,16 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
@@ -28,6 +18,7 @@ import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
+import com.emc.pravega.stream.PingFailedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -61,6 +52,12 @@ public class ControllerImpl implements Controller {
 
     private final ControllerService.AsyncClient client;
 
+    /**
+     * Creates a new instance of Controller class.
+     *
+     * @param host The controller host name.
+     * @param port The controller port number.
+     */
     public ControllerImpl(final String host, final int port) {
         try {
             // initialize transport, protocol factory, and async client manager
@@ -74,6 +71,19 @@ public class ControllerImpl implements Controller {
             log.error("Exception" + ioe.getMessage());
             throw new RuntimeException(ioe);
         }
+    }
+
+    @Override
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+        log.trace("Invoke AdminService.Client.createScope() with name: {}", scopeName);
+
+        final ThriftAsyncCallback<ControllerService.AsyncClient.createScope_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.createScope(scopeName, callback);
+            return null;
+        });
+        return callback.getResult()
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
     }
 
     @Override
@@ -212,16 +222,45 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout) {
+    public CompletableFuture<Boolean> isSegmentOpen(final Segment segment) {
+        log.trace("Invoke ProducerService.Client.isSegmentOpen() for segment: {}", segment);
+        final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()),
+                          callback);
+            return callback.getResult();
+        });
+        return callback.getResult().thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+    }
+
+    @Override
+    public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+                                                     final long scaleGracePeriod) {
         log.trace("Invoke AdminService.Client.createTransaction() with stream: {}", stream);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.createTransaction_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.createTransaction(stream.getScope(), stream.getStreamName(), callback);
+            client.createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime,
+                    scaleGracePeriod, callback);
             return null;
         });
         return callback.getResult()
                 .thenApply(result -> ThriftHelper.thriftCall(result::getResult)).thenApply(ModelHelper::encode);
+    }
+
+    @Override
+    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+        log.trace("Invoke AdminService.Client.pingTransaction() with stream: {}, txId: {}", stream, txId);
+
+        final ThriftAsyncCallback<ControllerService.AsyncClient.pingTransaction_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease, callback);
+            return null;
+        });
+        return FutureHelpers.toVoidExpecting(callback.getResult()
+                        .thenApply(result -> ThriftHelper.thriftCall(result::getResult)),
+                PingStatus.OK,
+                PingFailedException::new);
     }
 
     @Override

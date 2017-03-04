@@ -1,23 +1,12 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream.mock;
 
 import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
@@ -29,10 +18,13 @@ import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
+@RequiredArgsConstructor
 public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream {
 
+    private final Segment segment;
     @GuardedBy("$lock")
     private int readIndex; 
     @GuardedBy("$lock")
@@ -71,9 +63,15 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return writeOffset;
     }
 
+    
+    @Override
+    public ByteBuffer read() throws EndOfSegmentException {
+        return read(Long.MAX_VALUE);
+    }
+    
     @Override
     @Synchronized
-    public ByteBuffer read() throws EndOfSegmentException {
+    public ByteBuffer read(long timeout) throws EndOfSegmentException {
         if (readIndex >= eventsWritten) {
             throw new EndOfSegmentException();
         }
@@ -116,6 +114,16 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     public boolean canReadWithoutBlocking() {
         return true;
+    }
+
+    @Override
+    public Segment getSegmentId() {
+        return segment;
+    }
+
+    @Override
+    public void fillBuffer() {
+        //Noting to do.
     }
 
 }

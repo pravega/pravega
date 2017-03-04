@@ -1,36 +1,21 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.server.rpc.v1;
-
 
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.stream.impl.ModelHelper;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.thrift.TException;
+import org.apache.thrift.async.AsyncMethodCallback;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-
-import org.apache.thrift.TException;
-import org.apache.thrift.async.AsyncMethodCallback;
-
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Asynchronous controller service implementation.
@@ -78,7 +63,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
         log.debug("getPositions called for stream " + scope + "/" + stream);
         processResult(controllerService.getPositions(scope, stream, timestamp, count), resultHandler);
     }
-    
+
     @Override
     public void getSegmentsImmediatlyFollowing(SegmentId segment, AsyncMethodCallback resultHandler) throws TException {
         log.debug("getSegmentsImmediatlyFollowing called for segment " + segment);
@@ -114,9 +99,13 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     @Override
     public void createTransaction(final String scope,
                                   final String stream,
+                                  final long lease,
+                                  final long maxExecutionTime,
+                                  final long scaleGracePeriod,
                                   final AsyncMethodCallback resultHandler) throws TException {
         log.debug("createTransaction called for stream " + scope + "/" + stream);
-        processResult(controllerService.createTransaction(scope, stream), resultHandler);
+        processResult(controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod),
+                resultHandler);
     }
 
     @Override
@@ -130,11 +119,17 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
 
     @Override
     public void abortTransaction(final String scope,
-                                final String stream,
-                                final TxnId txid,
-                                final AsyncMethodCallback resultHandler) throws TException {
+                                 final String stream,
+                                 final TxnId txid,
+                                 final AsyncMethodCallback resultHandler) throws TException {
         log.debug("abortTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.abortTransaction(scope, stream, txid), resultHandler);
+    }
+
+    @Override
+    public void pingTransaction(String scope, String stream, TxnId txid, long lease, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("pingTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
+        processResult(controllerService.pingTransaction(scope, stream, txid, lease), resultHandler);
     }
 
     @Override
@@ -146,13 +141,43 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
         processResult(controllerService.checkTransactionStatus(scope, stream, txid), resultHandler);
     }
 
+    /**
+     * Controller Service Async API to create scope.
+     *
+     * @param scope         Name of scope to be created.
+     * @param resultHandler callback result handler
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public void createScope(final String scope, final AsyncMethodCallback resultHandler) throws TException {
+        log.debug("createScope called for scope {}", scope);
+        processResult(controllerService.createScope(scope), resultHandler);
+    }
+
+    /**
+     * Controller Service Async API to delete scope.
+     *
+     * @param scope         Name of scope to be deleted.
+     * @param resultHandler callback result handler
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public void deleteScope(final String scope, final AsyncMethodCallback resultHandler) throws TException {
+        log.debug("deleteScope called for scope {}", scope);
+        processResult(controllerService.deleteScope(scope), resultHandler);
+    }
+
     private static <T> void processResult(final CompletableFuture<T> result, final AsyncMethodCallback resultHandler) {
         result.whenComplete(
                 (value, ex) -> {
                     log.debug("result = " + (value == null ? "null" : value.toString()));
 
                     if (ex != null) {
-                        resultHandler.onError(new RuntimeException(ex));
+                        // OnError from Thrift callback has a bug. So we are completing with null
+                        // so that client gets an exception. Ideally we want to let the client know
+                        // of the exact error but at least with this we wont have client stuck waiting for
+                        // a response from server.
+                        resultHandler.onComplete(null);
                     } else if (value != null) {
                         resultHandler.onComplete(value);
                     }

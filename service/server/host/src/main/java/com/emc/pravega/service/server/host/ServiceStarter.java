@@ -1,32 +1,18 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.host;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
@@ -36,13 +22,13 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+import java.net.URI;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.slf4j.LoggerFactory;
 
 /**
  * Starts the Pravega Service.
@@ -56,6 +42,7 @@ public final class ServiceStarter {
     private final ServiceBuilder serviceBuilder;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
+    private SegmentStatsFactory segmentStatsFactory;
     private boolean closed;
 
     //endregion
@@ -101,13 +88,9 @@ public final class ServiceStarter {
     public void start() {
         Exceptions.checkNotClosed(this.closed, this);
 
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        MetricsConfig metricsConfig = this.builderConfig.getConfig(MetricsConfig::new);
-        context.getLoggerList().get(0).setLevel(Level.INFO);
-
         log.info("Initializing metrics provider ...");
         statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start(metricsConfig);
+        statsProvider.start();
 
         log.info("Initializing Service Builder ...");
         this.serviceBuilder.initialize().join();
@@ -115,7 +98,14 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service);
+        segmentStatsFactory = new SegmentStatsFactory();
+        SegmentStatsRecorder statsRecorder = segmentStatsFactory
+                .createSegmentStatsRecorder(service,
+                this.serviceConfig.getInternalScope(),
+                this.serviceConfig.getInternalRequestStream(),
+                URI.create(this.serviceConfig.getControllerUri()));
+
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service, statsRecorder);
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");
@@ -135,6 +125,10 @@ public final class ServiceStarter {
                 statsProvider.close();
                 statsProvider = null;
                 log.info("Metrics statsProvider is now closed.");
+            }
+
+            if (this.segmentStatsFactory != null) {
+                segmentStatsFactory.close();
             }
 
             this.closed = true;
@@ -178,14 +172,13 @@ public final class ServiceStarter {
             return new ZKSegmentContainerManager(setup.getContainerRegistry(),
                     setup.getSegmentToContainerMapper(),
                     zkClient,
-                    new Host(this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort()),
-                    this.serviceConfig.getClusterName());
+                    new Host(this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort()));
         });
     }
 
     private CuratorFramework createZKClient() {
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
-                .connectString(this.serviceConfig.getZkHostName() + ":" + this.serviceConfig.getZkPort())
+                .connectString(this.serviceConfig.getZkURL())
                 .namespace("pravega/" + this.serviceConfig.getClusterName())
                 .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
                 .build();

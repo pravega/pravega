@@ -1,27 +1,18 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
+import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
@@ -34,16 +25,21 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
+import com.google.common.base.Preconditions;
+import lombok.Getter;
+import org.apache.thrift.TException;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
-
-import lombok.Getter;
-import org.apache.thrift.TException;
 
 /**
  * Stream controller RPC server implementation.
@@ -55,52 +51,67 @@ public class ControllerService {
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private final TimeoutService timeoutService;
+    private final Executor executor;
+    private final SegmentHelper segmentHelper;
 
     public ControllerService(final StreamMetadataStore streamStore,
                              final HostControllerStore hostStore,
                              final StreamMetadataTasks streamMetadataTasks,
-                             final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+                             final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                             final TimeoutService timeoutService,
+                             final SegmentHelper segmentHelper,
+                             final Executor executor) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
+        this.timeoutService = timeoutService;
+        this.executor = executor;
+        this.segmentHelper = segmentHelper;
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
-        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp);
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, createTimestamp);
     }
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
-        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
+        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, null);
+    }
+
+    public CompletableFuture<StreamConfiguration> getStream(final String scopeName, final String streamName) {
+        return streamStore.getConfiguration(scopeName, streamName, null, executor);
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
-        return streamMetadataTasks.sealStream(scope, stream);
+        return streamMetadataTasks.sealStream(scope, stream, null);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
         // fetch active segments from segment store
-        return streamStore.getActiveSegments(stream)
-                .thenApply(activeSegments -> activeSegments
-                                .stream()
-                                .map(segment -> convert(scope, stream, segment))
-                                .collect(Collectors.toList())
-                );
+        return streamStore.getActiveSegments(scope, stream, null, executor)
+                .thenApplyAsync(activeSegments -> {
+                    List<SegmentRange> listOfSegment = activeSegments
+                            .stream()
+                            .map(segment -> convert(scope, stream, segment))
+                            .collect(Collectors.toList());
+                    listOfSegment.sort(Comparator.comparingDouble(SegmentRange::getMinKey));
+                    return listOfSegment;
+                }, executor);
     }
 
     public CompletableFuture<List<Position>> getPositions(final String scope, final String stream, final long timestamp, final int count) {
         // first fetch segments active at specified timestamp from the specified stream
         // divide current segments in segmentFutures into at most count positions
-        return streamStore.getActiveSegments(stream, timestamp)
-                .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
-    }    
+        return streamStore.getActiveSegments(scope, stream, timestamp, null, executor)
+                .thenApplyAsync(segmentFutures -> shard(scope, stream, segmentFutures, count), executor);
+    }
 
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
-        return streamStore.getSuccessors(segment.getStreamName(), segment.getNumber()).thenApply(successors -> {
-            return successors.entrySet().stream().collect(
-                   Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()), 
-                                    entry -> entry.getValue()));
-        });
+        return streamStore.getSuccessors(segment.getScope(), segment.getStreamName(), segment.getNumber(), null, executor)
+                .thenApplyAsync(successors -> successors.entrySet().stream().collect(
+                        Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
+                                Map.Entry::getValue)), executor);
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
@@ -108,12 +119,12 @@ public class ControllerService {
                                                   final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final long scaleTimestamp) {
-        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp);
+        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp, null);
     }
 
     public CompletableFuture<NodeUri> getURI(final SegmentId segment) throws TException {
         return CompletableFuture.completedFuture(
-                SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
+                segmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
         );
     }
 
@@ -127,8 +138,8 @@ public class ControllerService {
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
                                                      final String stream,
                                                      final int segmentNumber) throws TException {
-        return streamStore.getActiveSegments(stream)
-                .thenApply(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber));
+        return streamStore.getActiveSegments(scope, stream, null, executor)
+                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber), executor);
     }
 
     /**
@@ -165,7 +176,7 @@ public class ControllerService {
 
             // Compute the current and future segments set for position i
             Map<SegmentId, Long> currentSegments = new HashMap<>();
-            current.stream().forEach(
+            current.forEach(
                     x -> {
                         // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
                         // put it in the currentSegments
@@ -179,40 +190,154 @@ public class ControllerService {
         return positions;
     }
 
-    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
-        return streamTransactionMetadataTasks.createTx(scope, stream).thenApply(ModelHelper::decode);
+    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream, final long lease,
+                                                      final long maxExecutionTime, final long scaleGracePeriod) {
+        // If scaleGracePeriod is larger than maxScaleGracePeriod return error
+        if (scaleGracePeriod > timeoutService.getMaxScaleGracePeriod()) {
+            return FutureHelpers.failedFuture(new IllegalArgumentException("scaleGracePeriod too large"));
+        }
+
+        // If lease value is too large return error
+        if (lease > scaleGracePeriod || lease > maxExecutionTime || lease > timeoutService.getMaxLeaseValue()) {
+            return FutureHelpers.failedFuture(new IllegalArgumentException("lease value too large"));
+        }
+
+        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionTime, scaleGracePeriod, null)
+                .thenApply(data -> {
+                    timeoutService.addTxn(scope, stream, data.getId(), data.getVersion(), lease,
+                            data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
+                    return data.getId();
+                })
+                .thenApply(ModelHelper::decode);
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
             txnId) {
-        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId))
+        UUID txId = ModelHelper.encode(txnId);
+        return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TxnStatus.FAILURE;
                     } else {
+                        timeoutService.removeTxn(scope, stream, txId);
                         return TxnStatus.SUCCESS;
                     }
                 });
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
-        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId))
+        UUID txId = ModelHelper.encode(txnId);
+        return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, Optional.<Integer>empty(), null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TxnStatus.FAILURE;
                     } else {
+                        timeoutService.removeTxn(scope, stream, txId);
                         return TxnStatus.SUCCESS;
                     }
                 });
     }
 
+    public CompletableFuture<PingStatus> pingTransaction(final String scope, final String stream, final TxnId txnId,
+                                                         final long lease) {
+        UUID txId = ModelHelper.encode(txnId);
+
+        if (!timeoutService.isRunning()) {
+            return CompletableFuture.completedFuture(PingStatus.DISCONNECTED);
+        }
+
+        if (timeoutService.containsTxn(scope, stream, txId)) {
+            // If timeout service knows about this transaction, try to increase its lease.
+            PingStatus status = timeoutService.pingTxn(scope, stream, txId, lease);
+
+            return CompletableFuture.completedFuture(status);
+        } else {
+            // Otherwise, first check whether lease value is within necessary bounds, and then
+            // start owning the transaction timeout management by updating the txn node data in the store,
+            // thus updating its version.
+            // Pass this transaction metadata along with its version to timeout service, and ask timeout service to
+            // start managing timeout for this transaction.
+            return streamStore.getTransactionData(scope, stream, txId, null, executor)
+                    .thenApply(txnData -> {
+                        // sanity check for lease value
+                        if (lease > txnData.getScaleGracePeriod() || lease > timeoutService.getMaxLeaseValue()) {
+                            return PingStatus.LEASE_TOO_LARGE;
+                        } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
+                            return PingStatus.MAX_EXECUTION_TIME_EXCEEDED;
+                        } else {
+                            return PingStatus.OK;
+                        }
+                    })
+                    .thenCompose(status -> {
+                        if (status == PingStatus.OK) {
+                            // If lease value if within necessary bounds, update the transaction node data, thus
+                            // updating its version.
+                            return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, null)
+                                    .thenApply(data -> {
+                                        // Let timeout service start managing timeout for the transaction.
+                                        timeoutService.addTxn(scope, stream, txId, data.getVersion(), lease,
+                                                data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
+
+                                        return PingStatus.OK;
+                                    });
+                        } else {
+                            return CompletableFuture.completedFuture(status);
+                        }
+                    });
+        }
+    }
 
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId
             txnId) {
-        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId))
-                .thenApply(ModelHelper::decode);
+        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId), null, executor)
+                .thenApplyAsync(ModelHelper::decode, executor);
     }
 
+    public CompletionStage<StreamConfiguration> getStreamConfiguration(final String scope, final String stream) {
+        return streamStore.getConfiguration(scope, stream, null, executor);
+    }
+
+    /**
+     * Controller Service API to create scope.
+     *
+     * @param scope Name of scope to be created.
+     * @return Status of create scope.
+     */
+    public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
+        Preconditions.checkNotNull(scope);
+        return streamStore.createScope(scope);
+    }
+
+    /**
+     * Controller Service API to delete scope.
+     *
+     * @param scope Name of scope to be deleted.
+     * @return Status of delete scope.
+     */
+    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
+        Preconditions.checkNotNull(scope);
+        return streamStore.deleteScope(scope);
+    }
+
+    /**
+     * List existing streams in scopes.
+     *
+     * @param scopeName Name of the scope.
+     * @return List of streams in scope.
+     */
+    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
+        Preconditions.checkNotNull(scopeName);
+        return streamStore.listStreamsInScope(scopeName);
+    }
+
+    /**
+     * List Scopes in cluster.
+     *
+     * @return List of scopes.
+     */
+    public CompletableFuture<List<String>> listScopes() {
+        return streamStore.listScopes();
+    }
 }

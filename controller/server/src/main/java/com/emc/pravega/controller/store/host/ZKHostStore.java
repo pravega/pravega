@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.store.host;
 
@@ -29,6 +17,7 @@ import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -55,14 +44,12 @@ public class ZKHostStore implements HostControllerStore {
      * Zookeeper based host store implementation.
      *
      * @param client                    The curator client instance.
-     * @param clusterName               The name of the cluster.
      */
-    public ZKHostStore(CuratorFramework client, String clusterName) {
+    public ZKHostStore(CuratorFramework client) {
         Preconditions.checkNotNull(client, "client");
-        Preconditions.checkNotNull(clusterName, "clusterName");
 
         zkClient = client;
-        zkPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
+        zkPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         segmentMapper = new SegmentToContainerMapper(Config.HOST_STORE_CONTAINER_COUNT);
     }
 
@@ -95,9 +82,14 @@ public class ZKHostStore implements HostControllerStore {
     public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
         Preconditions.checkNotNull(newMapping, "newMapping");
         tryInit();
-
+        byte[] serializedMap;
+        if (newMapping instanceof Serializable) {
+            serializedMap = SerializationUtils.serialize((Serializable) newMapping);
+        } else {
+            serializedMap = SerializationUtils.serialize(new HashMap<>(newMapping));
+        }
         try {
-            zkClient.setData().forPath(zkPath, SerializationUtils.serialize((HashMap) newMapping));
+            zkClient.setData().forPath(zkPath, serializedMap);
             log.info("Successfully updated segment container map");
         } catch (Exception e) {
             throw new HostStoreException("Failed to persist segment container map to zookeeper", e);

@@ -1,27 +1,14 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
+import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
@@ -31,12 +18,13 @@ import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.controller.stream.api.v1.TxnState;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.impl.ModelHelper;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
@@ -47,12 +35,11 @@ import org.apache.thrift.TException;
 public class ControllerServiceSyncImpl implements com.emc.pravega.controller.stream.api.v1.ControllerService.Iface {
 
     private final ControllerService controllerService;
+    private final Executor executor;
 
-    public ControllerServiceSyncImpl(final StreamMetadataStore streamStore,
-                                     final HostControllerStore hostStore,
-                                     final StreamMetadataTasks streamMetadataTasks,
-                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+    public ControllerServiceSyncImpl(final ControllerService controllerService, final Executor executor) {
+        this.controllerService = controllerService;
+        this.executor = executor;
     }
 
     /**
@@ -107,8 +94,10 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
-    public TxnId createTransaction(final String scope, final String stream) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.createTransaction(scope, stream), RuntimeException::new);
+    public TxnId createTransaction(final String scope, final String stream, final long lease,
+                                   final long maxExecutionTime, final long scaleGracePeriod) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.createTransaction(scope, stream, lease,
+                maxExecutionTime, scaleGracePeriod), RuntimeException::new);
     }
 
     @Override
@@ -123,9 +112,38 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
+    public PingStatus pingTransaction(String scope, String stream, TxnId txnid, long lease) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.pingTransaction(scope, stream, txnid, lease),
+                RuntimeException::new);
+    }
+
+    @Override
     public TxnState checkTransactionStatus(final String scope, final String stream, final TxnId txnid) throws
             TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txnid), RuntimeException::new);
     }
 
+    /**
+     * Controller Service Sync API to create scope.
+     *
+     * @param scope Name of scope to be created.
+     * @return Status of create scope.
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public CreateScopeStatus createScope(String scope) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.createScope(scope), RuntimeException::new);
+    }
+
+    /**
+     * Controller Service Async API to delete scope.
+     *
+     * @param scope Name of scope to be deleted.
+     * @return Status of delete scope.
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public DeleteScopeStatus deleteScope(String scope) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.deleteScope(scope), RuntimeException::new);
+    }
 }
