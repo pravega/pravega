@@ -1,3 +1,8 @@
+/**
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ */
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
@@ -18,14 +23,14 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Controller stream metadata tests
+ * Controller stream metadata tests.
  */
 public class ControllerStreamMetadataTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream";
 
     @Test(timeout = 20000)
-    public void bootstrapTest() throws Exception {
+    public void streamMetadataTest() throws Exception {
         final int controllerPort = TestUtils.randomPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.randomPort();
@@ -79,7 +84,7 @@ public class ControllerStreamMetadataTest {
         deleteScopeStatus = controller.deleteScope(SCOPE).join();
         Assert.assertEquals(DeleteScopeStatus.SCOPE_NOT_EMPTY, deleteScopeStatus);
 
-        // Delete a non-existent scope. This operation sholud
+        // Delete a non-existent scope. This operation should fail.
         deleteScopeStatus = controller.deleteScope("non_existent_scope").join();
         Assert.assertEquals(DeleteScopeStatus.SCOPE_NOT_FOUND, deleteScopeStatus);
 
