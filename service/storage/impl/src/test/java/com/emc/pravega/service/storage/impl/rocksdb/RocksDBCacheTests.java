@@ -24,14 +24,14 @@ public class RocksDBCacheTests extends CacheTestBase {
     private final AtomicReference<RocksDBCacheFactory> factory = new AtomicReference<>();
 
     @Before
-    public void before() {
+    public void setUp() {
         this.tempDir.set(Files.createTempDir());
         this.config.set(new TestConfig().withDatabaseDir(tempDir.get().getAbsolutePath()));
         this.factory.set(new RocksDBCacheFactory(this.config.get()));
     }
 
     @After
-    public void after() {
+    public void tearDown() {
         this.factory.getAndSet(null).close();
         this.tempDir.getAndSet(null).delete();
     }

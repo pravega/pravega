@@ -86,7 +86,7 @@ public abstract class CacheTestBase {
     }
 
     private byte[] getData(CacheKey key) {
-        return key.getSerialization();
+        return key.serialize();
     }
 
     //region CacheKey
@@ -98,7 +98,7 @@ public abstract class CacheTestBase {
         private final long offset;
 
         @Override
-        public byte[] getSerialization() {
+        public byte[] serialize() {
             ByteBuffer bb = ByteBuffer.allocate(Long.BYTES * 2);
             bb.putLong(this.segmentId);
             bb.putLong(this.offset);
