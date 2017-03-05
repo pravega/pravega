@@ -18,7 +18,7 @@ import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
-import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
+import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.mocks.LocalSegmentContainerManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;

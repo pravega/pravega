@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.hdfs;
 
@@ -21,7 +19,6 @@ import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,9 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import lombok.extern.slf4j.Slf4j;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -71,7 +66,8 @@ class HDFSStorage implements Storage {
 
     /**
      * Creates a new instance of the HDFSStorage class.
-     * @param config The configuration to use.
+     *
+     * @param config   The configuration to use.
      * @param executor The executor to use for running async operations.
      */
     HDFSStorage(HDFSStorageConfig config, Executor executor) {
@@ -169,13 +165,19 @@ class HDFSStorage implements Storage {
     //region Helpers
 
     private SegmentProperties createSync(String streamSegmentName) throws IOException {
-        this.fileSystem.create(new Path(getOwnedSegmentFullPath(streamSegmentName)),
-                new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
-                false,
-                0,
-                this.config.getReplication(),
-                this.config.getBlockSize(),
-                null).close();
+        String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
+        long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, ownedFullPath);
+        this.fileSystem
+                .create(new Path(ownedFullPath),
+                        new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
+                        false,
+                        0,
+                        this.config.getReplication(),
+                        this.config.getBlockSize(),
+                        null)
+                .close();
+
+        LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
         return new StreamSegmentInformation(streamSegmentName,
                 0,
                 false,
@@ -218,16 +220,21 @@ class HDFSStorage implements Storage {
      * Rename the file to the current node.
      */
     private void openSync(String streamSegmentName) throws IOException {
+        long traceId = LoggerHelpers.traceEnter(log, "open", streamSegmentName);
         FileStatus[] statuses = findAll(streamSegmentName);
         if (statuses.length != 1) {
+            log.warn("Segment '{}' not found. Statuses.length = {}.", streamSegmentName, statuses.length);
             throw new FileNotFoundException(streamSegmentName);
         }
 
-        this.fileSystem.rename(statuses[0].getPath(), new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
+        String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
+        this.fileSystem.rename(statuses[0].getPath(), new Path(ownedFullPath));
+        LoggerHelpers.traceLeave(log, "open", traceId, streamSegmentName, ownedFullPath);
     }
 
     private void writeSync(String streamSegmentName, long offset, int length, InputStream data)
             throws BadOffsetException, IOException {
+        long traceId = LoggerHelpers.traceEnter(log, "write", streamSegmentName, offset, length);
         Timer timer = new Timer();
         try (FSDataOutputStream stream = fileSystem.append(new Path(this.getOwnedSegmentFullPath(streamSegmentName)))) {
             if (stream.getPos() != offset) {
@@ -237,30 +244,41 @@ class HDFSStorage implements Storage {
             IOUtils.copyBytes(data, stream, length);
             stream.flush();
         }
+
         Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
         Metrics.WRITE_BYTES.add(length);
+        LoggerHelpers.traceLeave(log, "write", traceId, streamSegmentName, offset, length);
     }
 
     private SegmentProperties sealSync(String streamSegmentName) throws IOException {
+        String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
+        long traceId = LoggerHelpers.traceEnter(log, "seal", streamSegmentName, ownedFullPath);
         this.fileSystem.setPermission(
-                new Path(this.getOwnedSegmentFullPath(streamSegmentName)),
+                new Path(ownedFullPath),
                 new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ)
         );
 
-        return getStreamSegmentInfoSync(streamSegmentName);
+        SegmentProperties result = getStreamSegmentInfoSync(streamSegmentName);
+        LoggerHelpers.traceLeave(log, "seal", traceId, streamSegmentName);
+        return result;
     }
 
     private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName) throws IOException {
+        long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         FileStatus status = findOne(streamSegmentName);
 
-        return new StreamSegmentInformation(streamSegmentName,
+        SegmentProperties result = new StreamSegmentInformation(streamSegmentName,
                 status.getLen(),
                 status.getPermission().getUserAction() == FsAction.READ,
                 false,
                 new ImmutableDate(status.getModificationTime()));
+
+        LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName, result);
+        return result;
     }
 
     private void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException, BadOffsetException, StreamSegmentSealedException {
+        long traceId = LoggerHelpers.traceEnter(log, "concat", targetStreamSegmentName, offset, sourceStreamSegmentName);
         FileStatus status = findOne(targetStreamSegmentName);
         FileStatus sourceStatus = findOne(sourceStreamSegmentName);
         if (sourceStatus.getPermission().getUserAction() != FsAction.READ) {
@@ -274,10 +292,14 @@ class HDFSStorage implements Storage {
 
         this.fileSystem.concat(new Path(this.getOwnedSegmentFullPath(targetStreamSegmentName)),
                 new Path[]{new Path(this.getOwnedSegmentFullPath(sourceStreamSegmentName))});
+        LoggerHelpers.traceLeave(log, "concat", traceId, targetStreamSegmentName, offset, sourceStreamSegmentName);
     }
 
-    private void deleteSync(String name) throws IOException {
-        this.fileSystem.delete(new Path(this.getOwnedSegmentFullPath(name)), false);
+    private void deleteSync(String streamSegmentName) throws IOException {
+        String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
+        long traceId = LoggerHelpers.traceEnter(log, "delete", streamSegmentName, ownedFullPath);
+        this.fileSystem.delete(new Path(ownedFullPath), false);
+        LoggerHelpers.traceLeave(log, "delete", traceId, streamSegmentName);
     }
 
     /**
@@ -290,6 +312,8 @@ class HDFSStorage implements Storage {
                     "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
                     offset, bufferOffset, length, buffer.length));
         }
+
+        long traceId = LoggerHelpers.traceEnter(log, "read", streamSegmentName, offset, length);
         Timer timer = new Timer();
         FSDataInputStream stream = fileSystem.open(new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
         int retVal = stream.read(offset, buffer, bufferOffset, length);
@@ -300,13 +324,18 @@ class HDFSStorage implements Storage {
                 throw new IllegalArgumentException(String.format("Read offset (%s) is beyond the length of the segment (%s).", offset, segmentLength));
             }
         }
+
         Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
         Metrics.READ_BYTES.add(length);
+        LoggerHelpers.traceLeave(log, "read", traceId, streamSegmentName, offset, retVal);
         return retVal;
     }
 
-    private Boolean existsSync(String streamSegmentName) throws IOException {
-        return this.fileSystem.exists(new Path(streamSegmentName));
+    private boolean existsSync(String streamSegmentName) throws IOException {
+        long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
+        boolean result = findAll(streamSegmentName).length > 0;
+        LoggerHelpers.traceLeave(log, "exists", traceId, streamSegmentName, result);
+        return result;
     }
 
     private CompletableFuture<Void> runAsync(RunnableWithException syncCode, String streamSegmentName, String action) {

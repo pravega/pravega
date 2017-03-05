@@ -31,9 +31,20 @@ allprojects {
     apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
 
+    apply plugin: 'jacoco'
+
     checkstyle {
         toolVersion = "7.1"
     }
+
+    jacocoTestReport {
+        reports {
+            xml.enabled true
+            html.enabled false
+        }
+    }
+
+    test { finalizedBy jacocoTestReport }
 
     javadoc {
         failOnError = false
@@ -117,7 +128,7 @@ allprojects {
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
         testLogging.events = ["PASSED", "FAILED"]
-        maxParallelForks = 2
+        maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
         minHeapSize = "128m"
         maxHeapSize = "512m"
     }
@@ -280,6 +291,7 @@ project('service:server:host') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
+        compile project(':clients:streaming')
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
@@ -303,7 +315,6 @@ project('service:server:host') {
             }
         }
     }
-
 }
 
 project('integrationtests') {
@@ -369,6 +380,12 @@ project('integrationtests') {
 
     task startScaleTest(type: JavaExec) {
         main = "com.emc.pravega.demo.ScaleTest"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
+
+    task startEndToEndTransactionTest(type: JavaExec) {
+        main = "com.emc.pravega.demo.EndToEndTransactionTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -558,6 +575,7 @@ project('systemtests:tests') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
+        dependsOn 'publish'
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
@@ -565,6 +583,7 @@ project('systemtests:tests') {
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
         systemProperty "masterIP", System.getProperty("masterIP")
+        systemProperty "imageVersion", System.getProperty("imageVersion")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
@@ -572,24 +591,21 @@ project('systemtests:tests') {
         if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
         }
-        systemProperty "testArtifactUrl", project.property('testArtifactUrl') + "/pravega/systemtests/0.1/systemtests-0.1.jar"
+        if (System.getProperty("imageVersion") == null) {
+            systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
+        }
+        maxParallelForks = 1
+        systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
+        systemProperty "testVersion", project.property("pravegaVersion")
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/pravega/systemtests/"+pravegaVersion+"/systemtests-"+pravegaVersion+".jar"
     }
     publishing {
         publications {
             maven(MavenPublication) {
                 groupId 'pravega'
                 artifactId 'systemtests'
-                version = 0.1
+                version = pravegaVersion
                 from components.java
-            }
-        }
-        repositories {
-            maven {
-                credentials {
-                    username "$testFrameworkRepoUser"
-                    password "$testFrameworkRepoPass"
-                }
-                url "$testArtifactUrl"
             }
         }
     }

@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.connectors;
 
@@ -11,6 +9,7 @@ import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -22,6 +21,8 @@ import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -32,23 +33,18 @@ import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -93,11 +89,11 @@ public final class SetupUtils {
         @Cleanup
         StreamManager streamManager = StreamManager.withScope(scope, CONTROLLER_URI);
         streamManager.createStream(streamName,
-                                   StreamConfiguration.builder()
-                                                      .scope(scope)
-                                                      .streamName(streamName)
-                                                      .scalingPolicy(ScalingPolicy.fixed(numSegments))
-                                                      .build());
+                StreamConfiguration.builder()
+                        .scope(scope)
+                        .streamName(streamName)
+                        .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                        .build());
         log.info("Created stream: " + streamName);
     }
 
@@ -116,17 +112,7 @@ public final class SetupUtils {
         ClientFactory clientFactory = ClientFactory.withScope(scope, SetupUtils.CONTROLLER_URI);
         return clientFactory.createEventWriter(
                 streamName,
-                new Serializer<Integer>() {
-                    @Override
-                    public ByteBuffer serialize(Integer value) {
-                        return ByteBuffer.wrap(String.valueOf(value).getBytes());
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-                        return null;
-                    }
-                },
+                new IntegerSerializer(),
                 EventWriterConfig.builder().build());
     }
 
@@ -147,25 +133,14 @@ public final class SetupUtils {
         readerGroupManager.createReaderGroup(
                 readerGroup,
                 ReaderGroupConfig.builder().startingTime(0).build(),
-                Collections.singletonList(streamName));
+                Collections.singleton(streamName));
 
         ClientFactory clientFactory = ClientFactory.withScope(scope, SetupUtils.CONTROLLER_URI);
         final String readerGroupId = UUID.randomUUID().toString();
         return clientFactory.createReader(
                 readerGroupId,
                 readerGroup,
-                new Serializer<Integer>() {
-                    @Override
-                    public ByteBuffer serialize(Integer value) {
-                        return null;
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-
-                        return Integer.valueOf(new String(serializedValue.array()));
-                    }
-                },
+                new IntegerSerializer(),
                 ReaderConfig.builder().build());
     }
 
@@ -188,7 +163,7 @@ public final class SetupUtils {
 
         String hostId;
         try {
-            //On each controller process restart, it gets a fresh hostId,
+            //On each controller report restart, it gets a fresh hostId,
             //which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {
@@ -197,7 +172,7 @@ public final class SetupUtils {
         }
 
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                                                                      new ExponentialBackoffRetry(200, 10, 5000));
+                new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
         final ScheduledExecutorService executor = Executors.newScheduledThreadPool(
@@ -213,18 +188,20 @@ public final class SetupUtils {
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
-
+        SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(
-                streamStore, hostStore, taskMetadataStore, executor, hostId);
+                streamStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId);
+
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, hostId);
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                                                                    streamTransactionMetadataTasks);
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), Executors.newFixedThreadPool(10));
         RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
-                                                  streamTransactionMetadataTasks);
+                streamTransactionMetadataTasks);
         log.info("Started Pravega Controller");
     }
 }

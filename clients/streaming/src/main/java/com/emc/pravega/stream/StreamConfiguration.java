@@ -47,5 +47,6 @@ public class StreamConfiguration implements Serializable {
     
     public static final class StreamConfigurationBuilder {
         private RetentionPolicy retentionPolicy = RetentionPolicy.builder().retentionTimeMillis(Long.MAX_VALUE).build();
+        private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     }
 }

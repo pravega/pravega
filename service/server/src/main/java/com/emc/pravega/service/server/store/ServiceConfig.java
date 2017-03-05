@@ -7,6 +7,7 @@ package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
+import lombok.Getter;
 
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
@@ -23,29 +24,41 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     public static final String PROPERTY_LISTENING_PORT = "listeningPort";
     public static final String PROPERTY_LISTENING_IP_ADDRESS = "listeningIPAddress";
-    public static final String PROPERTY_ZK_HOSTNAME = "zkHostName";
-    public static final String PROPERTY_ZK_PORT = "zkPort";
+    public static final String PROPERTY_ZK_URL = "zkURL";
     public static final String PROPERTY_ZK_RETRY_SLEEP_MS = "zkRetrySleepMs";
     public static final String PROPERTY_ZK_RETRY_COUNT = "zkRetryCount";
     public static final String PROPERTY_CLUSTER_NAME = "clusterName";
+    public static final String PROPERTY_CONTROLLER_URI = "controllerUri";
+    public static final String PROPERTY_REQUEST_STREAM = "internalRequestStream";
+    public static final String PROPERTY_INTERNAL_SCOPE = "internalScope";
 
     private static final int DEFAULT_LISTENING_PORT = 12345;
     private static final int DEFAULT_THREAD_POOL_SIZE = 50;
-    private static final String DEFAULT_ZK_HOSTNAME = "zk1";
-    private static final int DEFAULT_ZK_PORT = 2181;
+
+    private static final String DEFAULT_ZK_URL = "localhost:2181";
     private static final int DEFAULT_ZK_RETRY_SLEEP_MS = 5000;
+
     private static final int DEFAULT_ZK_RETRY_COUNT = 5;
     private static final String DEFAULT_CLUSTER_NAME = "pravega-cluster";
+    private static final String DEFAULT_CONTROLLER_URI = "tcp://localhost:9090";
+    private static final String DEFAULT_INTERNAL_SCOPE = "pravega";
+    private static final String DEFAULT_REQUEST_STREAM = "requeststream";
 
     private int containerCount;
     private int threadPoolSize;
     private int listeningPort;
     private String listeningIPAddress;
-    private String zkHostName;
-    private int zkPort;
+    private String zkURL;
     private int zkRetrySleepMs;
     private int zkRetryCount;
     private String clusterName;
+
+    @Getter
+    private String controllerUri;
+    @Getter
+    private String internalScope;
+    @Getter
+    private String internalRequestStream;
 
     //endregion
 
@@ -99,17 +112,10 @@ public class ServiceConfig extends ComponentConfig {
     }
 
     /**
-     * Gets a value indicating the Zookeeper host name.
+     * Gets a value indicating the Zookeeper URL.
      */
-    public String getZkHostName() {
-        return zkHostName;
-    }
-
-    /**
-     * Gets a value indicating the Zookeeper port.
-     */
-    public int getZkPort() {
-        return zkPort;
+    public String getZkURL() {
+        return zkURL;
     }
 
     /**
@@ -147,11 +153,13 @@ public class ServiceConfig extends ComponentConfig {
             // Can't put this in the 'defaultValue' above because that would cause getHostAddress to be evaluated every time.
             this.listeningIPAddress = getHostAddress();
         }
-        this.zkHostName = getProperty(PROPERTY_ZK_HOSTNAME, DEFAULT_ZK_HOSTNAME);
-        this.zkPort = getInt32Property(PROPERTY_ZK_PORT, DEFAULT_ZK_PORT);
+        this.zkURL = getProperty(PROPERTY_ZK_URL, DEFAULT_ZK_URL);
         this.zkRetrySleepMs = getInt32Property(PROPERTY_ZK_RETRY_SLEEP_MS, DEFAULT_ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = getInt32Property(PROPERTY_ZK_RETRY_COUNT, DEFAULT_ZK_RETRY_COUNT);
         this.clusterName = getProperty(PROPERTY_CLUSTER_NAME, DEFAULT_CLUSTER_NAME);
+        this.controllerUri = getProperty(PROPERTY_CONTROLLER_URI, DEFAULT_CONTROLLER_URI);
+        this.internalScope = getProperty(PROPERTY_INTERNAL_SCOPE, DEFAULT_INTERNAL_SCOPE);
+        this.internalRequestStream = getProperty(PROPERTY_REQUEST_STREAM, DEFAULT_REQUEST_STREAM);
     }
 
     private static String getHostAddress() {

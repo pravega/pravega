@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.local;
 
@@ -38,7 +36,6 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Properties;
@@ -71,7 +68,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private final LocalHDFSEmulator localHdfs;
         
     private final ScheduledExecutorService controllerExecutor;
-    private final InProcPravegaCluster cluster;
 
     @Builder
     private LocalPravegaEmulator(int zkPort, int controllerPort, int hostPort, LocalHDFSEmulator localHdfs) {
@@ -80,22 +76,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
         this.hostPort = hostPort;
         this.localHdfs = localHdfs;
         this.controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
-                                                                   new ThreadFactoryBuilder().setNameFormat("taskpool-%d")
-                                                                                             .build());
-        cluster = InProcPravegaCluster.builder().
-                isInProcZK(true).
-                zkPort(zkPort).
-                isInprocController(true).
-                controllerCount(1).
-                controllerPorts(new int[]{controllerPort}).
-                isInprocHost(true).
-                hostCount(1).
-                hostPorts(new int[] {hostPort}).
-                isInProcHDFS(true).
-                isInProcDL(true).
-                bookieCount(NUM_BOOKIES).build();
-
-
+                new ThreadFactoryBuilder().setNameFormat("taskpool-%d")
+                        .build());
     }
 
     public static void main(String[] args) {
@@ -176,8 +158,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     /**
      * Start controller and host.
      */
-    private void start() throws Exception {
-        cluster.start();
+    private void start() {
         startController();
         try {
             Thread.sleep(10000);
@@ -191,7 +172,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         try {
             Properties p = new Properties();
             ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
-            props.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
+            ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
                     String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
 
             // Change Number of containers and Thread Pool Size for each test.
@@ -212,16 +193,15 @@ public class LocalPravegaEmulator implements AutoCloseable {
             ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE,
                     Long.toString(128 * 1024 * 1024));
 
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME, "localhost");
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_PORT,
-                                     Integer.toString(zkPort));
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, "localhost:" +
+                    zkPort);
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
-                                     Integer.toString(hostPort));
+                    Integer.toString(hostPort));
 
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
                     "localhost");
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
-                                     Integer.toString(zkPort));
+                    Integer.toString(zkPort));
 
             props = new ServiceBuilderConfig(p);
 
@@ -236,7 +216,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private void startController() {
         String hostId;
         try {
-            //On each controller process restart, it gets a fresh hostId,
+            //On each controller report restart, it gets a fresh hostId,
             //which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {
@@ -266,12 +246,17 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
         //2. Start the RPC server.
         log.info("Starting RPC server");
+        SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                controllerExecutor, hostId);
+                segmentHelper, controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, controllerExecutor, hostId);
-        RPCServer.start(new ControllerServiceAsyncImpl(
-                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks)));
+                hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
+                Config.MAX_LEASE_VALUE, Config.MAX_SCALE_GRACE_PERIOD);
+
+        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerExecutor);
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
@@ -279,10 +264,12 @@ public class LocalPravegaEmulator implements AutoCloseable {
         // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
         // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
         // are processed and deleted, that failed HostId is removed from FH folder.
-        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
+        // Moreover, on controller report startup, it detects any hostIds not in the currently active set of
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
+
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
     }
 
 }

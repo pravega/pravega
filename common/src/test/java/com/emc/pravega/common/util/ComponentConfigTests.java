@@ -1,19 +1,19 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.util;
 
+import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.function.Predicate;
-
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.emc.pravega.testcommon.AssertExtensions;
 
 /**
  * Unit tests for the ComponentConfig class.
@@ -71,6 +71,44 @@ public class ComponentConfigTests {
         testData(props, ComponentConfig::getBooleanProperty, value -> value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false"));
     }
 
+    /**
+     * Tests extracting and interpreting values as environment variables.
+     */
+    @Test
+    public void testGetEnvironmentVariable() throws Exception {
+        final String componentCode = "envvar";
+        int index = 1;
+        final String validEnvProp = getPropertyName(index++);
+        final String invalidEnvProp1 = getPropertyName(index++);
+        final String invalidEnvProp2 = getPropertyName(index++);
+        final String invalidEnvProp3 = getPropertyName(index++);
+        final String rawProp = getPropertyName(index++);
+        val correctProperties = Collections.singleton(validEnvProp);
+        val incorrectProperties = Arrays.asList(invalidEnvProp1, invalidEnvProp2, invalidEnvProp3, rawProp);
+        Properties props = PropertyBag.create()
+                                      .with(getFullyQualifiedPropertyName(componentCode, validEnvProp), "$env1$")
+                                      .with(getFullyQualifiedPropertyName(componentCode, invalidEnvProp1), "env1$")
+                                      .with(getFullyQualifiedPropertyName(componentCode, invalidEnvProp2), "$env1")
+                                      .with(getFullyQualifiedPropertyName(componentCode, invalidEnvProp3), "a$env1$")
+                                      .with(getFullyQualifiedPropertyName(componentCode, rawProp), "env1");
+
+        val env = new HashMap<String, String>();
+        props.forEach((key, value) -> env.put((String) value, "incorrect"));
+        env.put("env1", "correct");
+
+        ComponentConfig config = new TestConfig(props, componentCode, env::get);
+        for (String p : correctProperties) {
+            Assert.assertEquals("Unexpected value from valid env var reference.", "correct", config.getProperty(p));
+            Assert.assertEquals("Unexpected value from valid env var reference.", "correct", config.getProperty(p, "incorrect"));
+        }
+
+        for (String p : incorrectProperties) {
+            String expectedValue = (String) props.get(getFullyQualifiedPropertyName(componentCode, p));
+            Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.getProperty(p));
+            Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.getProperty(p, "correct"));
+        }
+    }
+
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {
         for (int componentId = 0; componentId < ComponentConfigTests.COMPONENT_COUNT; componentId++) {
             String componentCode = getComponentCode(componentId);
@@ -125,7 +163,11 @@ public class ComponentConfigTests {
     }
 
     private static String getFullyQualifiedPropertyName(String code, int propertyId) {
-        return String.format("%s.%s", code, getPropertyName(propertyId));
+        return getFullyQualifiedPropertyName(code, getPropertyName(propertyId));
+    }
+
+    private static String getFullyQualifiedPropertyName(String code, String propertyName) {
+        return String.format("%s.%s", code, propertyName);
     }
 
     private static String getPropertyName(int propertyId) {
@@ -167,12 +209,16 @@ public class ComponentConfigTests {
     }
 
     private static class TestConfig extends ComponentConfig {
-        public TestConfig(Properties properties, String componentCode) {
+        TestConfig(Properties properties, String componentCode) {
             super(properties, componentCode);
         }
 
+        TestConfig(Properties properties, String componentCode, Function<String, String> getEnv) {
+            super(properties, componentCode, getEnv);
+        }
+
         @Override
-        protected void refresh()  {
+        protected void refresh() {
         }
     }
 

@@ -19,7 +19,7 @@ enum ScaleStreamStatus {
     SUCCESS,
     FAILURE,
     PRECONDITION_FAILED,
-    UPDATE_CONFLICT
+    TXN_CONFLICT
 }
 
 enum TxnStatus {
@@ -27,6 +27,14 @@ enum TxnStatus {
     FAILURE,
     STREAM_NOT_FOUND,
     TRANSACTION_NOT_FOUND
+}
+
+enum PingStatus {
+    OK,
+    LEASE_TOO_LARGE,
+    MAX_EXECUTION_TIME_EXCEEDED,
+    SCALE_GRACE_TIME_EXCEEDED,
+    DISCONNECTED
 }
 
 enum TxnState {
@@ -40,8 +48,8 @@ enum TxnState {
 
 enum ScalingPolicyType {
     FIXED_NUM_SEGMENTS,
-    BY_RATE_IN_BYTES,
-    BY_RATE_IN_EVENTS,
+    BY_RATE_IN_KBYTES_PER_SEC,
+    BY_RATE_IN_EVENTS_PER_SEC,
 }
 
 enum CreateScopeStatus {
@@ -60,7 +68,7 @@ enum DeleteScopeStatus {
 
 struct ScalingPolicy {
   1: required ScalingPolicyType type,
-  2: required i64 targetRate,
+  2: required i32 targetRate,
   3: required i32 scaleFactor,
   4: required i32 minNumSegments
 }
@@ -115,9 +123,10 @@ service ControllerService {
     ScaleResponse scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
     NodeUri getURI(1: SegmentId segment)
     bool isSegmentValid(1: string scope, 2: string stream, 3: i32 segmentNumber)
-    TxnId createTransaction(1:string scope, 2:string stream)
+    TxnId createTransaction(1:string scope, 2:string stream, 3:i64 lease, 4:i64 maxExecutionTime, 5:i64 scaleGracePeriod);
     TxnStatus commitTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
     TxnStatus abortTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
+    PingStatus pingTransaction(1:string scope, 2:string stream, 3:TxnId txnid, 4:i64 lease)
     TxnState  checkTransactionStatus(1:string scope, 2:string stream, 3:TxnId txnid)
     CreateScopeStatus createScope(1: string scope)
     DeleteScopeStatus deleteScope(1: string scope)
