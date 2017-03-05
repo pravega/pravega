@@ -46,7 +46,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     private final AtomicReference<DistributedLogDataLogFactory> factory = new AtomicReference<>();
 
     @Before
-    public void initializeTest() throws Exception {
+    public void setUp() throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         final int port = TestUtils.randomPort();
         startDistributedLog(port);
@@ -64,7 +64,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     }
 
     @After
-    public void cleanupAfterTest() throws Exception {
+    public void tearDown() throws Exception {
         val factory = this.factory.getAndSet(null);
         if (factory != null) {
             factory.close();
