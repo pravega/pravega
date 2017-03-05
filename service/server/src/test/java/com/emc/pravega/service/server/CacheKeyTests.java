@@ -26,7 +26,7 @@ public class CacheKeyTests {
             for (long baseOffset = 0; baseOffset < OFFSET_COUNT; baseOffset += 1) {
                 long offset = baseOffset * OFFSET_MULTIPLIER;
                 CacheKey originalKey = new CacheKey(segmentId, offset);
-                CacheKey newKey = new CacheKey(originalKey.getSerialization());
+                CacheKey newKey = new CacheKey(originalKey.serialize());
 
                 Assert.assertTrue("equals() did not return true for equivalent keys.", originalKey.equals(newKey));
                 Assert.assertEquals("hashCode() did not return the same value for equivalent keys.", originalKey.hashCode(), newKey.hashCode());
