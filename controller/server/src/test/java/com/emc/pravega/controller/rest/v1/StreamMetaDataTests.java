@@ -351,7 +351,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
         // Test to get non-existent scope
         when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.supplyAsync(() -> {
-            throw new StoreException(StoreException.Type.NODE_NOT_FOUND);
+            throw new StoreException.NodeNotFoundException();
         }));
         response = target(resourceURI2).request().async().get();
         assertEquals("Get non existent scope", 404, response.get().getStatus());
