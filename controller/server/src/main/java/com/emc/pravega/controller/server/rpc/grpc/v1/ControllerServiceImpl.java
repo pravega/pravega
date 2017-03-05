@@ -6,7 +6,6 @@
 package com.emc.pravega.controller.server.rpc.grpc.v1;
 
 import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
