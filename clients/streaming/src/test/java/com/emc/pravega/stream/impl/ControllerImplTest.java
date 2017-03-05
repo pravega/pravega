@@ -40,8 +40,10 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import io.grpc.Status;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -60,7 +62,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Unit tests for ControllerImpl
+ * Unit tests for ControllerImpl.
  *
  */
 public class ControllerImplTest {
@@ -69,13 +71,13 @@ public class ControllerImplTest {
     public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     // Test implementation for simulating the server responses.
-    private static final String fakeServerName = "FakeServer";
+    private ServerImpl fakeServer = null;
 
     // The controller RPC client.
-    private static ControllerImpl controllerClient = null;
+    private ControllerImpl controllerClient = null;
 
-    @BeforeClass
-    public static void setup() throws IOException {
+    @Before
+    public void setup() throws IOException {
 
         // Setup fake server generating different success and failure responses.
         ControllerServiceImplBase fakeServerImpl = new ControllerServiceImplBase() {
@@ -446,8 +448,17 @@ public class ControllerImplTest {
             }
         };
 
-        InProcessServerBuilder.forName(fakeServerName).addService(fakeServerImpl).directExecutor().build().start();
-        controllerClient = new ControllerImpl(InProcessChannelBuilder.forName(fakeServerName).directExecutor());
+        fakeServer = InProcessServerBuilder.forName("fakeserver")
+                .addService(fakeServerImpl)
+                .directExecutor()
+                .build()
+                .start();
+        controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("fakeserver").directExecutor());
+    }
+
+    @After
+    public void tearDown() {
+        fakeServer.shutdown();
     }
 
     @Test
