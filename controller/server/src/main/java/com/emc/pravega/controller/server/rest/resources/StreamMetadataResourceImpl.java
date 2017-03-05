@@ -176,8 +176,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         return Response.status(Status.OK).entity(new ScopeProperty().scopeName(scope)).build();
                 })
                 .exceptionally( exception -> {
-                    if ( (exception.getCause() instanceof  StoreException && ( (StoreException) exception.getCause()).getType() == StoreException.Type.NODE_NOT_FOUND)
-                            || (exception.getCause() instanceof StoreException.NodeNotFoundException)) {
+                    if (exception.getCause() instanceof  StoreException && (
+                            ((StoreException) exception.getCause()).getType() == StoreException.Type.NODE_NOT_FOUND)) {
                         log.warn("Scope: {} not found", scopeName);
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
