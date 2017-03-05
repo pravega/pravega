@@ -57,7 +57,7 @@ public class CacheKey extends Cache.Key {
     //region Cache.Key Implementation
 
     @Override
-    public byte[] getSerialization() {
+    public byte[] serialize() {
         byte[] result = new byte[SERIALIZATION_LENGTH];
         BitConverter.writeLong(result, 0, this.streamSegmentId);
         BitConverter.writeLong(result, Long.BYTES, this.offset);
