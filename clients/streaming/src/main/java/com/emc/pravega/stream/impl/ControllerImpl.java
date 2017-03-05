@@ -45,6 +45,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -56,24 +57,31 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
 
+    // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
 
     /**
-     * Creates a new instance of Controller class.
+     * Creates a new instance of the Controller client class.
      *
-     * @param host The controller host name.
-     * @param port The controller port number.
+     * @param host The controller rpc host name.
+     * @param port The controller rpc port number.
      */
     public ControllerImpl(final String host, final int port) {
-        Exceptions.checkNotNullOrEmpty(host, "host");
-        Preconditions.checkArgument(port > 0);
+        this(ManagedChannelBuilder.forAddress(host, port).usePlaintext(true));
+        log.info("Controller client connecting to server at {}:{}", host, port);
+    }
+
+    /**
+     * Creates a new instance of the Controller client class.
+     *
+     * @param channelBuilder The channel builder to connect to the service instance.
+     */
+    @VisibleForTesting
+    public ControllerImpl(ManagedChannelBuilder channelBuilder) {
+        Preconditions.checkNotNull(channelBuilder, "channelBuilder");
 
         // Create Async RPC client.
-        client = ControllerServiceGrpc.newStub(ManagedChannelBuilder
-                                                       .forAddress(host, port)
-                                                       .usePlaintext(true)
-                                                       .build());
-        log.info("Controller client connecting to server at {}:{}", host, port);
+        client = ControllerServiceGrpc.newStub(channelBuilder.build());
     }
 
     @Override

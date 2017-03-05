@@ -5,6 +5,8 @@
  */
 package com.emc.pravega.controller.server.rpc.grpc.v1;
 
+import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -31,6 +33,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import com.emc.pravega.stream.impl.ModelHelper;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -206,8 +209,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     log.debug("result = " + (value == null ? "null" : value.toString()));
 
                     if (ex != null) {
-                        log.warn("Controller api failed with error: {}", ex.getMessage());
-                        streamObserver.onError(ex);
+                        log.warn("Controller api failed with error: {}",
+                                 ExceptionHelpers.getRealException(ex).getMessage());
+                        streamObserver.onError(Status.INTERNAL.withDescription(
+                                ExceptionHelpers.getRealException(ex).getMessage()).asRuntimeException());
                     } else if (value != null) {
                         streamObserver.onNext(value);
                         streamObserver.onCompleted();
