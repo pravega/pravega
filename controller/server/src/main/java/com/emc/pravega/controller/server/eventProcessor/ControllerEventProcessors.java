@@ -69,7 +69,9 @@ public class ControllerEventProcessors extends AbstractService {
     @Override
     protected void doStart() {
         try {
+            log.info("Starting controller event processors.");
             initialize();
+            notifyStarted();
         } catch (Exception e) {
             log.error("Error starting controller event processors.", e);
         }
@@ -78,6 +80,7 @@ public class ControllerEventProcessors extends AbstractService {
     @Override
     protected void doStop() {
         try {
+            log.info("Stopping controller event processors.");
             stopEventProcessors();
         } catch (CheckpointStoreException e) {
             log.error("Error stopping controller event processors.", e);

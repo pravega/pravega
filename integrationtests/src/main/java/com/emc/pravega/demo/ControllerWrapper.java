@@ -44,18 +44,26 @@ public class ControllerWrapper implements AutoCloseable {
     private final Controller controller;
     private final RPCServer rpcServer;
     private final ControllerEventProcessors controllerEventProcessors;
+    private final TimeoutService timeoutService;
 
     public ControllerWrapper(final String connectionString) throws Exception {
-        this(connectionString, false, Config.SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
+        this(connectionString, false, false, Config.SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
                 Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor) throws Exception {
-        this(connectionString, disableEventProcessor, Config.SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
-                Config.HOST_STORE_CONTAINER_COUNT);
+        this(connectionString, disableEventProcessor, false, Config.SERVER_PORT, Config.SERVICE_HOST,
+                Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableRequestHandler) throws Exception {
+        this(connectionString, disableEventProcessor, disableRequestHandler, Config.SERVER_PORT, Config.SERVICE_HOST,
+                Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT);
+    }
+
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableRequestHandler,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) throws Exception {
         String hostId;
@@ -90,7 +98,7 @@ public class ControllerWrapper implements AutoCloseable {
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, segmentHelper, executor, hostId);
 
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
@@ -104,7 +112,9 @@ public class ControllerWrapper implements AutoCloseable {
         rpcServer = new RPCServer(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
         rpcServer.start();
 
-        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
+        if (!disableRequestHandler) {
+            RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
+        }
 
         //region Setup Event Processors
         LocalController localController = new LocalController(controllerService);
@@ -128,6 +138,7 @@ public class ControllerWrapper implements AutoCloseable {
     public void close() throws Exception {
         rpcServer.stop();
         controllerEventProcessors.stopAsync();
+        timeoutService.stopAsync();
     }
 }
 

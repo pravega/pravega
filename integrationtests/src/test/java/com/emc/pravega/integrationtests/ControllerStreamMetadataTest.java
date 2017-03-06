@@ -29,7 +29,7 @@ public class ControllerStreamMetadataTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream";
 
-    @Test(timeout = 20000)
+    @Test(timeout = 2000000)
     public void streamMetadataTest() throws Exception {
         final int controllerPort = TestUtils.randomPort();
         final String serviceHost = "localhost";
@@ -51,7 +51,7 @@ public class ControllerStreamMetadataTest {
 
         // 3. Start controller
         @Cleanup
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
                 controllerPort, serviceHost, servicePort, containerCount);
         Controller controller = controllerWrapper.getController();
 
