@@ -3,12 +3,13 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package com.emc.pravega.connectors;
+package com.emc.pravega.integrationtests.connectors;
 
 import com.emc.pravega.connectors.flink.FlinkPravegaWriter;
 import com.emc.pravega.connectors.flink.PravegaWriterMode;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.testcommon.AssertExtensions;
 import com.google.common.base.Preconditions;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -16,10 +17,17 @@ import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Automated tests for {@link FlinkPravegaWriter}.
@@ -27,26 +35,31 @@ import java.util.List;
  */
 @Slf4j
 public class FlinkPravegaWriterTest {
-    private static final String SCOPE = "Scope";
+
+    // Number of events to generate for each of the tests.
     private static final int EVENT_COUNT_PER_SOURCE = 20;
 
-    // Setup and execute all the tests.
-    public static void main(String[] args) throws Exception {
-        try {
-            SetupUtils.startPravegaServices();
+    // Setup utility.
+    private static final SetupUtils SETUP_UTILS = new SetupUtils();
 
-            FlinkPravegaWriterTest test = new FlinkPravegaWriterTest();
-            test.runTest(1, false, "TestStream1");
-            test.runTest(4, false, "TestStream2");
-            test.runTest(1, true, "TestStream3");
-            test.runTest(4, true, "TestStream4");
+    // Ensure each test completes within 30 seconds.
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
-            log.info("All tests successful");
-        } catch (Exception e) {
-            log.error("Tests failed with exception: ", e);
-        }
+    @Before
+    public void setup() throws Exception {
+        SETUP_UTILS.startPravegaServices();
+    }
 
-        System.exit(0);
+    @Test
+    public void testWriter() throws Exception {
+        FlinkPravegaWriterTest test = new FlinkPravegaWriterTest();
+        test.runTest(1, false, "TestStream1");
+        test.runTest(4, false, "TestStream2");
+        test.runTest(1, true, "TestStream3");
+        test.runTest(4, true, "TestStream4");
+
+        log.info("All tests successful");
     }
 
     /**
@@ -70,13 +83,13 @@ public class FlinkPravegaWriterTest {
 
         // Write the end marker.
         @Cleanup
-        EventStreamWriter<Integer> eventWriter = SetupUtils.getIntegerWriter(SCOPE, streamName);
+        EventStreamWriter<Integer> eventWriter = SETUP_UTILS.getIntegerWriter(streamName);
         eventWriter.writeEvent("fixedkey", streamEndMarker);
         eventWriter.flush();
 
         // Read all data from the stream.
         @Cleanup
-        EventStreamReader<Integer> consumer = SetupUtils.getIntegerReader(SCOPE, streamName);
+        EventStreamReader<Integer> consumer = SETUP_UTILS.getIntegerReader(streamName);
         List<Integer> readElements = new ArrayList<>();
         while (true) {
             Integer event = consumer.readNextEvent(1).getEvent();
@@ -102,13 +115,10 @@ public class FlinkPravegaWriterTest {
                 countElem++;
                 i++;
             }
-            Preconditions.checkState(countElem >= jobParallelism, "Element: " + expectedEventValue +
-                    " count less than expected in the stream. Expected count: " + jobParallelism + ". Found: " +
-                    countElem);
+            AssertExtensions.assertGreaterThanOrEqual("Repeated events", jobParallelism, countElem);
             expectedEventValue++;
         }
-        Preconditions.checkState(expectedEventValue == eventCountPerSource, "Event:" + expectedEventValue +
-                " not found in the stream");
+        Assert.assertEquals(expectedEventValue, eventCountPerSource);
     }
 
     /**
@@ -125,7 +135,7 @@ public class FlinkPravegaWriterTest {
         Preconditions.checkArgument(jobParallelism > 0);
         Preconditions.checkNotNull(streamName);
 
-        SetupUtils.createTestStream(SCOPE, streamName, 1);
+        SETUP_UTILS.createTestStream(streamName, 1);
 
         StreamExecutionEnvironment execEnv = StreamExecutionEnvironment.createLocalEnvironment().
                 setParallelism(jobParallelism);
@@ -135,10 +145,14 @@ public class FlinkPravegaWriterTest {
                 .addSource(new IntegerGeneratingSource(withFailure, EVENT_COUNT_PER_SOURCE));
 
         FlinkPravegaWriter<Integer> pravegaSink = new FlinkPravegaWriter<>(
-                SetupUtils.CONTROLLER_URI,
-                SCOPE,
+                SETUP_UTILS.getControllerUri(),
+                SETUP_UTILS.getScope(),
                 streamName,
-                element -> String.valueOf(element).getBytes(),
+                element -> {
+                    ByteBuffer result = ByteBuffer.allocate(4).putInt(element);
+                    result.rewind();
+                    return result.array();
+                },
                 event -> "fixedkey");
         pravegaSink.setPravegaWriterMode(PravegaWriterMode.ATLEAST_ONCE);
 

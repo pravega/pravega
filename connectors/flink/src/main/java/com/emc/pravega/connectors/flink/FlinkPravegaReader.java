@@ -116,7 +116,9 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
 
     @Override
     public void cancel() {
-        this.isRunning.set(false);
+        if (this.isRunning != null) {
+            this.isRunning.set(false);
+        }
     }
 
     @Override
@@ -137,7 +139,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
                 }
             }
         };
-        this.readerId = getRuntimeContext().getTaskNameWithSubtasks();
+        this.readerId = "flink" + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
         this.pravegaReader = ClientFactory.withScope(this.scopeName, this.controllerURI)
                 .createReader(this.readerId, this.readerGroupName, deserializer, ReaderConfig.builder().build());
         this.isRunning = new AtomicBoolean(true);
@@ -159,6 +161,8 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
 
     @Override
     public void stop() {
-        this.isRunning.set(false);
+        if (this.isRunning != null) {
+            this.isRunning.set(false);
+        }
     }
 }
