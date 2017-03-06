@@ -1,15 +1,18 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.local;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.RPCServerConfig;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -18,9 +21,11 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.service.server.host.ServiceStarter;
@@ -33,9 +38,11 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
-
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
+import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.bookkeeper.util.IOUtils;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.InetAddress;
@@ -45,13 +52,6 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-
-import lombok.Builder;
-import lombok.extern.slf4j.Slf4j;
-
-import org.apache.bookkeeper.util.IOUtils;
-import org.apache.commons.io.FileUtils;
-import org.slf4j.LoggerFactory;
 
 import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 
@@ -68,7 +68,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private final int controllerPort;
     private final int hostPort;
     private final LocalHDFSEmulator localHdfs;
-        
+
     private final ScheduledExecutorService controllerExecutor;
 
     @Builder
@@ -78,8 +78,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
         this.hostPort = hostPort;
         this.localHdfs = localHdfs;
         this.controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
-                                                                   new ThreadFactoryBuilder().setNameFormat("taskpool-%d")
-                                                                                             .build());
+                new ThreadFactoryBuilder().setNameFormat("taskpool-%d")
+                        .build());
     }
 
     public static void main(String[] args) {
@@ -174,7 +174,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         try {
             Properties p = new Properties();
             ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
-            props.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
+            ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
                     String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
 
             // Change Number of containers and Thread Pool Size for each test.
@@ -198,12 +198,12 @@ public class LocalPravegaEmulator implements AutoCloseable {
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, "localhost:" +
                     zkPort);
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
-                                     Integer.toString(hostPort));
+                    Integer.toString(hostPort));
 
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
                     "localhost");
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
-                                     Integer.toString(zkPort));
+                    Integer.toString(zkPort));
 
             props = new ServiceBuilderConfig(p);
 
@@ -218,7 +218,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private void startController() {
         String hostId;
         try {
-            //On each controller process restart, it gets a fresh hostId,
+            //On each controller report restart, it gets a fresh hostId,
             //which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {
@@ -248,12 +248,23 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
         //2. Start the RPC server.
         log.info("Starting RPC server");
+        SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                controllerExecutor, hostId);
+                segmentHelper, controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, controllerExecutor, hostId);
-        RPCServer.start(new ControllerServiceAsyncImpl(
-                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks)));
+                hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
+                Config.MAX_LEASE_VALUE, Config.MAX_SCALE_GRACE_PERIOD);
+
+        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerExecutor);
+        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+                .port(controllerPort)
+                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
+                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
+                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
+                .build();
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
@@ -261,10 +272,12 @@ public class LocalPravegaEmulator implements AutoCloseable {
         // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
         // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
         // are processed and deleted, that failed HostId is removed from FH folder.
-        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
+        // Moreover, on controller report startup, it detects any hostIds not in the currently active set of
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
+
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
     }
 
 }

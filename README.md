@@ -1,4 +1,5 @@
-# Pravega [![Build Status](https://travis-ci.com/pravega/pravega.svg?token=qhH3WLZqyhzViixpn6ZT&branch=master)](https://travis-ci.com/pravega/pravega) [![Coverage Status](http://coveralls.io/repos/pravega/pravega/badge.svg?branch=master&service=github&i=3)](https://coveralls.io/github/pravega/pravega?branch=master)
+# Pravega [![Build Status](https://travis-ci.com/pravega/pravega.svg?token=qhH3WLZqyhzViixpn6ZT&branch=master)](https://travis-ci.com/pravega/pravega) [![codecov](https://codecov.io/gh/pravega/pravega/branch/master/graph/badge.svg?token=6xOvaR0sIa)](https://codecov.io/gh/pravega/pravega)
+
 
 Pravega is a distributed storage service offering a new storage abstraction called a Stream
 

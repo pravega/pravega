@@ -1,23 +1,19 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server;
 
-import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
-import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.STORE_TYPE;
-
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.RPCServerConfig;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -29,10 +25,11 @@ import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
@@ -40,6 +37,11 @@ import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
+import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 
 /**
  * Entry point of controller server.
@@ -60,8 +62,17 @@ public class Main {
 
         //1. LOAD configuration.
         //Initialize the executor service.
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+        ScheduledExecutorService controllerServiceExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("servicepool-%d").build());
+
+        ScheduledExecutorService taskExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
+
+        ScheduledExecutorService storeExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("storepool-%d").build());
+
+        final ScheduledExecutorService requestExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("requestpool-%d").build());
 
         log.info("Creating store client");
         StoreClient storeClient = StoreClientFactory.createStoreClient(
@@ -69,10 +80,10 @@ public class Main {
 
         log.info("Creating the stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), executor);
+                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), storeExecutor);
 
         log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, taskExecutor);
 
         log.info("Creating the host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(
@@ -87,12 +98,16 @@ public class Main {
             monitor.startAsync();
         }
 
+        SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, hostId);
+                segmentHelper, taskExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+                hostStore, taskMetadataStore, segmentHelper, taskExecutor, hostId);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
+                Config.MAX_LEASE_VALUE, Config.MAX_SCALE_GRACE_PERIOD);
+
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks);
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerServiceExecutor);
 
         //2. set up Event Processors
 
@@ -101,7 +116,7 @@ public class Main {
         LocalController localController = new LocalController(controllerService);
 
         ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
-                ZKUtils.getCuratorClient(), streamStore, hostStore);
+                ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper);
 
         try {
             controllerEventProcessors.initialize();
@@ -116,7 +131,13 @@ public class Main {
 
         //3. Start the RPC server.
         log.info("Starting RPC server");
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+                .port(Config.SERVER_PORT)
+                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
+                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
+                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
+                .build();
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
@@ -129,6 +150,7 @@ public class Main {
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
         // 4. Start the REST server.
         log.info("Starting Pravega REST Service");
         RESTServer.start(controllerService);

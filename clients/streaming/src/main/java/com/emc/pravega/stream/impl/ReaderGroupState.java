@@ -10,6 +10,7 @@ import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Update;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.val;
@@ -37,6 +39,8 @@ class ReaderGroupState implements Revisioned {
 
     private static final long ASSUMED_LAG_MILLIS = 30000;
     private final String scopedSynchronizerStream;
+    @Getter
+    private final ReaderGroupConfig config;
     @GuardedBy("$lock")
     private Revision revision;
     @GuardedBy("$lock")
@@ -48,12 +52,14 @@ class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<Segment, Long> unassignedSegments;
 
-    ReaderGroupState(String scopedSynchronizerStream, Revision revision, Map<Segment, Long> segmentsToOffsets) {
+    ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<Segment, Long> segmentsToOffsets) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
+        Preconditions.checkNotNull(config);
         Exceptions.checkNotNullOrEmpty(segmentsToOffsets.entrySet(), "segmentsToOffsets");
         this.scopedSynchronizerStream = scopedSynchronizerStream;
         this.revision = revision;
+        this.config = config;
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
     }
     
@@ -147,13 +153,28 @@ class ReaderGroupState implements Revisioned {
         return assignedSegments.values().stream().mapToInt(Set::size).sum() + unassignedSegments.size();
     }
     
+    @Synchronized
+    public Set<String> getStreamNames() {
+        Set<String> result = new HashSet<>();
+        for (Set<Segment> segments : assignedSegments.values()) {
+            for (Segment segment : segments) {
+                result.add(segment.getStreamName());
+            }
+        }
+        for (Segment segment : unassignedSegments.keySet()) {
+            result.add(segment.getStreamName());
+        }
+        return result;
+    }
+    
     @RequiredArgsConstructor
     static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
+        private final ReaderGroupConfig config;
         private final Map<Segment, Long> segments;
         
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
-            return new ReaderGroupState(scopedStreamName, revision, segments);
+            return new ReaderGroupState(scopedStreamName, revision, config, segments);
         }
     }
     

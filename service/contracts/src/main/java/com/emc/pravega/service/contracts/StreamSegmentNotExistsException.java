@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.contracts;
 
@@ -10,11 +8,15 @@ package com.emc.pravega.service.contracts;
  */
 public class StreamSegmentNotExistsException extends StreamSegmentException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
-    public StreamSegmentNotExistsException(String streamName) {
-        super(streamName, "The StreamSegment does not exist.");
+    public StreamSegmentNotExistsException(String streamSegmentName) {
+        super(streamSegmentName, "The StreamSegment does not exist.");
+    }
+
+    public StreamSegmentNotExistsException(String streamSegmentName, Throwable cause) {
+        super(streamSegmentName, "The StreamSegment does not exist.", cause);
     }
 }

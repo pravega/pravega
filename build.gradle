@@ -31,9 +31,20 @@ allprojects {
     apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
 
+    apply plugin: 'jacoco'
+
     checkstyle {
         toolVersion = "7.1"
     }
+
+    jacocoTestReport {
+        reports {
+            xml.enabled true
+            html.enabled false
+        }
+    }
+
+    test { finalizedBy jacocoTestReport }
 
     javadoc {
         failOnError = false
@@ -103,6 +114,12 @@ allprojects {
                 url = "$repoUrl"
             }
         }
+        publications {
+            maven(MavenPublication) {
+                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "com.emc.pravega"
+                version = pravegaVersion
+            }
+        }
     }
 
     tasks.withType(GroovyCompile) {
@@ -117,7 +134,7 @@ allprojects {
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
         testLogging.events = ["PASSED", "FAILED"]
-        maxParallelForks = 2
+        maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
         minHeapSize = "128m"
         maxHeapSize = "512m"
     }
@@ -152,9 +169,7 @@ project('common') {
                             appendNode('name','JCenter Repository').parent().
                             appendNode('url','http://jcenter.bintray.com')
                 }
-                groupId 'pravega'
-                artifactId 'common'
-                version = pravegaVersion
+                artifactId 'pravega-common'
                 from components.java
             }
         }
@@ -167,49 +182,10 @@ project('clients:streaming') {
         compile project(":controller:contract")
         testCompile project(':testcommon')
     }
-}
-
-project('clients') {
-    dependencies {
-        compile project(':clients:streaming')
-    }
-    jar {
-        from project(":clients:streaming").sourceSets.main.output
-        from project(":controller:contract").sourceSets.main.output
-    }
     publishing {
         publications {
             maven(MavenPublication) {
-                groupId 'pravega'
-                artifactId 'client'
-                version = pravegaVersion
-                from components.java
-            }
-        }
-    }
-}
-
-project('service') {
-    dependencies {
-        compile project(':service:contracts')
-        compile project(':service:server')
-        compile project(':service:server:host')
-        compile project(':service:storage')
-        compile project(':service:storage:impl')
-    }
-    jar {
-        from project(":service:contracts").sourceSets.main.output
-        from project(":service:server").sourceSets.main.output
-        from project(":service:server:host").sourceSets.main.output
-        from project(":service:storage").sourceSets.main.output
-        from project(":service:storage:impl").sourceSets.main.output
-    }
-    publishing {
-        publications {
-            maven(MavenPublication) {
-                groupId 'pravega'
-                artifactId 'service'
-                version = pravegaVersion
+                artifactId 'pravega-clients'
                 from components.java
             }
         }
@@ -227,6 +203,14 @@ project('service:contracts') {
         compile project(':common')
         testCompile project(':testcommon')
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-contracts'
+                from components.java
+            }
+        }
+    }
 }
 
 project('service:storage') {
@@ -234,6 +218,14 @@ project('service:storage') {
         compile project(':common')
         compile project(':service:contracts')
         testCompile project(':testcommon')
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-storage'
+                from components.java
+            }
+        }
     }
 }
 
@@ -260,6 +252,14 @@ project('service:storage:impl') {
         testCompile project(':testcommon')
         testCompile files(project(':service:storage').sourceSets.test.output)
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-storage-impl'
+                from components.java
+            }
+        }
+    }
 }
 
 project('service:server') {
@@ -269,17 +269,37 @@ project('service:server') {
         compile project(':service:storage')
         testCompile project(':testcommon')
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-server'
+                from components.java
+            }
+        }
+    }
 }
 
 project('service:server:host') {
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
 
-    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError"]
+    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlogback.configurationFile=SERVER_APP_HOME/config/logback.xml"]
 
+    applicationDistribution.from('src/config') {
+        into "config"
+    }
+
+    startScripts {
+        doLast {
+            unixScript.text = unixScript.text.replace('SERVER_APP_HOME', '\$APP_HOME')
+            windowsScript.text = windowsScript.text.replace('SERVER_APP_HOME', '%~dp0..')
+        }
+    }
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
+        compile project(':clients:streaming')
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
@@ -303,7 +323,14 @@ project('service:server:host') {
             }
         }
     }
-
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-server-host'
+                from components.java
+            }
+        }
+    }
 }
 
 project('integrationtests') {
@@ -373,6 +400,12 @@ project('integrationtests') {
         standardInput = System.in
     }
 
+    task startEndToEndTransactionTest(type: JavaExec) {
+        main = "com.emc.pravega.demo.EndToEndTransactionTest"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
+
     task startEventProcessorTest(type: JavaExec) {
         main = "com.emc.pravega.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath
@@ -409,6 +442,14 @@ project('controller:contract') {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-controller-contract'
+                from components.java
+            }
+        }
     }
 }
 
@@ -477,12 +518,28 @@ project('controller:server') {
             }
         }
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-controller-server'
+                from components.java
+            }
+        }
+    }
 }
 
 project('connectors:flink') {
     dependencies {
         compile project(":clients:streaming")
         compile group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-connectors-flink'
+                from components.java
+            }
+        }
     }
 }
 
@@ -531,6 +588,14 @@ project('singlenode') {
         standardInput = System.in
         args = ["4000", "5000", "6000"]
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-singlenode'
+                from components.java
+            }
+        }
+    }
 }
 
 
@@ -558,6 +623,7 @@ project('systemtests:tests') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
+        dependsOn 'publish'
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
@@ -565,6 +631,7 @@ project('systemtests:tests') {
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
         systemProperty "masterIP", System.getProperty("masterIP")
+        systemProperty "imageVersion", System.getProperty("imageVersion")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
@@ -572,24 +639,19 @@ project('systemtests:tests') {
         if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
         }
-        systemProperty "testArtifactUrl", project.property('testArtifactUrl') + "/pravega/systemtests/0.1/systemtests-0.1.jar"
+        if (System.getProperty("imageVersion") == null) {
+            systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
+        }
+        maxParallelForks = 1
+        systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
+        systemProperty "testVersion", project.property("pravegaVersion")
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/pravega/systemtests/"+pravegaVersion+"/systemtests-"+pravegaVersion+".jar"
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                groupId 'pravega'
-                artifactId 'systemtests'
-                version = 0.1
+                artifactId 'pravega-systemtests'
                 from components.java
-            }
-        }
-        repositories {
-            maven {
-                credentials {
-                    username "$testFrameworkRepoUser"
-                    password "$testFrameworkRepoPass"
-                }
-                url "$testArtifactUrl"
             }
         }
     }
@@ -597,4 +659,19 @@ project('systemtests:tests') {
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}
+}
+
+task publishAllJars() {
+    dependsOn ':clients:streaming:publish'
+    dependsOn ':common:publish'
+    dependsOn ':service:contracts:publish'
+    dependsOn ':service:storage:publish'
+    dependsOn ':service:storage:impl:publish'
+    dependsOn ':service:server:publish'
+    dependsOn ':service:server:host:publish'
+    dependsOn ':controller:contract:publish'
+    dependsOn ':controller:server:publish'
+    dependsOn ':connectors:flink:publish'
+    dependsOn ':singlenode:publish'
+    dependsOn ':systemtests:tests:publish'
 }

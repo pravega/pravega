@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ReaderGroupState.AddReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.AcquireSegment;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -80,21 +82,28 @@ public class ReaderGroupStateManager {
         acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
     
-    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync, Map<Segment, Long> segments) {
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(segments));
+    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
+            ReaderGroupConfig config, Map<Segment, Long> segments) {
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
     }
     
     /**
      * Add this reader to the reader group so that it is able to acquire segments
      */
     void initializeReader() {
+        AtomicBoolean alreadyAdded = new AtomicBoolean(false);
         sync.updateState(state -> {
             if (state.getSegments(readerId) == null) {
                 return Collections.singletonList(new AddReader(readerId));
             } else {
+                alreadyAdded.set(true);
                 return null;
             }
         });
+        if (alreadyAdded.get()) {
+            throw new IllegalStateException("The requested reader: " + readerId
+                    + " cannot be added to the group because it is already in the group. Perhaps close() was not called?");
+        }
         acquireTimer.zero();
     }
     
@@ -243,6 +252,7 @@ public class ReaderGroupStateManager {
         sync.updateState(state -> {
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
+                result.set(Collections.emptyMap());
                 return null;
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();

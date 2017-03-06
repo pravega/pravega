@@ -25,6 +25,7 @@ public class StoreClientFactory {
             case Zookeeper:
                 return new ZKStoreClient();
             case InMemory:
+                return new InMemoryStoreClient();
             case ECS:
             case S3:
             case HDFS:

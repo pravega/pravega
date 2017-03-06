@@ -1,14 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
+import org.apache.commons.lang.NotImplementedException;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -16,14 +16,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
-import org.apache.commons.lang.NotImplementedException;
-
 /**
  * Stream properties
+ * <p>
+ * This class is no longer consistent and mostly not Implemented. Deprecating it.
  */
 class InMemoryStream implements Stream {
     private final String streamName;
@@ -64,6 +65,11 @@ class InMemoryStream implements Stream {
                         }
                 );
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public String getScope() {
+        return this.scopeName;
     }
 
     @Override
@@ -116,7 +122,7 @@ class InMemoryStream implements Stream {
         }
         return CompletableFuture.completedFuture(result);
     }
-    
+
     @Override
     public CompletableFuture<List<Integer>> getPredecessors(int number) {
         return CompletableFuture.completedFuture(segments.get(number).getPredecessors());
@@ -204,12 +210,38 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction() {
+    public CompletableFuture<Void> setColdMarker(int segmentNumber, long timestamp) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit) {
+    public CompletableFuture<Long> getColdMarker(int segmentNumber) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Void> removeColdMarker(int segmentNumber) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> createTransaction(final long lease, final long maxExecutionTime,
+                                                                         final long scaleGracePeriod) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> pingTransaction(UUID txId, long lease) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit, Optional<Integer> version) {
         throw new NotImplementedException();
     }
 
@@ -231,6 +263,11 @@ class InMemoryStream implements Stream {
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
         return CompletableFuture.completedFuture(0); //Transactions are not supported in this implementation.
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+        return null;
     }
 
     @Override

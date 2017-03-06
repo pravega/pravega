@@ -27,7 +27,7 @@ public class ModelHelperTest {
     }
 
     private static ScalingPolicy createScalingPolicy() {
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
+        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
         return policy;
     }
 

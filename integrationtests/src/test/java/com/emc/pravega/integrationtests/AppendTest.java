@@ -111,7 +111,7 @@ public class AppendTest {
 
         EmbeddedChannel channel = createChannel(store);
 
-        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment));
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment, CreateSegment.NO_SCALE, 0));
         assertEquals(segment, created.getSegment());
 
         UUID uuid = UUID.randomUUID();
@@ -174,7 +174,7 @@ public class AppendTest {
 
         Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment);
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
         assertTrue(ack.get(5, TimeUnit.SECONDS));
@@ -191,16 +191,15 @@ public class AppendTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         @Cleanup
-        MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
-        @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
         streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test
+    @Test(timeout = 20000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -211,9 +210,9 @@ public class AppendTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         @Cleanup
-        MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
-        @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        @Cleanup
+        MockClientFactory clientFactory = streamManager.getClientFactory();
         streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         long blockingTime = timeWrites(testString, 200, producer, true);
