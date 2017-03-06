@@ -63,7 +63,7 @@ allprojects {
             html.enabled true
         }
     }
-    compileJava {
+    compileJava { 
         options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
     } 
     docker {
