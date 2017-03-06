@@ -206,7 +206,8 @@ public final class SetupUtils {
                 .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
                 .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
                 .build();
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
+        RPCServer rpcServer = new RPCServer(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
+        rpcServer.start();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);

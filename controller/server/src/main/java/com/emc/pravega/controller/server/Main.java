@@ -31,6 +31,7 @@ import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.thrift.transport.TTransportException;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -49,7 +50,7 @@ import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 @Slf4j
 public class Main {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws TTransportException {
         String hostId;
         try {
             //On each controller process restart, it gets a fresh hostId,
@@ -118,12 +119,7 @@ public class Main {
         ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                 ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper);
 
-        try {
-            controllerEventProcessors.initialize();
-        } catch (Exception e) {
-            log.error("Error initializing event processors", e);
-            throw new RuntimeException(e);
-        }
+        controllerEventProcessors.startAsync();
 
         streamTransactionMetadataTasks.initializeStreamWriters(localController);
 
@@ -137,7 +133,8 @@ public class Main {
                 .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
                 .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
                 .build();
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
+        RPCServer rpcServer = new RPCServer(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
+        rpcServer.start();
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

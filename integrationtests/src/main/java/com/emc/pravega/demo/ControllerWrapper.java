@@ -36,12 +36,14 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class ControllerWrapper {
+public class ControllerWrapper implements AutoCloseable {
 
     @Getter
     private final ControllerService controllerService;
     @Getter
     private final Controller controller;
+    private final RPCServer rpcServer;
+    private final ControllerEventProcessors controllerEventProcessors;
 
     public ControllerWrapper(final String connectionString) throws Exception {
         this(connectionString, false, Config.SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
@@ -99,7 +101,8 @@ public class ControllerWrapper {
                 .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
                 .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
                 .build();
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
+        rpcServer = new RPCServer(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
+        rpcServer.start();
 
         RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
 
@@ -107,16 +110,24 @@ public class ControllerWrapper {
         LocalController localController = new LocalController(controllerService);
 
         if (!disableEventProcessor) {
-            ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+            controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                     client, streamStore, hostStore, segmentHelper);
 
-            controllerEventProcessors.initialize();
+            controllerEventProcessors.startAsync();
 
             streamTransactionMetadataTasks.initializeStreamWriters(localController);
+        } else {
+            controllerEventProcessors = null;
         }
         //endregion
 
         controller = new LocalController(controllerService);
+    }
+
+    @Override
+    public void close() throws Exception {
+        rpcServer.stop();
+        controllerEventProcessors.stopAsync();
     }
 }
 

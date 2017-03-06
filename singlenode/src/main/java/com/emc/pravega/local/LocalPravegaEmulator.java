@@ -160,7 +160,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     /**
      * Start controller and host.
      */
-    private void start() {
+    private void start() throws Exception {
         startController();
         try {
             Thread.sleep(10000);
@@ -215,7 +215,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         nodeServiceStarter.get().start();
     }
 
-    private void startController() {
+    private void startController() throws Exception {
         String hostId;
         try {
             //On each controller report restart, it gets a fresh hostId,
@@ -264,7 +264,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
                 .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
                 .build();
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
+        RPCServer rpcServer = new RPCServer(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
+        rpcServer.start();
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

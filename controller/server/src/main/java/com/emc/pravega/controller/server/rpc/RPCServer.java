@@ -7,7 +7,6 @@ package com.emc.pravega.controller.server.rpc;
 
 
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
-import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -23,18 +22,24 @@ import org.apache.thrift.transport.TTransportException;
 @Slf4j
 public class RPCServer {
 
-    public static void start(final ControllerService.AsyncIface controllerService, final RPCServerConfig serverConfig) {
+    private final TServer server;
+    private final RPCServerConfig serverConfig;
+
+    public RPCServer(final ControllerService.AsyncIface controllerService,
+              final RPCServerConfig serverConfig) throws TTransportException {
+        this.serverConfig = serverConfig;
+        this.server = threadedSelectorServer(new ControllerService.AsyncProcessor<>(controllerService), serverConfig);
+    }
+
+    public void start() {
         Runnable simple = () -> {
-            try {
-                threadedSelectorServer(new ControllerService.AsyncProcessor<>(controllerService), serverConfig);
-            } catch (TTransportException e) {
-                throw Lombok.sneakyThrow(e);
-            }
+            log.info("Starting Controller Server (Threaded Selector Server) on port {}", serverConfig.getPort());
+            server.serve();
         };
         new Thread(simple).start();
     }
 
-    private static void threadedSelectorServer(final TProcessor processor,
+    private TServer threadedSelectorServer(final TProcessor processor,
                                                final RPCServerConfig serverConfig) throws TTransportException {
         TNonblockingServerSocket socket = new TNonblockingServerSocket(serverConfig.getPort());
 
@@ -45,8 +50,15 @@ public class RPCServer {
                 .workerThreads(serverConfig.getWorkerThreadCount())
                 .selectorThreads(serverConfig.getSelectorThreadCount());
         config.maxReadBufferBytes = serverConfig.getMaxReadBufferBytes();
-        TServer server = new TThreadedSelectorServer(config);
-        log.info("Starting Controller Server (Threaded Selector Server) on port {}", serverConfig.getPort());
-        server.serve();
+        return new TThreadedSelectorServer(config);
+    }
+
+    public void stop() {
+        if (server.isServing()) {
+            log.info("Stopping Controller Server (Threaded Selector Server) on port {}", serverConfig.getPort());
+            server.stop();
+        } else {
+            log.error("Controller server is not running");
+        }
     }
 }
