@@ -114,6 +114,12 @@ allprojects {
                 url = "$repoUrl"
             }
         }
+        publications {
+            maven(MavenPublication) {
+                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "com.emc.pravega"
+                version = pravegaVersion
+            }
+        }
     }
 
     tasks.withType(GroovyCompile) {
@@ -163,9 +169,7 @@ project('common') {
                             appendNode('name','JCenter Repository').parent().
                             appendNode('url','http://jcenter.bintray.com')
                 }
-                groupId 'pravega'
-                artifactId 'common'
-                version = pravegaVersion
+                artifactId 'pravega-common'
                 from components.java
             }
         }
@@ -178,49 +182,10 @@ project('clients:streaming') {
         compile project(":controller:contract")
         testCompile project(':testcommon')
     }
-}
-
-project('clients') {
-    dependencies {
-        compile project(':clients:streaming')
-    }
-    jar {
-        from project(":clients:streaming").sourceSets.main.output
-        from project(":controller:contract").sourceSets.main.output
-    }
     publishing {
         publications {
             maven(MavenPublication) {
-                groupId 'pravega'
-                artifactId 'client'
-                version = pravegaVersion
-                from components.java
-            }
-        }
-    }
-}
-
-project('service') {
-    dependencies {
-        compile project(':service:contracts')
-        compile project(':service:server')
-        compile project(':service:server:host')
-        compile project(':service:storage')
-        compile project(':service:storage:impl')
-    }
-    jar {
-        from project(":service:contracts").sourceSets.main.output
-        from project(":service:server").sourceSets.main.output
-        from project(":service:server:host").sourceSets.main.output
-        from project(":service:storage").sourceSets.main.output
-        from project(":service:storage:impl").sourceSets.main.output
-    }
-    publishing {
-        publications {
-            maven(MavenPublication) {
-                groupId 'pravega'
-                artifactId 'service'
-                version = pravegaVersion
+                artifactId 'pravega-clients'
                 from components.java
             }
         }
@@ -238,6 +203,14 @@ project('service:contracts') {
         compile project(':common')
         testCompile project(':testcommon')
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-contracts'
+                from components.java
+            }
+        }
+    }
 }
 
 project('service:storage') {
@@ -245,6 +218,14 @@ project('service:storage') {
         compile project(':common')
         compile project(':service:contracts')
         testCompile project(':testcommon')
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-storage'
+                from components.java
+            }
+        }
     }
 }
 
@@ -271,6 +252,14 @@ project('service:storage:impl') {
         testCompile project(':testcommon')
         testCompile files(project(':service:storage').sourceSets.test.output)
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-storage-impl'
+                from components.java
+            }
+        }
+    }
 }
 
 project('service:server') {
@@ -279,6 +268,14 @@ project('service:server') {
         compile project(':service:contracts')
         compile project(':service:storage')
         testCompile project(':testcommon')
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-server'
+                from components.java
+            }
+        }
     }
 }
 
@@ -312,6 +309,14 @@ project('service:server:host') {
                 url = "$dockerRegistryUrl"
                 username = "$dockerRegistryUser"
                 password = "$dockerRegistryPass"
+            }
+        }
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-service-server-host'
+                from components.java
             }
         }
     }
@@ -427,6 +432,14 @@ project('controller:contract') {
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-controller-contract'
+                from components.java
+            }
+        }
+    }
 }
 
 project('controller:server') {
@@ -494,12 +507,28 @@ project('controller:server') {
             }
         }
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-controller-server'
+                from components.java
+            }
+        }
+    }
 }
 
 project('connectors:flink') {
     dependencies {
         compile project(":clients:streaming")
         compile group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-connectors-flink'
+                from components.java
+            }
+        }
     }
 }
 
@@ -547,6 +576,14 @@ project('singlenode') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
         args = ["4000", "5000", "6000"]
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-singlenode'
+                from components.java
+            }
+        }
     }
 }
 
@@ -602,9 +639,7 @@ project('systemtests:tests') {
     publishing {
         publications {
             maven(MavenPublication) {
-                groupId 'pravega'
-                artifactId 'systemtests'
-                version = pravegaVersion
+                artifactId 'pravega-systemtests'
                 from components.java
             }
         }
@@ -613,4 +648,19 @@ project('systemtests:tests') {
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}
+}
+
+task publishAllJars() {
+    dependsOn ':clients:streaming:publish'
+    dependsOn ':common:publish'
+    dependsOn ':service:contracts:publish'
+    dependsOn ':service:storage:publish'
+    dependsOn ':service:storage:impl:publish'
+    dependsOn ':service:server:publish'
+    dependsOn ':service:server:host:publish'
+    dependsOn ':controller:contract:publish'
+    dependsOn ':controller:server:publish'
+    dependsOn ':connectors:flink:publish'
+    dependsOn ':singlenode:publish'
+    dependsOn ':systemtests:tests:publish'
 }
