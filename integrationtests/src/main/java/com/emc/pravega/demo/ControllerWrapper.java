@@ -9,6 +9,7 @@ import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
 import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.RPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -41,11 +42,19 @@ public class ControllerWrapper {
     @Getter
     private final Controller controller;
 
-    public ControllerWrapper(String connectionString) throws Exception {
-        this(connectionString, false);
+    public ControllerWrapper(final String connectionString) throws Exception {
+        this(connectionString, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
+                Config.HOST_STORE_CONTAINER_COUNT);
     }
 
-    public ControllerWrapper(String connectionString, boolean disableEventProcessor) throws Exception {
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor) throws Exception {
+        this(connectionString, disableEventProcessor, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
+                Config.HOST_STORE_CONTAINER_COUNT);
+    }
+
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final int controllerPort, final String serviceHost, final int servicePort,
+                             final int containerCount) throws Exception {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -66,7 +75,7 @@ public class ControllerWrapper {
 
         ZKStreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
 
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(serviceHost, servicePort, containerCount);
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
@@ -83,7 +92,10 @@ public class ControllerWrapper {
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
 
-        GRPCServer.start(controllerService, Config.RPC_SERVER_PORT);
+        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+                .port(controllerPort)
+                .build();
+        GRPCServer.start(controllerService, rpcServerConfig);
 
         RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
 

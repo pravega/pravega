@@ -41,4 +41,12 @@ public class HostStoreFactory {
             throw new NotImplementedException();
         }
     }
+
+    public static HostControllerStore createInMemoryStore(String host, int port, int containerCount) {
+        log.info("Creating in-memory host store");
+        Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+        hostContainerMap.put(new Host(host, port),
+                IntStream.range(0, containerCount).boxed().collect(Collectors.toSet()));
+        return new InMemoryHostStore(hostContainerMap);
+    }
 }
