@@ -63,7 +63,7 @@ allprojects {
             html.enabled true
         }
     }
-    compileJava {
+    compileJava { 
         options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
     } 
     docker {
@@ -169,7 +169,7 @@ project('common') {
                             appendNode('name','JCenter Repository').parent().
                             appendNode('url','http://jcenter.bintray.com')
                 }
-                artifactId 'common'
+                artifactId 'pravega-common'
                 from components.java
             }
         }
@@ -185,7 +185,7 @@ project('clients:streaming') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'clients.streaming'
+                artifactId 'pravega-clients'
                 from components.java
             }
         }
@@ -206,7 +206,7 @@ project('service:contracts') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'service.contracts'
+                artifactId 'pravega-service-contracts'
                 from components.java
             }
         }
@@ -222,7 +222,7 @@ project('service:storage') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'service.storage'
+                artifactId 'pravega-service-storage'
                 from components.java
             }
         }
@@ -255,7 +255,7 @@ project('service:storage:impl') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'service.storage.impl'
+                artifactId 'pravega-service-storage-impl'
                 from components.java
             }
         }
@@ -272,7 +272,7 @@ project('service:server') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'service.server'
+                artifactId 'pravega-service-server'
                 from components.java
             }
         }
@@ -315,7 +315,7 @@ project('service:server:host') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'service.server.host'
+                artifactId 'pravega-service-server-host'
                 from components.java
             }
         }
@@ -435,7 +435,7 @@ project('controller:contract') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'controller.contract'
+                artifactId 'pravega-controller-contract'
                 from components.java
             }
         }
@@ -510,7 +510,7 @@ project('controller:server') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'controller.server'
+                artifactId 'pravega-controller-server'
                 from components.java
             }
         }
@@ -525,7 +525,7 @@ project('connectors:flink') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'connectors.flink'
+                artifactId 'pravega-connectors-flink'
                 from components.java
             }
         }
@@ -580,7 +580,7 @@ project('singlenode') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'singlenode'
+                artifactId 'pravega-singlenode'
                 from components.java
             }
         }
@@ -639,7 +639,7 @@ project('systemtests:tests') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'systemtests'
+                artifactId 'pravega-systemtests'
                 from components.java
             }
         }
