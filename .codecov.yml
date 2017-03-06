@@ -1,0 +1,6 @@
+ignore:
+  - "benchmark"
+  - "integrationtests"
+  - "singlenode"
+  - "testcommon"
+  - "systemtests"
