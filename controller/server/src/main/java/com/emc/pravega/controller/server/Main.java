@@ -10,6 +10,7 @@ import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessor
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.RPCServerConfig;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
@@ -130,7 +131,13 @@ public class Main {
 
         //3. Start the RPC server.
         log.info("Starting RPC server");
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+                .port(Config.SERVER_PORT)
+                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
+                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
+                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
+                .build();
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

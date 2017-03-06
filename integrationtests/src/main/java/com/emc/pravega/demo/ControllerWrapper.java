@@ -7,6 +7,7 @@ import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.RPCServerConfig;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
@@ -21,6 +22,7 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.Getter;
@@ -41,11 +43,19 @@ public class ControllerWrapper {
     @Getter
     private final Controller controller;
 
-    public ControllerWrapper(String connectionString) throws Exception {
-        this(connectionString, false);
+    public ControllerWrapper(final String connectionString) throws Exception {
+        this(connectionString, false, Config.SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
+                Config.HOST_STORE_CONTAINER_COUNT);
     }
 
-    public ControllerWrapper(String connectionString, boolean disableEventProcessor) throws Exception {
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor) throws Exception {
+        this(connectionString, disableEventProcessor, Config.SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
+                Config.HOST_STORE_CONTAINER_COUNT);
+    }
+
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final int controllerPort, final String serviceHost, final int servicePort,
+                             final int containerCount) throws Exception {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -66,7 +76,7 @@ public class ControllerWrapper {
 
         ZKStreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
 
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(serviceHost, servicePort, containerCount);
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
@@ -83,7 +93,13 @@ public class ControllerWrapper {
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
 
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+                .port(controllerPort)
+                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
+                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
+                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
+                .build();
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
 
         RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
 
