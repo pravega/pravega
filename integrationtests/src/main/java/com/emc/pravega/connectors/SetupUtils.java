@@ -6,11 +6,10 @@ package com.emc.pravega.connectors;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -57,11 +56,12 @@ import org.apache.curator.test.TestingServer;
  */
 @Slf4j
 public final class SetupUtils {
-    // The controller endpoint.
-    public static final URI CONTROLLER_URI = URI.create("tcp://localhost:9090");
-
     // The pravega service listening port.
     private static final int SERVICE_PORT = 12345;
+    private static final int RPC_PORT = 9090;
+
+    // The controller endpoint.
+    public static final URI CONTROLLER_URI = URI.create("tcp://localhost:" + RPC_PORT);
 
     /**
      * Start all pravega related services required for the test deployment.
@@ -200,13 +200,10 @@ public final class SetupUtils {
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), Executors.newFixedThreadPool(10));
-        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
-                .port(Config.SERVER_PORT)
-                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
-                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
-                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+                .port(Config.RPC_SERVER_PORT)
                 .build();
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
+        GRPCServer.start(controllerService, gRPCServerConfig);
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);

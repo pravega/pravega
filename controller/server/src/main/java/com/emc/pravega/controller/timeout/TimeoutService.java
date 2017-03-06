@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.timeout;
 
-import com.emc.pravega.controller.stream.api.v1.PingStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.google.common.util.concurrent.Service;
 
 import java.util.UUID;
@@ -86,7 +86,7 @@ public interface TimeoutService extends Service {
      * @param lease  Additional amount of time for the transaction to be in open state.
      * @return Ping status
      */
-    PingStatus pingTxn(final String scope, final String stream, final UUID txnId, long lease);
+    PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, long lease);
 
     /**
      * This method returns a boolean indicating whether it manages timeout for the specified transaction.

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.controller.server.rpc.v1;
+package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.netty.WireCommandType;
 import com.emc.pravega.controller.retryable.RetryableException;

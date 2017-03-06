@@ -4,9 +4,9 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -59,8 +59,8 @@ public class ScaleTest {
         Stream stream = new StreamImpl(scope, streamName);
 
         log.info("Creating stream {}/{}", scope, streamName);
-        CreateStreamStatus createStatus = controller.createStream(config).get();
-        if (createStatus != CreateStreamStatus.SUCCESS) {
+        CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
+        if (createStatus.get().getStatus() != CreateStreamStatus.Status.SUCCESS) {
             log.error("Create stream failed, exiting");
             return;
         }
