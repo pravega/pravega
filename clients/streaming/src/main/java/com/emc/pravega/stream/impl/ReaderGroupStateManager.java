@@ -9,6 +9,7 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ReaderGroupState.AcquireSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.AddReader;
@@ -136,13 +137,25 @@ public class ReaderGroupStateManager {
     /**
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
-    void handleEndOfSegment(Segment segmentCompleted) {
+    void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
         val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted),
                                                 RuntimeException::new);
+        AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
+            if (!state.isReaderOnline(readerId)) {
+                reinitRequired.set(true);
+                return null;
+            }
             return Collections.singletonList(new SegmentCompleted(readerId, segmentCompleted, successors));
         });
+        if (reinitRequired.get()) {
+            throw new ReinitializationRequiredException();
+        }
         acquireTimer.zero();
+    }
+
+    private void checkStillAlive(ReaderGroupState state) throws ReinitializationRequiredException {
+
     }
 
     /**
@@ -222,7 +235,7 @@ public class ReaderGroupStateManager {
      * If there are unassigned segments and this host has not acquired one in a while, acquires them.
      * @return A map from the new segment that was acquired to the offset to begin reading from within the segment.
      */
-    Map<Segment, Long> acquireNewSegmentsIfNeeded(long timeLag) {
+    Map<Segment, Long> acquireNewSegmentsIfNeeded(long timeLag) throws ReinitializationRequiredException {
         if (!acquireTimer.hasRemaining()) {
             sync.fetchUpdates();
         }
@@ -233,8 +246,11 @@ public class ReaderGroupStateManager {
         }
     }
     
-    private boolean shouldAcquireSegment() {
+    private boolean shouldAcquireSegment() throws ReinitializationRequiredException {
         synchronized (decisionLock) {
+            if (!sync.getState().isReaderOnline(readerId)) {
+                throw new ReinitializationRequiredException();
+            }
             if (acquireTimer.hasRemaining()) {
                 return false;
             }
@@ -246,9 +262,14 @@ public class ReaderGroupStateManager {
         }
     }
 
-    private Map<Segment, Long> acquireSegment(long timeLag) {
+    private Map<Segment, Long> acquireSegment(long timeLag) throws ReinitializationRequiredException {
         AtomicReference<Map<Segment, Long>> result = new AtomicReference<>();
+        AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
+            if (!state.isReaderOnline(readerId)) {
+                reinitRequired.set(true);
+                return null;
+            }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
                 result.set(Collections.emptyMap());
@@ -268,6 +289,9 @@ public class ReaderGroupStateManager {
             result.set(acquired);
             return updates;
         });
+        if (reinitRequired.get()) {
+            throw new ReinitializationRequiredException();
+        }
         acquireTimer.reset(calculateAcquireTime(sync.getState()));
         return result.get();
     }
@@ -290,13 +314,25 @@ public class ReaderGroupStateManager {
         return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
     }
     
-    String getCheckpoint() {
-        return sync.getState().getCheckpointsForReader(readerId);
+    String getCheckpoint() throws ReinitializationRequiredException {
+        ReaderGroupState state = sync.getState();
+        if (!state.isReaderOnline(readerId)) {
+            throw new ReinitializationRequiredException();
+        }
+        return state.getCheckpointsForReader(readerId);
     }
     
-    void checkpoint(String checkpointName, PositionInternal lastPosition) {
+    void checkpoint(String checkpointName, PositionInternal lastPosition) throws ReinitializationRequiredException {
+        AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
+            if (!state.isReaderOnline(readerId)) {
+                reinitRequired.set(true);
+                return null;
+            }
             return Collections.singletonList(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
         });
+        if (reinitRequired.get()) {
+            throw new ReinitializationRequiredException();
+        }
     }
 }

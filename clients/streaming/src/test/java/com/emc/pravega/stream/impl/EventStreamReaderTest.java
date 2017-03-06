@@ -7,6 +7,7 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
@@ -29,7 +30,7 @@ import static org.junit.Assert.*;
 public class EventStreamReaderTest {
 
     @Test(timeout = 10000)
-    public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException {
+    public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -58,7 +59,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testRead() throws SegmentSealedException {
+    public void testRead() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -83,7 +84,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testReleaseSegment() throws SegmentSealedException {
+    public void testReleaseSegment() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -128,7 +129,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testAcquireSegment() throws SegmentSealedException {
+    public void testAcquireSegment() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -165,7 +166,7 @@ public class EventStreamReaderTest {
     }
     
     @Test
-    public void testEventPointer() throws SegmentSealedException, NoSuchEventException {
+    public void testEventPointer() throws SegmentSealedException, NoSuchEventException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();

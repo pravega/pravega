@@ -10,6 +10,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
@@ -44,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 public class ReaderGroupStateManagerTest {
 
     @Test
-    public void testSegmentSplit() {
+    public void testSegmentSplit() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
@@ -89,7 +90,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test
-    public void testSegmentMerge() {
+    public void testSegmentMerge() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
@@ -143,7 +144,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test
-    public void testAddReader() {
+    public void testAddReader() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
@@ -178,7 +179,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test
-    public void testSegmentsAssigned() {
+    public void testSegmentsAssigned() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
@@ -259,7 +260,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test
-    public void testReleaseWhenReadersAdded() {
+    public void testReleaseWhenReadersAdded() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);

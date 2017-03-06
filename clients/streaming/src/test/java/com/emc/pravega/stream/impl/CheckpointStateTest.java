@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.stream.impl;
 
@@ -23,12 +21,12 @@ public class CheckpointStateTest {
     @Test
     public void testCheckpointCompletes() {
         CheckpointState state = new CheckpointState();
-        state.beginNewCheckpoint("foo", ImmutableSet.of("a","b"));
+        state.beginNewCheckpoint("foo", ImmutableSet.of("a", "b"));
         assertFalse(state.isCheckpointComplete("foo"));
-        state.readerCheckpointed("foo", "a", ImmutableMap.of(getSegment("S1"),1L));
+        state.readerCheckpointed("foo", "a", ImmutableMap.of(getSegment("S1"), 1L));
         assertFalse(state.isCheckpointComplete("foo"));
         assertNull(state.getPositionsForCompletedCheckpoint("foo"));
-        state.readerCheckpointed("foo", "b", ImmutableMap.of(getSegment("S2"),2L));
+        state.readerCheckpointed("foo", "b", ImmutableMap.of(getSegment("S2"), 2L));
         assertTrue(state.isCheckpointComplete("foo"));
         Map<Segment, Long> completedCheckpoint = state.getPositionsForCompletedCheckpoint("foo");
         assertNotNull(completedCheckpoint);

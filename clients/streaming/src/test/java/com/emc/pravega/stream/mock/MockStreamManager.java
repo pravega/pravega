@@ -94,17 +94,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
                 groupName,
                 streamNames,
-                config,
                 synchronizerConfig,
                 new JavaSerializer<>(),
                 new JavaSerializer<>(),
-                clientFactory);
-        Map<Segment, Long> segments = streamNames.stream()
-                                                 .flatMap(name -> controller.getSegmentsForStream(new StreamImpl(scope,
-                                                         name)).stream())
-                                                 .collect(Collectors.toMap(segment -> segment,
-                                                                           segment -> Long.valueOf(0)));
-        result.initializeGroup(segments);
+                clientFactory,
+                controller);
+        result.initializeGroup(config, streamNames);
         return result;
     }
 

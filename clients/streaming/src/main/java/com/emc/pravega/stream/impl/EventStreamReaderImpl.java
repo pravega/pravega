@@ -12,6 +12,7 @@ import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.Serializer;
@@ -63,7 +64,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @Override
-    public EventRead<Type> readNextEvent(long timeout) {
+    public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
             Timer timer = new Timer();
@@ -73,7 +74,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             do { 
                 String checkpoint = updateGroupStateIfNeeded();
                 if (checkpoint != null) {
-                    return createEmptyEvent(checkpoint);
+                     return createEmptyEvent(checkpoint);
                 }
                 SegmentInputStream segmentReader = orderer.nextSegment(readers);
                 if (segmentReader == null) {
@@ -115,17 +116,23 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
     
     @GuardedBy("readers")
-    private String updateGroupStateIfNeeded() {
-        if (atCheckpoint) {
-            releaseSegmentsIfNeeded();
-            atCheckpoint = false;
+    private String updateGroupStateIfNeeded() throws ReinitializationRequiredException {
+        try {
+            if (atCheckpoint) {
+                releaseSegmentsIfNeeded();
+                atCheckpoint = false;
+            }
+            acquireSegmentsIfNeeded();
+            String checkpoint = groupState.getCheckpoint();
+            if (checkpoint != null) {
+                groupState.checkpoint(checkpoint, getPosition());
+                atCheckpoint = true;
+            }
+            return checkpoint;
+        } catch (ReinitializationRequiredException e) {
+            close();
+            throw e;
         }
-        acquireSegmentsIfNeeded();
-        String checkpoint = groupState.getCheckpoint();
-        if (checkpoint != null) {
-            atCheckpoint = true;
-        }
-        return checkpoint;
     }
 
     private void releaseSegmentsIfNeeded() {
@@ -139,7 +146,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
 
-    private void acquireSegmentsIfNeeded() {
+    private void acquireSegmentsIfNeeded() throws ReinitializationRequiredException {
         Map<Segment, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag());
         if (newSegments != null) {
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
@@ -158,9 +165,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return clock.get() - lastRead.getHighOrder();
     }
     
-    private void handleEndOfSegment(SegmentInputStream oldSegment) {
-        readers.remove(oldSegment);
-        groupState.handleEndOfSegment(oldSegment.getSegmentId());
+    private void handleEndOfSegment(SegmentInputStream oldSegment) throws ReinitializationRequiredException {
+        try {
+            readers.remove(oldSegment);
+            groupState.handleEndOfSegment(oldSegment.getSegmentId());
+        } catch (ReinitializationRequiredException e) {
+            close();
+            throw e;
+        }
     }
 
     @Override

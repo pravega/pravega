@@ -6,7 +6,6 @@
 package com.emc.pravega.stream;
 
 import com.emc.pravega.ClientFactory;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -42,13 +41,6 @@ public interface ReaderGroup {
      * @return Reader group name
      */
     String getGroupName();
-
-    /**
-     * Returns the configuration of the reader group.
-     *
-     * @return Reader group configuration
-     */
-    ReaderGroupConfig getConfig();
     
     /**
      * Initiate a checkpoint. This causes all readers in the group to receive a special {@link EventRead} that
@@ -89,9 +81,8 @@ public interface ReaderGroup {
      * 
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
-     * @return ReaderGroup with updated configuration
      */
-    ReaderGroup alterConfig(ReaderGroupConfig config, List<String> streamNames);
+    void alterConfig(ReaderGroupConfig config, Set<String> streamNames);
     
     /**
      * Invoked when a reader that was added to the group is no longer consuming events. This will

@@ -107,7 +107,7 @@ class ReaderGroupState implements Revisioned {
         List<String> sorted = distanceToTail.entrySet()
                                    .stream()
                                    .sorted((o1, o2) -> -Long.compare(o1.getValue(), o2.getValue()))
-                                   .map(e -> e.getKey())
+                                   .map(Entry::getKey)
                                    .collect(Collectors.toList());
         return sorted.indexOf(reader);
     }
@@ -136,25 +136,30 @@ class ReaderGroupState implements Revisioned {
     }
     
     @Synchronized
-    public int getNumberOfUnassignedSegments() {
+    int getNumberOfUnassignedSegments() {
         return unassignedSegments.size();
     }
     
     @Synchronized
-    public Map<Segment, Long> getUnassignedSegments() {
+    Map<Segment, Long> getUnassignedSegments() {
         return new HashMap<>(unassignedSegments);
     }
-    
+
+    @Synchronized
+    boolean isReaderOnline(String reader) {
+        return assignedSegments.get(reader) != null;
+    }
+
     /**
      * Returns the number of segments currently being read from and that are unassigned within the reader group.
      */
     @Synchronized
-    public int getNumberOfSegments() {
+    int getNumberOfSegments() {
         return assignedSegments.values().stream().mapToInt(Set::size).sum() + unassignedSegments.size();
     }
     
     @Synchronized
-    public Set<String> getStreamNames() {
+    Set<String> getStreamNames() {
         Set<String> result = new HashSet<>();
         for (Set<Segment> segments : assignedSegments.values()) {
             for (Segment segment : segments) {
@@ -168,17 +173,17 @@ class ReaderGroupState implements Revisioned {
     }
     
     @Synchronized
-    public String getCheckpointsForReader(String readerName) {
+    String getCheckpointsForReader(String readerName) {
         return checkpointState.getCheckpointForReader(readerName);
     }
     
     @Synchronized
-    public boolean isCheckpointComplete(String checkpointId) {
+    boolean isCheckpointComplete(String checkpointId) {
         return checkpointState.isCheckpointComplete(checkpointId);
     }
     
     @Synchronized
-    public Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
+    Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
         return checkpointState.getPositionsForCompletedCheckpoint(checkpointId);
     }
     
@@ -421,5 +426,6 @@ class ReaderGroupState implements Revisioned {
             state.checkpointState.clearCheckpointsThrough(clearUpThroughCheckpoint);
         }
     }
+
 
 }
