@@ -64,7 +64,7 @@ allprojects {
         }
     }
     compileJava {
-        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror"
+        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
     } 
     docker {
         url = dockerUrl
@@ -116,7 +116,7 @@ allprojects {
         }
         publications {
             maven(MavenPublication) {
-                groupId = System.properties['groupId'] ? System.properties['groupId'] : "pravega"
+                groupId = System.properties['groupId'] ? System.properties['groupId'] : "com.emc.pravega"
                 version = pravegaVersion
             }
         }
