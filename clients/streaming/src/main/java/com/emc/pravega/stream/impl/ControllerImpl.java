@@ -91,7 +91,6 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>();
         client.createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
         return callback.getFuture();
-
     }
 
     @Override
@@ -343,5 +342,4 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
             return future;
         }
     }
-
 }
