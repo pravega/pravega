@@ -61,7 +61,7 @@ public class ControllerBootstrapTest {
 
         // Create test scope. This operation should succeed.
         CreateScopeStatus scopeStatus = controller.createScope(SCOPE).join();
-        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus);
+        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
 
         // Try creating a stream. It should succeed.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
@@ -75,7 +75,7 @@ public class ControllerBootstrapTest {
         // Ensure that create stream succeeds.
         try {
             CreateStreamStatus status = streamStatus.join();
-            Assert.assertEquals(CreateStreamStatus.Status.SUCCESS, status);
+            Assert.assertEquals(CreateStreamStatus.Status.SUCCESS, status.getStatus());
         } catch (CompletionException ce) {
             Assert.fail();
         }
