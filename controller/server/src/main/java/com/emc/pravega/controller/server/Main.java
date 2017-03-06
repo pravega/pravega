@@ -46,7 +46,7 @@ import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 @Slf4j
 public class Main {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         String hostId;
         try {
             //On each controller process restart, it gets a fresh hostId,
@@ -108,7 +108,13 @@ public class Main {
 
         // Start the RPC server.
         log.info("Starting gRPC server");
-        GRPCServer.start(controllerService, Config.RPC_SERVER_PORT);
+        try {
+            GRPCServer.start(controllerService, Config.RPC_SERVER_PORT);
+        } catch (IOException e) {
+            // We will fail controller start if RPC server cannot be started.
+            log.error("Failed to start gRPC server on port: {}. Error: {}", Config.RPC_SERVER_PORT, e);
+            return;
+        }
 
         //2. set up Event Processors
 
