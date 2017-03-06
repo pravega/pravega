@@ -68,9 +68,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }).exceptionally(exception -> {
             log.warn("createScope for scope: {} failed, exception: {}", createScopeRequest.getScopeName(), exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-        }).thenApply(asyncResponse::resume);
-
-        LoggerHelpers.traceLeave(log, "createScope", traceId);
+        }).thenApply(asyncResponse::resume)
+        .thenAccept(x -> LoggerHelpers.traceLeave(log, "createScope", traceId));
     }
 
     /**
@@ -106,9 +105,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     log.warn("createStream for {}/{} failed {}: ", scopeName, streamConfiguration.getStreamName(),
                              exception);
                     return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-                }).thenApply(asyncResponse::resume);
-
-        LoggerHelpers.traceLeave(log, "createStream", traceId);
+                }).thenApply(asyncResponse::resume)
+                .thenAccept(x -> LoggerHelpers.traceLeave(log, "createStream", traceId));
     }
 
     /**
@@ -140,9 +138,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }).exceptionally(exception -> {
             log.warn("deleteScope for {} failed with exception: {}", scopeName, exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-        }).thenApply(asyncResponse::resume);
-
-        LoggerHelpers.traceLeave(log, "deleteScope", traceId);
+        }).thenApply(asyncResponse::resume)
+        .thenAccept(x -> LoggerHelpers.traceLeave(log, "deleteScope", traceId));
     }
 
     /**
@@ -183,9 +180,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         log.warn("getScope for {} failed with exception: {}", scopeName, exception);
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
-                }).thenApply(asyncResponse::resume);
-
-        LoggerHelpers.traceLeave(log, "getScope", traceId);
+                }).thenApply(asyncResponse::resume)
+                .thenAccept(x -> LoggerHelpers.traceLeave(log, "getScope", traceId));
     }
 
     /**
@@ -214,9 +210,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         log.warn("getStream for {}/{} failed with exception: {}", scopeName, streamName, exception);
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
-                }).thenApply(asyncResponse::resume);
-
-        LoggerHelpers.traceLeave(log, "getStream", traceId);
+                }).thenApply(asyncResponse::resume)
+                .thenAccept(x ->  LoggerHelpers.traceLeave(log, "getStream", traceId));
     }
 
     /**
@@ -237,9 +232,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                 }).exceptionally(exception -> {
                         log.warn("listScopes failed with exception: " + exception);
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-                }).thenApply(asyncResponse::resume);
-
-        LoggerHelpers.traceLeave(log, "listScopes", traceId);
+                }).thenApply(asyncResponse::resume)
+                .thenAccept(x ->  LoggerHelpers.traceLeave(log, "listScopes", traceId));
     }
 
     /**
@@ -271,9 +265,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         log.warn("listStreams for {} failed with exception: {}", scopeName, exception);
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
-                }).thenApply(asyncResponse::resume);
-
-        LoggerHelpers.traceLeave(log, "listStreams", traceId);
+                }).thenApply(asyncResponse::resume)
+                .thenAccept(x -> LoggerHelpers.traceLeave(log, "listStreams", traceId));
     }
 
     /**
@@ -309,8 +302,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }).exceptionally(exception -> {
             log.warn("updateStream for {}/{} failed with exception: {}", scopeName, streamName, exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-        }).thenApply(asyncResponse::resume);
-
-        LoggerHelpers.traceLeave(log, "updateStream", traceId);
+        }).thenApply(asyncResponse::resume)
+        .thenAccept(x -> LoggerHelpers.traceLeave(log, "updateStream", traceId));
     }
 }
