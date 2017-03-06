@@ -36,6 +36,7 @@ import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
+import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 
@@ -91,13 +92,14 @@ public class InProcPravegaCluster implements AutoCloseable {
     private LocalHDFSEmulator localHdfs;
     private LocalDLMEmulator localDlm;
     private ScheduledExecutorService controllerExecutor;
+    private String zkUrl;
 
     public void start() throws Exception {
         /*Start the ZK*/
         if(isInProcZK) {
-            zkHost = "localhost";
+            zkUrl = "localhost:" + zkPort;
         } else {
-            assert(zkHost!=null);
+            assert(zkUrl!=null);
         }
 
         if(isInProcHDFS) {
@@ -127,6 +129,19 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     }
 
+    private static void configureDLBinding(String zkUrl) {
+        DistributedLogAdmin admin = new DistributedLogAdmin();
+        String[] params = {"bind", "-dlzr", zkUrl, "-dlzw", zkUrl, "-s", zkUrl, "-bkzr", zkUrl,
+                "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
+                "distributedlog://" + zkUrl + "/pravega/segmentstore/containers"};
+        try {
+            admin.run(params);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+
     private void startLocalDL() throws Exception {
         if(isInProcZK) {
             localDlm = LocalDLMEmulator.newBuilder().shouldStartZK(true).
@@ -136,6 +151,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     zkPort(zkPort).numBookies(this.bookieCount).build();
         }
         localDlm.start();
+        configureDLBinding(this.zkUrl);
     }
 
 
