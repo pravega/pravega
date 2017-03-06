@@ -127,7 +127,7 @@ allprojects {
         testLogging.showCauses = true
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
-        testLogging.events = ["PASSED", "FAILED"]
+        testLogging.events = ["PASSED", "FAILED", "standardOut", "standardError"]
         maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
         minHeapSize = "128m"
         maxHeapSize = "512m"
