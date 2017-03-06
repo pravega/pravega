@@ -146,6 +146,6 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
-        return controller.isSegmentValid(segment.getScope(), segment.getScopedName(), segment.getSegmentNumber());
+        return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
     }
 }
