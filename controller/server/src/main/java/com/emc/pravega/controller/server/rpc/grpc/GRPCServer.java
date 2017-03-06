@@ -6,7 +6,6 @@
 package com.emc.pravega.controller.server.rpc.grpc;
 
 import com.emc.pravega.controller.server.ControllerService;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.grpc.ServerBuilder;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +25,7 @@ public class GRPCServer {
      * @param serverConfig      The RPC Server config.
      * @throws IOException      On any network failures.
      */
-    public static void start(ControllerService controllerService, RPCServerConfig serverConfig) throws IOException {
+    public static void start(ControllerService controllerService, GRPCServerConfig serverConfig) throws IOException {
         ServerBuilder
                 .forPort(serverConfig.getPort())
                 .addService(new ControllerServiceImpl(controllerService))

@@ -9,7 +9,7 @@ import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
 import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -92,10 +92,10 @@ public class ControllerWrapper {
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
 
-        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
                 .port(controllerPort)
                 .build();
-        GRPCServer.start(controllerService, rpcServerConfig);
+        GRPCServer.start(controllerService, gRPCServerConfig);
 
         RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
 

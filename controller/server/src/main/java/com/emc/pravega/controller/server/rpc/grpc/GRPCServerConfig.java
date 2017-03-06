@@ -1,21 +1,21 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.controller.server.rpc;
+package com.emc.pravega.controller.server.rpc.grpc;
 
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Data;
 
 /**
- * RPC server config.
+ * gRPC server config.
  */
 @Data
-public class RPCServerConfig {
+public class GRPCServerConfig {
     private final int port;
 
     @Builder
-    public RPCServerConfig(int port) {
+    public GRPCServerConfig(int port) {
         Preconditions.checkArgument(port > 0, "Invalid port.");
 
         this.port = port;

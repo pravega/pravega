@@ -11,7 +11,7 @@ import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -258,10 +258,10 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerExecutor);
-        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
                 .port(controllerPort)
                 .build();
-        GRPCServer.start(controllerService, rpcServerConfig);
+        GRPCServer.start(controllerService, gRPCServerConfig);
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

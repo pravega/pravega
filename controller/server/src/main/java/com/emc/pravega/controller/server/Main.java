@@ -10,7 +10,7 @@ import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessor
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -110,10 +110,10 @@ public class Main {
         // Start the RPC server.
         log.info("Starting gRPC server");
         try {
-            RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+            GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
                     .port(Config.RPC_SERVER_PORT)
                     .build();
-            GRPCServer.start(controllerService, rpcServerConfig);
+            GRPCServer.start(controllerService, gRPCServerConfig);
         } catch (IOException e) {
             // We will fail controller start if RPC server cannot be started.
             log.error("Failed to start gRPC server on port: {}. Error: {}", Config.RPC_SERVER_PORT, e);

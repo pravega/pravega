@@ -9,7 +9,7 @@ import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -200,10 +200,10 @@ public final class SetupUtils {
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), Executors.newFixedThreadPool(10));
-        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
                 .port(Config.RPC_SERVER_PORT)
                 .build();
-        GRPCServer.start(controllerService, rpcServerConfig);
+        GRPCServer.start(controllerService, gRPCServerConfig);
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
