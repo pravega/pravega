@@ -42,6 +42,7 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -55,6 +56,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -65,6 +69,7 @@ import static org.junit.Assert.assertTrue;
  * Unit tests for ControllerImpl.
  *
  */
+@Slf4j
 public class ControllerImplTest {
 
     @Rule
@@ -107,6 +112,16 @@ public class ControllerImplTest {
                 } else if (request.getStreamInfo().getStream().equals("stream5")) {
                     responseObserver.onNext(CreateStreamStatus.newBuilder()
                                                     .setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("streamparallel")) {
+                    // Simulating delay in sending response.
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                    }
+                    responseObserver.onNext(CreateStreamStatus.newBuilder()
+                                                    .setStatus(CreateStreamStatus.Status.SUCCESS)
                                                     .build());
                     responseObserver.onCompleted();
                 } else {
@@ -181,6 +196,25 @@ public class ControllerImplTest {
                                                                                                      0.4))
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
                                                                                                      "stream1",
+                                                                                                     1,
+                                                                                                     0.4,
+                                                                                                     1.0))
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("streamparallel")) {
+                    // Simulating delay in sending response.
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                    }
+                    responseObserver.onNext(SegmentRanges.newBuilder()
+                                                    .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                                                                                     "streamparallel",
+                                                                                                     0,
+                                                                                                     0.0,
+                                                                                                     0.4))
+                                                    .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                                                                                     "streamparallel",
                                                                                                      1,
                                                                                                      0.4,
                                                                                                      1.0))
@@ -779,5 +813,60 @@ public class ControllerImplTest {
 
         scopeStatus = controllerClient.createScope("scope5");
         AssertExtensions.assertThrows("Should throw Exception", scopeStatus, throwable -> true);
+    }
+
+    @Test
+    public void testParallelCreateStream() throws Exception {
+        final ExecutorService executorService = Executors.newFixedThreadPool(10);
+        Semaphore createCount = new Semaphore(-19);
+        for (int i = 0; i < 10; i++) {
+            executorService.submit(() -> {
+                for (int j = 0; j < 2; j++) {
+                    try {
+                        CompletableFuture<CreateStreamStatus> createStreamStatus;
+                        createStreamStatus = controllerClient.createStream(
+                                StreamConfiguration.builder()
+                                        .streamName("streamparallel")
+                                        .scope("scope1")
+                                        .retentionPolicy(RetentionPolicy.builder().retentionTimeMillis(0).build())
+                                        .scalingPolicy(ScalingPolicy.fixed(1))
+                                        .build());
+                        assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
+                        log.info("{}", createStreamStatus.get().getStatus());
+                        createCount.release();
+                    } catch (Exception e) {
+                        assertFalse(true);
+                    }
+                }
+            });
+        }
+        createCount.acquire();
+        assertTrue(true);
+    }
+
+    @Test
+    public void testParallelGetCurrentSegments() throws Exception {
+        final ExecutorService executorService = Executors.newFixedThreadPool(10);
+        Semaphore createCount = new Semaphore(-19);
+        for (int i = 0; i < 10; i++) {
+            executorService.submit(() -> {
+                for (int j = 0; j < 2; j++) {
+                    try {
+                        CompletableFuture<StreamSegments> streamSegments;
+                        streamSegments = controllerClient.getCurrentSegments("scope1", "streamparallel");
+                        assertTrue(streamSegments.get().getSegments().size() == 2);
+                        assertEquals(new Segment("scope1", "streamparallel", 0),
+                                     streamSegments.get().getSegmentForKey(0.2));
+                        assertEquals(new Segment("scope1", "streamparallel", 1),
+                                     streamSegments.get().getSegmentForKey(0.6));
+                        createCount.release();
+                    } catch (Exception e) {
+                        assertFalse(true);
+                    }
+                }
+            });
+        }
+        createCount.acquire();
+        assertTrue(true);
     }
 }
