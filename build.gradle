@@ -63,7 +63,7 @@ allprojects {
             html.enabled true
         }
     }
-    compileJava { 
+    compileJava {
         options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
     } 
     docker {
@@ -116,7 +116,7 @@ allprojects {
         }
         publications {
             maven(MavenPublication) {
-                groupId = System.properties['groupId'] ? System.properties['groupId'] : "com.emc.pravega"
+                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "com.emc.pravega"
                 version = pravegaVersion
             }
         }
