@@ -64,4 +64,9 @@ public interface Service {
      *
      */
     public void scaleService(final int instanceCount, final boolean wait);
+
+    /**
+     * Delete the service.
+     */
+    public  void deleteServices();
 }

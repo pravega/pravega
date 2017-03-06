@@ -57,6 +57,7 @@ public class PravegaTest {
 
         //1. check if zk is running, if not start it
         Service zkService = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
+        zkService.deleteServices();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
