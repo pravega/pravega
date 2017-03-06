@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 public class FlinkPravegaReaderTest {
 
     // Number of events to produce into the test stream.
-    private static final int NUM_STREAM_ELEMENTS = 10;
+    private static final int NUM_STREAM_ELEMENTS = 1000;
 
     // TODO: Remove the end marker workaround once the following issue is fixed:
     // https://github.com/emccode/pravega/issues/408
@@ -107,6 +107,7 @@ public class FlinkPravegaReaderTest {
         Assert.assertEquals(NUM_STREAM_ELEMENTS, integers.size());
         Assert.assertEquals(0, integers.get(0).longValue());
         Assert.assertEquals(NUM_STREAM_ELEMENTS - 1, integers.get(NUM_STREAM_ELEMENTS - 1).longValue());
+
     }
 
     private static void prepareStream(final String streamName, final int parallelism) throws Exception {
