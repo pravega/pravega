@@ -8,6 +8,7 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogTestBase;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.util.TreeMap;
 import org.junit.Test;
@@ -21,6 +22,17 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
     @Override
     protected DurableDataLog createDurableDataLog() {
         return new InMemoryDurableDataLog(new InMemoryDurableDataLog.EntryCollection(), executorService());
+    }
+
+    @Override
+    protected DurableDataLog createDurableDataLog(Object sharedContext) {
+        Preconditions.checkArgument(sharedContext instanceof InMemoryDurableDataLog.EntryCollection);
+        return new InMemoryDurableDataLog((InMemoryDurableDataLog.EntryCollection) sharedContext, executorService());
+    }
+
+    @Override
+    protected Object createSharedContext() {
+        return new InMemoryDurableDataLog.EntryCollection();
     }
 
     @Override
@@ -100,5 +112,4 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
             verifyReads(log, createLogAddress(-1), writeData);
         }
     }
-
 }

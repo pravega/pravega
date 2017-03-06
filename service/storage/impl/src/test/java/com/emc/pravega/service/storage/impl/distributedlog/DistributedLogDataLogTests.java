@@ -111,6 +111,16 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     }
 
     @Override
+    protected DurableDataLog createDurableDataLog(Object sharedContext) {
+        return createDurableDataLog(); // Nothing different for shared context; that is stored in DistributedLog.
+    }
+
+    @Override
+    protected Object createSharedContext() {
+        return null; // No need for shared context; that is stored in DistributedLog.
+    }
+
+    @Override
     protected LogAddress createLogAddress(long seqNo) {
         return new DLSNAddress(seqNo, new DLSN(0, 0, 0));
     }

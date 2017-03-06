@@ -143,6 +143,50 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Tests the ability to reuse the client after closing and reopening it. Verifies the major operations (append,
+     * truncate and read), each operation using a different client (each client is used for exactly one operation).
+     *
+     * @throws Exception If one got thrown.
+     */
+    @Test
+    public void testOpenCloseClient() throws Exception {
+        // This is a very repetitive test; and we only care about "recovery" from no client; all else is already tested.
+        final int writeCount = 10;
+
+        TreeMap<LogAddress, byte[]> writtenData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
+        Object context = createSharedContext();
+        LogAddress previousAddress = null;
+        for (int i = 0; i < writeCount; i++) {
+            // Write one entry at each iteration.
+            LogAddress currentAddress;
+            try (DurableDataLog log = createDurableDataLog(context)) {
+                log.initialize(TIMEOUT);
+                byte[] writeData = String.format("Write_%s", i).getBytes();
+                currentAddress = log.append(new ByteArrayInputStream(writeData), TIMEOUT).join();
+                writtenData.put(currentAddress, writeData);
+            }
+
+            // Truncate up to the previous iteration's entry, if any.
+            if (previousAddress != null) {
+                try (DurableDataLog log = createDurableDataLog(context)) {
+                    log.initialize(TIMEOUT);
+                    boolean truncated = log.truncate(previousAddress, TIMEOUT).join();
+                    Assert.assertTrue("No truncation happened.", truncated);
+                    writtenData.headMap(previousAddress, true).clear();
+                }
+            }
+
+            // Verify reads.
+            try (DurableDataLog log = createDurableDataLog(context)) {
+                log.initialize(TIMEOUT);
+                verifyReads(log, createLogAddress(-1), writtenData);
+            }
+
+            previousAddress = currentAddress;
+        }
+    }
+
     //endregion
 
     //region Implementation-specific tests
@@ -165,6 +209,10 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      * test termination.
      */
     protected abstract DurableDataLog createDurableDataLog();
+
+    protected abstract DurableDataLog createDurableDataLog(Object sharedContext);
+
+    protected abstract Object createSharedContext();
 
     /**
      * Creates a new LogAddress object with the given Sequence Number.
@@ -191,8 +239,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         TreeMap<LogAddress, byte[]> writtenData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
         for (int i = 0; i < writeCount; i++) {
             byte[] writeData = String.format("Write_%s", i).getBytes();
-            ByteArrayInputStream writeStream = new ByteArrayInputStream(writeData);
-            LogAddress address = log.append(writeStream, TIMEOUT).join();
+            LogAddress address = log.append(new ByteArrayInputStream(writeData), TIMEOUT).join();
             writtenData.put(address, writeData);
         }
 
