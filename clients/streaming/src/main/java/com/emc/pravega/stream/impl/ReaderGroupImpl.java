@@ -32,7 +32,7 @@ public class ReaderGroupImpl implements ReaderGroup {
 
     private final String scope;
     private final String groupName;
-    private final List<String> streamNames;
+    private final Set<String> streamNames;
     private final ReaderGroupConfig config;
     private final SynchronizerConfig synchronizerConfig;
     private final Serializer<ReaderGroupStateInit> initSerializer;
@@ -49,7 +49,7 @@ public class ReaderGroupImpl implements ReaderGroup {
                                                                                                  updateSerializer,
                                                                                                  initSerializer,
                                                                                                  synchronizerConfig);
-        ReaderGroupStateManager.initializeReaderGroup(synchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
     }
     
     @Override

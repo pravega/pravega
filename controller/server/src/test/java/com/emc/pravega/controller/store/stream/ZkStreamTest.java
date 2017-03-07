@@ -5,8 +5,8 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -113,11 +113,11 @@ public class ZkStreamTest {
         CompletableFuture<CreateScopeStatus> createScopeStatus = store.createScope(scopeName);
 
         // createScope returns null on success, and exception on failure
-        assertEquals("Create new scope :", CreateScopeStatus.SUCCESS, createScopeStatus.get());
+        assertEquals("Create new scope :", CreateScopeStatus.Status.SUCCESS, createScopeStatus.get().getStatus());
 
         // create duplicate scope test
         createScopeStatus = store.createScope(scopeName);
-        assertEquals("Create new scope :", CreateScopeStatus.SCOPE_EXISTS, createScopeStatus.get());
+        assertEquals("Create new scope :", CreateScopeStatus.Status.SCOPE_EXISTS, createScopeStatus.get().getStatus());
 
         //listStreamsInScope test
         final String streamName1 = "Stream1";
@@ -149,11 +149,11 @@ public class ZkStreamTest {
 
         // Delete empty scope Scope1
         CompletableFuture<DeleteScopeStatus> deleteScopeStatus = store.deleteScope(scopeName);
-        assertEquals("Delete Empty Scope", DeleteScopeStatus.SUCCESS, deleteScopeStatus.get());
+        assertEquals("Delete Empty Scope", DeleteScopeStatus.Status.SUCCESS, deleteScopeStatus.get().getStatus());
 
         // Delete non-existent scope Scope2
         CompletableFuture<DeleteScopeStatus> deleteScopeStatus2 = store.deleteScope("Scope2");
-        assertEquals("Delete non-existent Scope", DeleteScopeStatus.SCOPE_NOT_FOUND, deleteScopeStatus2.get());
+        assertEquals("Delete non-existent Scope", DeleteScopeStatus.Status.SCOPE_NOT_FOUND, deleteScopeStatus2.get().getStatus());
 
         // Delete non-empty scope Scope3
         store.createScope("Scope3").get();
@@ -165,7 +165,8 @@ public class ZkStreamTest {
         store.setState("Scope3", "Stream3", State.ACTIVE, null, executor).get();
 
         CompletableFuture<DeleteScopeStatus> deleteScopeStatus3 = store.deleteScope("Scope3");
-        assertEquals("Delete non-empty Scope", DeleteScopeStatus.SCOPE_NOT_EMPTY, deleteScopeStatus3.get());
+        assertEquals("Delete non-empty Scope", DeleteScopeStatus.Status.SCOPE_NOT_EMPTY,
+                     deleteScopeStatus3.get().getStatus());
     }
 
     @Test

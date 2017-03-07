@@ -7,11 +7,10 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.requests.ScaleRequest;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.Config;
@@ -23,18 +22,16 @@ import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import lombok.extern.slf4j.Slf4j;
-
 import java.net.URI;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class RequestHandlersInit {
@@ -54,8 +51,8 @@ public class RequestHandlersInit {
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(checkpointStore);
         Preconditions.checkNotNull(executor);
-        URI uri = URI.create("tcp://localhost:" + Config.SERVER_PORT);
-        ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, uri);
+        URI uri = URI.create("tcp://localhost:" + Config.RPC_SERVER_PORT);
+        ClientFactory clientFactory = ClientFactory.withScope(Config.INTERNAL_SCOPE, uri);
 
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
 
@@ -79,7 +76,7 @@ public class RequestHandlersInit {
                                 // fail and exit
                                 throw new CompletionException(ex);
                             }
-                            if (res != null && res.equals(CreateScopeStatus.FAILURE)) {
+                            if (res != null && res.equals(Controller.CreateScopeStatus.Status.FAILURE)) {
                                 throw new RuntimeException("Failed to create scope while starting controller");
                             }
                             result.complete(null);
@@ -97,7 +94,7 @@ public class RequestHandlersInit {
                                 // fail and exit
                                 throw new CompletionException(ex);
                             }
-                            if (res != null && res.equals(CreateStreamStatus.FAILURE)) {
+                            if (res != null && res.equals(Controller.CreateStreamStatus.Status.FAILURE)) {
                                 throw new RuntimeException("Failed to create stream while starting controller");
                             }
                             result.complete(null);
@@ -112,7 +109,7 @@ public class RequestHandlersInit {
                 .runAsync(() -> {
                     ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
 
-                    readerGroupManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));
+                    readerGroupManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Collections.singleton(Config.SCALE_STREAM_NAME));
 
                     if (SCALE_HANDLER_REF.get() == null) {
                         SCALE_HANDLER_REF.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));

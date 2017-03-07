@@ -40,5 +40,6 @@
     <allow pkg="com.fasterxml.jackson"/>
     <allow pkg="mesosphere.marathon"/>
     <allow pkg="feign"/>
+    <allow pkg="io.grpc" />
 
 </import-control>
