@@ -12,6 +12,7 @@ import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,7 +21,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
 @Slf4j
 public class BookkeeperService extends MarathonBasedService {
@@ -32,7 +35,8 @@ public class BookkeeperService extends MarathonBasedService {
     private double mem = 512.0;
 
     public BookkeeperService(final String id, final URI zkUri, int instances, double cpu, double mem) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/bookkeeper" : id);
         this.zkUri = zkUri;
         this.instances = instances;
         this.cpu = cpu;

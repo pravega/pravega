@@ -11,6 +11,7 @@ import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,7 +19,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
 /**
  * Controller Service.
@@ -35,7 +38,8 @@ public class PravegaControllerService extends MarathonBasedService {
     private double mem = 256;
 
     public PravegaControllerService(final String id, final URI zkUri, final URI segUri, int instances, double cpu, double mem) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
         this.zkUri = zkUri;
         this.segUri = segUri;
         this.instances = instances;
