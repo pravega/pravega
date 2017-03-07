@@ -15,6 +15,7 @@ import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.util.serialization.AbstractDeserializationSchema;
 import org.apache.flink.contrib.streaming.DataStreamUtils;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -50,7 +51,12 @@ public class FlinkPravegaReaderTest {
 
     @Before
     public void setup() throws Exception {
-        SETUP_UTILS.startPravegaServices();
+        SETUP_UTILS.startAllServices();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        SETUP_UTILS.stopAllServices();
     }
 
     @Test
@@ -99,15 +105,12 @@ public class FlinkPravegaReaderTest {
                 .setParallelism(jobParallelism);
 
         final Iterator<Integer> collect = DataStreamUtils.collect(dataStream);
-        execEnv.execute();
-
         final ArrayList<Integer> integers = Lists.newArrayList(collect);
         Collections.sort(integers);
 
         Assert.assertEquals(NUM_STREAM_ELEMENTS, integers.size());
         Assert.assertEquals(0, integers.get(0).longValue());
         Assert.assertEquals(NUM_STREAM_ELEMENTS - 1, integers.get(NUM_STREAM_ELEMENTS - 1).longValue());
-
     }
 
     private static void prepareStream(final String streamName, final int parallelism) throws Exception {

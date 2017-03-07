@@ -19,7 +19,6 @@ import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.testcommon.TestUtils;
 import com.google.common.base.Preconditions;
 import lombok.Cleanup;
@@ -40,6 +39,11 @@ public final class SetupUtils {
     @Getter
     private URI controllerUri = null;
 
+    // The different services.
+    private ControllerWrapper controllerWrapper = null;
+    private PravegaConnectionListener server = null;
+    private TestingServer zkTestServer = null;
+
     // The test Scope name.
     @Getter
     private final String scope = "scope";
@@ -49,29 +53,40 @@ public final class SetupUtils {
      *
      * @throws Exception on any errors.
      */
-    public void startPravegaServices() throws Exception {
+    public void startAllServices() throws Exception {
+
+        // Start Pravega Service.
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
         int servicePort = TestUtils.randomPort();
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
+        this.server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
         log.info("Started Pravega Service");
 
-        TestingServer zkTestServer = new TestingServer();
-        zkTestServer.start();
+        // Start zookeeper.
+        this.zkTestServer = new TestingServer();
+        this.zkTestServer.start();
 
+        // Start Controller.
         int controllerPort = TestUtils.randomPort();
-        ControllerWrapper controllerWrapper = new ControllerWrapper(
-                zkTestServer.getConnectString(), true, controllerPort, "localhost", servicePort,
+        this.controllerWrapper = new ControllerWrapper(
+                zkTestServer.getConnectString(), true, true, controllerPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT);
-        Controller controller = controllerWrapper.getController();
-
-        controller.createScope(this.scope).get();
+        this.controllerWrapper.getController().createScope(this.scope).get();
+        this.controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
         log.info("Initialized Pravega Controller");
+    }
 
-        controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
+    /**
+     * Stop the pravega cluster and release all resources.
+     *
+     * @throws Exception on any errors.
+     */
+    public void stopAllServices() throws Exception {
+        this.controllerWrapper.close();
+        this.server.close();
+        this.zkTestServer.close();
     }
 
     /**

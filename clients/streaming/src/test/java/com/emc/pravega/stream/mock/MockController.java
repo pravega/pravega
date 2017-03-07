@@ -21,6 +21,7 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -70,6 +71,11 @@ public class MockController implements Controller {
     
     @Override
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
         throw new NotImplementedException();
     }
 

@@ -17,6 +17,7 @@ import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -48,7 +49,12 @@ public class FlinkPravegaWriterTest {
 
     @Before
     public void setup() throws Exception {
-        SETUP_UTILS.startPravegaServices();
+        SETUP_UTILS.startAllServices();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        SETUP_UTILS.stopAllServices();
     }
 
     @Test
