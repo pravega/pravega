@@ -38,7 +38,7 @@ import java.util.UUID;
 public final class SetupUtils {
     // The controller endpoint.
     @Getter
-    private URI controllerUri = null;;
+    private URI controllerUri = null;
 
     // The test Scope name.
     @Getter
