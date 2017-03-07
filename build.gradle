@@ -31,7 +31,6 @@ allprojects {
     apply plugin: 'findbugs'
     apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
-    apply plugin: 'com.google.protobuf'
 
     apply plugin: 'jacoco'
 
@@ -423,7 +422,7 @@ project('controller') {
 }
 
 project('controller:contract') {
-
+    apply plugin: 'com.google.protobuf'
     protobuf {
         protoc {
             artifact = "com.google.protobuf:protoc:3.0.2"
