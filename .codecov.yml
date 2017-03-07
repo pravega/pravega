@@ -1,0 +1,7 @@
+ignore:
+  - "benchmark"
+  - "controller/contract/src/generated"
+  - "integrationtests"
+  - "singlenode"
+  - "testcommon"
+  - "systemtests"
