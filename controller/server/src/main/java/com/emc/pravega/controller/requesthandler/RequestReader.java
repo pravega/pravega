@@ -82,8 +82,10 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                   final EventStreamWriter<R> writer,
                   final EventStreamReader<R> reader,
                   final H requestHandler,
-                  final ScheduledExecutorService executor,
-                  final StreamMetadataStore checkpointStore) {
+                  final JavaSerializer<Position> serializer,
+                  final StreamMetadataStore checkpointStore,
+                  final ScheduledExecutorService executor) {
+        this.serializer = serializer;
         Preconditions.checkNotNull(writer);
         Preconditions.checkNotNull(reader);
         Preconditions.checkNotNull(requestHandler);
@@ -107,7 +109,6 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         // periodic checkpointing - every one minute
         scheduledFuture = this.executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
         semaphore = new Semaphore(MAX_CONCURRENT);
-        serializer = new JavaSerializer<>();
     }
 
     public void stop() {
@@ -140,16 +141,17 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                         next = counter.incrementAndGet();
 
                         event = reader.readNextEvent(60000);
-                        if (event == null) {
+                        if (event == null || event.getEvent() == null) {
                             log.info("timeout elapsed but no request received.");
                             continue;
                         }
+
                         request = event.getEvent();
                         pc = new PositionCounter(event.getPosition(), next);
                         running.add(pc);
                     } catch (Exception e) {
                         semaphore.release();
-                        log.warn("error reading event {}", e.getMessage());
+                        log.warn("error reading event {}", e);
                         throw e;
                     }
 
@@ -157,7 +159,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                     try {
                         process = requestHandler.process(request);
                     } catch (Exception e) {
-                        log.error("exception thrown while creating processing future {}", e.getMessage());
+                        log.error("exception thrown while creating processing future {}", e);
                         complete(pc);
                         semaphore.release();
                         throw e;
@@ -168,7 +170,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                         semaphore.release();
 
                         if (e != null) {
-                            log.error("Processing failed RequestReader {}", e.getMessage());
+                            log.error("Processing failed RequestReader {}", e);
 
                             if (RetryableException.isRetryable(e)) {
                                 putBack(request.getKey(), request);
@@ -181,8 +183,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                     // an exception is thrown while doing reads for next events.
                     // And we should never stop processing of other requests in the queue even if processing a request throws
                     // an exception.
-                    log.error("Exception thrown while processing event. {}. Logging and continuing. Stack trace {}",
-                            e.getMessage(), e.getStackTrace());
+                    log.error("Exception thrown while processing event. Logging and continuing. Stack trace {}", e);
                 } catch (Throwable t) {
                     log.error("Fatal exception while processing event {}", t);
                     promise.completeExceptionally(t);
