@@ -222,7 +222,7 @@ public class EventStreamReaderTest {
         reader.close();
     }
     
-    @Test//(timeout = 10000)
+    @Test(timeout = 10000)
     public void testRestore() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
@@ -242,7 +242,7 @@ public class EventStreamReaderTest {
         try {
             reader.readNextEvent(0);
             fail();
-        } catch(ReinitializationRequiredException e) {
+        } catch (ReinitializationRequiredException e) {
             // expected
         }
         assertTrue(reader.getReaders().isEmpty());
