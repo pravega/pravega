@@ -6,11 +6,10 @@ package com.emc.pravega.demo;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -42,23 +41,17 @@ public class ControllerWrapper implements AutoCloseable {
     private final ControllerService controllerService;
     @Getter
     private final Controller controller;
-    private final RPCServer rpcServer;
+    private final GRPCServer rpcServer;
     private final ControllerEventProcessors controllerEventProcessors;
     private final TimeoutService timeoutService;
 
     public ControllerWrapper(final String connectionString) throws Exception {
-        this(connectionString, false, false, Config.SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
+        this(connectionString, false, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
                 Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor) throws Exception {
-        this(connectionString, disableEventProcessor, false, Config.SERVER_PORT, Config.SERVICE_HOST,
-                Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT);
-    }
-
-    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
-                             final boolean disableRequestHandler) throws Exception {
-        this(connectionString, disableEventProcessor, disableRequestHandler, Config.SERVER_PORT, Config.SERVICE_HOST,
+        this(connectionString, disableEventProcessor, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST,
                 Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT);
     }
 
@@ -103,15 +96,6 @@ public class ControllerWrapper implements AutoCloseable {
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
 
-        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
-                .port(controllerPort)
-                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
-                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
-                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
-                .build();
-        rpcServer = new RPCServer(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
-        rpcServer.start();
-
         if (!disableRequestHandler) {
             RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
         }
@@ -131,12 +115,18 @@ public class ControllerWrapper implements AutoCloseable {
         }
         //endregion
 
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+                .port(controllerPort)
+                .build();
+        rpcServer = new GRPCServer(controllerService, gRPCServerConfig);
+        rpcServer.startAsync();
+
         controller = new LocalController(controllerService);
     }
 
     @Override
     public void close() throws Exception {
-        rpcServer.stop();
+        rpcServer.stopAsync();
         controllerEventProcessors.stopAsync();
         timeoutService.stopAsync();
     }

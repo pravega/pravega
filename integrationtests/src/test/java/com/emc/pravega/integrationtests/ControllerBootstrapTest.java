@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.integrationtests;
 
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -62,7 +62,7 @@ public class ControllerBootstrapTest {
 
         // Create test scope. This operation should succeed.
         CreateScopeStatus scopeStatus = controller.createScope(SCOPE).join();
-        Assert.assertEquals(CreateScopeStatus.SUCCESS, scopeStatus);
+        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
 
         // Try creating a stream. It should succeed.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
@@ -76,7 +76,7 @@ public class ControllerBootstrapTest {
         // Ensure that create stream succeeds.
         try {
             CreateStreamStatus status = streamStatus.join();
-            Assert.assertEquals(CreateStreamStatus.SUCCESS, status);
+            Assert.assertEquals(CreateStreamStatus.Status.SUCCESS, status.getStatus());
         } catch (CompletionException ce) {
             Assert.fail();
         }

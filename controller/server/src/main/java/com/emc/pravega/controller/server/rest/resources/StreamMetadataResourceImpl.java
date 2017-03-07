@@ -14,13 +14,13 @@ import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.store.stream.StoreException;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,10 +54,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         long traceId = LoggerHelpers.traceEnter(log, "createScope");
 
         controllerService.createScope(createScopeRequest.getScopeName()).thenApply(scopeStatus -> {
-            if (scopeStatus == CreateScopeStatus.SUCCESS) {
+            if (scopeStatus.getStatus() == CreateScopeStatus.Status.SUCCESS) {
                 log.info("Successfully created new scope: {}", createScopeRequest.getScopeName());
                 return Response.status(Status.CREATED).entity(createScopeRequest).build();
-            } else if (scopeStatus == CreateScopeStatus.SCOPE_EXISTS) {
+            } else if (scopeStatus.getStatus() == CreateScopeStatus.Status.SCOPE_EXISTS) {
                 log.warn("Scope name: {} already exists", createScopeRequest.getScopeName());
                 return Response.status(Status.CONFLICT).build();
             } else {
@@ -88,19 +88,25 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scopeName);
         controllerService.createStream(streamConfiguration, System.currentTimeMillis())
                 .thenApply(streamStatus -> {
-                    if (streamStatus == CreateStreamStatus.SUCCESS) {
+                    Response resp = null;
+                    if (streamStatus.getStatus() == CreateStreamStatus.Status.SUCCESS) {
                         log.info("Successfully created stream: {}/{}", scopeName, streamConfiguration.getStreamName());
-                        return Response.status(Status.CREATED).
+                        resp = Response.status(Status.CREATED).
                                 entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
-                    } else if (streamStatus == CreateStreamStatus.STREAM_EXISTS) {
+                    } else if (streamStatus.getStatus() == CreateStreamStatus.Status.STREAM_EXISTS) {
                         log.warn("Stream already exists: {}/{}", scopeName, streamConfiguration.getStreamName());
-                        return Response.status(Status.CONFLICT).build();
-                    } else if (streamStatus == CreateStreamStatus.SCOPE_NOT_FOUND) {
-                        return Response.status(Status.NOT_FOUND).build();
+                        resp = Response.status(Status.CONFLICT).build();
+                    } else if (streamStatus.getStatus() == CreateStreamStatus.Status.SCOPE_NOT_FOUND) {
+                        log.warn("Scope not found: {}", scopeName);
+                        resp = Response.status(Status.NOT_FOUND).build();
+                    } else if (streamStatus.getStatus() == CreateStreamStatus.Status.INVALID_STREAM_NAME) {
+                        log.warn("Invalid stream name: {}", streamConfiguration.getStreamName());
+                        resp = Response.status(Status.BAD_REQUEST).build();
                     } else {
                         log.warn("createStream failed for : {}/{}", scopeName, streamConfiguration.getStreamName());
-                        return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+                        resp = Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
+                    return resp;
                 }).exceptionally(exception -> {
                     log.warn("createStream for {}/{} failed {}: ", scopeName, streamConfiguration.getStreamName(),
                              exception);
@@ -123,13 +129,13 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         long traceId = LoggerHelpers.traceEnter(log, "deleteScope");
 
         controllerService.deleteScope(scopeName).thenApply(scopeStatus -> {
-            if (scopeStatus == DeleteScopeStatus.SUCCESS) {
+            if (scopeStatus.getStatus() == DeleteScopeStatus.Status.SUCCESS) {
                 log.info("Successfully deleted scope: {}", scopeName);
                 return Response.status(Status.NO_CONTENT).build();
-            } else if (scopeStatus == DeleteScopeStatus.SCOPE_NOT_FOUND) {
+            } else if (scopeStatus.getStatus() == DeleteScopeStatus.Status.SCOPE_NOT_FOUND) {
                 log.warn("Scope: {} not found", scopeName);
                 return Response.status(Status.NOT_FOUND).build();
-            } else if (scopeStatus == DeleteScopeStatus.SCOPE_NOT_EMPTY) {
+            } else if (scopeStatus.getStatus() == DeleteScopeStatus.Status.SCOPE_NOT_EMPTY) {
                 log.warn("Cannot delete scope: {} with non-empty streams", scopeName);
                 return Response.status(Status.PRECONDITION_FAILED).build();
             } else {
@@ -264,12 +270,12 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         StreamConfiguration streamConfiguration = ModelHelper.getUpdateStreamConfig(
                 updateStreamRequest, scopeName, streamName);
         controllerService.alterStream(streamConfiguration).thenApply(streamStatus -> {
-            if (streamStatus == UpdateStreamStatus.SUCCESS) {
+            if (streamStatus.getStatus() == UpdateStreamStatus.Status.SUCCESS) {
                 log.info("Successfully updated stream config for: {}/{}", scopeName, streamName);
                 return Response.status(Status.OK)
                          .entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
-            } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND ||
-                    streamStatus == UpdateStreamStatus.SCOPE_NOT_FOUND) {
+            } else if (streamStatus.getStatus() == UpdateStreamStatus.Status.STREAM_NOT_FOUND ||
+                    streamStatus.getStatus() == UpdateStreamStatus.Status.SCOPE_NOT_FOUND) {
                 log.warn("Stream: {}/{} not found", scopeName, streamName);
                 return Response.status(Status.NOT_FOUND).build();
             } else {

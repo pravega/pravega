@@ -9,11 +9,8 @@ import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -31,7 +28,6 @@ import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.thrift.transport.TTransportException;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -50,7 +46,7 @@ import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 @Slf4j
 public class Main {
 
-    public static void main(String[] args) throws TTransportException {
+    public static void main(String[] args) {
         String hostId;
         try {
             //On each controller process restart, it gets a fresh hostId,
@@ -110,6 +106,13 @@ public class Main {
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerServiceExecutor);
 
+        // Start the RPC server.
+        log.info("Starting gRPC server");
+            GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+                    .port(Config.RPC_SERVER_PORT)
+                    .build();
+        new GRPCServer(controllerService, gRPCServerConfig).startAsync();
+
         //2. set up Event Processors
 
         //region Setup Event Processors
@@ -124,17 +127,6 @@ public class Main {
         streamTransactionMetadataTasks.initializeStreamWriters(localController);
 
         //endregion
-
-        //3. Start the RPC server.
-        log.info("Starting RPC server");
-        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
-                .port(Config.SERVER_PORT)
-                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
-                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
-                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
-                .build();
-        RPCServer rpcServer = new RPCServer(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
-        rpcServer.start();
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

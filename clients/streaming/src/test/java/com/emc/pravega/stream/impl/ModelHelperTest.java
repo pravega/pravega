@@ -5,9 +5,10 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.StreamConfig;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
@@ -43,6 +44,7 @@ public class ModelHelperTest {
     private static PositionInternal createPosition() {
         Map<Segment, Long> ownedLogs = new HashMap<>();
         ownedLogs.put(createSegmentId("stream", 1), 1L);
+        ownedLogs.put(createSegmentId("stream", 2), 2L);
         return new PositionImpl(ownedLogs);
     }
 
@@ -55,15 +57,15 @@ public class ModelHelperTest {
     public void decodeSegmentId() {
         final String streamName = "stream1";
 
-        com.emc.pravega.controller.stream.api.v1.SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName, 2));
-        assertEquals(streamName, segmentID.getStreamName());
-        assertEquals("scope", segmentID.getScope());
-        assertEquals(2, segmentID.getNumber());
+        SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName, 2));
+        assertEquals(streamName, segmentID.getStreamInfo().getStream());
+        assertEquals("scope", segmentID.getStreamInfo().getScope());
+        assertEquals(2, segmentID.getSegmentNumber());
     }
 
     @Test(expected = NullPointerException.class)
     public void encodeSegmentIdNullInput() {
-        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.SegmentId) null);
+        ModelHelper.encode((SegmentId) null);
     }
 
     @Test
@@ -81,8 +83,8 @@ public class ModelHelperTest {
 
     @Test
     public void decodeScalingPolicy() {
-        com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy = ModelHelper.decode(createScalingPolicy());
-        assertEquals(ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
+        Controller.ScalingPolicy policy = ModelHelper.decode(createScalingPolicy());
+        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -90,7 +92,7 @@ public class ModelHelperTest {
 
     @Test(expected = NullPointerException.class)
     public void encodeScalingPolicyNullInput() {
-        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.ScalingPolicy) null);
+        ModelHelper.encode((Controller.ScalingPolicy) null);
     }
 
     @Test
@@ -110,9 +112,9 @@ public class ModelHelperTest {
     @Test
     public void decodeStreamConfig() {
         StreamConfig config = ModelHelper.decode(createStreamConfig("test"));
-        assertEquals("test", config.getName());
-        com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy = config.getPolicy();
-        assertEquals(ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
+        assertEquals("test", config.getStreamInfo().getStream());
+        Controller.ScalingPolicy policy = config.getPolicy();
+        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -141,24 +143,23 @@ public class ModelHelperTest {
 
     @Test
     public void decodePosition() {
-        com.emc.pravega.controller.stream.api.v1.Position position = ModelHelper.decode(createPosition());
-        assertEquals(1, position.getOwnedSegments().size());
-        SegmentId id = ModelHelper.decode(createSegmentId("stream", 1));
-        assertEquals(1L, position.getOwnedSegments().get(id).longValue());
-        SegmentId id2 = ModelHelper.decode(createSegmentId("stream", 2));
-        assertEquals(2L, id2.getNumber());
+        Position position = ModelHelper.decode(createPosition());
+        assertEquals(2, position.getOwnedSegmentsCount());
+        assertEquals(1L, position.getOwnedSegments(0).getValue());
+        assertEquals(2L, position.getOwnedSegments(1).getValue());
     }
 
     @Test(expected = NullPointerException.class)
     public void encodePositionNullInput() {
-        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.Position) null);
+        ModelHelper.encode((Position) null);
     }
 
     @Test
     public void encodePosition() {
         PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition()));
         Map<Segment, Long> ownedLogs = position.getOwnedSegmentsWithOffsets();
-        assertEquals(1, ownedLogs.size());
+        assertEquals(2, ownedLogs.size());
         assertEquals(1L, ownedLogs.get(createSegmentId("stream", 1)).longValue());
+        assertEquals(2L, ownedLogs.get(createSegmentId("stream", 2)).longValue());
     }
 }

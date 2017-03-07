@@ -1,6 +1,6 @@
 <FindBugsFilter>
     <Match> <!-- generated code -->
-        <Package name="com.emc.pravega.controller.stream.api.v1" />
+        <Package name="com.emc.pravega.controller.stream.api.grpc.v1" />
     </Match>
     <Match> <!-- does not work well with futures -->
         <Bug pattern="NP_NONNULL_PARAM_VIOLATION" />

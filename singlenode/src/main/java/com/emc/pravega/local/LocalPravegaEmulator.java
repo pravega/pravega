@@ -8,11 +8,10 @@ import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -258,14 +257,10 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerExecutor);
-        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
                 .port(controllerPort)
-                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
-                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
-                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
                 .build();
-        RPCServer rpcServer = new RPCServer(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
-        rpcServer.start();
+        new GRPCServer(controllerService, gRPCServerConfig).startAsync();
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
