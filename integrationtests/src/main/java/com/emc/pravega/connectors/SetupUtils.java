@@ -203,7 +203,7 @@ public final class SetupUtils {
         GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
                 .port(Config.RPC_SERVER_PORT)
                 .build();
-        GRPCServer.start(controllerService, gRPCServerConfig);
+        new GRPCServer(controllerService, gRPCServerConfig).startAsync();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);

@@ -35,24 +35,29 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class ControllerWrapper {
+public class ControllerWrapper implements AutoCloseable {
 
     @Getter
     private final ControllerService controllerService;
     @Getter
     private final Controller controller;
+    private final ScheduledExecutorService executor;
+    private final GRPCServer rpcServer;
+    private final ControllerEventProcessors controllerEventProcessors;
+    private final TimeoutService timeoutService;
 
     public ControllerWrapper(final String connectionString) throws Exception {
-        this(connectionString, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
+        this(connectionString, false, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
                 Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor) throws Exception {
-        this(connectionString, disableEventProcessor, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
-                Config.HOST_STORE_CONTAINER_COUNT);
+        this(connectionString, disableEventProcessor, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST,
+                Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableRequestHandler,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) throws Exception {
         String hostId;
@@ -65,7 +70,7 @@ public class ControllerWrapper {
         }
 
         // initialize the executor service
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
+        executor = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
         CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
@@ -87,32 +92,46 @@ public class ControllerWrapper {
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, segmentHelper, executor, hostId);
 
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
 
-        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
-                .port(controllerPort)
-                .build();
-        GRPCServer.start(controllerService, gRPCServerConfig);
-
-        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
+        if (!disableRequestHandler) {
+            RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
+        }
 
         //region Setup Event Processors
         LocalController localController = new LocalController(controllerService);
 
         if (!disableEventProcessor) {
-            ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+            controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                     client, streamStore, hostStore, segmentHelper);
 
-            controllerEventProcessors.initialize();
+            controllerEventProcessors.startAsync();
 
             streamTransactionMetadataTasks.initializeStreamWriters(localController);
+        } else {
+            controllerEventProcessors = null;
         }
         //endregion
 
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+                .port(controllerPort)
+                .build();
+        rpcServer = new GRPCServer(controllerService, gRPCServerConfig);
+        rpcServer.startAsync();
+
         controller = new LocalController(controllerService);
     }
-}
 
+    @Override
+    public void close() throws Exception {
+        rpcServer.stopAsync();
+        if (controllerEventProcessors != null) {
+            controllerEventProcessors.stopAsync();
+        }
+        timeoutService.stopAsync();
+        executor.shutdown();
+    }
+}
