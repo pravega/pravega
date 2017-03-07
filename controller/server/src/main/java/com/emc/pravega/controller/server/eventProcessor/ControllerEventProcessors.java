@@ -14,11 +14,11 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -101,7 +101,7 @@ public class ControllerEventProcessors {
         CompletableFuture<CreateScopeStatus> createScopeStatus = controller.createScope(CONTROLLER_SCOPE);
         CreateScopeStatus scopeStatus = createScopeStatus.join();
 
-        if (CreateScopeStatus.FAILURE == scopeStatus) {
+        if (CreateScopeStatus.Status.FAILURE == scopeStatus.getStatus()) {
             throw new RuntimeException("Error creating scope");
         }
 
@@ -111,11 +111,11 @@ public class ControllerEventProcessors {
         CreateStreamStatus commitStreamStatus = createCommitStreamStatus.join();
         CreateStreamStatus abortStreamStatus = createAbortStreamStatus.join();
 
-        if (CreateStreamStatus.FAILURE == commitStreamStatus) {
+        if (CreateStreamStatus.Status.FAILURE == commitStreamStatus.getStatus()) {
             throw new RuntimeException("Error creating commitStream");
         }
 
-        if (CreateStreamStatus.FAILURE == abortStreamStatus) {
+        if (CreateStreamStatus.Status.FAILURE == abortStreamStatus.getStatus()) {
             throw new RuntimeException("Error creating abortStream");
         }
 

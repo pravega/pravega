@@ -8,10 +8,10 @@ import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -44,6 +44,7 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Properties;
@@ -159,7 +160,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     /**
      * Start controller and host.
      */
-    private void start() {
+    private void start() throws IOException {
         startController();
         try {
             Thread.sleep(10000);
@@ -214,7 +215,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         nodeServiceStarter.get().start();
     }
 
-    private void startController() {
+    private void startController() throws IOException {
         String hostId;
         try {
             //On each controller report restart, it gets a fresh hostId,
@@ -257,7 +258,10 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerExecutor);
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+                .port(controllerPort)
+                .build();
+        GRPCServer.start(controllerService, gRPCServerConfig);
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

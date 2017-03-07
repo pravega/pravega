@@ -4,9 +4,9 @@
 package com.emc.pravega.controller.server.v1;
 
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -32,7 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Zookeeper stream store configuration.
  */
-public class ZKControllerServiceAsyncImplTest extends ControllerServiceAsyncImplTest {
+public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest {
 
     private TestingServer zkServer;
     private CuratorFramework zkClient;
@@ -69,9 +69,9 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceAsyncImpl
                 streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 10000);
 
-        controllerService = new ControllerServiceAsyncImpl(
+        controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                        timeoutService, new SegmentHelper(), executorService));
+                                      timeoutService, new SegmentHelper(), executorService));
     }
 
     @Override
