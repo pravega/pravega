@@ -160,7 +160,7 @@ public final class WireCommands {
     @Data
     public static final class NoSuchTransaction implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.NO_SUCH_TRANSACTION;
-        final String batch;
+        final String txn;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -169,7 +169,7 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.writeUTF(batch);
+            out.writeUTF(txn);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -179,7 +179,7 @@ public final class WireCommands {
 
         @Override
         public String toString() {
-            return "No such batch: " + batch;
+            return "No such batch: " + txn;
         }
     }
 
