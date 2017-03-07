@@ -79,7 +79,7 @@ public class CheckpointTest {
                                    StreamConfiguration.builder()
                                                       .scope(scope)
                                                       .streamName(streamName)
-                                                      .scalingPolicy(ScalingPolicy.fixed(2))
+                                                      .scalingPolicy(ScalingPolicy.fixed(1))
                                                       .build());
         ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName,
                                                                   groupConfig,
