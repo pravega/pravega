@@ -17,6 +17,7 @@ import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamReques
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -336,6 +337,31 @@ public class StreamMetaDataTests extends JerseyTest {
                 DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build()));
         response = target(resourceURI).request().async().delete();
         assertEquals("Delete Scope response code", 500, response.get().getStatus());
+    }
+
+    @Test
+    public void testGetScope() throws ExecutionException, InterruptedException {
+        final String resourceURI = "v1/scopes/scope1";
+        final String resourceURI2 = "v1/scopes/scope2";
+
+        // Test to get existent scope
+        when(mockControllerService.getScope(scope1)).thenReturn(CompletableFuture.completedFuture("scope1"));
+        response = target(resourceURI).request().async().get();
+        assertEquals("Get existent scope", 200, response.get().getStatus());
+
+        // Test to get non-existent scope
+        when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.supplyAsync(() -> {
+            throw new StoreException.NodeNotFoundException();
+        }));
+        response = target(resourceURI2).request().async().get();
+        assertEquals("Get non existent scope", 404, response.get().getStatus());
+
+        //Test for get scope failure.
+        final CompletableFuture<String> completableFuture2 = new CompletableFuture<>();
+        completableFuture2.completeExceptionally(new Exception());
+        when(mockControllerService.getScope(scope1)).thenReturn(completableFuture2);
+        response = target(resourceURI).request().async().get();
+        assertEquals("Get scope fail test", 500, response.get().getStatus());
     }
 
     /**
