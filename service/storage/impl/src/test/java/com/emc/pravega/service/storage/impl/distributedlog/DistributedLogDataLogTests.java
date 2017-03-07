@@ -143,7 +143,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
 
-            // Simulate a different client trying to
+            // Simulate a different client trying to open the same log. This should not be allowed.
             @Cleanup
             val factory = new DistributedLogDataLogFactory(CLIENT_ID + "_secondary", config.get(), executorService());
             factory.initialize();
