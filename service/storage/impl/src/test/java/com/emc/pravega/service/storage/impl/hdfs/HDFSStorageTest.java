@@ -5,7 +5,10 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.FileHelpers;
+import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
@@ -15,15 +18,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Properties;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -57,97 +63,80 @@ public class HDFSStorageTest extends StorageTestBase {
         }
     }
 
+    @Test
+    @Override
+    public void testFencing() throws Exception {
+
+    }
+
     @Override
     @SneakyThrows(IOException.class)
     protected Storage createStorage() {
         // Create a config object, using all defaults, except for the HDFS URL.
-        // TODO: see if we can reuse ConfigHelpers from Storage Tests here, to avoid this code duplication.
-        Properties prop = new Properties();
-        prop.setProperty(
-                String.format("%s.%s", HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL),
-                String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
-
-        HDFSStorageConfig config = new HDFSStorageConfig(prop);
-        val storage = new HDFSStorage(config, executorService());
+        val config = new TestConfig().withHdfsHostURL(String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
+        val storage = new MiniClusterPermFixer(config, executorService());
         storage.initialize();
-        return new MiniClusterPermFixer(storage);
+        return storage;
     }
 
     /**
      * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.
      * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
      **/
-    private static class MiniClusterPermFixer implements Storage {
-        private final HDFSStorage storage;
-        private ArrayList<String> sealedList;
+    private static class MiniClusterPermFixer extends HDFSStorage {
+        private final Set<String> sealedList;
 
-        public MiniClusterPermFixer(HDFSStorage storage) {
-            sealedList = new ArrayList<>();
-            this.storage = storage;
+        MiniClusterPermFixer(HDFSStorageConfig config, Executor executor) {
+            super(config, executor);
+            sealedList = Collections.synchronizedSet(new HashSet<>());
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-            return storage.create(streamSegmentName, timeout);
-        }
-
-        @Override
-        public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
-                                             Duration timeout) {
-
+        public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
             if (sealedList.contains(streamSegmentName)) {
-                CompletableFuture<Void> retVal = new CompletableFuture<>();
-                retVal.completeExceptionally(new StreamSegmentSealedException(streamSegmentName));
-                return retVal;
+                return FutureHelpers.failedFuture(new StreamSegmentSealedException(streamSegmentName));
             }
-            return storage.write(streamSegmentName, offset, data, length, timeout);
+
+            return super.write(streamSegmentName, offset, data, length, timeout);
         }
 
         @Override
         public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-            addToSealedList(streamSegmentName);
-            return storage.seal(streamSegmentName, timeout);
-        }
-
-        private void addToSealedList(String streamSegmentName) {
             sealedList.add(streamSegmentName);
+            CompletableFuture<SegmentProperties> result = super.seal(streamSegmentName, timeout);
+            result.exceptionally(ex -> {
+                sealedList.remove(streamSegmentName);
+                return null;
+            });
+
+            return result;
         }
 
         @Override
         public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset,
                                               String sourceStreamSegmentName, Duration timeout) {
-            return storage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
+            if (sealedList.contains(targetStreamSegmentName)) {
+                return FutureHelpers.failedFuture(new StreamSegmentSealedException(targetStreamSegmentName));
+            }
+
+            return super.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
+        }
+    }
+
+    private static class TestConfig extends HDFSStorageConfig {
+        private String hdfsHostURL;
+
+        TestConfig() throws ConfigurationException {
+            super(PropertyBag.create());
         }
 
-        @Override
-        public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-            return storage.delete(streamSegmentName, timeout);
+        public String getHDFSHostURL() {
+            return this.hdfsHostURL;
         }
 
-        @Override
-        public void close() {
-            storage.close();
-        }
-
-        @Override
-        public CompletableFuture<Void> open(String streamSegmentName) {
-            return storage.open(streamSegmentName);
-        }
-
-        @Override
-        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer,
-                                               int bufferOffset, int length, Duration timeout) {
-            return storage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout);
-        }
-
-        @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-            return storage.getStreamSegmentInfo(streamSegmentName, timeout);
-        }
-
-        @Override
-        public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-            return storage.exists(streamSegmentName, timeout);
+        TestConfig withHdfsHostURL(String value) {
+            this.hdfsHostURL = value;
+            return this;
         }
     }
 }

@@ -19,12 +19,10 @@ import java.util.concurrent.TimeUnit;
  * Unit tests for InMemoryStorage
  */
 public class InMemoryStorageTests extends TruncateableStorageTestBase {
-    /**
-     * Verifies that InMemoryStorage enforces segment ownership (that is, if an owner changes, no operation is allowed
-     * on a segment until open() is called on it).
-     */
+
     @Test
-    public void testChangeOwner() throws Exception {
+    @Override
+    public void testFencing() throws Exception {
         final String segment1 = "segment1";
         final String segment2 = "segment2";
 
