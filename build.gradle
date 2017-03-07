@@ -662,7 +662,8 @@ project('systemtests:tests') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
         systemProperty "testVersion", project.property("pravegaVersion")
-        systemProperty "testArtifactUrl", project.property('repoUrl') + "/pravega/systemtests/"+pravegaVersion+"/systemtests-"+pravegaVersion+".jar"
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/com/emc/pravega/pravega-systemtests/" +
+                pravegaVersion+"/pravega-systemtests-"+ pravegaVersion + ".jar"
     }
     publishing {
         publications {
