@@ -179,7 +179,7 @@ public final class WireCommands {
 
         @Override
         public String toString() {
-            return "No such batch: " + txn;
+            return "No such transaction: " + txn;
         }
     }
 
