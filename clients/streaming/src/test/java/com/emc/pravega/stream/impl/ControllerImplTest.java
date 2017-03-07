@@ -822,6 +822,7 @@ public class ControllerImplTest {
         String scope2 = "scope2";
         String scope3 = "scope3";
         String scope4 = "scope4";
+        String scope5 = "scope5";
 
         deleteStatus = controllerClient.deleteScope(scope1);
         assertEquals(DeleteScopeStatus.Status.SUCCESS, deleteStatus.join().getStatus());
@@ -834,6 +835,9 @@ public class ControllerImplTest {
 
         deleteStatus = controllerClient.deleteScope(scope4);
         assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, deleteStatus.join().getStatus());
+
+        deleteStatus = controllerClient.deleteScope(scope5);
+        AssertExtensions.assertThrows("Server should throw exception", deleteStatus, Throwable -> true);
     }
 
     @Test
