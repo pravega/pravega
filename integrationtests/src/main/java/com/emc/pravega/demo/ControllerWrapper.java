@@ -128,7 +128,9 @@ public class ControllerWrapper implements AutoCloseable {
     @Override
     public void close() throws Exception {
         rpcServer.stopAsync();
-        controllerEventProcessors.stopAsync();
+        if (controllerEventProcessors != null) {
+            controllerEventProcessors.stopAsync();
+        }
         timeoutService.stopAsync();
         executor.shutdown();
     }
