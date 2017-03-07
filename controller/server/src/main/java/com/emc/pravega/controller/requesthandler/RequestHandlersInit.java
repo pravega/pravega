@@ -8,11 +8,10 @@ import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.Config;
@@ -78,7 +77,7 @@ public class RequestHandlersInit {
                                 // fail and exit
                                 throw new CompletionException(ex);
                             }
-                            if (res != null && res.equals(CreateScopeStatus.FAILURE)) {
+                            if (res != null && res.equals(Controller.CreateScopeStatus.Status.FAILURE)) {
                                 throw new RuntimeException("Failed to create scope while starting controller");
                             }
                             result.complete(null);
@@ -96,7 +95,7 @@ public class RequestHandlersInit {
                                 // fail and exit
                                 throw new CompletionException(ex);
                             }
-                            if (res != null && res.equals(CreateStreamStatus.FAILURE)) {
+                            if (res != null && res.equals(Controller.CreateStreamStatus.Status.FAILURE)) {
                                 throw new RuntimeException("Failed to create stream while starting controller");
                             }
                             result.complete(null);

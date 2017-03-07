@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -57,7 +57,7 @@ public class EndToEndTransactionTest {
         CompletableFuture<CreateScopeStatus> futureScopeStatus = controller.createScope(testScope);
         CreateScopeStatus scopeStatus = futureScopeStatus.join();
 
-        if (scopeStatus != CreateScopeStatus.SUCCESS) {
+        if (scopeStatus.getStatus() != CreateScopeStatus.Status.SUCCESS) {
             log.error("FAILURE: Error creating test scope");
             return;
         }
@@ -73,7 +73,7 @@ public class EndToEndTransactionTest {
         CompletableFuture<CreateStreamStatus> futureStatus = controller.createStream(streamConfig);
         CreateStreamStatus status = futureStatus.join();
 
-        if (status != CreateStreamStatus.SUCCESS) {
+        if (status.getStatus() != CreateStreamStatus.Status.SUCCESS) {
             log.error("FAILURE: Error creating test stream");
             return;
         }
