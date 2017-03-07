@@ -85,6 +85,7 @@ public class ReaderGroupTest {
                                                                    .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))
                                                                    .build());
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
@@ -126,6 +127,7 @@ public class ReaderGroupTest {
                                                                    .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))
                                                                    .build());
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
