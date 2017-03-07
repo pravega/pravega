@@ -12,7 +12,6 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
@@ -95,10 +94,10 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
     }
 
     @Override
-    public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
+    public CompletableFuture<Controller.DeleteScopeStatus> deleteScope(String scopeName) {
         log.trace("Invoke AdminService.Client.deleteScope() with name: {}", scopeName);
 
-        RPCAsyncCallback<DeleteScopeStatus> callback = new RPCAsyncCallback<>();
+        RPCAsyncCallback<Controller.DeleteScopeStatus> callback = new RPCAsyncCallback<>();
         client.deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
         return callback.getFuture();
     }
@@ -302,11 +301,11 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                                                                                    stream.getStreamName()))
                                        .setTxnId(ModelHelper.decode(txId))
                                        .build(),
-                callback);
+                                callback);
         return FutureHelpers.toVoidExpecting(callback.getFuture(),
-                Controller.TxnStatus.newBuilder().setStatus(
-                        Controller.TxnStatus.Status.SUCCESS).build(),
-                TxnFailedException::new);
+                                             Controller.TxnStatus.newBuilder().setStatus(
+                                                     Controller.TxnStatus.Status.SUCCESS).build(),
+                                             TxnFailedException::new);
     }
 
     @Override

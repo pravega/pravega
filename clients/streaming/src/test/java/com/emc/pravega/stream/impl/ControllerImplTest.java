@@ -816,6 +816,27 @@ public class ControllerImplTest {
     }
 
     @Test
+    public void testDeleteScope() {
+        CompletableFuture<DeleteScopeStatus> deleteStatus;
+        String scope1 = "scope1";
+        String scope2 = "scope2";
+        String scope3 = "scope3";
+        String scope4 = "scope4";
+
+        deleteStatus = controllerClient.deleteScope(scope1);
+        assertEquals(DeleteScopeStatus.Status.SUCCESS, deleteStatus.join().getStatus());
+
+        deleteStatus = controllerClient.deleteScope(scope2);
+        assertEquals(DeleteScopeStatus.Status.FAILURE, deleteStatus.join().getStatus());
+
+        deleteStatus = controllerClient.deleteScope(scope3);
+        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY, deleteStatus.join().getStatus());
+
+        deleteStatus = controllerClient.deleteScope(scope4);
+        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, deleteStatus.join().getStatus());
+    }
+
+    @Test
     public void testParallelCreateStream() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
         Semaphore createCount = new Semaphore(-19);

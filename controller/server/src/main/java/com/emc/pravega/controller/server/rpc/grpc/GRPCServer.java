@@ -10,6 +10,7 @@ import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.google.common.util.concurrent.AbstractService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -48,6 +49,8 @@ public class GRPCServer extends AbstractService {
             notifyStarted();
         } catch (IOException e) {
             log.error("Failed to start gRPC server on port: {}. Error: {}", this.config.getPort(), e);
+            // Throwing this error will mark the service as FAILED.
+            throw Lombok.sneakyThrow(e);
         }
     }
 

@@ -26,6 +26,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.google.common.util.concurrent.AbstractService;
+import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -74,6 +75,8 @@ public class ControllerEventProcessors extends AbstractService {
             notifyStarted();
         } catch (Exception e) {
             log.error("Error starting controller event processors.", e);
+            // Throwing this error will mark the service as FAILED.
+            throw Lombok.sneakyThrow(e);
         }
     }
 
