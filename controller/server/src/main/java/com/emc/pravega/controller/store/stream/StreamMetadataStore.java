@@ -5,8 +5,8 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
@@ -73,6 +73,14 @@ public interface StreamMetadataStore {
      * @return null on success and exception on failure.
      */
     CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
+
+    /**
+     * Retrieve configuration of scope.
+     *
+     * @param scopeName Name of scope.
+     * @return Returns configuration of scope.
+     */
+    CompletableFuture<String> getScopeConfiguration(final String scopeName);
 
     /**
      * List existing streams in scopes.

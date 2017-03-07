@@ -150,7 +150,7 @@ class RocksDBCache implements Cache {
     public void insert(Key key, byte[] data) {
         ensureInitializedAndNotClosed();
         try {
-            this.database.get().put(this.writeOptions, key.getSerialization(), data);
+            this.database.get().put(this.writeOptions, key.serialize(), data);
         } catch (RocksDBException ex) {
             throw convert(ex, "insert key '%s'", key);
         }
@@ -165,7 +165,7 @@ class RocksDBCache implements Cache {
     public byte[] get(Key key) {
         ensureInitializedAndNotClosed();
         try {
-            return this.database.get().get(key.getSerialization());
+            return this.database.get().get(key.serialize());
         } catch (RocksDBException ex) {
             throw convert(ex, "get key '%s'", key);
         }
@@ -175,7 +175,7 @@ class RocksDBCache implements Cache {
     public void remove(Key key) {
         ensureInitializedAndNotClosed();
         try {
-            this.database.get().remove(this.writeOptions, key.getSerialization());
+            this.database.get().remove(this.writeOptions, key.serialize());
         } catch (RocksDBException ex) {
             throw convert(ex, "remove key '%s'", key);
         }

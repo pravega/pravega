@@ -14,8 +14,8 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -106,7 +106,7 @@ public class EventProcessorTest {
         final CompletableFuture<CreateScopeStatus> createScopeStatus = controller.createScope(scope);
         final CreateScopeStatus scopeStatus = createScopeStatus.join();
 
-        if (CreateScopeStatus.SUCCESS != scopeStatus) {
+        if (CreateScopeStatus.Status.SUCCESS != scopeStatus.getStatus()) {
             throw new RuntimeException("Error creating scope");
         }
 
@@ -118,7 +118,7 @@ public class EventProcessorTest {
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
         CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
-        if (createStatus.get() != CreateStreamStatus.SUCCESS) {
+        if (createStatus.get().getStatus() != CreateStreamStatus.Status.SUCCESS) {
             System.err.println("Create stream failed, exiting");
             return;
         }

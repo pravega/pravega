@@ -97,8 +97,8 @@ public class StateSynchronizerTest {
         streamManager.createStream(stateName, null);
         JavaSerializer<TestUpdate> serializer = new JavaSerializer<TestUpdate>();
         
-        val a = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
-        val b = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
+        val a = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, SynchronizerConfig.builder().build());
+        val b = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, SynchronizerConfig.builder().build());
 
         a.initialize(new TestUpdate("init"));
         b.fetchUpdates();

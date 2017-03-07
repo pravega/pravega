@@ -18,7 +18,7 @@ package com.emc.pravega.stream;
 public interface EventRead<T> {
     
     /**
-     * Returns the event that is wrapped in this EventRead or null if a checkpoint was requested.
+     * Returns the event that is wrapped in this EventRead or null a timeout occurred or if a checkpoint was requested.
      *
      * @return The event itself.
      */

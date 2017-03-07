@@ -5,15 +5,22 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import java.util.concurrent.CompletableFuture;
-
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.stream.Segment;
+
+import java.util.concurrent.CompletableFuture;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Allows for reading from a Segment asynchronously.
  */
+@RequiredArgsConstructor
 abstract class AsyncSegmentInputStream implements AutoCloseable {
+    @Getter
+    protected final Segment segmentId;
     
     public abstract CompletableFuture<StreamSegmentInfo> getSegmentInfo();
 
@@ -22,6 +29,13 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
          * @return True if the read has completed and is successful.
          */
         boolean isSuccess();
+        
+        /**
+         * Waits for the provided future to be complete and returns true if it completed and false if it did not.
+         * 
+         * @param timeout The maximum number of milliseconds to block
+         */
+        boolean await(long timeout);
     }
     
     /**

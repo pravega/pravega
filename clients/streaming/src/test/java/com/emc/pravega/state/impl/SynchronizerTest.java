@@ -173,11 +173,10 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
-
         StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
-                                                                                       new SynchronizerConfig(null, null));
+                                                                                       SynchronizerConfig.builder().build());
         AtomicInteger callCount = new AtomicInteger(0);
         sync.initialize(new RegularUpdate());
         sync.updateState(state -> {

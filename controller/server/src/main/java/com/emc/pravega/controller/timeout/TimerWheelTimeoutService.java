@@ -9,7 +9,7 @@ import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.OperationOnTxNotAllowedException;
 import com.emc.pravega.controller.store.stream.TransactionNotFoundException;
 import com.emc.pravega.controller.store.stream.WriteConflictException;
-import com.emc.pravega.controller.stream.api.v1.PingStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -193,10 +193,10 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     @Override
-    public PingStatus pingTxn(final String scope, final String stream, final UUID txnId, long lease) {
+    public PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, long lease) {
 
         if (!this.isRunning()) {
-            return PingStatus.DISCONNECTED;
+            return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.DISCONNECTED).build();
         }
 
         final String key = getKey(scope, stream, txnId);
@@ -205,17 +205,17 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
         final TxnData txnData = map.get(key);
 
         if (lease > maxLeaseValue || lease > txnData.getScaleGracePeriod()) {
-            return PingStatus.LEASE_TOO_LARGE;
+            return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.LEASE_TOO_LARGE).build();
         }
 
         if (lease + System.currentTimeMillis() > txnData.getMaxExecutionTimeExpiry()) {
-            return PingStatus.MAX_EXECUTION_TIME_EXCEEDED;
+            return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED).build();
         } else {
             Timeout timeout = txnData.getTimeout();
             timeout.cancel();
             Timeout newTimeout = hashedWheelTimer.newTimeout(timeout.task(), lease, TimeUnit.MILLISECONDS);
             txnData.setTimeout(newTimeout);
-            return PingStatus.OK;
+            return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build();
         }
 
     }

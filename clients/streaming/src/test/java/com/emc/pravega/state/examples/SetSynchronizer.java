@@ -210,7 +210,7 @@ public class SetSynchronizer<T extends Serializable> {
                 factory.createStateSynchronizer(streamName,
                                                 new JavaSerializer<SetUpdate<T>>(),
                                                 new JavaSerializer<CreateSet<T>>(),
-                                                new SynchronizerConfig(null, null)));
+                                                SynchronizerConfig.builder().build()));
     }
 
 }
