@@ -70,7 +70,7 @@ public class ReaderGroupTest {
     public void testEventHandoff() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.randomPort();
-
+        @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
@@ -111,7 +111,7 @@ public class ReaderGroupTest {
     public void testMultiSegmentsPerReader() throws InterruptedException, ExecutionException {
         String endpoint = "localhost";
         int port = TestUtils.randomPort();
-
+        @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
