@@ -1,3 +1,8 @@
+/**
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ */
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -53,7 +58,7 @@ public class CheckpointTest {
         this.serviceBuilder.close();
     }
 
-    @Test//(timeout = 20000)
+    @Test(timeout = 20000)
     public void testCheckpointAndRestore() throws ReinitializationRequiredException, InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";

@@ -189,6 +189,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 for (SegmentInputStream reader : readers) {
                     reader.close();
                 }
+                readers.clear();
             }
         }
     }

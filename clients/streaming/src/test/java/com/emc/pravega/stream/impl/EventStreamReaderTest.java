@@ -196,4 +196,57 @@ public class EventStreamReaderTest {
         reader.close();
     }
 
+    @Test(timeout = 10000)
+    public void testCheckpoint() throws SegmentSealedException, ReinitializationRequiredException {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<byte[]>(segmentStreamFactory,
+                new ByteArraySerializer(),
+                groupState,
+                orderer,
+                clock::get,
+                ReaderConfig.builder().build());
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment);
+        ByteBuffer buffer = writeInt(stream, 1);
+        Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
+        EventRead<byte[]> eventRead = reader.readNextEvent(0);
+        assertTrue(eventRead.isCheckpoint());
+        assertNull(eventRead.getEvent());
+        assertEquals("Foo", eventRead.getCheckpointName());
+        assertEquals(buffer, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
+        assertNull(reader.readNextEvent(0).getEvent());
+        reader.close();
+    }
+    
+    @Test//(timeout = 10000)
+    public void testRestore() throws SegmentSealedException, ReinitializationRequiredException {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<byte[]>(segmentStreamFactory,
+                new ByteArraySerializer(),
+                groupState,
+                orderer,
+                clock::get,
+                ReaderConfig.builder().build());
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment);
+        ByteBuffer buffer = writeInt(stream, 1);
+        Mockito.when(groupState.getCheckpoint()).thenThrow(new ReinitializationRequiredException());
+        try {
+            reader.readNextEvent(0);
+            fail();
+        } catch(ReinitializationRequiredException e) {
+            // expected
+        }
+        assertTrue(reader.getReaders().isEmpty());
+        reader.close();
+    }
+    
 }

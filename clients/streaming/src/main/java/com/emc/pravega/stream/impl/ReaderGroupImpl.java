@@ -71,7 +71,7 @@ public class ReaderGroupImpl implements ReaderGroup {
         return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
             return listOfMaps.stream()
                              .flatMap(map -> map.entrySet().stream())
-                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
         }), InvalidStreamException::new);
     }
 
