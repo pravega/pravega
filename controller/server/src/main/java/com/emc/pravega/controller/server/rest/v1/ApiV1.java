@@ -7,7 +7,7 @@ package com.emc.pravega.controller.server.rest.v1;
 
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
-import com.emc.pravega.controller.server.rest.generated.model.InlineResponse201;
+import com.emc.pravega.controller.server.rest.generated.model.ScopeProperty;
 import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
@@ -56,16 +56,16 @@ public final class ApiV1 {
         @Consumes({ "application/json" })
         @Produces({ "application/json" })
         @io.swagger.annotations.ApiOperation(
-                value = "", notes = "Creates a new scope", response = InlineResponse201.class, tags = {  })
+                value = "", notes = "Creates a new scope", response = ScopeProperty.class, tags = {  })
         @io.swagger.annotations.ApiResponses(value = {
                 @io.swagger.annotations.ApiResponse(
-                        code = 201, message = "Successfully created the scope", response = InlineResponse201.class),
+                        code = 201, message = "Successfully created the scope", response = ScopeProperty.class),
 
                 @io.swagger.annotations.ApiResponse(
-                        code = 409, message = "Scope already exists", response = InlineResponse201.class),
+                        code = 409, message = "Scope already exists", response = ScopeProperty.class),
 
                 @io.swagger.annotations.ApiResponse(
-                        code = 500, message = "Server error", response = InlineResponse201.class) })
+                        code = 500, message = "Server error", response = ScopeProperty.class) })
         void createScope(
                 @ApiParam(value = "The scope configuration", required = true) CreateScopeRequest createScopeRequest,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
@@ -94,7 +94,7 @@ public final class ApiV1 {
 
         @DELETE
         @Path("/{scopeName}")
-        @io.swagger.annotations.ApiOperation(value = "", notes = "", response = void.class, tags = {  })
+        @io.swagger.annotations.ApiOperation(value = "", notes = "Delete a scope", response = void.class, tags = {  })
         @io.swagger.annotations.ApiResponses(value = {
                 @io.swagger.annotations.ApiResponse(
                         code = 204, message = "Successfully deleted the scope", response = void.class),
@@ -117,6 +117,23 @@ public final class ApiV1 {
         void deleteStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+
+        @GET
+        @Path("/{scopeName}")
+        @Produces({ "application/json" })
+        @io.swagger.annotations.ApiOperation(
+                value = "", notes = "Retrieve scope", response = ScopeProperty.class, tags = {  })
+        @io.swagger.annotations.ApiResponses(value = {
+                @io.swagger.annotations.ApiResponse(
+                        code = 200, message = "Successfully retrieved the scope", response = ScopeProperty.class),
+
+                @io.swagger.annotations.ApiResponse(
+                        code = 404, message = "Scope not found", response = ScopeProperty.class),
+
+                @io.swagger.annotations.ApiResponse(
+                        code = 500, message = "Server error", response = ScopeProperty.class) })
+        void getScope(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                      @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         @GET
         @Path("/{scopeName}/streams/{streamName}")
