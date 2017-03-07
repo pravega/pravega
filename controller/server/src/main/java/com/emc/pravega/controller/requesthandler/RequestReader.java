@@ -85,13 +85,14 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                   final JavaSerializer<Position> serializer,
                   final StreamMetadataStore checkpointStore,
                   final ScheduledExecutorService executor) {
-        this.serializer = serializer;
         Preconditions.checkNotNull(writer);
         Preconditions.checkNotNull(reader);
         Preconditions.checkNotNull(requestHandler);
         Preconditions.checkNotNull(checkpointStore);
+        Preconditions.checkNotNull(serializer);
 
         this.requestHandler = requestHandler;
+        this.serializer = serializer;
 
         this.readerId = readerId;
         this.readerGroup = readerGroup;
