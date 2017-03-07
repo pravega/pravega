@@ -12,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
-import mesosphere.marathon.client.model.v2.GetAppsResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
@@ -165,23 +164,6 @@ public abstract class MarathonBasedService implements Service {
                 log.debug("Application does not exist");
             } else {
                 throw new TestFrameworkException(RequestFailed, "Marathon Exception while deleting service", e);
-            }
-        }
-    }
-
-    public void  deleteServices() {
-        GetAppsResponse x = null;
-        try {
-            x = marathonClient.getApps();
-        } catch (MarathonException e) {
-            throw new TestFrameworkException(RequestFailed, "Marathon Exception while getting service details", e);
-        }
-        for (int i = 0; i < x.getApps().size(); i++) {
-            String id = x.getApps().get(i).getId();
-            log.info("deleting app with id {}", id);
-            if (!(id.startsWith("/platform") || id.startsWith("/hdfs"))) {
-                deleteApp(id);
-                log.info("app with id {} deleted", id);
             }
         }
     }
