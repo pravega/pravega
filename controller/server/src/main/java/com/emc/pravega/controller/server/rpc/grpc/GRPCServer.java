@@ -21,6 +21,7 @@ import java.io.IOException;
 public class GRPCServer extends AbstractService {
 
     private final Server server;
+    private final GRPCServerConfig config;
 
     /**
      * Create gRPC server on the specified port.
@@ -29,6 +30,7 @@ public class GRPCServer extends AbstractService {
      * @param serverConfig      The RPC Server config.
      */
     public GRPCServer(ControllerService controllerService, GRPCServerConfig serverConfig) {
+        this.config = serverConfig;
         this.server = ServerBuilder
                 .forPort(serverConfig.getPort())
                 .addService(new ControllerServiceImpl(controllerService))
@@ -41,10 +43,11 @@ public class GRPCServer extends AbstractService {
     @Override
     protected void doStart() {
         try {
-            log.info("Starting gRPC server listening on port: {}", server.getPort());
+            log.info("Starting gRPC server listening on port: {}", this.config.getPort());
             this.server.start();
+            notifyStarted();
         } catch (IOException e) {
-            log.error("Failed to start gRPC server on port: {}. Error: {}", server.getPort(), e);
+            log.error("Failed to start gRPC server on port: {}. Error: {}", this.config.getPort(), e);
         }
     }
 
@@ -53,7 +56,7 @@ public class GRPCServer extends AbstractService {
      */
     @Override
     protected void doStop() {
-        log.info("Stopping gRPC server listening on port: {}", server.getPort());
-        server.shutdown();
+        log.info("Stopping gRPC server listening on port: {}", this.config.getPort());
+        this.server.shutdown();
     }
 }

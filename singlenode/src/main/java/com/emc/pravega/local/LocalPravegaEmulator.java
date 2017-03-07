@@ -159,7 +159,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     /**
      * Start controller and host.
      */
-    private void start() throws Exception {
+    private void start() {
         startController();
         try {
             Thread.sleep(10000);
@@ -214,7 +214,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         nodeServiceStarter.get().start();
     }
 
-    private void startController() throws Exception {
+    private void startController() {
         String hostId;
         try {
             //On each controller report restart, it gets a fresh hostId,

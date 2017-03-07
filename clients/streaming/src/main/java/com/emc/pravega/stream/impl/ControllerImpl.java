@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -27,7 +28,6 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorRespons
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import com.emc.pravega.stream.PingFailedException;
@@ -276,7 +276,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         Preconditions.checkNotNull(txId, "txId");
 
         log.trace("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
-        RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>();
+        RPCAsyncCallback<Controller.TxnStatus> callback = new RPCAsyncCallback<>();
         client.commitTransaction(TxnRequest.newBuilder()
                                          .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
                                                                                      stream.getStreamName()))
@@ -286,7 +286,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
 
         return FutureHelpers.toVoidExpecting(
                 callback.getFuture(),
-                TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(),
+                Controller.TxnStatus.newBuilder().setStatus(Controller.TxnStatus.Status.SUCCESS).build(),
                 TxnFailedException::new);
     }
 
@@ -296,17 +296,17 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         Preconditions.checkNotNull(txId, "txId");
 
         log.trace("Invoke AdminService.Client.abortTransaction() with stream: {}, txUd: {}", stream, txId);
-        RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>();
+        RPCAsyncCallback<Controller.TxnStatus> callback = new RPCAsyncCallback<>();
         client.abortTransaction(TxnRequest.newBuilder()
                                        .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
                                                                                    stream.getStreamName()))
                                        .setTxnId(ModelHelper.decode(txId))
                                        .build(),
-                                callback);
+                callback);
         return FutureHelpers.toVoidExpecting(callback.getFuture(),
-                                             TxnStatus.newBuilder().setStatus(
-                                                     TxnStatus.Status.SUCCESS).build(),
-                                             TxnFailedException::new);
+                Controller.TxnStatus.newBuilder().setStatus(
+                        Controller.TxnStatus.Status.SUCCESS).build(),
+                TxnFailedException::new);
     }
 
     @Override
