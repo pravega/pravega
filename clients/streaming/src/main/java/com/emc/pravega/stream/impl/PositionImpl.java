@@ -28,7 +28,7 @@ public class PositionImpl extends PositionInternal {
      *
      * @param ownedSegments Current segments that the position refers to.
      */
-    public PositionImpl(Map<Segment, Long> ownedSegments) {
+    PositionImpl(Map<Segment, Long> ownedSegments) {
         this.ownedSegments = new HashMap<>(ownedSegments);
     }
 
