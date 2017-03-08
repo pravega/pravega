@@ -48,25 +48,26 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 
 @Slf4j
 @Builder
 public class InProcPravegaCluster implements AutoCloseable {
+
+    private static final String THREADPOOL_SIZE = "20";
+
     /*Controller related variables*/
     private boolean isInprocController;
     private int controllerCount;
-    private int controllerPorts[];
+    private int[] controllerPorts;
     private String controllerURI;
     private ControllerService[] controllerServices = null;
 
     /*Host related variables*/
     private boolean isInprocHost;
     private int hostCount;
-    private int hostPorts[];
+    private int[] hostPorts;
 
     /*Distributed log related variables*/
     private boolean isInProcDL;
@@ -86,7 +87,6 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /* Host configuration*/
     private String containerCount = "2";
-    private static final String THREADPOOL_SIZE = "20";
     private ServiceStarter[] nodeServiceStarter = new ServiceStarter[hostCount];
 
     private LocalHDFSEmulator localHdfs;
@@ -96,10 +96,10 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     public void start() throws Exception {
         /*Start the ZK*/
-        if(isInProcZK) {
+        if (isInProcZK) {
             zkUrl = "localhost:" + zkPort;
         } else {
-            assert(zkUrl!=null);
+            assert (zkUrl!=null);
         }
 
         if(isInProcHDFS) {
@@ -171,7 +171,6 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         try {
             Properties p = new Properties();
-            ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
             ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
                     String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
 
@@ -204,7 +203,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
                     Integer.toString(zkPort));
 
-            props = new ServiceBuilderConfig(p);
+            ServiceBuilderConfig props = new ServiceBuilderConfig(p);
 
             nodeServiceStarter[hostId] = new ServiceStarter(props);
         } catch (Exception e) {
