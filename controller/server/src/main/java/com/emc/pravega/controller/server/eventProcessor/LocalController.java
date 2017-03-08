@@ -10,6 +10,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
@@ -44,6 +45,11 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         return this.controller.createScope(scopeName);
+    }
+
+    @Override
+    public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
+        return this.controller.deleteScope(scopeName);
     }
 
     @Override
