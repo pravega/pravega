@@ -31,10 +31,8 @@ import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.google.common.collect.LinkedListMultimap;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -43,16 +41,14 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_BYTES;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_LATENCY;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
+import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 
 /**
  * Process incoming Append requests and write them to the appropriate store.
@@ -104,7 +100,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .whenComplete((info, u) -> {
                     try {
                         if (u != null) {
-                            handleException(newSegment, u);
+                            handleException(newSegment, "setting up append", u);
                         } else {
                             long eventNumber = info.getAttributes().getOrDefault(newConnection, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
                             if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
@@ -118,7 +114,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             connection.send(new AppendSetup(newSegment, newConnection, eventNumber));
                         }
                     } catch (Throwable e) {
-                        handleException(newSegment, e);
+                        handleException(newSegment, "handling setupAppend result", e);
                     }
                 });
     }
@@ -213,7 +209,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     if (conditionalFailed) {
                         connection.send(new ConditionalCheckFailed(toWrite.getConnectionId(), toWrite.getEventNumber()));
                     } else {
-                        handleException(segment, u);
+                        handleException(segment, "appending data", u);
                     }
                 } else {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
@@ -228,15 +224,15 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 pauseOrResumeReading();
                 performNextWrite();
             } catch (Throwable e) {
-                handleException(segment, e);
+                handleException(segment, "handling append result", e);
             }
         });
     }
 
-    private void handleException(String segment, Throwable u) {
+    private void handleException(String segment, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
-            log.error("Error (Segment = '{}', Operation = 'append')", segment, exception);
+            log.error("Append processor: Error {} onsegment = '{}'", doingWhat, segment, exception);
             throw exception;
         }
 

@@ -179,7 +179,7 @@ public class TransactionTest {
 
         AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
-
+        @Cleanup
         EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader("reader",
                                                                                                  groupName,
                                                                                                  new JavaSerializer<>(),

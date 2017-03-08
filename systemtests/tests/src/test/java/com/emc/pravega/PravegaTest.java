@@ -4,8 +4,7 @@
 
 package com.emc.pravega;
 
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.BookkeeperService;
@@ -117,11 +116,11 @@ public class PravegaTest {
         log.debug("Controller URI: {} ", controllerUri);
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
         //create a stream
-        CompletableFuture<CreateScopeStatus> scopeStatus = controller.createScope(STREAM_SCOPE);
+        CompletableFuture<Controller.CreateScopeStatus> scopeStatus = controller.createScope(STREAM_SCOPE);
         System.out.println("create scope status" + scopeStatus.get());
-        CompletableFuture<CreateStreamStatus> status = controller.createStream(config);
+        CompletableFuture<Controller.CreateStreamStatus> status = controller.createStream(config);
         log.debug("create stream status {}", status.get());
-        assertEquals(CreateStreamStatus.SUCCESS, status.get());
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, status.get());
     }
 
     /**

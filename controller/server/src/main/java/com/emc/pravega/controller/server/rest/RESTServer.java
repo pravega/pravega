@@ -7,7 +7,7 @@ package com.emc.pravega.controller.server.rest;
 
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 
 import java.net.URI;
 import java.util.HashSet;

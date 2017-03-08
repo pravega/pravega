@@ -63,7 +63,7 @@ public interface Cache extends AutoCloseable {
         /**
          * Gets a pointer to a byte array representing the serialization of the Cache Key.
          */
-        public abstract byte[] getSerialization();
+        public abstract byte[] serialize();
 
         /**
          * For in-memory representations of the Cache, hashCode() is required.

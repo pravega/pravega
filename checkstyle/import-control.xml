@@ -40,6 +40,7 @@
     <allow pkg="com.fasterxml.jackson"/>
     <allow pkg="mesosphere.marathon"/>
     <allow pkg="feign"/>
+    <allow pkg="io.grpc" />
     <allow pkg="okhttp3" />
 
 </import-control>
