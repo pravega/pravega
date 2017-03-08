@@ -42,5 +42,6 @@
     <allow pkg="feign"/>
     <allow pkg="io.grpc" />
     <allow pkg="okhttp3" />
+    <allow pkg="okio" />
 
 </import-control>

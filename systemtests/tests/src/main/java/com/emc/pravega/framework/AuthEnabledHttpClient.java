@@ -4,14 +4,10 @@
 
 package com.emc.pravega.framework;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.framework.services.RedisService;
-import com.emc.pravega.stream.TxnFailedException;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -31,7 +27,6 @@ import java.util.concurrent.ExecutionException;
 import static com.emc.pravega.framework.LoginClient.LOGIN_URL;
 import static com.emc.pravega.framework.LoginClient.MESOS_URL;
 import static com.emc.pravega.framework.LoginClient.getAuthenticationRequestInterceptor;
-import static com.emc.pravega.framework.TestFrameworkException.Type.RequestFailed;
 
 //Authentication enabled http client
 @Slf4j
@@ -54,7 +49,8 @@ public class AuthEnabledHttpClient {
     }
 
     /**
-     * Get the HttpClient
+     * Get the HttpClient instance.
+     *
      * @return instance of HttpClient.
      */
     public OkHttpClient getHttpClient() {
@@ -68,26 +64,12 @@ public class AuthEnabledHttpClient {
                         getAuthenticationRequestInterceptor()))
                 .build();
         HttpAsyncCallback callBack = new HttpAsyncCallback();
-            getHttpClient().newCall(request).enqueue(callBack);
+        getHttpClient().newCall(request).enqueue(callBack);
         CompletableFuture<Response> future = callBack.getFuture();
         return future;
-
-//            Call call = client.newCall(request).enqueue(callBack);
-//            try (Response response = call.execute()) {
-//                if (response.isSuccessful()) {
-//                    return response.body().string();
-//                } else {
-//                    throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed,
-//                            "Error while performing HTTP(S) GET" + response.message());
-//                }
-//            }
-//        } catch (IOException e) {
-//            throw new TestFrameworkException(RequestFailed, "Error while doing httpGet", e);
-//        }
     }
 
-    private static final class HttpAsyncCallback implements Callback  {
-        private Response result = null;
+    private static final class HttpAsyncCallback implements Callback {
         private final CompletableFuture<Response> future = new CompletableFuture<>();
 
         @Override
@@ -121,9 +103,9 @@ public class AuthEnabledHttpClient {
         System.out.println("hw");
         AuthEnabledHttpClient client = new AuthEnabledHttpClient();
 
-        String result = client.getURL("https://10.240.120.202/service/marathon/v2/apps/redisapp?embed=apps.tasks")
-                .get
-                ().body().string();
+        String appId = "redisapp";
+        String result = client.getURL(MESOS_URL + "/service/marathon/v2/apps/" + appId + "?embed=apps.tasks")
+                .get().body().string();
         JsonObject r = new JsonParser().parse(result).getAsJsonObject();
 
         Optional<JsonArray> r1 = Optional.of(r.getAsJsonObject("app")).flatMap(jsonObject ->
@@ -167,33 +149,12 @@ public class AuthEnabledHttpClient {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            //
-            //            String url = "https://10.240.124.2/agent/" + slaveId + "/slave(1)/state";
-            //
-            //            String mesosInfo = client.getURL(url);
-            //            SlaveState r123 = new Gson().fromJson(mesosInfo, SlaveState.class);
-            //
-            //            List<String> directoryPaths = new ArrayList<>(2);
-            //
-            //            r123.getFrameworks().stream()
-            //                    .filter(framework -> framework.getName().equals("marathon"))
-            //                    .forEach(framework -> {
-            //                        //search for task id in the executor.
-            //                        framework.getExecutors().stream()
-            //                                .filter(executor -> executor.getId().equals(id))
-            //                                .forEach(executor -> directoryPaths.add(executor.getDirectory()));
-            //                        //Also check the completedExecutors since the service might have crashed and marathon might
-            //                        // have spawned a new instance
-            //                        framework.getCompleted_executors().stream()
-            //                                .filter(executor -> executor.getId().equals(id))
-            //                                .forEach(executor -> directoryPaths.add(executor.getDirectory()));
-            //                    });
-
-            //            System.out.println("DirectoryPath: " + directoryPaths);
 
         }));
 
         System.out.println("hw");
 
     }
+
+
 }
