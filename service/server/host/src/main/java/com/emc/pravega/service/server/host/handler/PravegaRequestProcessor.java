@@ -59,6 +59,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import lombok.extern.slf4j.Slf4j;
@@ -295,6 +296,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof WrongHostException) {
             WrongHostException wrongHost = (WrongHostException) u;
             connection.send(new WrongHost(wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
+        } else if (u instanceof CancellationException) {
+            log.info("Closing connection due to: ", u.getMessage());
+            connection.close();
         } else {
             // TODO: don't know what to do here...
             connection.close();

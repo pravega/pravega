@@ -61,7 +61,7 @@ public final class SetupUtils {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.randomPort();
         this.server = new PravegaConnectionListener(false, servicePort, store);
-        server.startListening();
+        this.server.startListening();
         log.info("Started Pravega Service");
 
         // Start zookeeper.
@@ -71,7 +71,7 @@ public final class SetupUtils {
         // Start Controller.
         int controllerPort = TestUtils.randomPort();
         this.controllerWrapper = new ControllerWrapper(
-                zkTestServer.getConnectString(), true, true, controllerPort, "localhost", servicePort,
+                this.zkTestServer.getConnectString(), true, true, controllerPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT);
         this.controllerWrapper.getController().createScope(this.scope).get();
         this.controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
@@ -103,7 +103,7 @@ public final class SetupUtils {
         Preconditions.checkArgument(numSegments > 0);
 
         @Cleanup
-        StreamManager streamManager = StreamManager.withScope(this.scope, controllerUri);
+        StreamManager streamManager = StreamManager.withScope(this.scope, this.controllerUri);
         streamManager.createStream(streamName,
                 StreamConfiguration.builder()
                         .scope(this.scope)
@@ -123,7 +123,7 @@ public final class SetupUtils {
     public EventStreamWriter<Integer> getIntegerWriter(final String streamName) {
         Preconditions.checkNotNull(streamName);
 
-        ClientFactory clientFactory = ClientFactory.withScope(this.scope, controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(this.scope, this.controllerUri);
         return clientFactory.createEventWriter(
                 streamName,
                 new IntegerSerializer(),
@@ -140,14 +140,14 @@ public final class SetupUtils {
     public EventStreamReader<Integer> getIntegerReader(final String streamName) {
         Preconditions.checkNotNull(streamName);
 
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(this.scope, controllerUri);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(this.scope, this.controllerUri);
         final String readerGroup = "testReaderGroup" + this.scope + streamName;
         readerGroupManager.createReaderGroup(
                 readerGroup,
                 ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singleton(streamName));
 
-        ClientFactory clientFactory = ClientFactory.withScope(this.scope, controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(this.scope, this.controllerUri);
         final String readerGroupId = UUID.randomUUID().toString();
         return clientFactory.createReader(
                 readerGroupId,

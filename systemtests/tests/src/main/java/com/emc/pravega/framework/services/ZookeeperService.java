@@ -33,6 +33,7 @@ public class ZookeeperService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
+        deleteApp("/pravega/exhibitor");
         log.info("Starting Zookeeper Service: {}", getID());
         try {
             marathonClient.createApp(createZookeeperApp());
