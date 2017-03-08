@@ -95,6 +95,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                     state.store(event.getPosition());
 
                 } catch (Exception e) {
+                    log.warn("Failed in run method of event processor " + this, e);
                     handleException(e);
                 }
             }

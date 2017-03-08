@@ -132,7 +132,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             return null;
 
         } catch (KeeperException.NoNodeException e) {
-            log.debug("Lock not present on resource " + resource, e);
+            log.debug("Lock not present on resource " + resource);
             return null;
         } catch (Exception e) {
             throw new UnlockFailedException(resource.getString(), e);
@@ -153,20 +153,20 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                 byte[] data = client.getData().forPath(getTaskPath(resource));
 
                 if (data == null || data.length <= 0) {
-                    log.debug(String.format("Empty data found for resource %s.", resource));
+                    log.debug("Empty data found for resource {}.", resource);
                     return Optional.empty();
                 } else {
                     LockData lockData = LockData.deserialize(data);
                     if (lockData.isOwnedBy(owner, tag)) {
                         return Optional.of(TaskData.deserialize(lockData.getTaskData()));
                     } else {
-                        log.debug(String.format("Resource %s not owned by pair (%s, %s)", resource.getString(), owner, tag));
+                        log.debug("Resource {} not owned by pair ({}, {})", resource.getString(), owner, tag);
                         return Optional.empty();
                     }
                 }
 
             } catch (KeeperException.NoNodeException e) {
-                log.debug("Node does not exist.", e);
+                log.debug("Node {} does not exist.", getTaskPath(resource));
                 return Optional.empty();
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -190,7 +190,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                 return null;
 
             } catch (KeeperException.NodeExistsException e) {
-                log.debug("Node exists.", e);
+                log.debug("Node {} exists.", getHostPath(parent, child));
                 return null;
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -223,7 +223,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                 }
                 return null;
             } catch (KeeperException.NoNodeException e) {
-                log.debug(String.format("Node %s does not exist.", getNode(child)), e);
+                log.debug("Node {} does not exist.", getNode(child));
                 return null;
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -278,10 +278,10 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                 return null;
 
             } catch (KeeperException.NoNodeException e) {
-                log.debug(String.format("Node %s does not exist.", parent), e);
+                log.debug("Node {} does not exist.", getHostPath(parent));
                 return null;
             } catch (KeeperException.NotEmptyException e) {
-                log.debug("Node not empty.", e);
+                log.debug("Node {} not empty.", getHostPath(parent));
                 return null;
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -326,7 +326,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                 }
 
             } catch (KeeperException.NoNodeException e) {
-                log.debug(String.format("Node %s does not exist.", parent), e);
+                log.debug("Node {} does not exist.", getHostPath(parent));
                 return Optional.empty();
             } catch (Exception e) {
                 throw new RuntimeException(e);
