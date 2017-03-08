@@ -300,14 +300,6 @@ class HDFSStorage implements Storage {
     private void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException,
             BadOffsetException, StreamSegmentSealedException, StorageNotPrimaryException {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetStreamSegmentName, offset, sourceStreamSegmentName);
-        handleFencing(() -> {
-            FileStatus sourceStatus = findOwned(sourceStreamSegmentName);
-            if (sourceStatus.getPermission().getUserAction() != FsAction.READ) {
-                throw new IllegalStateException(String.format("Cannot concat segment '%s' into '%s' because it is not sealed.",
-                        sourceStreamSegmentName, targetStreamSegmentName));
-            }
-        }, sourceStreamSegmentName);
-
         AtomicLong actualOffset = new AtomicLong();
         handleFencing(() -> {
             FileStatus targetStatus = findOwned(targetStreamSegmentName);
@@ -317,6 +309,14 @@ class HDFSStorage implements Storage {
         if (actualOffset.get() != offset) {
             throw new BadOffsetException(targetStreamSegmentName, offset, actualOffset.get());
         }
+
+        handleFencing(() -> {
+            FileStatus sourceStatus = findOwned(sourceStreamSegmentName);
+            if (sourceStatus.getPermission().getUserAction() != FsAction.READ) {
+                throw new IllegalStateException(String.format("Cannot concat segment '%s' into '%s' because it is not sealed.",
+                        sourceStreamSegmentName, targetStreamSegmentName));
+            }
+        }, sourceStreamSegmentName);
 
         this.fileSystem.concat(new Path(getOwnedSegmentFullPath(targetStreamSegmentName)),
                 new Path[]{new Path(getOwnedSegmentFullPath(sourceStreamSegmentName))});
