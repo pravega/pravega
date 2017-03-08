@@ -20,6 +20,7 @@ import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -330,7 +331,8 @@ class HDFSStorage implements Storage {
         return result;
     }
 
-    private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName) throws IOException {
+    @VisibleForTesting
+    protected SegmentProperties getStreamSegmentInfoSync(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         FileStatus status = findUnfenced(streamSegmentName);
 

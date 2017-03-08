@@ -9,7 +9,6 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.PropertyBag;
-import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
@@ -21,9 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import lombok.SneakyThrows;
@@ -205,16 +201,13 @@ public class HDFSStorageTest extends StorageTestBase {
      * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
      **/
     private static class MiniClusterPermFixer extends HDFSStorage {
-        private final Set<String> sealedList;
-
         MiniClusterPermFixer(HDFSStorageConfig config, Executor executor) {
             super(config, executor);
-            sealedList = Collections.synchronizedSet(new HashSet<>());
         }
 
         @Override
         public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
-            if (sealedList.contains(streamSegmentName)) {
+            if (isSealed(streamSegmentName)) {
                 return FutureHelpers.failedFuture(new StreamSegmentSealedException(streamSegmentName));
             }
 
@@ -222,32 +215,25 @@ public class HDFSStorageTest extends StorageTestBase {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-            sealedList.add(streamSegmentName);
-            CompletableFuture<SegmentProperties> result = super.seal(streamSegmentName, timeout);
-            result.exceptionally(ex -> {
-                sealedList.remove(streamSegmentName);
-                return null;
-            });
-
-            return result;
-        }
-
-        @Override
         public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset,
                                               String sourceStreamSegmentName, Duration timeout) {
-            if (sealedList.contains(targetStreamSegmentName)) {
+            if (isSealed(targetStreamSegmentName)) {
                 return FutureHelpers.failedFuture(new StreamSegmentSealedException(targetStreamSegmentName));
             }
 
-            return super.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout)
-                        .thenRun(() -> sealedList.remove(sourceStreamSegmentName));
+            return super.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
         }
 
-        @Override
-        public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-            return super.delete(streamSegmentName, timeout)
-                        .thenRun(() -> sealedList.remove(streamSegmentName));
+        private boolean isSealed(String streamSegmentName) {
+            // It turns out MiniHDFSCluster does not respect file attributes when it comes to writing: a R--R--R-- file
+            // will gladly be modified without throwing any sort of exception, so here we are, trying to "simulate" this.
+            // It should be noted though that a regular HDFS installation works just fine, which is why this code should
+            // not make it in the HDFSStorage class itself.
+            try {
+                return super.getStreamSegmentInfoSync(streamSegmentName).isSealed();
+            } catch (IOException ex) {
+                return false;
+            }
         }
     }
 
