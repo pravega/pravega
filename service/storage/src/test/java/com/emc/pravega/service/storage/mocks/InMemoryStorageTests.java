@@ -6,6 +6,7 @@
 package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.emc.pravega.service.storage.TruncateableStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.Cleanup;
@@ -56,26 +57,26 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         AssertExtensions.assertThrows(
                 "getStreamSegmentInfo did not throw for non-owned Segment",
                 () -> storage.getStreamSegmentInfo(segmentName, TIMEOUT),
-                ex -> ex instanceof IllegalStateException);
+                ex -> ex instanceof StorageNotPrimaryException);
 
         // Write
         AssertExtensions.assertThrows(
                 "write did not throw for non-owned Segment",
                 () -> storage.write(segmentName, 0, new ByteArrayInputStream(writeData), writeData.length, TIMEOUT),
-                ex -> ex instanceof IllegalStateException);
+                ex -> ex instanceof StorageNotPrimaryException);
 
         // Seal
         AssertExtensions.assertThrows(
                 "seal did not throw for non-owned Segment",
                 () -> storage.seal(segmentName, TIMEOUT),
-                ex -> ex instanceof IllegalStateException);
+                ex -> ex instanceof StorageNotPrimaryException);
 
         // Read
         byte[] readBuffer = new byte[1];
         AssertExtensions.assertThrows(
                 "read() did not throw for non-owned Segment",
                 () -> storage.read(segmentName, 0, readBuffer, 0, readBuffer.length, TIMEOUT),
-                ex -> ex instanceof IllegalStateException);
+                ex -> ex instanceof StorageNotPrimaryException);
     }
 
     private void verifyOperationsSucceed(String segmentName, Storage storage) throws Exception {
