@@ -41,7 +41,7 @@ public class FlinkPravegaWriterTest {
     private static final int EVENT_COUNT_PER_SOURCE = 20;
 
     // Setup utility.
-    private static final SetupUtils SETUP_UTILS = new SetupUtils();
+    private SetupUtils setupUtils = new SetupUtils();
 
     // Ensure each test completes within 30 seconds.
     @Rule
@@ -49,21 +49,20 @@ public class FlinkPravegaWriterTest {
 
     @Before
     public void setup() throws Exception {
-        SETUP_UTILS.startAllServices();
+        this.setupUtils.startAllServices();
     }
 
     @After
     public void tearDown() throws Exception {
-        SETUP_UTILS.stopAllServices();
+        this.setupUtils.stopAllServices();
     }
 
     @Test
     public void testWriter() throws Exception {
-        FlinkPravegaWriterTest test = new FlinkPravegaWriterTest();
-        test.runTest(1, false, "TestStream1");
-        test.runTest(4, false, "TestStream2");
-        test.runTest(1, true, "TestStream3");
-        test.runTest(4, true, "TestStream4");
+        runTest(1, false, "TestStream1");
+        runTest(4, false, "TestStream2");
+        runTest(1, true, "TestStream3");
+        runTest(4, true, "TestStream4");
 
         log.info("All tests successful");
     }
@@ -89,13 +88,13 @@ public class FlinkPravegaWriterTest {
 
         // Write the end marker.
         @Cleanup
-        EventStreamWriter<Integer> eventWriter = SETUP_UTILS.getIntegerWriter(streamName);
+        EventStreamWriter<Integer> eventWriter = this.setupUtils.getIntegerWriter(streamName);
         eventWriter.writeEvent("fixedkey", streamEndMarker);
         eventWriter.flush();
 
         // Read all data from the stream.
         @Cleanup
-        EventStreamReader<Integer> consumer = SETUP_UTILS.getIntegerReader(streamName);
+        EventStreamReader<Integer> consumer = this.setupUtils.getIntegerReader(streamName);
         List<Integer> readElements = new ArrayList<>();
         while (true) {
             Integer event = consumer.readNextEvent(1).getEvent();
@@ -141,7 +140,7 @@ public class FlinkPravegaWriterTest {
         Preconditions.checkArgument(jobParallelism > 0);
         Preconditions.checkNotNull(streamName);
 
-        SETUP_UTILS.createTestStream(streamName, 1);
+        this.setupUtils.createTestStream(streamName, 1);
 
         StreamExecutionEnvironment execEnv = StreamExecutionEnvironment.createLocalEnvironment().
                 setParallelism(jobParallelism);
@@ -151,8 +150,8 @@ public class FlinkPravegaWriterTest {
                 .addSource(new IntegerGeneratingSource(withFailure, EVENT_COUNT_PER_SOURCE));
 
         FlinkPravegaWriter<Integer> pravegaSink = new FlinkPravegaWriter<>(
-                SETUP_UTILS.getControllerUri(),
-                SETUP_UTILS.getScope(),
+                this.setupUtils.getControllerUri(),
+                this.setupUtils.getScope(),
                 streamName,
                 element -> {
                     ByteBuffer result = ByteBuffer.allocate(4).putInt(element);

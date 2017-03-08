@@ -26,14 +26,17 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 
+import javax.annotation.concurrent.NotThreadSafe;
 import java.net.URI;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Utility functions for creating the test setup.
  */
 @Slf4j
+@NotThreadSafe
 public final class SetupUtils {
     // The controller endpoint.
     @Getter
@@ -43,6 +46,9 @@ public final class SetupUtils {
     private ControllerWrapper controllerWrapper = null;
     private PravegaConnectionListener server = null;
     private TestingServer zkTestServer = null;
+
+    // Manage the state of the class.
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
     // The test Scope name.
     @Getter
@@ -54,6 +60,10 @@ public final class SetupUtils {
      * @throws Exception on any errors.
      */
     public void startAllServices() throws Exception {
+        if (!this.started.compareAndSet(false, true)) {
+            log.warn("Services already started, not attempting to start again");
+            return;
+        }
 
         // Start Pravega Service.
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -84,6 +94,11 @@ public final class SetupUtils {
      * @throws Exception on any errors.
      */
     public void stopAllServices() throws Exception {
+        if (!this.started.compareAndSet(true, false)) {
+            log.warn("Services not yet started or already stopped, not attempting to stop");
+            return;
+        }
+
         this.controllerWrapper.close();
         this.server.close();
         this.zkTestServer.close();
@@ -99,6 +114,7 @@ public final class SetupUtils {
      */
     public void createTestStream(final String streamName, final int numSegments)
             throws Exception {
+        Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
         Preconditions.checkArgument(numSegments > 0);
 
@@ -121,6 +137,7 @@ public final class SetupUtils {
      * @return Stream writer instance.
      */
     public EventStreamWriter<Integer> getIntegerWriter(final String streamName) {
+        Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
 
         ClientFactory clientFactory = ClientFactory.withScope(this.scope, this.controllerUri);
@@ -138,6 +155,7 @@ public final class SetupUtils {
      * @return Stream reader instance.
      */
     public EventStreamReader<Integer> getIntegerReader(final String streamName) {
+        Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
 
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(this.scope, this.controllerUri);
