@@ -216,6 +216,10 @@ class HDFSStorage implements Storage {
     private FileStatus findUnfenced(String streamSegmentName) throws IOException {
         FileStatus[] statuses = findAll(streamSegmentName);
         if (statuses == null || statuses.length != 1) {
+            if (statuses != null && statuses.length > 1) {
+                log.warn("Segment '{}' not found. Number of files is {}.", streamSegmentName, statuses.length);
+            }
+
             throw new FileNotFoundException(streamSegmentName);
         }
 
@@ -243,13 +247,8 @@ class HDFSStorage implements Storage {
      */
     private void fence(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "fence", streamSegmentName);
-        FileStatus[] statuses = findAll(streamSegmentName);
-        if (statuses.length != 1) {
-            log.warn("Segment '{}' not found. Number of files is {}.", streamSegmentName, statuses.length);
-            throw new FileNotFoundException(streamSegmentName);
-        }
 
-        FileStatus status = statuses[0];
+        FileStatus status = findUnfenced(streamSegmentName);
         if (isSealed(status)) {
             // Nothing to fence when sealed. Bail out.
             LoggerHelpers.traceLeave(log, "fence", traceId, streamSegmentName, streamSegmentName);
