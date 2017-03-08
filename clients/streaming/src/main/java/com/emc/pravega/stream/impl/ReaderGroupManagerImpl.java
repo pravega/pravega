@@ -81,10 +81,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                 clientFactory);
         List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streams.size());
         for (String stream : streams) {
-            CompletableFuture<List<PositionInternal>> future = controller.getPositions(new StreamImpl(scope, stream), 0, 1);
-            futures.add(future.thenApply(list -> list.stream()
-                                         .flatMap(pos -> pos.getOwnedSegmentsWithOffsets().entrySet().stream())
-                                         .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()))));
+            futures.add(controller.getSegmentsAtTime(new StreamImpl(scope, stream), 0L));
         }
         Map<Segment, Long> segments = getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
             return listOfMaps.stream()

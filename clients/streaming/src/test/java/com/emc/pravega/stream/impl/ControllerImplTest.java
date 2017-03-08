@@ -11,18 +11,18 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatu
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Positions;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime.SegmentLocation;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
@@ -42,13 +42,6 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -60,6 +53,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -226,28 +225,23 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void getPositions(GetPositionRequest request, StreamObserver<Positions> responseObserver) {
+            public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(Positions.newBuilder()
-                                            .addPositions(Position.newBuilder()
-                                                          .addOwnedSegments(Position.OwnedSegmentEntry.newBuilder()
-                                                                                    .setSegmentId(
-                                                                                            ModelHelper.createSegmentId(
-                                                                                                    "scope1",
-                                                                                                    "stream1",
-                                                                                                    0))
-                                                                                    .setValue(10)
-                                                                                    .build()))
-                                            .addPositions(Position.newBuilder()
-                                                          .addOwnedSegments(Position.OwnedSegmentEntry.newBuilder()
-                                                                                    .setSegmentId(
-                                                                                            ModelHelper.createSegmentId(
-                                                                                                    "scope1",
-                                                                                                    "stream1",
-                                                                                                    1))
-                                                                                    .setValue(20)
-                                                                                    .build()))
-                                            .build());
+                    responseObserver.onNext(SegmentsAtTime.newBuilder()
+                                                          .addSegments(SegmentLocation.newBuilder()
+                                                                                      .setSegmentId(ModelHelper.createSegmentId("scope1",
+                                                                                                                                "stream1",
+                                                                                                                                0))
+                                                                                      .setOffset(10)
+                                                                                      .build())
+
+                                                          .addSegments(SegmentLocation.newBuilder()
+                                                                                      .setSegmentId(ModelHelper.createSegmentId("scope1",
+                                                                                                                                "stream1",
+                                                                                                                                1))
+                                                                                      .setOffset(20)
+                                                                                      .build())
+                                                          .build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -645,16 +639,13 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testGetPositions() throws Exception {
-        CompletableFuture<List<PositionInternal>> positions;
-        positions = controllerClient.getPositions(new StreamImpl("scope1", "stream1"), 0, 0);
+    public void testGetSegmentsAtTime() throws Exception {
+        CompletableFuture<Map<Segment, Long>> positions;
+        positions = controllerClient.getSegmentsAtTime(new StreamImpl("scope1", "stream1"), 0);
         assertEquals(2, positions.get().size());
-        assertEquals(10,
-                     positions.get().get(0).getOffsetForOwnedSegment(new Segment("scope1", "stream1", 0)).longValue());
-        assertEquals(20,
-                     positions.get().get(1).getOffsetForOwnedSegment(new Segment("scope1", "stream1", 1)).longValue());
-
-        positions = controllerClient.getPositions(new StreamImpl("scope1", "stream2"), 0, 0);
+        assertEquals(10, positions.get().get(new Segment("scope1", "stream1", 0)).longValue());
+        assertEquals(20, positions.get().get(new Segment("scope1", "stream1", 1)).longValue());
+        positions = controllerClient.getSegmentsAtTime(new StreamImpl("scope1", "stream2"), 0);
         AssertExtensions.assertThrows("Should throw Exception", positions, throwable -> true);
     }
 

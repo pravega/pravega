@@ -11,17 +11,18 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatu
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Positions;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime.SegmentLocation;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
@@ -34,11 +35,11 @@ import com.emc.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import com.emc.pravega.stream.impl.ModelHelper;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import lombok.AllArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
+import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * gRPC Service API implementation for the Controller.
@@ -82,14 +83,22 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void getPositions(GetPositionRequest request, StreamObserver<Positions> responseObserver) {
-        log.debug("getPositions called for stream " + request.getStreamInfo().getScope() + "/" +
+    public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
+        log.debug("getSegments called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream());
-        processResult(controllerService.getPositions(request.getStreamInfo().getScope(),
-                                                     request.getStreamInfo().getStream(),
-                                                     request.getTimestamp(),
-                                                     request.getCount())
-                .thenApply(positions -> Positions.newBuilder().addAllPositions(positions).build()),
+        processResult(controllerService.getSegmentsAtTime(request.getStreamInfo().getScope(),
+                                                          request.getStreamInfo().getStream(),
+                                                          request.getTimestamp())
+                                       .thenApply(segments -> {
+                                           SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder();
+                                           for (Entry<SegmentId, Long> entry : segments.entrySet()) {
+                                               builder.addSegments(SegmentLocation.newBuilder()
+                                                                                  .setSegmentId(entry.getKey())
+                                                                                  .setOffset(entry.getValue())
+                                                                                  .build());
+                                           }
+                                           return builder.build();
+                                       }),
                       responseObserver);
     }
 

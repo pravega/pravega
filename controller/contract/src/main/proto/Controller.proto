@@ -16,7 +16,7 @@ service ControllerService {
     rpc alterStream(StreamConfig) returns (UpdateStreamStatus);
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
-    rpc getPositions(GetPositionRequest) returns (Positions);
+    rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
     rpc scale(ScaleRequest) returns (ScaleResponse);
     rpc getURI(SegmentId) returns (NodeUri);
@@ -146,12 +146,12 @@ message NodeUri {
     int32 port = 2;
 }
 
-message Position {
-    message OwnedSegmentEntry {
+message SegmentsAtTime {
+    message SegmentLocation {
         SegmentId segmentId = 1;
-        int64 value = 2;
+        int64 offset = 2;
     }
-    repeated OwnedSegmentEntry ownedSegments = 1;
+    repeated SegmentLocation segments = 1;
 }
 
 message TxnId {
@@ -211,14 +211,9 @@ message SegmentRanges {
     repeated SegmentRange segmentRanges = 1;
 }
 
-message GetPositionRequest {
+message GetSegmentsRequest {
     StreamInfo streamInfo = 1;
     int64 timestamp = 2;
-    int32 count = 3;
-}
-
-message Positions {
-    repeated Position positions = 1;
 }
 
 message SegmentValidityResponse {

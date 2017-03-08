@@ -6,7 +6,6 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang.NotImplementedException;
 

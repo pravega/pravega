@@ -6,8 +6,6 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
-
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;

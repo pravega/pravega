@@ -9,7 +9,6 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatu
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.collect.Lists;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -277,34 +276,34 @@ public class ZkStreamTest {
         assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0, 6, 9, 10, 11).contains(x.getNumber())));
 
         // start -1
-        SegmentFutures segmentFutures = store.getActiveSegments(SCOPE, streamName, start - 1, context, executor).get();
-        assertEquals(segmentFutures.getCurrent().size(), 5);
-        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
+        List<Integer> historicalSegments = store.getActiveSegments(SCOPE, streamName, start - 1, context, executor).get();
+        assertEquals(historicalSegments.size(), 5);
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         // start + 1
-        segmentFutures = store.getActiveSegments(SCOPE, streamName, start + 1, context, executor).get();
-        assertEquals(segmentFutures.getCurrent().size(), 5);
-        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
+        historicalSegments = store.getActiveSegments(SCOPE, streamName, start + 1, context, executor).get();
+        assertEquals(historicalSegments.size(), 5);
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         // scale1 + 1
-        segmentFutures = store.getActiveSegments(SCOPE, streamName, scale1 + 1, context, executor).get();
-        assertEquals(segmentFutures.getCurrent().size(), 4);
-        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 5)));
+        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale1 + 1, context, executor).get();
+        assertEquals(historicalSegments.size(), 4);
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 1, 2, 5)));
 
         // scale2 + 1
-        segmentFutures = store.getActiveSegments(SCOPE, streamName, scale2 + 1, context, executor).get();
-        assertEquals(segmentFutures.getCurrent().size(), 4);
-        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 6, 7, 8)));
+        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale2 + 1, context, executor).get();
+        assertEquals(historicalSegments.size(), 4);
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 6, 7, 8)));
 
         // scale3 + 1
-        segmentFutures = store.getActiveSegments(SCOPE, streamName, scale3 + 1, context, executor).get();
-        assertEquals(segmentFutures.getCurrent().size(), 5);
-        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 6, 9, 10, 11)));
+        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 1, context, executor).get();
+        assertEquals(historicalSegments.size(), 5);
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 6, 9, 10, 11)));
 
         // scale 3 + 100
-        segmentFutures = store.getActiveSegments(SCOPE, streamName, scale3 + 100, context, executor).get();
-        assertEquals(segmentFutures.getCurrent().size(), 5);
-        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 6, 9, 10, 11)));
+        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 100, context, executor).get();
+        assertEquals(historicalSegments.size(), 5);
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 6, 9, 10, 11)));
 
         assertFalse(store.isSealed(SCOPE, streamName, context, executor).get());
         assertNotEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());

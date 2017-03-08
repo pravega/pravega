@@ -5,10 +5,9 @@
  */
 package com.emc.pravega.controller.store.stream.tables;
 
-import com.emc.pravega.stream.impl.TxnStatus;
 import lombok.Data;
 import org.apache.commons.lang.ArrayUtils;
-
+import com.emc.pravega.controller.store.stream.TxnStatus;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 

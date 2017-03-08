@@ -53,16 +53,14 @@ public class StreamMetadataStoreTest {
         List<Segment> segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(2, segments.size());
 
-        SegmentFutures segmentFutures = store.getActiveSegments(scope, stream1, 10, null, executor).get();
-        assertEquals(2, segmentFutures.getCurrent().size());
-        assertEquals(0, segmentFutures.getFutures().size());
+        List<Integer> historicalSegments = store.getActiveSegments(scope, stream1, 10, null, executor).get();
+        assertEquals(2, historicalSegments.size());;
 
         segments = store.getActiveSegments(scope, stream2, null, executor).get();
         assertEquals(3, segments.size());
 
-        segmentFutures = store.getActiveSegments(scope, stream2, 10, null, executor).get();
-        assertEquals(3, segmentFutures.getCurrent().size());
-        assertEquals(0, segmentFutures.getFutures().size());
+        historicalSegments = store.getActiveSegments(scope, stream2, 10, null, executor).get();
+        assertEquals(3, historicalSegments.size());
 
         // endregion
 
@@ -74,13 +72,11 @@ public class StreamMetadataStoreTest {
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
 
-        segmentFutures = store.getActiveSegments(scope, stream1, 30, null, executor).get();
-        assertEquals(3, segmentFutures.getCurrent().size());
-        assertEquals(0, segmentFutures.getFutures().size());
+        historicalSegments = store.getActiveSegments(scope, stream1, 30, null, executor).get();
+        assertEquals(3, historicalSegments.size());
 
-        segmentFutures = store.getActiveSegments(scope, stream1, 10, null, executor).get();
-        assertEquals(2, segmentFutures.getCurrent().size());
-        assertEquals(2, segmentFutures.getFutures().size());
+        historicalSegments = store.getActiveSegments(scope, stream1, 10, null, executor).get();
+        assertEquals(2, historicalSegments.size());
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
@@ -90,9 +86,8 @@ public class StreamMetadataStoreTest {
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
 
-        segmentFutures = store.getActiveSegments(scope, stream2, 10, null, executor).get();
-        assertEquals(3, segmentFutures.getCurrent().size());
-        assertEquals(1, segmentFutures.getFutures().size());
+        historicalSegments = store.getActiveSegments(scope, stream2, 10, null, executor).get();
+        assertEquals(3, historicalSegments.size());
 
         // endregion
 

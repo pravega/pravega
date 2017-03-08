@@ -9,14 +9,12 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
@@ -30,10 +28,8 @@ import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.google.common.base.Preconditions;
-
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,7 +37,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
-
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -105,15 +100,17 @@ public class ControllerService {
                 }, executor);
     }
 
-    public CompletableFuture<List<Position>> getPositions(final String scope, final String stream, final long timestamp,
-            final int count) {
+    public CompletableFuture<Map<SegmentId, Long>> getSegmentsAtTime(final String scope, final String stream, final long timestamp) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
         // First fetch segments active at specified timestamp from the specified stream.
         // Divide current segments in segmentFutures into at most count positions.
-        return streamStore.getActiveSegments(scope, stream, timestamp, null, executor)
-                .thenApplyAsync(segmentFutures -> shard(scope, stream, segmentFutures, count), executor);
+        return streamStore.getActiveSegments(scope, stream, timestamp, null, executor).thenApply(segments -> {
+            return segments.stream()
+                           .map(number -> ModelHelper.createSegmentId(scope, stream, number))
+                           .collect(Collectors.toMap(id -> id, id -> 0L));
+        });
     }
 
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
@@ -173,61 +170,6 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return streamStore.getActiveSegments(scope, stream, null, executor)
                 .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber), executor);
-    }
-
-    /**
-     * This method divides the current segments from the segmentFutures into at most n positions. It appropriately
-     * distributes the future segments in segmentFutures among the shards. E.g., if n=5, and segmentFutures contains
-     * a) 3 current segments, then 3 positions will be created each having one current segment
-     * b) 6 current segments, then 5 positions will be created 1st position containing #1, #2 current segments
-     * and remaining positions having 1 current segment each
-     *
-     * @param stream         input stream
-     * @param segmentFutures input segmentFutures
-     * @param n              number of shards
-     * @return the list of position objects
-     */
-    private List<Position> shard(final String scope, final String stream, final SegmentFutures segmentFutures, final int n) {
-        // divide the active segments equally into at most n partition
-        int currentCount = segmentFutures.getCurrent().size();
-        int quotient = currentCount / n;
-        int remainder = currentCount % n;
-        // if quotient < 1 then remainder number of positions shall be created, other wise n positions shall be created
-        int size = (quotient < 1) ? remainder : n;
-        List<Position> positions = new ArrayList<>(size);
-
-        int counter = 0;
-        // create a position object in each iteration of the for loop
-        for (int i = 0; i < size; i++) {
-            int j = (i < remainder) ? quotient + 1 : quotient;
-            List<SegmentId> current = new ArrayList<>(j);
-            for (int k = 0; k < j; k++, counter++) {
-                Integer number = segmentFutures.getCurrent().get(counter);
-                SegmentId segmentId = ModelHelper.createSegmentId(scope, stream, number);
-                current.add(segmentId);
-            }
-
-            // Compute the current and future segments set for position i
-            Map<SegmentId, Long> currentSegments = new HashMap<>();
-            current.stream().forEach(
-                    x -> {
-                        // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
-                        // put it in the currentSegments
-                        currentSegments.put(x, 0L);
-                    }
-            );
-            // create a new position object with current segments computed
-            Position position = Position.newBuilder()
-                    .addAllOwnedSegments(currentSegments.entrySet().stream()
-                                                 .map(val -> Position.OwnedSegmentEntry.newBuilder()
-                                                         .setSegmentId(val.getKey())
-                                                         .setValue(val.getValue())
-                                                         .build())
-                                                 .collect(Collectors.toList()))
-                    .build();
-            positions.add(position);
-        }
-        return positions;
     }
 
     public CompletableFuture<TxnId> createTransaction(final String scope, final String stream, final long lease,
@@ -307,41 +249,40 @@ public class ControllerService {
             PingTxnStatus status = timeoutService.pingTxn(scope, stream, txId, lease);
 
             return CompletableFuture.completedFuture(status);
-        } else {
-            // Otherwise, first check whether lease value is within necessary bounds, and then
-            // start owning the transaction timeout management by updating the txn node data in the store,
-            // thus updating its version.
-            // Pass this transaction metadata along with its version to timeout service, and ask timeout service to
-            // start managing timeout for this transaction.
-            return streamStore.getTransactionData(scope, stream, txId, null, executor)
-                    .thenApply(txnData -> {
-                        // sanity check for lease value
-                        if (lease > txnData.getScaleGracePeriod() || lease > timeoutService.getMaxLeaseValue()) {
-                            return PingTxnStatus.Status.LEASE_TOO_LARGE;
-                        } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
-                            return PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED;
-                        } else {
-                            return PingTxnStatus.Status.OK;
-                        }
-                    })
-                    .thenCompose(status -> {
-                        if (status == PingTxnStatus.Status.OK) {
-                            // If lease value if within necessary bounds, update the transaction node data, thus
-                            // updating its version.
-                            return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, null)
-                                    .thenApply(data -> {
-                                        // Let timeout service start managing timeout for the transaction.
-                                        timeoutService.addTxn(scope, stream, txId, data.getVersion(), lease,
-                                                data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
-
-                                        return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build();
-                                    });
-                        } else {
-                            return CompletableFuture.completedFuture(
-                                    PingTxnStatus.newBuilder().setStatus(status).build());
-                        }
-                    });
         }
+        // Otherwise, first check whether lease value is within necessary bounds, and then
+        // start owning the transaction timeout management by updating the txn node data in the store,
+        // thus updating its version.
+        // Pass this transaction metadata along with its version to timeout service, and ask timeout service to
+        // start managing timeout for this transaction.
+        return streamStore.getTransactionData(scope, stream, txId, null, executor)
+                .thenApply(txnData -> {
+                    // sanity check for lease value
+                    if (lease > txnData.getScaleGracePeriod() || lease > timeoutService.getMaxLeaseValue()) {
+                        return PingTxnStatus.Status.LEASE_TOO_LARGE;
+                    } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
+                        return PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED;
+                    } else {
+                        return PingTxnStatus.Status.OK;
+                    }
+                })
+                .thenCompose(status -> {
+                    if (status == PingTxnStatus.Status.OK) {
+                        // If lease value if within necessary bounds, update the transaction node data, thus
+                        // updating its version.
+                        return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, null)
+                                .thenApply(data -> {
+                                    // Let timeout service start managing timeout for the transaction.
+                                    timeoutService.addTxn(scope, stream, txId, data.getVersion(), lease,
+                                            data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
+
+                                    return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build();
+                                });
+                    } else {
+                        return CompletableFuture.completedFuture(
+                                PingTxnStatus.newBuilder().setStatus(status).build());
+                    }
+                });
     }
 
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream,
@@ -350,7 +291,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
         return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId), null, executor)
-                .thenApplyAsync(res -> TxnState.newBuilder().setState(ModelHelper.decode(res)).build(), executor);
+                .thenApplyAsync(res -> TxnState.newBuilder().setState(TxnState.State.valueOf(res.name())).build(), executor);
     }
 
     /**

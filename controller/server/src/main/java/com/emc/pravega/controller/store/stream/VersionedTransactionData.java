@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.stream.impl.TxnStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

@@ -9,7 +9,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
@@ -21,12 +20,10 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.Transaction.Status;
 import com.google.common.base.Preconditions;
-
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -56,9 +53,9 @@ public final class ModelHelper {
      * @param txnState The state object instance.
      * @return Transaction.Status
      */
-    public static final TxnStatus encode(final TxnState txnState) {
+    public static final Status encode(final TxnState txnState) {
         Preconditions.checkNotNull(txnState, "txnState");
-        return TxnStatus.valueOf(txnState.getState().name());
+        return Status.valueOf(txnState.getState().name());
     }
 
     /**
@@ -95,17 +92,6 @@ public final class ModelHelper {
                                   .streamName(config.getStreamInfo().getStream())
                                   .scalingPolicy(encode(config.getPolicy()))
                                   .build();
-    }
-
-    /**
-     * Helper to convert Position into PositionImpl.
-     *
-     * @param position Position object
-     * @return An instance of PositionImpl.
-     */
-    public static final PositionImpl encode(final Position position) {
-        Preconditions.checkNotNull(position, "position");
-        return new PositionImpl(encodeSegmentMap(position.getOwnedSegmentsList()));
     }
 
     /**
@@ -191,7 +177,7 @@ public final class ModelHelper {
      * @param txnStatus Transaction Status instance.
      * @return The Status.
      */
-    public static final TxnState.State decode(final TxnStatus txnStatus) {
+    public static final TxnState.State decode(final Status txnStatus) {
         Preconditions.checkNotNull(txnStatus, "txnStatus");
         return TxnState.State.valueOf(txnStatus.name());
     }
@@ -234,19 +220,6 @@ public final class ModelHelper {
         return StreamConfig.newBuilder()
                 .setStreamInfo(createStreamInfo(configModel.getScope(), configModel.getStreamName()))
                 .setPolicy(decode(configModel.getScalingPolicy())).build();
-    }
-
-    /**
-     * Converts internal position into position.
-     *
-     * @param position An internal position.
-     * @return Position instance.
-     */
-    public static final Position decode(final PositionInternal position) {
-        Preconditions.checkNotNull(position, "position");
-        return Position.newBuilder()
-                .addAllOwnedSegments(decodeSegmentMap(position.getOwnedSegmentsWithOffsets()))
-                .build();
     }
 
     /**
@@ -320,22 +293,4 @@ public final class ModelHelper {
                 .build();
     }
 
-    private static final Map<Segment, Long> encodeSegmentMap(final List<Position.OwnedSegmentEntry> segmentList) {
-        Preconditions.checkNotNull(segmentList);
-        HashMap<Segment, Long> result = new HashMap<>();
-        for (Position.OwnedSegmentEntry entry : segmentList) {
-            result.put(encode(entry.getSegmentId()), entry.getValue());
-        }
-        return result;
-    }
-
-    private static final List<Position.OwnedSegmentEntry> decodeSegmentMap(final Map<Segment, Long> map) {
-        Preconditions.checkNotNull(map);
-        List<Position.OwnedSegmentEntry> result = new ArrayList<>();
-        map.forEach((segment, val) -> result.add(Position.OwnedSegmentEntry.newBuilder().
-                setSegmentId(decode(segment)).
-                setValue(val).
-                build()));
-        return result;
-    }
 }
