@@ -11,7 +11,6 @@ import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.utils.MarathonException;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,7 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
@@ -32,16 +30,14 @@ public class PravegaControllerService extends MarathonBasedService {
     private static final int CONTROLLER_PORT = 9090;
     private static final int REST_PORT = 10080;
     private final URI zkUri;
-    private final URI segUri;
     private int instances = 1;
     private double cpu = 0.1;
     private double mem = 256;
 
-    public PravegaControllerService(final String id, final URI zkUri, final URI segUri, int instances, double cpu, double mem) {
+    public PravegaControllerService(final String id, final URI zkUri, int instances, double cpu, double mem) {
         // if SkipserviceInstallation flag is enabled used the default id.
         super(isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
         this.zkUri = zkUri;
-        this.segUri = segUri;
         this.instances = instances;
         this.cpu = cpu;
         this.mem = mem;
@@ -54,6 +50,7 @@ public class PravegaControllerService extends MarathonBasedService {
      */
     @Override
     public void start(final boolean wait) {
+        deleteApp("/pravega/controller");
         log.debug("Starting service: {}", getID());
         try {
             marathonClient.createApp(createPravegaControllerApp());
@@ -123,7 +120,7 @@ public class PravegaControllerService extends MarathonBasedService {
         //set env
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
-        map.put("SERVICE_HOST_IP", segUri.getHost());
+        map.put("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT));
         map.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
         app.setEnv(map);
 

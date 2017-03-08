@@ -32,27 +32,28 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void wrongHost(WrongHost wrongHost) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Wrong host. Segment: " + wrongHost.segment + " is on "
+                + wrongHost.correctHost);
     }
 
     @Override
     public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Segment is sealed: " + segmentIsSealed.segment);
     }
 
     @Override
     public void segmentAlreadyExists(SegmentAlreadyExists segmentAlreadyExists) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Segment already exists: " + segmentAlreadyExists.segment);
     }
 
     @Override
     public void noSuchSegment(NoSuchSegment noSuchSegment) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("No such segment: " + noSuchSegment.segment);
     }
 
     @Override
-    public void noSuchBatch(NoSuchTransaction noSuchBatch) {
-        throw new IllegalStateException("Unexpected operation");
+    public void noSuchBatch(NoSuchTransaction noSuchTxn) {
+        throw new IllegalStateException("No such Transaction: " + noSuchTxn.txn);
     }
 
     @Override
@@ -67,7 +68,7 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     
     @Override
     public void conditionalCheckFailed(ConditionalCheckFailed dataNotAppended) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Conditional check failed for event: " + dataNotAppended.eventNumber);
     }
 
     @Override

@@ -9,6 +9,7 @@ import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
@@ -24,6 +25,8 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.google.common.util.concurrent.AbstractService;
+import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -32,7 +35,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
-public class ControllerEventProcessors {
+public class ControllerEventProcessors extends AbstractService {
 
     public static final String CONTROLLER_SCOPE = "system";
     public static final String COMMIT_STREAM = "commitStream";
@@ -46,6 +49,9 @@ public class ControllerEventProcessors {
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
     private final SegmentHelper segmentHelper;
+
+    private EventProcessorGroup<CommitEvent> commitEventEventProcessors;
+    private EventProcessorGroup<AbortEvent> abortEventEventProcessors;
 
     public ControllerEventProcessors(final String host,
                                      final Controller controller,
@@ -61,7 +67,30 @@ public class ControllerEventProcessors {
         this.system = new EventProcessorSystemImpl("Controller", host, CONTROLLER_SCOPE, controller);
     }
 
-    public void initialize() throws Exception {
+    @Override
+    protected void doStart() {
+        try {
+            log.info("Starting controller event processors.");
+            initialize();
+            notifyStarted();
+        } catch (Exception e) {
+            log.error("Error starting controller event processors.", e);
+            // Throwing this error will mark the service as FAILED.
+            throw Lombok.sneakyThrow(e);
+        }
+    }
+
+    @Override
+    protected void doStop() {
+        try {
+            log.info("Stopping controller event processors.");
+            stopEventProcessors();
+        } catch (CheckpointStoreException e) {
+            log.error("Error stopping controller event processors.", e);
+        }
+    }
+
+    private void initialize() throws Exception {
 
         final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
@@ -155,7 +184,7 @@ public class ControllerEventProcessors {
                 .retryingOn(CheckpointStoreException.class)
                 .throwingOn(Exception.class)
                 .run(() -> {
-                    system.createEventProcessorGroup(commitConfig).getWriter();
+                    commitEventEventProcessors = system.createEventProcessorGroup(commitConfig);
                     return null;
                 });
 
@@ -195,10 +224,19 @@ public class ControllerEventProcessors {
                 .retryingOn(CheckpointStoreException.class)
                 .throwingOn(Exception.class)
                 .run(() -> {
-                    system.createEventProcessorGroup(abortConfig).getWriter();
+                    abortEventEventProcessors = system.createEventProcessorGroup(abortConfig);
                     return null;
                 });
 
         // endregion
+    }
+
+    private void stopEventProcessors() throws CheckpointStoreException {
+        if (commitEventEventProcessors != null) {
+            commitEventEventProcessors.stopAll();
+        }
+        if (abortEventEventProcessors != null) {
+            abortEventEventProcessors.stopAll();
+        }
     }
 }
