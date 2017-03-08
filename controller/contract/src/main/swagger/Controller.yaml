@@ -41,10 +41,7 @@ paths:
         201:
           description: Successfully created the scope
           schema:
-            type: object
-            properties:
-              scopeName:
-                type: string
+            $ref: "#/definitions/ScopeProperty"
         409:
           description: Scope already exists
         500:
@@ -56,8 +53,23 @@ paths:
         description: Scope name
         required: true
         type: string
+    get:
+      operationId: getScope
+      description: Retrieve scope
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Successfully retrieved the scope
+          schema:
+            $ref: "#/definitions/ScopeProperty"
+        404:
+          description: Scope not found
+        500:
+          description: Server error
     delete:
       operationId: deleteScope
+      description: Delete a scope
       responses:
         204:
           description: Successfully deleted the scope

@@ -99,6 +99,7 @@ public class AppendEncodeDecodeTest {
     
     @Test
     public void testVerySmallBlockSize() throws Exception {
+        @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);

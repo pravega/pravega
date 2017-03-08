@@ -9,10 +9,8 @@ import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -117,22 +115,34 @@ public class Main {
         ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                 ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper);
 
-        try {
-            controllerEventProcessors.initialize();
-        } catch (Exception e) {
-            log.error("Error initializing event processors", e);
-            throw new RuntimeException(e);
+        controllerEventProcessors.startAsync();
+
+        // After completion of startAsync method, server is expected to be in RUNNING state.
+        // If it is not in running state, we return.
+        if (!controllerEventProcessors.isRunning()) {
+            log.error("Controller event processors failed to start, state = {} ", controllerEventProcessors.state());
+            return;
         }
 
         streamTransactionMetadataTasks.initializeStreamWriters(localController);
 
         //endregion
 
-        //3. Start the RPC server.
-        log.info("Starting RPC server");
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+        // 3. Start the RPC server.
+        log.info("Starting gRPC server");
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+                .port(Config.RPC_SERVER_PORT)
+                .build();
+        GRPCServer server = new GRPCServer(controllerService, gRPCServerConfig);
+        server.startAsync();
+        // After completion of startAsync method, server is expected to be in RUNNING state.
+        // If it is not in running state, we return.
+        if (!server.isRunning()) {
+            log.error("RPC server failed to start, state = {} ", server.state());
+            return;
+        }
 
-        //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
+        // Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
         // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
         // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and

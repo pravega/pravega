@@ -4,9 +4,9 @@
 package com.emc.pravega.controller.server.v1;
 
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -27,7 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * InMemory stream store configuration.
  */
-public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceAsyncImplTest {
+public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImplTest {
 
     private TaskMetadataStore taskMetadataStore;
     private HostControllerStore hostStore;
@@ -56,9 +56,9 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceAsy
                 streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
 
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 10000);
-        controllerService = new ControllerServiceAsyncImpl(
+        controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                        timeoutService, new SegmentHelper(), executorService));
+                                      timeoutService, new SegmentHelper(), executorService));
     }
 
     @Override

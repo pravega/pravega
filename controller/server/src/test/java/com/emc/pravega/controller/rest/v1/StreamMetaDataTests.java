@@ -15,13 +15,14 @@ import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.ScalingPolicy.Type;
@@ -104,21 +105,21 @@ public class StreamMetaDataTests extends JerseyTest {
     private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.
             completedFuture(streamConfiguration);
     private final CompletableFuture<CreateStreamStatus> createStreamStatus = CompletableFuture.
-            completedFuture(CreateStreamStatus.SUCCESS);
+            completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.SUCCESS).build());
     private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.
-            completedFuture(CreateStreamStatus.STREAM_EXISTS);
+            completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
     private final CompletableFuture<CreateStreamStatus> createStreamStatus3 = CompletableFuture.
-            completedFuture(CreateStreamStatus.FAILURE);
+            completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.FAILURE).build());
     private final CompletableFuture<CreateStreamStatus> createStreamStatus4 = CompletableFuture.
-            completedFuture(CreateStreamStatus.SCOPE_NOT_FOUND);
+            completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.SCOPE_NOT_FOUND).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.
-            completedFuture(UpdateStreamStatus.SUCCESS);
+            completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SUCCESS).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.
-            completedFuture(UpdateStreamStatus.STREAM_NOT_FOUND);
+            completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus3 = CompletableFuture.
-            completedFuture(UpdateStreamStatus.FAILURE);
+            completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus4 = CompletableFuture.
-            completedFuture(UpdateStreamStatus.SCOPE_NOT_FOUND);
+            completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build());
 
     @Before
     public void initialize() {
@@ -286,19 +287,19 @@ public class StreamMetaDataTests extends JerseyTest {
 
         // Test to create a new scope.
         when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                CreateScopeStatus.SUCCESS));
+                CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build()));
         response = target(resourceURI).request().async().post(Entity.json(createScopeRequest));
         assertEquals("Create Scope response code", 201, response.get().getStatus());
 
         // Test to create an existing scope.
         when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                CreateScopeStatus.SCOPE_EXISTS));
+                CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build()));
         response = target(resourceURI).request().async().post(Entity.json(createScopeRequest));
         assertEquals("Create Scope response code", 409, response.get().getStatus());
 
         // create scope failure.
         when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                CreateScopeStatus.FAILURE));
+                CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build()));
         response = target(resourceURI).request().async().post(Entity.json(createScopeRequest));
         assertEquals("Create Scope response code", 500, response.get().getStatus());
     }
@@ -315,27 +316,52 @@ public class StreamMetaDataTests extends JerseyTest {
 
         // Test to delete a scope.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                DeleteScopeStatus.SUCCESS));
+                DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build()));
         response = target(resourceURI).request().async().delete();
         assertEquals("Delete Scope response code", 204, response.get().getStatus());
 
         // Test to delete scope with existing streams.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                DeleteScopeStatus.SCOPE_NOT_EMPTY));
+                DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build()));
         response = target(resourceURI).request().async().delete();
         assertEquals("Delete Scope response code", 412, response.get().getStatus());
 
         // Test to delete non-existing scope.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                DeleteScopeStatus.SCOPE_NOT_FOUND));
+                DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build()));
         response = target(resourceURI).request().async().delete();
         assertEquals("Delete Scope response code", 404, response.get().getStatus());
 
         // Test delete scope failure.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                DeleteScopeStatus.FAILURE));
+                DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build()));
         response = target(resourceURI).request().async().delete();
         assertEquals("Delete Scope response code", 500, response.get().getStatus());
+    }
+
+    @Test
+    public void testGetScope() throws ExecutionException, InterruptedException {
+        final String resourceURI = "v1/scopes/scope1";
+        final String resourceURI2 = "v1/scopes/scope2";
+
+        // Test to get existent scope
+        when(mockControllerService.getScope(scope1)).thenReturn(CompletableFuture.completedFuture("scope1"));
+        response = target(resourceURI).request().async().get();
+        assertEquals("Get existent scope", 200, response.get().getStatus());
+
+        // Test to get non-existent scope
+        when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.supplyAsync(() -> {
+            throw new StoreException.NodeNotFoundException();
+        }));
+        response = target(resourceURI2).request().async().get();
+        assertEquals("Get non existent scope", 404, response.get().getStatus());
+
+        //Test for get scope failure.
+        final CompletableFuture<String> completableFuture2 = new CompletableFuture<>();
+        completableFuture2.completeExceptionally(new Exception());
+        when(mockControllerService.getScope(scope1)).thenReturn(completableFuture2);
+        response = target(resourceURI).request().async().get();
+        assertEquals("Get scope fail test", 500, response.get().getStatus());
     }
 
     /**
