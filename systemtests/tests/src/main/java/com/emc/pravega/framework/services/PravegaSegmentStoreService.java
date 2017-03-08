@@ -41,6 +41,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
+        deleteApp("/pravega/host");
         log.info("Starting Pravega SegmentStore Service: {}", getID());
         try {
             marathonClient.createApp(createPravegaSegmentStoreApp());
