@@ -73,6 +73,15 @@ public class PravegaTest {
         List<URI> bkUris = bkService.getServiceDetails();
         log.debug("bookkeeper service details: {}", bkUris);
 
+        //3. start controller
+        Service conService = new PravegaControllerService("controller", zkUri, 1, 0.1, 256);
+        if (!conService.isRunning()) {
+            conService.start(true);
+        }
+
+        List<URI> conUris = conService.getServiceDetails();
+        log.debug("Pravega Controller service details: {}", conUris);
+
         //4.start host
         Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, 1, 1, 512.0);
         if (!segService.isRunning()) {
@@ -82,16 +91,6 @@ public class PravegaTest {
         List<URI> segUris = segService.getServiceDetails();
         log.debug("pravega host service details: {}", segUris);
         URI segUri = segUris.get(0);
-
-        //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri, segUri, 1, 0.1, 256);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service details: {}", conUris);
-
     }
 
     @BeforeClass
@@ -109,7 +108,7 @@ public class PravegaTest {
     @Before
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
-        Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
+        Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
         log.debug("Invoking create stream.");
@@ -133,7 +132,7 @@ public class PravegaTest {
     @Test
     public void simpleTest() throws InterruptedException, URISyntaxException {
 
-        Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
+        Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
         log.debug("Invoking producer test.");

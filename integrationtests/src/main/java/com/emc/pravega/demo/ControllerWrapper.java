@@ -41,6 +41,7 @@ public class ControllerWrapper implements AutoCloseable {
     private final ControllerService controllerService;
     @Getter
     private final Controller controller;
+    private final ScheduledExecutorService executor;
     private final GRPCServer rpcServer;
     private final ControllerEventProcessors controllerEventProcessors;
     private final TimeoutService timeoutService;
@@ -69,7 +70,7 @@ public class ControllerWrapper implements AutoCloseable {
         }
 
         // initialize the executor service
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
+        executor = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
         CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
@@ -127,7 +128,10 @@ public class ControllerWrapper implements AutoCloseable {
     @Override
     public void close() throws Exception {
         rpcServer.stopAsync();
-        controllerEventProcessors.stopAsync();
+        if (controllerEventProcessors != null) {
+            controllerEventProcessors.stopAsync();
+        }
         timeoutService.stopAsync();
+        executor.shutdown();
     }
 }

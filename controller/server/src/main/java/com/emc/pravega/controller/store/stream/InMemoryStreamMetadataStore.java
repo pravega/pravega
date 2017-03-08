@@ -167,6 +167,15 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
+        if (scopes.containsKey(scopeName)) {
+            return CompletableFuture.completedFuture(scopeName);
+        } else {
+            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
+        }
+    }
+
+    @Override
     @Synchronized
     public CompletableFuture<List<String>> listScopes() {
         return CompletableFuture.completedFuture(new ArrayList<>(scopes.keySet()));

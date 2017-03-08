@@ -80,6 +80,14 @@ public interface StreamMetadataStore {
     CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
 
     /**
+     * Retrieve configuration of scope.
+     *
+     * @param scopeName Name of scope.
+     * @return Returns configuration of scope.
+     */
+    CompletableFuture<String> getScopeConfiguration(final String scopeName);
+
+    /**
      * List existing streams in scopes.
      *
      * @param scopeName Name of the scope

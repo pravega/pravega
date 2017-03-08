@@ -26,18 +26,16 @@ import static com.emc.pravega.framework.TestFrameworkException.Type.InternalErro
 @Slf4j
 public class PravegaControllerService extends MarathonBasedService {
 
-    private static final int CONTROLLER_PORT = 9090;
+    private static final int CONTROLLER_PORT = 9092;
     private static final int REST_PORT = 10080;
     private final URI zkUri;
-    private final URI segUri;
     private int instances = 1;
     private double cpu = 0.1;
     private double mem = 256;
 
-    public PravegaControllerService(final String id, final URI zkUri, final URI segUri, int instances, double cpu, double mem) {
+    public PravegaControllerService(final String id, final URI zkUri, int instances, double cpu, double mem) {
         super(id);
         this.zkUri = zkUri;
-        this.segUri = segUri;
         this.instances = instances;
         this.cpu = cpu;
         this.mem = mem;
@@ -50,6 +48,7 @@ public class PravegaControllerService extends MarathonBasedService {
      */
     @Override
     public void start(final boolean wait) {
+        deleteApp("/pravega/controller");
         log.debug("Starting service: {}", getID());
         try {
             marathonClient.createApp(createPravegaControllerApp());
@@ -119,7 +118,7 @@ public class PravegaControllerService extends MarathonBasedService {
         //set env
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
-        map.put("SERVICE_HOST_IP", segUri.getHost());
+        map.put("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT));
         map.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
         app.setEnv(map);
 
