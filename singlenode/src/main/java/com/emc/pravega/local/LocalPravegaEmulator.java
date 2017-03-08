@@ -8,10 +8,10 @@ import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -173,7 +173,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         try {
             Properties p = new Properties();
             ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
-            props.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
+            ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
                     String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
 
             // Change Number of containers and Thread Pool Size for each test.
@@ -257,7 +257,10 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerExecutor);
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+                .port(controllerPort)
+                .build();
+        new GRPCServer(controllerService, gRPCServerConfig).startAsync();
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

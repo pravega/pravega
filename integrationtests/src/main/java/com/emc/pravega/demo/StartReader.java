@@ -28,7 +28,7 @@ public class StartReader {
         streamManager.createStream(StartLocalService.STREAM_NAME, null);
         streamManager.createReaderGroup(READER_GROUP,
                                         ReaderGroupConfig.builder().startingTime(0).build(),
-                                        Collections.singletonList(StartLocalService.STREAM_NAME));
+                                        Collections.singleton(StartLocalService.STREAM_NAME));
         EventStreamReader<String> reader = streamManager.getClientFactory().createReader(UUID.randomUUID().toString(),
                                                                                          READER_GROUP,
                                                                                          new JavaSerializer<>(),

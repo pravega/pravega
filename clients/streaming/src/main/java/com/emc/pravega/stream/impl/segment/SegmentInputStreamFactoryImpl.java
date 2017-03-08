@@ -25,13 +25,13 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     private final ConnectionFactory cf;
     
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config) {
-        return createInputStreamForSegment(segment, config, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    public SegmentInputStream createInputStreamForSegment(Segment segment) {
+        return createInputStreamForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config, int bufferSize) {
-    AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment.getScopedName());
+    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
+    AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment);
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());
         } catch (ExecutionException e) {

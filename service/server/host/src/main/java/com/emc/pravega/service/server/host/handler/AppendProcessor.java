@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
@@ -41,13 +42,13 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_BYTES;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_LATENCY;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
+import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 
 /**
  * Process incoming Append requests and write them to the appropriate store.
@@ -99,7 +100,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .whenComplete((info, u) -> {
                     try {
                         if (u != null) {
-                            handleException(newSegment, u);
+                            handleException(newSegment, "setting up append", u);
                         } else {
                             long eventNumber = info.getAttributes().getOrDefault(newConnection, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
                             if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
@@ -113,7 +114,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             connection.send(new AppendSetup(newSegment, newConnection, eventNumber));
                         }
                     } catch (Throwable e) {
-                        handleException(newSegment, e);
+                        handleException(newSegment, "handling setupAppend result", e);
                     }
                 });
     }
@@ -189,8 +190,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
         future.whenComplete((t, u) -> {
             try {
-                boolean conditionalFailed = u != null
-                        && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
+                boolean conditionalFailed = u != null && (ExceptionHelpers.getRealException(u) instanceof BadOffsetException);
                 synchronized (lock) {
                     if (outstandingAppend != toWrite) {
                         throw new IllegalStateException(
@@ -209,7 +209,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     if (conditionalFailed) {
                         connection.send(new ConditionalCheckFailed(toWrite.getConnectionId(), toWrite.getEventNumber()));
                     } else {
-                        handleException(segment, u);
+                        handleException(segment, "appending data", u);
                     }
                 } else {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
@@ -224,15 +224,15 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 pauseOrResumeReading();
                 performNextWrite();
             } catch (Throwable e) {
-                handleException(segment, e);
+                handleException(segment, "handling append result", e);
             }
         });
     }
 
-    private void handleException(String segment, Throwable u) {
+    private void handleException(String segment, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
-            log.error("Error (Segment = '{}', Operation = 'append')", segment, exception);
+            log.error("Append processor: Error {} onsegment = '{}'", doingWhat, segment, exception);
             throw exception;
         }
 

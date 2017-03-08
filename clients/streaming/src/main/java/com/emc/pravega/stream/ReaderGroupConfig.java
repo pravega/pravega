@@ -5,13 +5,15 @@
  */
 package com.emc.pravega.stream;
 
+import java.io.Serializable;
+
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 @Builder
 @EqualsAndHashCode
-public class ReaderGroupConfig {
+public class ReaderGroupConfig implements Serializable {
    @Getter
    private final Sequence startingPosition;
    private final long groupRefreshTimeMillis;

@@ -6,10 +6,11 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
@@ -36,6 +37,14 @@ public interface Controller {
      * @return Status of create stream operation.
      */
     CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
+
+    /**
+     * API to delete scope.
+     *
+     * @param scopeName Scope name.
+     * @return          Status of delete scope operation.
+     */
+    CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
 
     /**
      * Api to create stream.
@@ -177,6 +186,14 @@ public interface Controller {
 
     // Controller Apis that are called by writers and readers
 
+    /**
+     * Checks to see if a segment exists and is not sealed.
+     * 
+     * @param segment The segment to verify.
+     * @return true if the segment exists and is open or false if it is not.
+     */
+    CompletableFuture<Boolean> isSegmentOpen(final Segment segment);
+    
     /**
      * Given a segment return the endpoint that currently is the owner of that segment.
      * <p>
