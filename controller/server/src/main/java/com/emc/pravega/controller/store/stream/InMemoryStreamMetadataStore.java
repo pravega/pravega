@@ -84,6 +84,22 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
+    public CompletableFuture<Void> deleteStream(final String scopeName, final String streamName,
+                                                final OperationContext context,
+                                                final Executor executor) {
+        String scopedStreamName = scopedStreamName(scopeName, streamName);
+        if (scopes.containsKey(scopeName) && streams.containsKey(scopedStreamName)) {
+            streams.remove(scopedStreamName);
+            scopes.get(scopeName).removeStreamFromScope(streamName);
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return FutureHelpers.
+                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Stream not found."));
+        }
+    }
+
+    @Override
+    @Synchronized
     public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
                                                           final String streamName,
                                                           final StreamConfiguration configuration,

@@ -12,6 +12,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
@@ -152,6 +153,17 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         log.trace("Invoke AdminService.Client.sealStream() for stream: {}/{}", scope, streamName);
         RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
         client.sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
+        return callback.getFuture();
+    }
+
+    @Override
+    public CompletableFuture<DeleteStreamStatus> deleteStream(String scope, String streamName) {
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "streamName");
+
+        log.trace("Invoke AdminService.Client.deleteStream() for stream: {}/{}", scope, streamName);
+        RPCAsyncCallback<DeleteStreamStatus> callback = new RPCAsyncCallback<>();
+        client.deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
         return callback.getFuture();
     }
 

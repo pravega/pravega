@@ -125,6 +125,11 @@ public class MockController implements Controller {
         throw new NotImplementedException();
     }
 
+    @Override
+    public CompletableFuture<com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus> deleteStream(String scope, String streamName) {
+        throw new NotImplementedException();
+    }
+
     private boolean createSegment(String name, PravegaNodeUri uri) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {

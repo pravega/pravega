@@ -11,6 +11,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatu
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
@@ -69,6 +70,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.debug("sealStream called for stream " + request.getScope() + "/" + request.getStream());
         processResult(controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);
+    }
+
+    @Override
+    public void deleteStream(StreamInfo request, StreamObserver<DeleteStreamStatus> responseObserver) {
+        log.debug("deleteStream called for stream " + request.getScope() + "/" + request.getStream());
+        processResult(controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver);
     }
 
     @Override

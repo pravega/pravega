@@ -46,6 +46,13 @@ interface Stream {
     CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
 
     /**
+     * Deletes an already SEALED stream.
+     *
+     * @return boolean indicating success.
+     */
+    CompletableFuture<Void> delete();
+
+    /**
      * Updates the configuration of an existing stream.
      *
      * @param configuration new stream configuration.

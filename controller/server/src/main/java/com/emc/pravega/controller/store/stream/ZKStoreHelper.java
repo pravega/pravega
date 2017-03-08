@@ -152,6 +152,29 @@ public class ZKStoreHelper {
         return result;
     }
 
+    public CompletableFuture<Void> deleteTree(final String path) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            client.delete().deletingChildrenIfNeeded().inBackground(
+                    callback(event -> result.complete(null),
+                            e -> {
+                                if (e instanceof DataNotFoundException) {
+                                    result.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_FOUND));
+                                } else {
+                                    result.completeExceptionally(e);
+                                }
+                            }), executor).forPath(path);
+        } catch (KeeperException.ConnectionLossException
+                | KeeperException.SessionExpiredException
+                | KeeperException.OperationTimeoutException e) {
+            result.completeExceptionally(new StoreConnectionException(e));
+        } catch (Exception e) {
+            result.completeExceptionally(e);
+        }
+
+        return result;
+    }
+
     CompletableFuture<Data<Integer>> getData(final String path) throws DataNotFoundException {
         final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
 

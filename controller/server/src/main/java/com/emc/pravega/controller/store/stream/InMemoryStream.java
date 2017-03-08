@@ -68,6 +68,11 @@ class InMemoryStream implements Stream {
     }
 
     @Override
+    public CompletableFuture<Void> delete() {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     public String getScope() {
         return this.scopeName;
     }

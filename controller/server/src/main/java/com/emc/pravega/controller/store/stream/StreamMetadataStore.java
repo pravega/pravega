@@ -54,6 +54,11 @@ public interface StreamMetadataStore {
                                             final OperationContext context,
                                             final Executor executor);
 
+    CompletableFuture<Void> deleteStream(final String scopeName,
+                                            final String streamName,
+                                            final OperationContext context,
+                                            final Executor executor);
+
     CompletableFuture<Boolean> setState(String scope, String name,
                                         State state, OperationContext context,
                                         Executor executor);
