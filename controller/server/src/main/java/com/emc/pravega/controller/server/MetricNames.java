@@ -25,6 +25,6 @@ public interface MetricNames {
     String MERGES = "MERGES"; // Guage
 
     static String nameFromStream(String metric, String scope, String stream) {
-        return metric + "." + scope + "." + stream;
+        return scope + "." + stream + "." + metric;
     }
 }

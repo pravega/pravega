@@ -112,8 +112,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
-        // A dynamic gauge records read offset of each readSegment for a segment
-        DYNAMIC_LOGGER.reportGaugeValue("readSegment." + segment, readSegment.getOffset());
 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {

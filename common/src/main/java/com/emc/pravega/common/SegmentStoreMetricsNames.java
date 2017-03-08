@@ -27,6 +27,6 @@ public final class SegmentStoreMetricsNames {
     public static final String DURABLE_DATALOG_WRITE_BYTES = "DurableDataLogWriteBytes";
 
     public static String nameFromSegment(String metric, String segmentName) {
-        return metric + "." + segmentName.replace('/', '_');
+        return segmentName.replace('/', '.') + "." + metric;
     }
 }
