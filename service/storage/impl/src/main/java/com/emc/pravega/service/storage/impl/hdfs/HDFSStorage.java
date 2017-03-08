@@ -31,7 +31,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -40,18 +42,19 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.protocol.AclException;
 import org.apache.hadoop.io.IOUtils;
 
 /**
- * Storage adapter for a backing HDFS Store which does lock implementation based on file permissions.
+ * Storage adapter for a backing HDFS Store which implements fencing using a rename strategy..
  * Each segment is represented by a file with pattern <segment-name>_<owner_host_id>, where <owner_host_id> is optional
- * and means that the segment is owned by the Pravega host of the given id.
+ * and means that the segment is owned by the Pravega host of the given id (i.e., it's fenced off).
  * <p>
  * Whenever a Segment Container ownership change happens (that is, when the Segment Container is moved to a different
  * Pravega Node), the HDFSStorage instance on the new node renames the file representing the segment to <segment-name>_<owner_host_id>.
- * This is done by the open call.
+ * This is done by the open call. The rename only happens if the segment is not sealed.
  * <p>
- * TODO (this is not implemented): When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
+ * When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
  */
 @Slf4j
 class HDFSStorage implements Storage {
@@ -125,7 +128,7 @@ class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> open(String streamSegmentName) {
-        return runAsync(() -> openSync(streamSegmentName), streamSegmentName, "open");
+        return runAsync(() -> fence(streamSegmentName), streamSegmentName, "open");
     }
 
     @Override
@@ -197,13 +200,18 @@ class HDFSStorage implements Storage {
     }
 
     /**
-     * Utility function to get the wildcard path string which represents all the files that represent the current segment.
+     * Gets the wildcard path string which represents all the files that could represent the current segment.
      */
     private FileStatus[] findAll(String streamSegmentName) throws IOException {
-        return this.fileSystem.globStatus(new Path(getCommonPartOfName(streamSegmentName) + "_[0-9]*"));
+        String commonPart = getCommonPartOfName(streamSegmentName);
+        String pattern = String.format("{%s,%s_[0-9]*}", commonPart, commonPart);
+        return this.fileSystem.globStatus(new Path(pattern));
     }
 
-    private FileStatus findOne(String streamSegmentName) throws IOException {
+    /**
+     * Gets a FileStatus for a File representing the given StreamSegment if fencing is not desired.
+     */
+    private FileStatus findUnfenced(String streamSegmentName) throws IOException {
         FileStatus[] statuses = findAll(streamSegmentName);
         if (statuses == null || statuses.length != 1) {
             throw new FileNotFoundException(streamSegmentName);
@@ -212,7 +220,10 @@ class HDFSStorage implements Storage {
         return statuses[0];
     }
 
-    private FileStatus findOwned(String streamSegmentName) throws IOException {
+    /**
+     * Gets a FileStatus for a File representing the given StreamSegment when fencing is desired.
+     */
+    private FileStatus findFenced(String streamSegmentName) throws IOException {
         FileStatus[] statuses = this.fileSystem.globStatus(new Path(getOwnedSegmentFullPath(streamSegmentName)));
         if (statuses == null || statuses.length != 1) {
             throw new FileNotFoundException(streamSegmentName);
@@ -226,22 +237,48 @@ class HDFSStorage implements Storage {
     }
 
     /**
-     * Algorithm to take over the ownership of a segment.
-     * <p>
-     * List the file that represents the segment. This may be owned by some other node.
-     * Rename the file to the current node.
+     * "Fences" off the given segment by renaming it to something based off the segment's name and this HDFSStorage instance's id.
      */
-    private void openSync(String streamSegmentName) throws IOException {
-        long traceId = LoggerHelpers.traceEnter(log, "open", streamSegmentName);
+    private void fence(String streamSegmentName) throws IOException {
+        long traceId = LoggerHelpers.traceEnter(log, "fence", streamSegmentName);
         FileStatus[] statuses = findAll(streamSegmentName);
         if (statuses.length != 1) {
-            log.warn("Segment '{}' not found. Statuses.length = {}.", streamSegmentName, statuses.length);
+            log.warn("Segment '{}' not found. Number of files is {}.", streamSegmentName, statuses.length);
             throw new FileNotFoundException(streamSegmentName);
         }
 
+        FileStatus status = statuses[0];
+        if (isSealed(status)) {
+            // Nothing to fence when sealed. Bail out.
+            LoggerHelpers.traceLeave(log, "fence", traceId, streamSegmentName, streamSegmentName);
+            return;
+        }
+
         String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
-        this.fileSystem.rename(statuses[0].getPath(), new Path(ownedFullPath));
-        LoggerHelpers.traceLeave(log, "open", traceId, streamSegmentName, ownedFullPath);
+        if (!this.fileSystem.rename(status.getPath(), new Path(ownedFullPath))) {
+            throw new IOException(String.format("Unable to fence Segment '%s'.", streamSegmentName));
+        }
+
+        LoggerHelpers.traceLeave(log, "fence", traceId, streamSegmentName, ownedFullPath);
+    }
+
+    /**
+     * "Unfences" the given segment by renaming it to its original name.
+     *
+     * @param streamSegmentName The name of the Segment to unfence.
+     * @throws IOException                If some IO error occurred.
+     * @throws StorageNotPrimaryException If this HDFSStorage instance is not the primary writer for this segment.
+     */
+    private void unfence(String streamSegmentName) throws IOException, StorageNotPrimaryException {
+        long traceId = LoggerHelpers.traceEnter(log, "unfence", streamSegmentName);
+        FileStatus status = findFenced(streamSegmentName);
+        Preconditions.checkState(isSealed(status), "Cannot unfence segment '%s' because it is not sealed.", streamSegmentName);
+
+        if (!this.fileSystem.rename(status.getPath(), new Path(getCommonPartOfName(streamSegmentName)))) {
+            throw new IOException(String.format("Unable to unfence Segment '%s'.", streamSegmentName));
+        }
+
+        LoggerHelpers.traceLeave(log, "unfence", traceId, streamSegmentName, status.getPath().toString());
     }
 
     private void writeSync(String streamSegmentName, long offset, int length, InputStream data) throws BadOffsetException, IOException, StorageNotPrimaryException {
@@ -249,7 +286,7 @@ class HDFSStorage implements Storage {
         Timer timer = new Timer();
         AtomicLong actualOffset = new AtomicLong();
         handleFencing(() -> {
-            try (FSDataOutputStream stream = fileSystem.append(new Path(this.getOwnedSegmentFullPath(streamSegmentName)))) {
+            try (FSDataOutputStream stream = fileSystem.append(new Path(getOwnedSegmentFullPath(streamSegmentName)))) {
                 actualOffset.set(stream.getPos());
                 if (stream.getPos() != offset) {
                     return;
@@ -258,7 +295,7 @@ class HDFSStorage implements Storage {
                 IOUtils.copyBytes(data, stream, length);
                 stream.flush();
             }
-        }, streamSegmentName);
+        }, streamSegmentName, false);
 
         if (actualOffset.get() != offset) {
             throw new BadOffsetException(streamSegmentName, offset, actualOffset.get());
@@ -276,7 +313,8 @@ class HDFSStorage implements Storage {
                         this.fileSystem.setPermission(
                                 new Path(ownedFullPath),
                                 new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ)),
-                streamSegmentName);
+                streamSegmentName, true);
+        unfence(streamSegmentName);
 
         SegmentProperties result = getStreamSegmentInfoSync(streamSegmentName);
         LoggerHelpers.traceLeave(log, "seal", traceId, streamSegmentName);
@@ -285,7 +323,7 @@ class HDFSStorage implements Storage {
 
     private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
-        FileStatus status = findOne(streamSegmentName);
+        FileStatus status = findUnfenced(streamSegmentName);
 
         SegmentProperties result = new StreamSegmentInformation(streamSegmentName,
                 status.getLen(),
@@ -300,37 +338,35 @@ class HDFSStorage implements Storage {
     private void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException,
             BadOffsetException, StreamSegmentSealedException, StorageNotPrimaryException {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetStreamSegmentName, offset, sourceStreamSegmentName);
-        AtomicLong actualOffset = new AtomicLong();
-        handleFencing(() -> {
-            FileStatus targetStatus = findOwned(targetStreamSegmentName);
-            actualOffset.set(targetStatus.getLen());
-        }, targetStreamSegmentName);
+        AtomicReference<FileStatus> targetStatus = new AtomicReference<>();
+        handleFencing(() -> targetStatus.set(findFenced(targetStreamSegmentName)),
+                targetStreamSegmentName, false);
 
-        if (actualOffset.get() != offset) {
-            throw new BadOffsetException(targetStreamSegmentName, offset, actualOffset.get());
+        if (targetStatus.get().getLen() != offset) {
+            throw new BadOffsetException(targetStreamSegmentName, offset, targetStatus.get().getLen());
         }
 
-        handleFencing(() -> {
-            FileStatus sourceStatus = findOwned(sourceStreamSegmentName);
-            if (sourceStatus.getPermission().getUserAction() != FsAction.READ) {
-                throw new IllegalStateException(String.format("Cannot concat segment '%s' into '%s' because it is not sealed.",
-                        sourceStreamSegmentName, targetStreamSegmentName));
-            }
-        }, sourceStreamSegmentName);
+        FileStatus sourceStatus = findUnfenced(sourceStreamSegmentName);
+        Preconditions.checkState(isSealed(sourceStatus),
+                "Cannot concat segment '%s' into '%s' because it is not sealed.", sourceStreamSegmentName, targetStreamSegmentName);
 
-        this.fileSystem.concat(new Path(getOwnedSegmentFullPath(targetStreamSegmentName)),
-                new Path[]{new Path(getOwnedSegmentFullPath(sourceStreamSegmentName))});
+        this.fileSystem.concat(targetStatus.get().getPath(),
+                new Path[]{sourceStatus.getPath()});
         LoggerHelpers.traceLeave(log, "concat", traceId, targetStreamSegmentName, offset, sourceStreamSegmentName);
     }
 
     private void deleteSync(String streamSegmentName) throws IOException, StorageNotPrimaryException {
         String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
         long traceId = LoggerHelpers.traceEnter(log, "delete", streamSegmentName, ownedFullPath);
-        handleFencing(() -> {
-            if (!this.fileSystem.delete(new Path(ownedFullPath), false)) {
-                throw new FileNotFoundException(streamSegmentName);
-            }
-        }, streamSegmentName);
+        try {
+            handleFencing(() -> {
+                if (!this.fileSystem.delete(new Path(ownedFullPath), false)) {
+                    throw new FileNotFoundException(streamSegmentName);
+                }
+            }, streamSegmentName, false);
+        }catch (AclException ex){
+            // We couldn't delete because
+        }
 
         LoggerHelpers.traceLeave(log, "delete", traceId, streamSegmentName);
     }
@@ -348,7 +384,7 @@ class HDFSStorage implements Storage {
 
         long traceId = LoggerHelpers.traceEnter(log, "read", streamSegmentName, offset, length);
         Timer timer = new Timer();
-        FileStatus fs = findOne(streamSegmentName);
+        FileStatus fs = findUnfenced(streamSegmentName);
         FSDataInputStream stream = fileSystem.open(fs.getPath());
         int retVal = stream.read(offset, buffer, bufferOffset, length);
         if (retVal < 0) {
@@ -407,6 +443,10 @@ class HDFSStorage implements Storage {
         }, this.executor);
     }
 
+    private boolean isSealed(FileStatus status) {
+        return status.getPermission().getUserAction() == FsAction.READ;
+    }
+
     /**
      * Executes the given method and converts a FileNotFoundException into a StorageNotPrimaryException, if a fence-out
      * was detected.
@@ -414,29 +454,40 @@ class HDFSStorage implements Storage {
      * @param method            The IOCall to execute.
      * @param streamSegmentName The name of the Segment for the executed IOCall.
      */
-    private void handleFencing(IOCall method, String streamSegmentName) throws IOException, StorageNotPrimaryException {
+    private void handleFencing(IOCall method, String streamSegmentName, boolean ignoreSealed) throws IOException, StorageNotPrimaryException {
+        // TODO: think how to make this elegant: this needs to throw Sealed for Write & Concat, Do nothing for Seal and tell Delete to delete everything, if we are primary or sealed.
         try {
             method.run();
-        } catch (FileNotFoundException ex) {
+        } catch (FileNotFoundException notFoundEx) {
             // Attempt to figure out the current state of the Segment in HDFS.
             FileStatus[] all = null;
             try {
                 all = findAll(streamSegmentName);
-            } catch (Throwable ex2) {
+            } catch (Throwable findAllEx) {
                 // We couldn't do it. Suppress this exception (if we can), and rethrow the original one.
-                if (ExceptionHelpers.mustRethrow(ex2)) {
-                    throw ex2;
+                if (ExceptionHelpers.mustRethrow(findAllEx)) {
+                    throw findAllEx;
                 }
 
-                ex.addSuppressed(ex2);
+                notFoundEx.addSuppressed(findAllEx);
             }
 
-            if (all != null && all.length > 0) {
+            if (all == null || all.length == 0) {
+                throw notFoundEx;
+            }
+
+            if (isSealed(all[0]) && !ignoreSealed) {
+                // We stumbled across a FileNotFound, then found a file that is sealed; and since we cannot modify
+                // this file, we need to throw AclException (which is later translated into StreamSegmentSealedException).
+                val toThrow = new AclException("Segment is sealed.");
+                toThrow.addSuppressed(notFoundEx);
+                throw toThrow;
+            } else {
                 // The segment still exists in HDFS, but under a different name. As such, we have been fenced out.
-                throw new StorageNotPrimaryException(streamSegmentName);
+                val toThrow = new StorageNotPrimaryException(streamSegmentName);
+                toThrow.addSuppressed(notFoundEx);
+                throw toThrow;
             }
-
-            throw ex;
         }
     }
 
