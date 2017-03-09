@@ -40,11 +40,17 @@ public final class MetricsNames {
     //public static final String SEGMENTS_SPLITS = "segments_splits"; // Dynamic Guage
     //public static final String SEGMENTS_MERGES = "segments_merges"; // Dynamic Guage
 
+    private static String escapeSpecialChar(String name) {
+        return name.replace('/', '.').replace(':', '.').replace('|','.').replaceAll("\\s+", "_");
+    }
+
     public static String nameFromStream(String metric, String scope, String stream) {
-        return scope + "." + stream + "." + metric;
+        String name = scope + "." + stream + "." + metric;
+        return escapeSpecialChar(name);
     }
 
     public static String nameFromSegment(String metric, String segmentName) {
-        return segmentName.replace('/', '.') + "." + metric;
+        String name = segmentName + "." + metric;
+        return escapeSpecialChar(name);
     }
 }
