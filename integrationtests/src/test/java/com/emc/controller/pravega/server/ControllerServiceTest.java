@@ -1,3 +1,8 @@
+/**
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ */
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
@@ -68,7 +73,6 @@ public class ControllerServiceTest {
                 .streamName(streamName2)
                 .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3))
                 .build();
-        
 
         createAStream(controller, config1);
         //Same name in different scope
@@ -98,7 +102,6 @@ public class ControllerServiceTest {
 
         updataMinSegmentes(controller, scope1, streamName1);
 
-
         alterConfigOfNonExistantStream(controller);
 
         //get currently active segments
@@ -117,7 +120,6 @@ public class ControllerServiceTest {
         getSegmentsBeforeCreation(controller, scope1, streamName1);
 
         getSegmentsAfterCreation(controller, scope1, streamName1);
-
     }
 
     private static void getSegmentsAfterCreation(Controller controller, final String scope,
@@ -143,8 +145,7 @@ public class ControllerServiceTest {
             
             System.err.println("SUCCESS: Positions cannot be fetched for non existent stream");
         } catch (ExecutionException | CompletionException e) {
-            assertTrue("FAILURE: Fetching positions for non existent stream", (e.getCause() instanceof DataNotFoundException));
-            
+            assertTrue("FAILURE: Fetching positions for non existent stream", e.getCause() instanceof DataNotFoundException);
             System.err.println("SUCCESS: Positions cannot be fetched for non existent stream");
         }
     }
@@ -152,8 +153,7 @@ public class ControllerServiceTest {
     private static void getSegmentsAtTime(Controller controller, final String scope,
                                             final String streamName) throws InterruptedException, ExecutionException {
         CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(new StreamImpl(scope, streamName), System.currentTimeMillis());
-        assertFalse("FAILURE: Fetching positions at given time stamp failed", segments.get().isEmpty());
-        
+        assertFalse("FAILURE: Fetching positions at given time stamp failed", segments.get().isEmpty()); 
     }
 
     private static void getActiveSegmentsForNonExistentStream(Controller controller) throws InterruptedException {
@@ -161,7 +161,7 @@ public class ControllerServiceTest {
             CompletableFuture<StreamSegments> getActiveSegments = controller.getCurrentSegments("scope", "streamName");
             assertTrue("FAILURE: Fetching active segments for non existent stream", getActiveSegments.get().getSegments().isEmpty());
         } catch (ExecutionException | CompletionException e) {
-            assertTrue("FAILURE: Fetching active segments for non existent stream", (e.getCause() instanceof DataNotFoundException));
+            assertTrue("FAILURE: Fetching active segments for non existent stream", e.getCause() instanceof DataNotFoundException);
         }
     }
 
