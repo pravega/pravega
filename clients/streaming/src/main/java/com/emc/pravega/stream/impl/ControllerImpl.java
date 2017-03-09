@@ -23,6 +23,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
@@ -160,13 +161,12 @@ public class ControllerImpl implements Controller {
 
         log.trace("Invoke ConsumerService.Client.getSegmentsAtTime() for stream: {}, timestamp: {}", stream, timestamp);
         RPCAsyncCallback<SegmentsAtTime> callback = new RPCAsyncCallback<>();
-        client.getSegments(GetSegmentsRequest.newBuilder()
-                                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                                                         stream.getStreamName()))
-                                             .setTimestamp(timestamp)
-                                             .build(),
-                           callback);
-
+        StreamInfo streamInfo = ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName());
+        GetSegmentsRequest request = GetSegmentsRequest.newBuilder()
+                                                       .setStreamInfo(streamInfo)
+                                                       .setTimestamp(timestamp)
+                                                       .build();
+        client.getSegments(request, callback);
         return callback.getFuture().thenApply(segments -> {
             log.debug("Received the following data from the controller {}", segments);
             return segments.getSegmentsList()
