@@ -6,7 +6,9 @@
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -20,12 +22,15 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
+import com.emc.pravega.testcommon.TestUtils;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -34,26 +39,104 @@ import static org.junit.Assert.assertTrue;
 
 public class ControllerServiceTest {
 
-    @Test
-    public void testControllerService() throws Exception {
-        @Cleanup
-        TestingServer zkTestServer = new TestingServer();
-        @Cleanup
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+    private final int controllerPort = TestUtils.randomPort();
+    private final String serviceHost = "localhost";
+    private final int servicePort = TestUtils.randomPort();
+    private final int containerCount = 4;
+    private TestingServer zkTestServer;
+    private PravegaConnectionListener server;
+    private ControllerWrapper controllerWrapper;
+    private ServiceBuilder serviceBuilder;
+    
+    @Before
+    public void setUp() throws Exception {
+        zkTestServer = new TestingServer();
+        
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
+        
+        server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
         
-        @Cleanup
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
-        Controller controller = controllerWrapper.getController();
+        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
+                                                                    controllerPort, serviceHost, servicePort, containerCount);
+    }
+    
+    @After
+    public void tearDown() throws Exception {
+        controllerWrapper.close();
+        serviceBuilder.close();
+        server.close();
+        zkTestServer.close();
+    }
+    
+    
+    @Test(timeout = 40000)
+    public void streamMetadataTest() throws Exception {
+        final String scope = "testScope";
+        final String stream = "testStream";
 
+        StreamConfiguration streamConfiguration = StreamConfiguration.builder()
+                .scope(scope)
+                .streamName(stream)
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        // Create test scope. This operation should succeed.
+        CreateScopeStatus scopeStatus = controller.createScope(scope).join();
+        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+
+        // Delete the test scope. This operation should also succeed.
+        DeleteScopeStatus deleteScopeStatus = controller.deleteScope(scope).join();
+        Assert.assertEquals(DeleteScopeStatus.Status.SUCCESS, deleteScopeStatus.getStatus());
+
+        // Try creating a stream. It should fail, since the scope does not exist.
+        CreateStreamStatus streamStatus = controller.createStream(streamConfiguration).join();
+        Assert.assertEquals(CreateStreamStatus.Status.SCOPE_NOT_FOUND, streamStatus.getStatus());
+
+        // Again create the scope.
+        scopeStatus = controller.createScope(scope).join();
+        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+
+        // Try creating the stream again. It should succeed now, since the scope exists.
+        streamStatus = controller.createStream(streamConfiguration).join();
+        Assert.assertEquals(CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
+
+        // Delete test scope. This operation should fail, since it is not empty.
+        deleteScopeStatus = controller.deleteScope(scope).join();
+        Assert.assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY, deleteScopeStatus.getStatus());
+
+        // Delete a non-existent scope. This operation should fail.
+        deleteScopeStatus = controller.deleteScope("non_existent_scope").join();
+        Assert.assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, deleteScopeStatus.getStatus());
+
+        // Create a scope with invalid characters. It should fail.
+        scopeStatus = controller.createScope("abc/def").join();
+        Assert.assertEquals(CreateScopeStatus.Status.INVALID_SCOPE_NAME, scopeStatus.getStatus());
+
+        // Try creating already existing scope. It should fail
+        scopeStatus = controller.createScope(scope).join();
+        Assert.assertEquals(CreateScopeStatus.Status.SCOPE_EXISTS, scopeStatus.getStatus());
+
+        // Try creating stream with invalid characters. It should fail.
+        streamStatus = controller.createStream(StreamConfiguration.builder()
+                .scope(scope).streamName("abc/def").scalingPolicy(ScalingPolicy.fixed(1)).build()).join();
+        Assert.assertEquals(CreateStreamStatus.Status.INVALID_STREAM_NAME, streamStatus.getStatus());
+
+        // Try creating already existing stream. It should fail.
+        streamStatus = controller.createStream(streamConfiguration).join();
+        Assert.assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
+    }
+    
+    
+    @Test(timeout = 40000)
+    public void testControllerService() throws Exception {
         final String scope1 = "scope1";
         final String scope2 = "scope2";
         controllerWrapper.getControllerService().createScope("scope1").get();
         controllerWrapper.getControllerService().createScope("scope2").get();
+        Controller controller = controllerWrapper.getController();
 
         final String streamName1 = "stream1";
         final String streamName2 = "stream2";
