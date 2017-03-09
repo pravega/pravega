@@ -12,8 +12,12 @@ import com.emc.pravega.framework.services.PravegaControllerService;
 import com.emc.pravega.framework.services.PravegaSegmentStoreService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
+import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ControllerImpl;
@@ -28,7 +32,9 @@ import org.junit.runner.RunWith;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -114,12 +120,14 @@ public class PravegaTest {
         log.debug("Invoking create stream.");
         log.debug("Controller URI: {} ", controllerUri);
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+        //create a scope
+        CompletableFuture<Controller.CreateScopeStatus> createScopeStatus = controller.createScope(STREAM_SCOPE);
+        log.debug("create scope status {}", createScopeStatus.get());
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.get());
         //create a stream
-        CompletableFuture<Controller.CreateScopeStatus> scopeStatus = controller.createScope(STREAM_SCOPE);
-        System.out.println("create scope status" + scopeStatus.get());
-        CompletableFuture<Controller.CreateStreamStatus> status = controller.createStream(config);
-        log.debug("create stream status {}", status.get());
-        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, status.get());
+        CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(config);
+        log.debug("create stream status {}", createStreamStatus.get());
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStreamStatus.get());
     }
 
     /**
@@ -149,5 +157,23 @@ public class PravegaTest {
             writer.flush();
             Thread.sleep(500);
         }
+        log.debug("Invoking consumer test.");
+        ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri)
+                .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
+                        Collections.singleton(STREAM_NAME));
+        EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
+                READER_GROUP,
+                new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+        for (int i = 0; i < 100; i++) {
+            String event = null;
+            try {
+                event = reader.readNextEvent(6000).getEvent();
+            } catch (ReinitializationRequiredException e) {
+                log.debug("error in reading next event {}", e);
+            }
+            log.debug("Read event: {} ", event);
+        }
+        reader.close();
     }
 }
