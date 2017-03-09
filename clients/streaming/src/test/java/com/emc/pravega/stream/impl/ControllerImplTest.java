@@ -74,7 +74,7 @@ import static org.junit.Assert.assertTrue;
 public class ControllerImplTest {
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     // Test implementation for simulating the server responses.
     private ServerImpl fakeServer = null;
@@ -119,7 +119,7 @@ public class ControllerImplTest {
 
                     // Simulating delay in sending response.
                     try {
-                        Thread.sleep(200);
+                        Thread.sleep(500);
                     } catch (InterruptedException e) {
                         log.error("Unexpected interrupt");
                         responseObserver.onError(e);
@@ -208,7 +208,7 @@ public class ControllerImplTest {
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("streamparallel")) {
                     try {
-                        Thread.sleep(200);
+                        Thread.sleep(500);
                     } catch (InterruptedException e) {
                         log.error("Unexpected interrupt");
                         responseObserver.onError(e);
@@ -850,9 +850,9 @@ public class ControllerImplTest {
     @Test
     public void testParallelCreateStream() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
-        Semaphore createCount = new Semaphore(-9);
+        Semaphore createCount = new Semaphore(-19);
         AtomicInteger numSuccess = new AtomicInteger(0);
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
                     try {
@@ -872,22 +872,22 @@ public class ControllerImplTest {
                         log.error("Exception when creating stream: {}", e);
 
                         // Don't wait for other threads to complete.
-                        createCount.release(10);
+                        createCount.release(20);
                         assertFalse(true);
                     }
                 }
             });
         }
         createCount.acquire();
-        assertEquals(numSuccess.get(), 10);
+        assertEquals(numSuccess.get(), 20);
     }
 
     @Test
     public void testParallelGetCurrentSegments() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
-        Semaphore createCount = new Semaphore(-9);
+        Semaphore createCount = new Semaphore(-19);
         AtomicInteger numSuccess = new AtomicInteger(0);
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
                     try {
@@ -911,6 +911,6 @@ public class ControllerImplTest {
             });
         }
         createCount.acquire();
-        assertEquals(numSuccess.get(), 10);
+        assertEquals(numSuccess.get(), 20);
     }
 }
