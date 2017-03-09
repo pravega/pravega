@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.Segment;
 
 /**
@@ -32,7 +33,7 @@ public interface SegmentInputStreamFactory {
      * This operation additionally takes a buffer size parameter. This size is
      * used to allocate buffer space for the bytes this stream reads from the
      * segment. It is important to control the buffer size, e.g., when randomly
-     * reading events with {@link EventReader#read()}
+     * reading events with {@link com.emc.pravega.stream.EventStreamReader#read(EventPointer)}
      *
      * @param segment  The segment to create an input for.
      * @param bufferSize Size of the input stream read buffer.
