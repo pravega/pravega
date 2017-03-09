@@ -119,9 +119,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * @param e Error that has occurred that needs to be handled by tearing down the connection.
          */
         private void failConnection(Exception e) {
-            log.warn("Connection failed due to", e);
             ClientConnection oldConnection;
             synchronized (lock) {
+                if (!closed) {
+                    log.warn("Connection failed due to", e);
+                }
                 if (exception == null) {
                     exception = e;
                 }
