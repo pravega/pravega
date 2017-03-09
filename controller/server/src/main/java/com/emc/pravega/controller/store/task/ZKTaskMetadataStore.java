@@ -132,7 +132,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             return null;
 
         } catch (KeeperException.NoNodeException e) {
-            log.debug("Lock not present on resource " + resource);
+            log.debug("Lock not present on resource {}", resource);
             return null;
         } catch (Exception e) {
             throw new UnlockFailedException(resource.getString(), e);
