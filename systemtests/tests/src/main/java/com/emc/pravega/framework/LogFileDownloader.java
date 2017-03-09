@@ -4,11 +4,13 @@
 
 package com.emc.pravega.framework;
 
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.Response;
 import okio.BufferedSink;
 import okio.Okio;
@@ -21,26 +23,25 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static com.emc.pravega.framework.AuthEnabledHttpClient.getURL;
 import static com.emc.pravega.framework.LoginClient.MESOS_URL;
 
-@Builder
+@Slf4j
 public class LogFileDownloader {
 
-    private String taskId;
-    private String slaveId;
+    private static final String MESOS_DIRECTORY_URL = "%s/agent/%s/files/browse?path=%s";
 
-    private final AuthEnabledHttpClient client = new AuthEnabledHttpClient();
-
-    public String getDirectoryPath() {
+    public static String getDirectoryPath(final String slaveId, final String taskId) {
 
         String url = MESOS_URL + "/agent/" + slaveId + "/slave(1)/state";
         //fetch the details of the slave
         String mesosInfo = null;
         try {
-            mesosInfo = client.getURL(url).get().body().string();
+            mesosInfo = getURL(url).get().body().string();
         } catch (IOException | InterruptedException | ExecutionException e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while getting slave " +
                     "information", e);
@@ -65,86 +66,114 @@ public class LogFileDownloader {
         return directoryPaths.get(0);
     }
 
-    public List<String> getFilesToBeDownloaded(final String directoryPath) throws IOException, ExecutionException,
-            InterruptedException {
-        // TODO: check not null not empty.
+    public static CompletableFuture<List<String>> getFilesToBeDownloaded(final String slaveId, final String
+            directoryPath) {
 
-        String url = MESOS_URL + "/agent/" + slaveId + "/files/browse?path=" + directoryPath;
-        String fileListJson = client.getURL(url).get().body().string();
-        JsonArray r1 = new JsonParser().parse(fileListJson).getAsJsonArray();
-        List<String> filePaths = new ArrayList<>(5);
-        r1.forEach(jsonElement -> filePaths.add(jsonElement.getAsJsonObject().get("path").getAsString()));
+        Exceptions.checkNotNullOrEmpty(slaveId, "slaveId");
+        Exceptions.checkNotNullOrEmpty(directoryPath, "directoryPath");
 
-        List<String> filteredFilePath = filePaths.stream()
-                .filter(s -> s.contains("stderr") || s.contains("stdout")
-                        || s.contains(".log")).collect(Collectors.toList());
+        String url = String.format(MESOS_DIRECTORY_URL, MESOS_URL, slaveId, directoryPath);
 
-        return filteredFilePath;
-    }
+        return getURL(url).thenApply(response -> {
+            try {
+                List<String> filePaths = new ArrayList<>();
 
-    public void downloadFile(final String testName, final String slaveId, final String taskId, final String filePath)
-            throws
-            IOException, ExecutionException, InterruptedException {
-        Path path = Paths.get(MESOS_URL + "/agent/" + slaveId + "/files/download?path=" + filePath);
+                String fileListJson = response.body().string();
+                JsonArray filePathJsonArray = new JsonParser().parse(fileListJson).getAsJsonArray();
+                filePathJsonArray.forEach(jsonElement -> filePaths.add(jsonElement.getAsJsonObject().get("path")
+                        .getAsString()));
+                return filePaths;
 
-        try (Response response = client.getURL(MESOS_URL + "/agent/" + slaveId + "/files/download?path=" + filePath)
-                .get()) {
-            Path fp = Paths.get(testName, taskId, path.getFileName().toString());
-            File file = fp.toFile();
-            Files.createDirectories(fp.getParent());
-            if (!fp.toFile().exists()) {
-                Files.createFile(fp);
+            } catch (IOException e) {
+                throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Error while listing " +
+                        "files in a given directory", e);
             }
-
-            BufferedSink sink = Okio.buffer(Okio.sink(fp.toFile()));
-            // you can access body of response
-            sink.writeAll(response.body().source());
-            sink.close();
-        }
+        });
     }
 
-    public void downloadServiceLogs(String appId) {
-        try {
-            Optional<JsonArray> r1 = getTaskInfo(appId);
+    public static CompletableFuture<Void> downloadFile(final String destinationDirectory, final String slaveId,
+                                                       final String taskId, final String filePath) {
 
-            r1.ifPresent(tasks -> tasks.forEach(task -> {
+        Path url = Paths.get(MESOS_URL + "/agent/" + slaveId + "/files/download?path=" + filePath);
+
+        return getURL(url.toString()).thenApply(response -> {
+
+            try {
+                //create the required file .
+                Path fp = Paths.get(destinationDirectory, taskId, url.getFileName().toString());
+                File file = fp.toFile();
+                if (!fp.toFile().exists()) {
+                    Files.createFile(fp);
+                }
+                // ensure sink.close() is invoked to release resources
+                try (BufferedSink sink = Okio.buffer(Okio.sink(fp.toFile()))) {
+                    sink.writeAll(response.body().source());
+                }
+                return null;
+
+            } catch (IOException e) {
+                throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Error while downloading " +
+                        "files in a given path", e);
+            }
+        });
+    }
+
+    public static CompletableFuture<Void> downloadServiceLogs(final String appId, final String directoryName) {
+        log.info("Download service logs for service :{}", appId);
+        CompletableFuture<JsonArray> taskInfo = getTaskInfo(appId);
+
+        CompletableFuture<Void> result = taskInfo.thenCompose(tasks -> {
+            List<CompletableFuture<Void>> instanceDownloadResults = new ArrayList<>();
+            tasks.forEach(task -> {
                 JsonObject taskData = task.getAsJsonObject();
-                final String id = taskData.get("id").getAsString();
+                //read taskId and slaveId from the json object.
+                final String taskId = taskData.get("id").getAsString();
                 final String slaveId = taskData.get("slaveId").getAsString();
-                System.out.println("ID: " + id + "<==> Slave id: " + slaveId);
+                log.info("Service : {} has the following task :{} running on slave:{}", appId, taskId, slaveId);
 
-                LogFileDownloader filedownloader = LogFileDownloader.builder().slaveId(slaveId).taskId(id).build();
-                final String directoryPath = filedownloader.getDirectoryPath();
-                System.out.println(directoryPath);
+                final String directoryPath = getDirectoryPath(slaveId, taskId);
+                log.info("Directory Path: {}", directoryPath);
 
                 try {
-                    List<String> fileList = filedownloader.getFilesToBeDownloaded(directoryPath);
-                    fileList.forEach(path -> {
-                        try { //TODO: async download
-                            filedownloader.downloadFile("test-001", slaveId, id, path);
-                        } catch (IOException | InterruptedException | ExecutionException e) {
-                            e.printStackTrace();
-                        }
-                    });
-                } catch (IOException | ExecutionException | InterruptedException e) {
-                    e.printStackTrace();
+                    Path fp = Paths.get(directoryName, taskId);
+                    Files.createDirectories(fp);
+                } catch (IOException e) {
+                    throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Failed to create" +
+                            " directories while downloading logs", e);
                 }
-            }));
-            //TODO: improve exception handling.
-        } catch (IOException | InterruptedException | ExecutionException e) {
-            e.printStackTrace();
-        }
 
+                CompletableFuture<Void> instanceDownloadResult = getFilesToBeDownloaded(slaveId, directoryPath)
+                        .thenCompose(fileList -> {
+                            List<CompletableFuture<Void>> r6 = fileList.stream().map(s -> downloadFile(directoryName,
+                                    slaveId, taskId, s))
+                                    .collect(Collectors.toList());
+                            return FutureHelpers.allOf(r6);
+                        });
+                instanceDownloadResults.add(instanceDownloadResult);
+            });
+            return FutureHelpers.allOf(instanceDownloadResults);
+        });
+        return result;
     }
 
-    private Optional<JsonArray> getTaskInfo(String appId) throws IOException, InterruptedException, ExecutionException {
-        String result = null;
+    private static CompletableFuture<JsonArray> getTaskInfo(String appId) {
 
-        result = client.getURL(MESOS_URL + "/service/marathon/v2/apps/" + appId + "?embed=apps.tasks")
-                .get().body().string();
-        JsonObject r = new JsonParser().parse(result).getAsJsonObject();
+        final CompletableFuture<Response> taskInfoResponse = getURL(MESOS_URL + "/service/marathon/v2/apps/" + appId +
+                "?embed=apps.tasks");
 
-        return Optional.of(r.getAsJsonObject("app")).flatMap(jsonObject ->
-                Optional.of(jsonObject.getAsJsonArray("tasks")));
+        CompletableFuture<JsonArray> taskInfo = taskInfoResponse.thenApply(response -> {
+            try {
+                JsonObject r = new JsonParser().parse(response.body().string()).getAsJsonObject();
+                //read the tasks info for the given app
+                final Optional<JsonArray> jsonElements = Optional.of(r.getAsJsonObject("app")).flatMap(jsonObject ->
+                        Optional.of(jsonObject.getAsJsonArray("tasks")));
+                return jsonElements.orElse(new JsonArray());
+            } catch (IOException e) {
+                throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Error while fetching " +
+                        "task info for service", e);
+            }
+        });
+
+        return taskInfo;
     }
 }
