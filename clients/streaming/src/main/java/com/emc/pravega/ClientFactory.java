@@ -38,8 +38,7 @@ import java.net.URI;
  * between multiple readers for scaling. In order to process events in parallel on different hosts
  * and still have some ordering guarentees; events written to a stream have a routingKey see
  * {@link EventStreamWriter#writeEvent(String, Object)}. Events within a routing key are strictly
- * ordered (i.e. They must go the the same reader or its replacement). For other events, within a
- * single reader, the ordering is dictated by {@link EventRead#getEventSequence()} However as
+ * ordered (i.e. They must go the the same reader or its replacement). However because
  * {@link ReaderGroup}s process events in parallel there is no ordering between different readers.
  * 
  * <p>
