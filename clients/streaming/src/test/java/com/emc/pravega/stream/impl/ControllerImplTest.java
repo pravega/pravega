@@ -42,6 +42,7 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
@@ -60,6 +61,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -115,10 +117,14 @@ public class ControllerImplTest {
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getStreamInfo().getStream().equals("streamparallel")) {
+
                     // Simulating delay in sending response.
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(200);
                     } catch (InterruptedException e) {
+                        log.error("Unexpected interrupt");
+                        responseObserver.onError(e);
+                        return;
                     }
                     responseObserver.onNext(CreateStreamStatus.newBuilder()
                                                     .setStatus(CreateStreamStatus.Status.SUCCESS)
@@ -202,10 +208,12 @@ public class ControllerImplTest {
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("streamparallel")) {
-                    // Simulating delay in sending response.
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(200);
                     } catch (InterruptedException e) {
+                        log.error("Unexpected interrupt");
+                        responseObserver.onError(e);
+                        return;
                     }
                     responseObserver.onNext(SegmentRanges.newBuilder()
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
@@ -843,8 +851,9 @@ public class ControllerImplTest {
     @Test
     public void testParallelCreateStream() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
-        Semaphore createCount = new Semaphore(-19);
-        for (int i = 0; i < 10; i++) {
+        Semaphore createCount = new Semaphore(-9);
+        AtomicInteger numSuccess = new AtomicInteger(0);
+        for (int i = 0; i < 5; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
                     try {
@@ -858,22 +867,28 @@ public class ControllerImplTest {
                                         .build());
                         assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
                         log.info("{}", createStreamStatus.get().getStatus());
+                        numSuccess.incrementAndGet();
                         createCount.release();
                     } catch (Exception e) {
+                        log.error("Exception when creating stream: {}", e);
+
+                        // Don't wait for other threads to complete.
+                        createCount.release(10);
                         assertFalse(true);
                     }
                 }
             });
         }
         createCount.acquire();
-        assertTrue(true);
+        assertEquals(numSuccess.get(), 10);
     }
 
     @Test
     public void testParallelGetCurrentSegments() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
-        Semaphore createCount = new Semaphore(-19);
-        for (int i = 0; i < 10; i++) {
+        Semaphore createCount = new Semaphore(-9);
+        AtomicInteger numSuccess = new AtomicInteger(0);
+        for (int i = 0; i < 5; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
                     try {
@@ -884,14 +899,19 @@ public class ControllerImplTest {
                                      streamSegments.get().getSegmentForKey(0.2));
                         assertEquals(new Segment("scope1", "streamparallel", 1),
                                      streamSegments.get().getSegmentForKey(0.6));
+                        numSuccess.incrementAndGet();
                         createCount.release();
                     } catch (Exception e) {
+                        log.error("Exception when getting segments: {}", e);
+
+                        // Don't wait for other threads to complete.
+                        createCount.release(10);
                         assertFalse(true);
                     }
                 }
             });
         }
         createCount.acquire();
-        assertTrue(true);
+        assertEquals(numSuccess.get(), 10);
     }
 }
