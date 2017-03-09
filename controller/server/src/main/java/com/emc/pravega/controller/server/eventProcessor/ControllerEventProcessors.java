@@ -11,9 +11,9 @@ import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
+import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
-import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -25,14 +25,15 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.AbstractService;
-import lombok.Lombok;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Lombok;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
 
 @Slf4j
 public class ControllerEventProcessors extends AbstractService {
@@ -49,6 +50,7 @@ public class ControllerEventProcessors extends AbstractService {
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
     private final SegmentHelper segmentHelper;
+    private final ConnectionFactory connectionFactory;
 
     private EventProcessorGroup<CommitEvent> commitEventEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventEventProcessors;
@@ -58,13 +60,15 @@ public class ControllerEventProcessors extends AbstractService {
                                      final CuratorFramework client,
                                      final StreamMetadataStore streamMetadataStore,
                                      final HostControllerStore hostControllerStore,
-                                     final SegmentHelper segmentHelper) {
+                                     final SegmentHelper segmentHelper,
+                                     final ConnectionFactory connectionFactory) {
         this.controller = controller;
         this.client = client;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        this.system = new EventProcessorSystemImpl("Controller", host, CONTROLLER_SCOPE, controller);
+        this.connectionFactory = connectionFactory;
+        this.system = new EventProcessorSystemImpl("Controller", host, CONTROLLER_SCOPE, controller, connectionFactory);
     }
 
     @Override
@@ -177,7 +181,7 @@ public class ControllerEventProcessors extends AbstractService {
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
-                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper))
+                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
         Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
@@ -217,7 +221,7 @@ public class ControllerEventProcessors extends AbstractService {
                         .config(abortReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(ABORT_EVENT_SERIALIZER)
-                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper))
+                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
         Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)

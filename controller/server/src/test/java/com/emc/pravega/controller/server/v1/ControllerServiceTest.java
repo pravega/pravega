@@ -21,6 +21,7 @@ import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
@@ -66,10 +67,11 @@ public class ControllerServiceTest {
         final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
-                taskMetadataStore, segmentHelper, executor, "host");
+                taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, executor, "host");
+                hostStore, taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
         TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,

@@ -257,7 +257,7 @@ public class SegmentHelper {
 
     public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy,
                                                 int segmentNumber, HostControllerStore hostControllerStore,
-                                                ConnectionFactoryImpl clientCF) {
+                                                ConnectionFactory clientCF) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 

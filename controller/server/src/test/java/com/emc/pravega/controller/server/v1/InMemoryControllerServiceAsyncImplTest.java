@@ -18,6 +18,7 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.io.IOException;
@@ -49,11 +50,12 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
         streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executorService, "host");
+                executorService, "host", connectionFactory);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
+                streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host", connectionFactory);
 
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 10000);
         controllerService = new ControllerServiceImpl(

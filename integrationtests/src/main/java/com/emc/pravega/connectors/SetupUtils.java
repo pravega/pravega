@@ -35,6 +35,7 @@ import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.net.InetAddress;
@@ -191,22 +192,27 @@ public final class SetupUtils {
 
         final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
         SegmentHelper segmentHelper = new SegmentHelper();
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(
-                streamStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId);
-
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId);
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore,
+                                                                          hostStore,
+                                                                          taskMetadataStore,
+                                                                          segmentHelper,
+                                                                          executor,
+                                                                          hostId,
+                                                                          connectionFactory);
+        StreamTransactionMetadataTasks metadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(metadataTasks, 100000, 100000);
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), Executors.newFixedThreadPool(10));
+                metadataTasks, timeoutService, new SegmentHelper(), Executors.newFixedThreadPool(10));
         GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
                 .port(Config.RPC_SERVER_PORT)
                 .build();
         new GRPCServer(controllerService, gRPCServerConfig).startAsync();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
-                streamTransactionMetadataTasks);
+                metadataTasks);
         log.info("Started Pravega Controller");
     }
 }

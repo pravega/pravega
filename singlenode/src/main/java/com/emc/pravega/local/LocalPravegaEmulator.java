@@ -34,6 +34,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
@@ -248,10 +249,11 @@ public class LocalPravegaEmulator implements AutoCloseable {
         //2. Start the RPC server.
         log.info("Starting RPC server");
         SegmentHelper segmentHelper = new SegmentHelper();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, controllerExecutor, hostId);
+                segmentHelper, controllerExecutor, hostId, connectionFactory);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId);
+                hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId, connectionFactory);
         TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 Config.MAX_LEASE_VALUE, Config.MAX_SCALE_GRACE_PERIOD);
 

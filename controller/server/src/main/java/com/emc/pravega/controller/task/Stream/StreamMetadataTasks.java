@@ -24,9 +24,7 @@ import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import lombok.extern.slf4j.Slf4j;
-
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -38,6 +36,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
@@ -55,29 +54,26 @@ public class StreamMetadataTasks extends TaskBase {
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
-    private final ConnectionFactoryImpl connectionFactory;
+    private final ConnectionFactory connectionFactory;
     private final SegmentHelper segmentHelper;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                               final HostControllerStore hostControllerStore,
-                               final TaskMetadataStore taskMetadataStore,
-                               final SegmentHelper segmentHelper,
-                               final ScheduledExecutorService executor,
-                               final String hostId) {
-        this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId));
+            final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
+            final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
+            ConnectionFactory connectionFactory) {
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
+             connectionFactory);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                final HostControllerStore hostControllerStore,
-                                final TaskMetadataStore taskMetadataStore,
-                                final SegmentHelper segmentHelper,
-                                final ScheduledExecutorService executor,
-                                final Context context) {
+            final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
+            final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
+            ConnectionFactory connectionFactory) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        connectionFactory = new ConnectionFactoryImpl(false);
+        this.connectionFactory = connectionFactory;
     }
 
     /**
@@ -422,6 +418,12 @@ public class StreamMetadataTasks extends TaskBase {
 
     @Override
     public TaskBase copyWithContext(Context context) {
-        return new StreamMetadataTasks(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, context);
+        return new StreamMetadataTasks(streamMetadataStore,
+                                       hostControllerStore,
+                                       taskMetadataStore,
+                                       segmentHelper,
+                                       executor,
+                                       context,
+                                       connectionFactory);
     }
 }

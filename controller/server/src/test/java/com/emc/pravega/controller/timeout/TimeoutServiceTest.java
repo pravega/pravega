@@ -29,6 +29,8 @@ import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -71,11 +73,10 @@ public class TimeoutServiceTest {
         private final StreamMetadataStore streamMetadataStore;
 
         public DummyStreamTransactionTasks(final StreamMetadataStore streamMetadataStore,
-                                           final HostControllerStore hostControllerStore,
-                                           final TaskMetadataStore taskMetadataStore,
-                                           final SegmentHelper segmentHelper,
-                                           final ScheduledExecutorService executor, String hostId) {
-            super(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, hostId);
+                final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
+                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
+                final ConnectionFactory connectionFactory) {
+            super(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory);
             this.streamMetadataStore = streamMetadataStore;
         }
 
@@ -159,10 +160,11 @@ public class TimeoutServiceTest {
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                new SegmentHelper(), executor, hostId);
+                new SegmentHelper(), executor, hostId, connectionFactory);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new DummyStreamTransactionTasks(streamStore,
-                hostStore, taskMetadataStore, new SegmentHelper(), executor, hostId);
+                hostStore, taskMetadataStore, new SegmentHelper(), executor, hostId, connectionFactory);
 
         // Create TimeoutService
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, Config.MAX_LEASE_VALUE,

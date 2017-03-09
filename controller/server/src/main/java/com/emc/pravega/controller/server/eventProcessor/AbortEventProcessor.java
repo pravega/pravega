@@ -31,18 +31,18 @@ import java.util.stream.Collectors;
 public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
-    private final ConnectionFactory connectionFactory;
     private final ScheduledExecutorService executor;
     private final SegmentHelper segmentHelper;
+    private final ConnectionFactory connectionFactory;
 
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore,
-                               final ScheduledExecutorService executor, SegmentHelper segmentHelper) {
+                               final ScheduledExecutorService executor, SegmentHelper segmentHelper, ConnectionFactory connectionFactory) {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
         this.executor = executor;
+        this.connectionFactory = connectionFactory;
     }
 
     @Override
