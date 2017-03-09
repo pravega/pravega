@@ -26,7 +26,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.AbstractService;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;

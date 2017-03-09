@@ -20,12 +20,10 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 public class SegmentHelper {
 
