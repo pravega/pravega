@@ -18,14 +18,8 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,6 +28,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import javax.annotation.ParametersAreNonnullByDefault;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
 import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
