@@ -3,13 +3,13 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.MetricsNames;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsLogger;
 import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.metrics.StatsProvider;
-import com.emc.pravega.controller.server.MetricNames;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
@@ -36,11 +36,11 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
-import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
-import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
-import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
-import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
+import static com.emc.pravega.common.MetricsNames.ABORT_TRANSACTION;
+import static com.emc.pravega.common.MetricsNames.COMMIT_TRANSACTION;
+import static com.emc.pravega.common.MetricsNames.CREATE_TRANSACTION;
+import static com.emc.pravega.common.MetricsNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.common.MetricsNames.nameFromStream;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
@@ -54,9 +54,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("Controller");
-    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricNames.CREATE_STREAM);
-    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricNames.SEAL_STREAM);
+    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("controller");
+    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
+    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;

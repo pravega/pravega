@@ -50,9 +50,9 @@ import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_BYTES;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_LATENCY;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
+import static com.emc.pravega.common.MetricsNames.SEGMENT_WRITE_BYTES;
+import static com.emc.pravega.common.MetricsNames.SEGMENT_WRITE_LATENCY;
+import static com.emc.pravega.common.MetricsNames.nameFromSegment;
 
 /**
  * Process incoming Append requests and write them to the appropriate store.
