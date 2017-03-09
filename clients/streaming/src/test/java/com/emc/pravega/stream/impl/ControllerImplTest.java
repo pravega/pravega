@@ -227,18 +227,15 @@ public class ControllerImplTest {
             @Override
             public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
+                    SegmentId segment1 = ModelHelper.createSegmentId("scope1", "stream1", 0);
+                    SegmentId segment2 = ModelHelper.createSegmentId("scope1", "stream1", 1);
                     responseObserver.onNext(SegmentsAtTime.newBuilder()
                                                           .addSegments(SegmentLocation.newBuilder()
-                                                                                      .setSegmentId(ModelHelper.createSegmentId("scope1",
-                                                                                                                                "stream1",
-                                                                                                                                0))
+                                                                                      .setSegmentId(segment1)
                                                                                       .setOffset(10)
                                                                                       .build())
-
                                                           .addSegments(SegmentLocation.newBuilder()
-                                                                                      .setSegmentId(ModelHelper.createSegmentId("scope1",
-                                                                                                                                "stream1",
-                                                                                                                                1))
+                                                                                      .setSegmentId(segment2)
                                                                                       .setOffset(20)
                                                                                       .build())
                                                           .build());
