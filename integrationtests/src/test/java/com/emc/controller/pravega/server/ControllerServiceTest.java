@@ -1,0 +1,295 @@
+package com.emc.controller.pravega.server;
+
+import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import com.emc.pravega.demo.ControllerWrapper;
+import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.store.ServiceBuilder;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.StreamImpl;
+import com.emc.pravega.stream.impl.StreamSegments;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import lombok.Cleanup;
+import org.apache.curator.test.TestingServer;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+public class ControllerServiceTest {
+
+    @Test
+    public void testControllerService() throws Exception {
+        @Cleanup
+        TestingServer zkTestServer = new TestingServer();
+        @Cleanup
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize().get();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
+        server.startListening();
+        
+        @Cleanup
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
+        Controller controller = controllerWrapper.getController();
+
+        final String scope1 = "scope1";
+        final String scope2 = "scope2";
+        controllerWrapper.getControllerService().createScope("scope1").get();
+        controllerWrapper.getControllerService().createScope("scope2").get();
+
+        final String streamName1 = "stream1";
+        final String streamName2 = "stream2";
+        final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
+        final StreamConfiguration config1 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(streamName1)
+                .scalingPolicy(scalingPolicy)
+                .build();
+        final StreamConfiguration config2 = StreamConfiguration.builder()
+                .scope(scope2)
+                .streamName(streamName1)
+                .scalingPolicy(scalingPolicy)
+                .build();
+        final StreamConfiguration config3 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(streamName2)
+                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3))
+                .build();
+        
+
+        createAStream(controller, config1);
+        //Same name in different scope
+        createAStream(controller, config2);
+        //Different name in same scope
+        createAStream(controller, config3);
+        
+        final String scopeSeal = "scopeSeal";
+        final String streamNameSeal = "streamSeal";
+        sealAStream(controllerWrapper, controller, scalingPolicy, scopeSeal, streamNameSeal);
+        
+        sealASealedStream(controller, scopeSeal, streamNameSeal);
+ 
+        sealNonExistantStream(controller, scopeSeal);
+
+        streamDuplicationNotAllowed(controller, config1);
+       
+        //update stream config section
+
+        updateStreamName(controller, scope1, scalingPolicy);
+
+        updateScalingPolicy(controller, scope1, streamName1);
+
+        updateTargetRate(controller, scope1, streamName1);
+
+        updateScaleFactor(controller, scope1, streamName1);
+
+        updataMinSegmentes(controller, scope1, streamName1);
+
+
+        alterConfigOfNonExistantStream(controller);
+
+        //get currently active segments
+
+        getActiveSegments(controller, scope1, streamName1);
+
+        getActiveSegmentsForNonExistentStream(controller);
+
+        //get positions at a given time stamp
+
+        getSegmentsAtTime(controller, scope1, streamName1);
+        getSegmentsAtTime(controller, scope1, streamName2);
+
+        getSegmentsForNonExistentStream(controller);
+        
+        getSegmentsBeforeCreation(controller, scope1, streamName1);
+
+        getSegmentsAfterCreation(controller, scope1, streamName1);
+
+    }
+
+    private static void getSegmentsAfterCreation(Controller controller, final String scope,
+                                                 final String streamName) throws InterruptedException,
+                                                                           ExecutionException {
+        CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(new StreamImpl(scope, streamName), System.currentTimeMillis() + 3600);
+        assertFalse("FAILURE: Fetching positions at given time in furture after stream creation failed", segments.get().isEmpty());
+    }
+
+    private static void getSegmentsBeforeCreation(Controller controller, final String scope,
+                                                  final String streamName) throws InterruptedException,
+                                                                            ExecutionException {
+        CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(new StreamImpl(scope, streamName), System.currentTimeMillis() - 36000);
+        assertFalse("FAILURE: Fetching positions at given time before stream creation failed", segments.get().size() != controller.getCurrentSegments(scope, streamName).get().getSegments().size());
+       
+    }
+
+    private static void getSegmentsForNonExistentStream(Controller controller) throws InterruptedException {
+        Stream stream = new StreamImpl("scope", "streamName");
+        try {
+            CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(stream, System.currentTimeMillis());
+            assertTrue("FAILURE: Fetching positions for non existent stream", segments.get().isEmpty());
+            
+            System.err.println("SUCCESS: Positions cannot be fetched for non existent stream");
+        } catch (ExecutionException | CompletionException e) {
+            assertTrue("FAILURE: Fetching positions for non existent stream", (e.getCause() instanceof DataNotFoundException));
+            
+            System.err.println("SUCCESS: Positions cannot be fetched for non existent stream");
+        }
+    }
+
+    private static void getSegmentsAtTime(Controller controller, final String scope,
+                                            final String streamName) throws InterruptedException, ExecutionException {
+        CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(new StreamImpl(scope, streamName), System.currentTimeMillis());
+        assertFalse("FAILURE: Fetching positions at given time stamp failed", segments.get().isEmpty());
+        
+    }
+
+    private static void getActiveSegmentsForNonExistentStream(Controller controller) throws InterruptedException {
+        try {
+            CompletableFuture<StreamSegments> getActiveSegments = controller.getCurrentSegments("scope", "streamName");
+            assertTrue("FAILURE: Fetching active segments for non existent stream", getActiveSegments.get().getSegments().isEmpty());
+        } catch (ExecutionException | CompletionException e) {
+            assertTrue("FAILURE: Fetching active segments for non existent stream", (e.getCause() instanceof DataNotFoundException));
+        }
+    }
+
+    private static void getActiveSegments(Controller controller, final String scope,
+                                          final String streamName) throws InterruptedException, ExecutionException {
+        CompletableFuture<StreamSegments> getActiveSegments = controller.getCurrentSegments(scope, streamName);
+        assertFalse("FAILURE: Fetching active segments failed", getActiveSegments.get().getSegments().isEmpty());
+        
+    }
+
+    private static void alterConfigOfNonExistantStream(Controller controller) throws InterruptedException,
+                                                                              ExecutionException {
+        final StreamConfiguration config = StreamConfiguration.builder()
+                .scope("scope")
+                .streamName("streamName")
+                .scalingPolicy(new ScalingPolicy(
+                        ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
+                        200, 2, 3))
+                .build();
+        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(config);
+        assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStatus.get().getStatus());
+    }
+
+    private static void updataMinSegmentes(Controller controller, final String scope,
+                                           final String streamName) throws InterruptedException, ExecutionException {
+        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
+                .scope(scope)
+                .streamName(streamName)
+                .scalingPolicy(new ScalingPolicy(
+                        ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
+                        100, 2, 3))
+                .build());
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
+    }
+
+    private static void updateScaleFactor(Controller controller, final String scope,
+                                          final String streamName) throws InterruptedException, ExecutionException {
+        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
+                .scope(scope)
+                .streamName(streamName)
+                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
+                        100, 3, 2))
+                .build());
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
+    }
+
+    private static void updateTargetRate(Controller controller, final String scope,
+                                         final String streamName) throws InterruptedException, ExecutionException {
+        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
+                .scope(scope)
+                .streamName(streamName)
+                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
+                        200, 2, 2))
+                .build());
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
+    }
+
+    private static void updateScalingPolicy(Controller controller, final String scope,
+                                            final String streamName) throws InterruptedException, ExecutionException {
+        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
+                .scope(scope)
+                .streamName(streamName)
+                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_KBYTES_PER_SEC, 100, 2, 2))
+                .build());
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
+    }
+
+    private static void updateStreamName(Controller controller, final String scope,
+                                         final ScalingPolicy scalingPolicy) throws InterruptedException,
+                                                                            ExecutionException {
+        CompletableFuture<UpdateStreamStatus> updateStatus;
+        updateStatus = controller.alterStream(StreamConfiguration.builder()
+                .scope(scope)
+                .streamName("stream4")
+                .scalingPolicy(scalingPolicy)
+                .build());
+        assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStatus.get().getStatus());
+    }
+
+    private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
+                                   final ScalingPolicy scalingPolicy, final String scopeSeal,
+                                   final String streamNameSeal) throws InterruptedException, ExecutionException {
+        controllerWrapper.getControllerService().createScope("scopeSeal").get();
+
+        final StreamConfiguration configSeal = StreamConfiguration.builder()
+                .scope(scopeSeal)
+                .streamName(streamNameSeal)
+                .scalingPolicy(scalingPolicy)
+                .build();
+        CreateStreamStatus createStream3Status = controller.createStream(configSeal).get();
+        assertEquals(CreateStreamStatus.Status.SUCCESS,  createStream3Status.getStatus());
+
+        @SuppressWarnings("unused")
+        StreamSegments result = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
+        UpdateStreamStatus sealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, sealStatus.getStatus());
+
+        StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
+        assertTrue("FAILURE: No active segments should be present in a sealed stream", currentSegs.getSegments().isEmpty());
+        
+    }
+
+    private static void createAStream(Controller controller, final StreamConfiguration config) throws InterruptedException,
+                                                                         ExecutionException {
+        CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
+        assertEquals(CreateStreamStatus.Status.SUCCESS, createStatus.get().getStatus());
+    }
+
+    private static void sealNonExistantStream(Controller controller,
+                                              final String scopeSeal) throws InterruptedException, ExecutionException {
+        UpdateStreamStatus errSealStatus = controller.sealStream(scopeSeal, "nonExistentStream").get();
+        assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, errSealStatus.getStatus());
+    }
+
+    private static void streamDuplicationNotAllowed(Controller controller, final StreamConfiguration config) throws InterruptedException,
+                                                                                       ExecutionException {
+        CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
+        assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, createStatus.get().getStatus());
+    }
+
+    private static void sealASealedStream(Controller controller, final String scopeSeal,
+                                          final String streamNameSeal) throws InterruptedException, ExecutionException {
+        UpdateStreamStatus reSealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, reSealStatus.getStatus());
+
+        StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
+        assertTrue("FAILURE: No active segments should be present in a sealed stream", currentSegs.getSegments().isEmpty());
+        
+    }
+
+}
