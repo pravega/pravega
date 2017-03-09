@@ -201,7 +201,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     private void failAllInflight(Exception e) {
-        log.info("Connection failed due to a {}. Read requests will be retransmitted.", e.getMessage());
+        log.info("Connection failed due to a {}. Read requests will be retransmitted.", e.toString());
         for (ReadFutureImpl read : outstandingRequests.values()) {
             read.completeExceptionally(e);
         }
