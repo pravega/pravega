@@ -68,7 +68,7 @@ public class EventProcessorTest {
 
         @Override
         protected void process(TestEvent event) {
-            if (event == null) {
+            if (event.getNumber() < 0) {
                 throw new RuntimeException();
             } else {
                 int val = event.getNumber();
@@ -137,7 +137,7 @@ public class EventProcessorTest {
         }
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testEventProcessorCell() throws CheckpointStoreException, ReinitializationRequiredException {
         CheckpointStore checkpointStore = new InMemoryCheckpointStore();
 
@@ -169,7 +169,7 @@ public class EventProcessorTest {
         for (int i = 0; i < input.length; i++) {
             inputEvents.add(new MockEventRead<>(i, new TestEvent(input[i])));
         }
-        inputEvents.add(new MockEventRead<>(input.length, null));
+        inputEvents.add(new MockEventRead<>(input.length, new TestEvent(-1)));
 
         EventProcessorSystem system = Mockito.mock(EventProcessorSystem.class);
         Mockito.when(system.getProcess()).thenReturn(PROCESS);
@@ -220,6 +220,7 @@ public class EventProcessorTest {
                                     final String readerId,
                                     final CheckpointStore checkpointStore,
                                     final int expectedSum) throws CheckpointStoreException {
+        checkpointStore.addReader(PROCESS, READER_GROUP, readerId);
         EventProcessorCell<TestEvent> cell =
                 new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(), readerId, checkpointStore);
 
