@@ -136,9 +136,10 @@ public class PravegaTest {
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
+     * @throws ReinitializationRequiredException, if error in reading next event
      */
     @Test
-    public void simpleTest() throws InterruptedException, URISyntaxException {
+    public void simpleTest() throws InterruptedException, URISyntaxException, ReinitializationRequiredException {
 
         Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
@@ -166,12 +167,7 @@ public class PravegaTest {
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
         for (int i = 0; i < 100; i++) {
-            String event = null;
-            try {
-                event = reader.readNextEvent(6000).getEvent();
-            } catch (ReinitializationRequiredException e) {
-                log.debug("error in reading next event {}", e);
-            }
+            String event = reader.readNextEvent(6000).getEvent();
             log.debug("Read event: {} ", event);
         }
         reader.close();
