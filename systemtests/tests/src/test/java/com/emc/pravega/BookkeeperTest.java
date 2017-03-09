@@ -26,11 +26,11 @@ public class BookkeeperTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
+        Service zk = new ZookeeperService("zookeeper", 1, 1.0, 3072.0);
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0), 3, 0.5, 512.0);
+        Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0), 3, 0.1, 1024.0);
         if (!bk.isRunning()) {
             bk.start(true);
         }

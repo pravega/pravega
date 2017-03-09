@@ -6,6 +6,7 @@ package com.emc.pravega;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.BookkeeperService;
+import com.emc.pravega.framework.services.PravegaControllerService;
 import com.emc.pravega.framework.services.PravegaSegmentStoreService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
@@ -28,15 +29,19 @@ public class PravegaSegmentStoreTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
+        Service zk = new ZookeeperService("zookeeper", 1, 1.0, 3072.0);
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0), 3, 0.5, 512.0);
+        Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0), 3, 0.1, 1024.0);
         if (!bk.isRunning()) {
             bk.start(true);
         }
-       Service seg = new PravegaSegmentStoreService("segmentstore", zk.getServiceDetails().get(0), 1, 1.0, 512.0);
+        Service con = new PravegaControllerService("controller", zk.getServiceDetails().get(0),  1, 0.1, 700.0);
+        if (!con.isRunning()) {
+            con.start(true);
+        }
+        Service seg = new PravegaSegmentStoreService("segmentstore", zk.getServiceDetails().get(0), con.getServiceDetails().get(0), 1, 0.1, 1000.0);
         if (!seg.isRunning()) {
             seg.start(true);
         }
@@ -50,7 +55,7 @@ public class PravegaSegmentStoreTest {
     @Test
     public void segmentStoreTest() {
         log.debug("Start execution of segmentStoreTest");
-        Service seg = new PravegaSegmentStoreService("segmentstore", null, 0, 0.0, 0.0);
+        Service seg = new PravegaSegmentStoreService("segmentstore", null, null,  0, 0.0, 0.0);
         List<URI> segUri = seg.getServiceDetails();
         log.debug("Pravega SegmentStore Service URI details: {} ", segUri);
         for (int i = 0; i < segUri.size(); i++) {

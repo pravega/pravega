@@ -55,7 +55,7 @@ public class PravegaTest {
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
+        Service zkService = new ZookeeperService("zookeeper", 1, 1.0, 3072.0);
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -65,7 +65,7 @@ public class PravegaTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri, 3, 0.5, 512.0);
+        Service bkService = new BookkeeperService("bookkeeper", zkUri, 3, 0.1, 1024.0);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -74,7 +74,7 @@ public class PravegaTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri, 1, 0.1, 256);
+        Service conService = new PravegaControllerService("controller", zkUri, 1, 0.1, 700);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -83,7 +83,7 @@ public class PravegaTest {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, 1, 1, 512.0);
+        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0), 1, 0.1, 1000.0);
         if (!segService.isRunning()) {
             segService.start(true);
         }
