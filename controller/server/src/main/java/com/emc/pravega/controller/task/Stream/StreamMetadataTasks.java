@@ -153,45 +153,44 @@ public class StreamMetadataTasks extends TaskBase {
         if (!validateName(stream)) {
             log.debug("Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(CreateStreamStatus.Status.INVALID_STREAM_NAME);
-        } else {
-            return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
-                    .thenComposeAsync(created -> {
-                        log.debug("{}/{} created in metadata store", scope, stream);
-                        if (created) {
-                            List<Integer> newSegments = IntStream.range(0, config.getScalingPolicy().getMinNumSegments()).boxed().collect(Collectors.toList());
-                            return notifyNewSegments(config.getScope(), stream, config, newSegments)
-                                    .thenApply(y -> CreateStreamStatus.Status.SUCCESS);
-                        } else {
-                            return CompletableFuture.completedFuture(CreateStreamStatus.Status.FAILURE);
-                        }
-                    }, executor)
-                    .thenCompose(status -> {
-                        if (status == CreateStreamStatus.Status.FAILURE) {
-                            return CompletableFuture.completedFuture(status);
-                        } else {
-                            final OperationContext context = streamMetadataStore.createContext(scope, stream);
-
-                            return withRetries(() -> streamMetadataStore.setState(scope,
-                                    stream, State.ACTIVE, context, executor), executor)
-                                    .thenApply(v -> status);
-                        }
-                    })
-                    .handle((result, ex) -> {
-                        if (ex != null) {
-                            Throwable cause = ExceptionHelpers.getRealException(ex);
-                            if (cause instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
-                                return CreateStreamStatus.Status.STREAM_EXISTS;
-                            } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
-                                return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
-                            } else {
-                                log.warn("Create stream failed due to ", ex);
-                                return CreateStreamStatus.Status.FAILURE;
-                            }
-                        } else {
-                            return result;
-                        }
-                    });
         }
+        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
+                .thenComposeAsync(created -> {
+                    log.debug("{}/{} created in metadata store", scope, stream);
+                    if (created) {
+                        List<Integer> newSegments = IntStream.range(0, config.getScalingPolicy().getMinNumSegments()).boxed().collect(Collectors.toList());
+                        return notifyNewSegments(config.getScope(), stream, config, newSegments)
+                                .thenApply(y -> CreateStreamStatus.Status.SUCCESS);
+                    } else {
+                        return CompletableFuture.completedFuture(CreateStreamStatus.Status.FAILURE);
+                    }
+                }, executor)
+                .thenCompose(status -> {
+                    if (status == CreateStreamStatus.Status.FAILURE) {
+                        return CompletableFuture.completedFuture(status);
+                    } else {
+                        final OperationContext context = streamMetadataStore.createContext(scope, stream);
+
+                        return withRetries(() -> streamMetadataStore.setState(scope,
+                                stream, State.ACTIVE, context, executor), executor)
+                                .thenApply(v -> status);
+                    }
+                })
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        Throwable cause = ExceptionHelpers.getRealException(ex);
+                        if (cause instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                            return CreateStreamStatus.Status.STREAM_EXISTS;
+                        } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
+                            return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
+                        } else {
+                            log.warn("Create stream failed due to ", ex);
+                            return CreateStreamStatus.Status.FAILURE;
+                        }
+                    } else {
+                        return result;
+                    }
+                });
     }
 
     private static boolean validateName(final String path) {
