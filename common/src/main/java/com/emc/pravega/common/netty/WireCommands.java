@@ -283,7 +283,7 @@ public final class WireCommands {
 
         AppendBlock(UUID connectionId) {
             this.connectionId = connectionId;
-            this.data = null; // Populated on read path
+            this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
         }
 
         AppendBlock(UUID connectionId, ByteBuf data) {
