@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,19 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     ZKScope newScope(final String scopeName) {
         return new ZKScope(scopeName, storeHelper);
+    }
+
+    @Override
+    public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
+        return storeHelper.checkExists(String.format("/store/%s", scopeName))
+                .thenApply(scopeExists -> {
+                    if (scopeExists) {
+                        return scopeName;
+                    } else {
+                        FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND, "/store/%s"));
+                        return null;
+                    }
+                });
     }
 
     @Override

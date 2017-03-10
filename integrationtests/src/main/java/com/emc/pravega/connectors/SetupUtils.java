@@ -6,10 +6,10 @@ package com.emc.pravega.connectors;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -23,6 +23,7 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -55,11 +56,12 @@ import org.apache.curator.test.TestingServer;
  */
 @Slf4j
 public final class SetupUtils {
-    // The controller endpoint.
-    public static final URI CONTROLLER_URI = URI.create("tcp://localhost:9090");
-
     // The pravega service listening port.
     private static final int SERVICE_PORT = 12345;
+    private static final int RPC_PORT = 9090;
+
+    // The controller endpoint.
+    public static final URI CONTROLLER_URI = URI.create("tcp://localhost:" + RPC_PORT);
 
     /**
      * Start all pravega related services required for the test deployment.
@@ -198,7 +200,10 @@ public final class SetupUtils {
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), Executors.newFixedThreadPool(10));
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+                .port(Config.RPC_SERVER_PORT)
+                .build();
+        new GRPCServer(controllerService, gRPCServerConfig).startAsync();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);

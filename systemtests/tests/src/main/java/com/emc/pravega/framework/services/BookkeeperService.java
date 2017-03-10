@@ -41,6 +41,7 @@ public class BookkeeperService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
+        deleteApp("/pravega/bookkeeper");
         log.info("Starting Bookkeeper Service: {}", getID());
         try {
             marathonClient.createApp(createBookieApp());

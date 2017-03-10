@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
@@ -30,6 +28,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -242,10 +241,10 @@ public class DurableLog extends AbstractService implements OperationLog {
         } else {
             // Register a tail read and return the future for it.
             CompletableFuture<Iterator<Operation>> result = null;
-            long metadataSeqNo;
+            Operation lastOp;
             synchronized (this.tailReads) {
-                metadataSeqNo = this.metadata.getOperationSequenceNumber();
-                if (metadataSeqNo <= afterSequenceNumber) {
+                lastOp = this.inMemoryOperationLog.getLast();
+                if (lastOp == null || lastOp.getSequenceNumber() <= afterSequenceNumber) {
                     // We cannot fulfill this at this moment; let it be triggered when we do get a new operation.
                     TailRead tailRead = new TailRead(afterSequenceNumber, maxCount, timeout, this.executor);
                     result = tailRead.future;
@@ -258,7 +257,9 @@ public class DurableLog extends AbstractService implements OperationLog {
                 // If we get here, it means that we have since received an operation (after the original call, but before
                 // entering the synchronized block above); re-issue the read and return the result.
                 logReadResult = this.inMemoryOperationLog.read(afterSequenceNumber, maxCount);
-                assert logReadResult.hasNext() : String.format("Unable to read anything after SeqNo %d, even though metadata indicates SeqNo == %d", afterSequenceNumber, metadataSeqNo);
+                assert logReadResult.hasNext() :
+                        String.format("Unable to read anything after SeqNo %d, even though last operation SeqNo == %d",
+                                afterSequenceNumber, lastOp == null ? -1 : lastOp.getSequenceNumber());
                 result = CompletableFuture.completedFuture(logReadResult);
             }
 
@@ -459,16 +460,21 @@ public class DurableLog extends AbstractService implements OperationLog {
     private void triggerTailReads() {
         this.executor.execute(() -> {
             // Gather all the eligible tail reads.
-            long seqNo = this.metadata.getOperationSequenceNumber();
             List<TailRead> toTrigger;
             synchronized (this.tailReads) {
-                toTrigger = this.tailReads.stream().filter(e -> e.afterSequenceNumber < seqNo).collect(Collectors.toList());
+                Operation lastOp = this.inMemoryOperationLog.getLast();
+                if (lastOp != null) {
+                    long seqNo = lastOp.getSequenceNumber();
+                    toTrigger = this.tailReads.stream().filter(e -> e.afterSequenceNumber < seqNo).collect(Collectors.toList());
+                } else {
+                    toTrigger = Collections.emptyList();
+                }
             }
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
                 tr.future.complete(FutureHelpers.runOrFail(() -> {
-                    return this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);                    
+                    return this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);
                 }, tr.future));
             }
         });

@@ -7,7 +7,7 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
 import com.emc.pravega.controller.requests.ScaleRequest;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
