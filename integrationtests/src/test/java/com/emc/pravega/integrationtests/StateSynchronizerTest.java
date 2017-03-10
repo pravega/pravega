@@ -163,34 +163,34 @@ public class StateSynchronizerTest {
 
     @Test//(timeout = 10000)
     public void testSetSynchronizer() {
-        for (int i=0; i < 10;i++) {
-        String endpoint = "localhost";
-        String stateName = "abc";
-        int port = TestUtils.randomPort();
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
-        server.startListening();
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createStream(stateName, null);
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
+        for (int i = 0; i < 10; i++) {
+            String endpoint = "localhost";
+            String stateName = "abc";
+            int port = TestUtils.randomPort();
+            StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+            @Cleanup
+            PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+            server.startListening();
+            @Cleanup
+            MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+            streamManager.createStream(stateName, null);
+            SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
+            SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
 
-        setA.add("foo");
-        assertEquals(1, setA.getCurrentSize());
-        assertTrue(setA.getCurrentValues().contains("foo"));
-        setB.update();
-        assertEquals(1, setB.getCurrentSize());
-        assertTrue(setB.getCurrentValues().contains("foo"));
-        setA.add("bar");
-        assertEquals(1, setB.getCurrentSize());
-        assertTrue(setB.getCurrentValues().contains("foo"));
-        setB.update();
-        assertEquals(2, setB.getCurrentSize());
-        assertTrue(setB.getCurrentValues().contains("bar"));
-        setA.clear();
+            setA.add("foo");
+            assertEquals(1, setA.getCurrentSize());
+            assertTrue(setA.getCurrentValues().contains("foo"));
+            setB.update();
+            assertEquals(1, setB.getCurrentSize());
+            assertTrue(setB.getCurrentValues().contains("foo"));
+            setA.add("bar");
+            assertEquals(1, setB.getCurrentSize());
+            assertTrue(setB.getCurrentValues().contains("foo"));
+            setB.update();
+            assertEquals(2, setB.getCurrentSize());
+            assertTrue(setB.getCurrentValues().contains("bar"));
+            setA.clear();
         }
     }
-    
+
 }

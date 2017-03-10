@@ -19,6 +19,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,7 +35,8 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * The Object to by synchronized.
      */
-    @Data
+    @RequiredArgsConstructor
+    @EqualsAndHashCode(callSuper=false)
     private static class UpdatableSet<T> implements Revisioned, Serializable {
         private static final long serialVersionUID = 1L;
         private final String streamName;
@@ -79,7 +82,8 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Add an item to the set.
      */
-    @Data
+    @RequiredArgsConstructor
+    @EqualsAndHashCode(callSuper=false)
     private static class AddToSet<T> extends SetUpdate<T> {
         private static final long serialVersionUID = 1L;
         private final T value;
@@ -93,7 +97,8 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Remove an item from the set.
      */
-    @Data
+    @RequiredArgsConstructor
+    @EqualsAndHashCode(callSuper=false)
     private static class RemoveFromSet<T> extends SetUpdate<T> {
         private static final long serialVersionUID = 1L;
         private final T value;
@@ -107,7 +112,7 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Clear the set.
      */
-    @Data
+    @EqualsAndHashCode(callSuper=false)
     private static class ClearSet<T> extends SetUpdate<T> {
         private static final long serialVersionUID = 1L;
 
