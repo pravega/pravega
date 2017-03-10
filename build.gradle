@@ -284,7 +284,8 @@ project('service:server:host') {
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
 
-    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-Xmx900m", "-XX:+HeapDumpOnOutOfMemoryError",
+    def MAX_MEMORY = System.properties['MAX_MEMORY'] ? System.properties['MAX_MEMORY'].toString() : "900m"
+    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-Xmx${MAX_MEMORY}", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlogback.configurationFile=SERVER_APP_HOME/config/logback.xml"]
 
     applicationDistribution.from('src/config') {
