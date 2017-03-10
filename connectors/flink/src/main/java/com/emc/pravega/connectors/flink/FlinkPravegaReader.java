@@ -19,6 +19,7 @@ import java.io.Serializable;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import lombok.extern.slf4j.Slf4j;
@@ -85,7 +86,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
         this.controllerURI = controllerURI;
         this.scopeName = scope;
         this.deserializationSchema = deserializationSchema;
-        this.readerGroupName = "flink" + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
+        this.readerGroupName = "flink" + RandomStringUtils.randomAlphanumeric(20).toLowerCase();
 
         // TODO: This will require the client to have access to the pravega controller and handle any temporary errors.
         //       See https://github.com/pravega/pravega/issues/553.
@@ -138,7 +139,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
                 }
             }
         };
-        this.readerId = "flink-reader-" + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
+        this.readerId = "flink-reader-" + UUID.randomUUID();
         this.pravegaReader = ClientFactory.withScope(this.scopeName, this.controllerURI)
                 .createReader(this.readerId, this.readerGroupName, deserializer, ReaderConfig.builder().build());
 
