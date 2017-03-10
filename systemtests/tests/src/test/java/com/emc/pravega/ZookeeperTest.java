@@ -29,7 +29,7 @@ public class ZookeeperTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
+        Service zk = new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
