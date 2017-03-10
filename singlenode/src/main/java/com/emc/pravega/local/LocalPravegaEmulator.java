@@ -37,11 +37,36 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
     public static void main(String[] args) {
         try {
-            if (args.length < 3) {
-                System.out.println("Usage: LocalPravegaEmulator <zk_port> <controller_port> <host_port>");
+            if (args.length < 4) {
+                log.warn("Usage: LocalPravegaEmulator <run_only_bookkeeper> <zk_port> <controller_port> <host_port>");
                 System.exit(-1);
             }
 
+            boolean runOnlyBookkeeper = Boolean.parseBoolean(args[0]);
+            int zkPort = Integer.parseInt(args[1]);
+
+            if (runOnlyBookkeeper) {
+                final LocalDLMEmulator localDlm = LocalDLMEmulator.newBuilder().zkPort(zkPort).numBookies(NUM_BOOKIES)
+                        .build();
+                Runtime.getRuntime().addShutdownHook(new Thread() {
+                    @Override
+                    public void run() {
+                        try {
+                            localDlm.teardown();
+                            log.info("Shutting down bookkeeper");
+                        } catch (Exception e) {
+                            // do nothing
+                            log.warn("Exception shutting down local bookkeeper emulator: " + e.getMessage());
+                        }
+                    }
+                });
+                localDlm.start();
+                log.info("Started Bookkeeper Emulator");
+                return;
+            }
+
+            final int controllerPort = Integer.parseInt(args[2]);
+            final int hostPort = Integer.parseInt(args[3]);
             final int zkPort = Integer.parseInt(args[0]);
             final int controllerPort = Integer.parseInt(args[1]);
             final int hostPort = Integer.parseInt(args[2]);
