@@ -145,6 +145,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return verifyLegalState(getSegmentRow(number));
     }
 
+    @Override
+    public CompletableFuture<Integer> getSegmentCount() {
+        return verifyLegalState(getHistoryTable().thenApply(x -> TableHelper.getSegmentCount(x.getData())));
+    }
+
     /**
      * Given segment number, find its successor candidates and then compute overlaps with its keyrange
      * to find successors.

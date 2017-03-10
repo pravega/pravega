@@ -115,6 +115,11 @@ class InMemoryStream implements Stream {
     }
 
     @Override
+    public synchronized CompletableFuture<Integer> getSegmentCount() {
+        return CompletableFuture.completedFuture(segments.size());
+    }
+
+    @Override
     public CompletableFuture<List<Integer>> getSuccessors(int number) {
         return CompletableFuture.completedFuture(segments.get(number).getSuccessors());
     }

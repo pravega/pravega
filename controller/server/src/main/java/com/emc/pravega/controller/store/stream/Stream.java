@@ -90,6 +90,13 @@ interface Stream {
     CompletableFuture<Segment> getSegment(final int number);
 
     /**
+     * Returns the total number segments in the stream.
+     *
+     * @return total number of segments in the stream.
+     */
+    CompletableFuture<Integer> getSegmentCount();
+
+    /**
      * @param number segment number.
      * @return successors of specified segment.
      */

@@ -33,7 +33,6 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -289,24 +288,20 @@ public class StreamMetadataTasks extends TaskBase {
                         return CompletableFuture.completedFuture(DeleteStreamStatus.Status.STREAM_NOT_SEALED);
                     }
                     return withRetries(
-                            () -> streamMetadataStore.getActiveSegments(scope, stream, System.currentTimeMillis(),
-                                    contextOpt, executor), executor)
-                            .thenCompose(segmentFutures -> {
-                                Optional<Integer> numSegments =
-                                        segmentFutures.getCurrent().stream().max(Integer::compare);
-                                return notifyDeleteSegments(scope, stream, numSegments)
-                                        .thenCompose(x -> withRetries(() ->
-                                                streamMetadataStore.deleteStream(scope, stream, contextOpt,
-                                                        executor), executor))
-                                        .handle((result, ex) -> {
-                                            if (ex != null) {
-                                                log.warn("Exception thrown while deleting stream", ex.getMessage());
-                                                return handleDeleteStreamError(ex);
-                                            } else {
-                                                return DeleteStreamStatus.Status.SUCCESS;
-                                            }
-                                        });
-                            });
+                            () -> streamMetadataStore.getSegmentCount(scope, stream, contextOpt, executor), executor)
+                            .thenCompose(count ->
+                                    notifyDeleteSegments(scope, stream, count)
+                                            .thenCompose(x -> withRetries(() ->
+                                            streamMetadataStore.deleteStream(scope, stream, contextOpt,
+                                                    executor), executor))
+                                            .handle((result, ex) -> {
+                                                if (ex != null) {
+                                                    log.warn("Exception thrown while deleting stream", ex.getMessage());
+                                                    return handleDeleteStreamError(ex);
+                                                } else {
+                                                    return DeleteStreamStatus.Status.SUCCESS;
+                                                }
+                                            }));
                 }).exceptionally(this::handleDeleteStreamError);
     }
 
@@ -411,11 +406,8 @@ public class StreamMetadataTasks extends TaskBase {
                 stream, segmentNumber, policy, hostControllerStore, this.connectionFactory), executor));
     }
 
-    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Optional<Integer> numSegments) {
-        if (!numSegments.isPresent()) {
-            return CompletableFuture.completedFuture(null);
-        }
-        return FutureHelpers.toVoid(FutureHelpers.allOfWithResults(IntStream.range(0, numSegments.get())
+    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, int count) {
+        return FutureHelpers.toVoid(FutureHelpers.allOfWithResults(IntStream.range(0, count)
                 .parallel()
                 .mapToObj(segment -> notifyDeleteSegment(scope, stream, segment))
                 .collect(Collectors.toList())));

@@ -213,16 +213,6 @@ public class ControllerImplTest {
                             .setStatus(DeleteStreamStatus.Status.STREAM_NOT_SEALED)
                             .build());
                     responseObserver.onCompleted();
-                } else if (request.getStream().equals("streamparallel")) {
-                    // Simulating delay in sending response.
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                    }
-                    responseObserver.onNext(DeleteStreamStatus.newBuilder()
-                            .setStatus(DeleteStreamStatus.Status.SUCCESS)
-                            .build());
-                    responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -692,9 +682,6 @@ public class ControllerImplTest {
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream4");
         assertEquals(DeleteStreamStatus.Status.STREAM_NOT_SEALED, deleteStreamStatus.join().getStatus());
-
-        deleteStreamStatus = controllerClient.deleteStream("scope1", "streamparallel");
-        assertEquals(DeleteStreamStatus.Status.SUCCESS, deleteStreamStatus.join().getStatus());
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream5");
         AssertExtensions.assertThrows("Should throw Exception", deleteStreamStatus, throwable -> true);

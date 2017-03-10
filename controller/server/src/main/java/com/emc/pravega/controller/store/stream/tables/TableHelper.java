@@ -69,6 +69,25 @@ public class TableHelper {
     }
 
     /**
+     * This method reads the latest record from history table and returns the largest segment number from this row.
+     *
+     * @param historyTable history table.
+     * @return             total number of segments in the stream.
+     */
+    public static int getSegmentCount(final byte[] historyTable) {
+        // TODO: once stream seal is properly implemented to add an empty record to history table, this method needs
+        // to change to read penultimate row and operate on it, if the last row is empty.
+        final Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyTable);
+
+        if (record.isPresent()) {
+            Optional<Integer> integerOptional = record.get().getSegments().stream().max(Integer::compare);
+            return integerOptional.isPresent() ? integerOptional.get() : 0;
+        } else {
+            return 0;
+        }
+    }
+
+    /**
      * Current active segments correspond to last entry in the history table.
      * Until segment number is written to the history table it is not exposed to outside world
      * (e.g. callers - producers and consumers)
