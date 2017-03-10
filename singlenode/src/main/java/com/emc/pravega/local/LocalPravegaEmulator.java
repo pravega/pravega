@@ -17,10 +17,10 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private LocalPravegaEmulator(int zkPort, int controllerPort, int hostPort) {
         inProcPravegaCluster = InProcPravegaCluster
                 .builder()
-                .isInProcZK(true)
+                .isInProcZK(false)
                 .zkPort(zkPort)
                 .isInProcHDFS(true)
-                .isInProcDL(true)
+                .isInProcDL(false)
                 .initialBookiePort(5000)
                 .isInprocController(true)
                 .controllerCount(1)
