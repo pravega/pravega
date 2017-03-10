@@ -60,7 +60,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -851,7 +851,7 @@ public class ControllerImplTest {
     public void testParallelCreateStream() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
         Semaphore createCount = new Semaphore(-19);
-        AtomicInteger numSuccess = new AtomicInteger(0);
+        AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
@@ -864,29 +864,29 @@ public class ControllerImplTest {
                                         .retentionPolicy(RetentionPolicy.builder().retentionTimeMillis(0).build())
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build());
-                        assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
                         log.info("{}", createStreamStatus.get().getStatus());
-                        numSuccess.incrementAndGet();
+                        assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
                         createCount.release();
                     } catch (Exception e) {
                         log.error("Exception when creating stream: {}", e);
 
                         // Don't wait for other threads to complete.
+                        success.set(false);
                         createCount.release(20);
-                        assertFalse(true);
                     }
                 }
             });
         }
         createCount.acquire();
-        assertEquals(numSuccess.get(), 20);
+        executorService.shutdownNow();
+        assertTrue(success.get());
     }
 
     @Test
     public void testParallelGetCurrentSegments() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
         Semaphore createCount = new Semaphore(-19);
-        AtomicInteger numSuccess = new AtomicInteger(0);
+        AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
@@ -898,19 +898,19 @@ public class ControllerImplTest {
                                      streamSegments.get().getSegmentForKey(0.2));
                         assertEquals(new Segment("scope1", "streamparallel", 1),
                                      streamSegments.get().getSegmentForKey(0.6));
-                        numSuccess.incrementAndGet();
                         createCount.release();
                     } catch (Exception e) {
                         log.error("Exception when getting segments: {}", e);
 
                         // Don't wait for other threads to complete.
-                        createCount.release(10);
-                        assertFalse(true);
+                        success.set(false);
+                        createCount.release(20);
                     }
                 }
             });
         }
         createCount.acquire();
-        assertEquals(numSuccess.get(), 20);
+        executorService.shutdownNow();
+        assertTrue(success.get());
     }
 }
