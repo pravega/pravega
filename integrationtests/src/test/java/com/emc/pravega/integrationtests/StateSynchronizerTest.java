@@ -161,8 +161,9 @@ public class StateSynchronizerTest {
         assertEquals(20, setB.getCurrentSize());
     }
 
-    @Test(timeout = 10000)
+    @Test//(timeout = 10000)
     public void testSetSynchronizer() {
+        for (int i=0; i < 10;i++) {
         String endpoint = "localhost";
         String stateName = "abc";
         int port = TestUtils.randomPort();
@@ -188,6 +189,8 @@ public class StateSynchronizerTest {
         setB.update();
         assertEquals(2, setB.getCurrentSize());
         assertTrue(setB.getCurrentValues().contains("bar"));
+        setA.clear();
+        }
     }
     
 }

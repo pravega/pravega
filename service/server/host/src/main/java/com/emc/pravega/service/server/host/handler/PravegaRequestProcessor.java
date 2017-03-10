@@ -215,8 +215,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         properties.isDeleted(),
                         properties.getLastModified().getTime(),
                         properties.getLength());
+                log.trace("Read stream segment info: {}", result);
                 connection.send(result);
             } else {
+                log.trace("getStreamSegmentInfo could not find segment {}", segmentName);
                 connection.send(new StreamSegmentInfo(segmentName, false, true, true, 0, 0));
             }
             return null;
@@ -239,8 +241,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         properties.isSealed(),
                         properties.getLastModified().getTime(),
                         properties.getLength());
+                log.trace("Read transaction segment info: {}", result);
                 connection.send(result);
             } else {
+                log.trace("getTransactionInfo could not find segment {}", transactionName);
                 connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), transactionName, false, true, 0, 0));
             }
             return null;
