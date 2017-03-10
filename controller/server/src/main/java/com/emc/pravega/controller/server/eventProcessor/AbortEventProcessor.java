@@ -35,7 +35,9 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
 
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore,
-                               final ScheduledExecutorService executor, SegmentHelper segmentHelper, ConnectionFactory connectionFactory) {
+                               final ScheduledExecutorService executor,
+                               final SegmentHelper segmentHelper,
+                               final ConnectionFactory connectionFactory) {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;

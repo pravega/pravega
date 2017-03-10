@@ -110,6 +110,7 @@ public class ControllerService {
             return segments.stream()
                            .map(number -> ModelHelper.createSegmentId(scope, stream, number))
                            .collect(Collectors.toMap(id -> id, id -> 0L));
+            //TODO: Implement https://github.com/pravega/pravega/issues/191
         });
     }
 

@@ -66,8 +66,8 @@ public class ControllerServiceTest {
     @After
     public void tearDown() throws Exception {
         controllerWrapper.close();
-        serviceBuilder.close();
         server.close();
+        serviceBuilder.close();
         zkTestServer.close();
     }
     
