@@ -20,7 +20,9 @@ import java.util.concurrent.CompletableFuture;
 import static com.emc.pravega.framework.LoginClient.LOGIN_URL;
 import static com.emc.pravega.framework.LoginClient.getAuthenticationRequestInterceptor;
 
-//Authentication enabled http client
+/**
+ * Authentication enabled http client.
+ */
 @Slf4j
 public class AuthEnabledHttpClient {
 
@@ -77,7 +79,7 @@ public class AuthEnabledHttpClient {
             future.complete(response);
         }
 
-        public CompletableFuture<Response> getFuture() {
+        CompletableFuture<Response> getFuture() {
             return future;
         }
     }

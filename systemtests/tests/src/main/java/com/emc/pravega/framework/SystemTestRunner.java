@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.framework;
 
@@ -19,6 +17,9 @@ import org.junit.runners.model.Statement;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static com.emc.pravega.framework.LogFileDownloader.downloadTestLogs;
 
 /**
  * SystemTestRunner this is used to execute all the systemTests.
@@ -69,6 +70,14 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
                 execute(type, method.getMethod()).get();
             } catch (Throwable e) {
                 eachNotifier.addFailure(e);
+                //download logs in case testLogs incase of error.
+                CompletableFuture<Void> downloadResult = downloadTestLogs(method.getName(), method.getName() + "-logs")
+                        .handle((aVoid, throwable) -> {
+                            // if the download fails, log it and continue.
+                            log.info("Error while downloading logs of failed test", throwable);
+                            return null;
+                        });
+                getAndHandleExceptions(downloadResult, RuntimeException::new);
             } finally {
                 eachNotifier.fireTestFinished();
             }

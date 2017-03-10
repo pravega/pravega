@@ -6,6 +6,9 @@ package com.emc.pravega.framework;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.framework.mesos.model.v1.Framework;
+import com.emc.pravega.framework.mesos.model.v1.SlaveState;
+import com.emc.pravega.framework.mesos.model.v1.Task;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -25,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.emc.pravega.framework.AuthEnabledHttpClient.getURL;
@@ -34,8 +38,9 @@ import static com.emc.pravega.framework.LoginClient.MESOS_URL;
 public class LogFileDownloader {
 
     private static final String MESOS_DIRECTORY_URL = "%s/agent/%s/files/browse?path=%s";
+    private static final String MESOS_MASTER_STATE = MESOS_URL + "/mesos/master/state";
 
-    public static String getDirectoryPath(final String slaveId, final String taskId) {
+    private static List<String> getDirectoryPaths(final String slaveId, final String taskId) {
 
         String url = MESOS_URL + "/agent/" + slaveId + "/slave(1)/state";
         //fetch the details of the slave
@@ -46,35 +51,124 @@ public class LogFileDownloader {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while getting slave " +
                     "information", e);
         }
+
         SlaveState slaveState = new Gson().fromJson(mesosInfo, SlaveState.class);
 
         List<String> directoryPaths = new ArrayList<>();
-        slaveState.getFrameworks().stream()
-                .forEach(framework -> {
-                    //search for task id in the executor.
-                    framework.getExecutors().stream()
-                            .filter(executor -> executor.getId().equals(taskId))
-                            .forEach(executor -> directoryPaths.add(executor.getDirectory()));
-                    if (directoryPaths.size() == 0) { // if not found then check completedExecutors
-                        //the service might have crashed and marathon would have spawned a new instance
-                        framework.getCompletedExecutors().stream()
-                                .filter(executor -> executor.getId().equals(taskId))
-                                .forEach(executor -> directoryPaths.add(executor.getDirectory()));
-                    }
-                });
-        assert directoryPaths.size() <= 1 : "Directory paths must not be greater than 1";
-        return directoryPaths.get(0);
+        final Consumer<Framework> searchTaskInFramework = framework -> {
+            //search for task id in the executor.
+            framework.getExecutors().stream()
+                    .filter(executor -> executor.getId().contains(taskId))
+                    .forEach(executor -> directoryPaths.add(executor.getDirectory()));
+            if (directoryPaths.size() == 0) { // if not found then check completedExecutors
+                //the service might have crashed and marathon would have spawned a new instance
+                framework.getCompletedExecutors().stream()
+                        .peek(executor -> System.out.println("==>" + executor.getId()))
+                        .filter(executor -> executor.getId().contains(taskId))
+                        .peek(executor -> System.out.println(executor.getId()))
+                        .forEach(executor -> directoryPaths.add(executor.getDirectory()));
+            }
+        };
+
+        //search in active frameworks
+        slaveState.getFrameworks().stream().forEach(searchTaskInFramework);
+        if (directoryPaths.size() == 0) {
+            //no paths found, search for completed frameworks . Usually metronome related tasks are found here.
+            slaveState.getCompletedFrameworks().stream().forEach(searchTaskInFramework);
+        }
+
+        //throw an exception since no mesosDir is found.
+        if (directoryPaths.size() == 0) {
+            throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Failed to find the logs for " +
+                    "the given task");
+        }
+
+        return directoryPaths;
     }
 
-    public static CompletableFuture<List<String>> getFilesToBeDownloaded(final String slaveId, final String
-            directoryPath) {
+    /**
+     * Download logs of a given service.
+     *
+     * @param serviceName    Name of the service managed using marathon.
+     * @param destinationDir Name of the directory to which logs need to be downloaded.
+     * @return it returns a CompletableFuture to indicate the status of the download.
+     */
+    public static CompletableFuture<Void> downloadServiceLogs(final String serviceName, final String destinationDir) {
+
+        log.info("Download service logs for service :{}", serviceName);
+        CompletableFuture<JsonArray> taskInfo = getTaskInfo(serviceName);
+
+        CompletableFuture<Void> result = taskInfo.thenCompose(tasks -> {
+            List<CompletableFuture<Void>> instanceDownloadResults = new ArrayList<>();
+            tasks.forEach(task -> {
+                JsonObject taskData = task.getAsJsonObject();
+                //read taskId and slaveId from the json object.
+                final String taskId = taskData.get("id").getAsString();
+                final String slaveId = taskData.get("slaveId").getAsString();
+                log.info("Service : {} has the following task :{} running on slave:{}", serviceName, taskId, slaveId);
+
+                final String directoryPath = getDirectoryPaths(slaveId, taskId).get(0); //first path is the latest run
+                log.info("Directory Path: {}", directoryPath);
+
+                CompletableFuture<Void> instanceDownloadResult = downloadFiles(destinationDir, directoryPath, taskId,
+                        slaveId);
+                instanceDownloadResults.add(instanceDownloadResult);
+            });
+            return FutureHelpers.allOf(instanceDownloadResults);
+        });
+        return result;
+    }
+
+    /**
+     * Download logs of a given test.
+     *
+     * @param testName       Name of the test.
+     * @param destinationDir Name of the directory to which logs need to be downloaded.
+     * @return it returns a CompletableFuture to indicate the status of the download.
+     */
+    public static CompletableFuture<Void> downloadTestLogs(final String testName, final String destinationDir) {
+        log.info("Download test execution logs for test id: {} ", testName);
+
+        return getTestTaskInfo(testName).thenCompose(task -> {
+            String mesosDir = getDirectoryPaths(task.getSlaveId(), task.getId()).get(0);
+            CompletableFuture<Void> downloadResult = downloadFiles(destinationDir, mesosDir, task.getId(), task
+                    .getSlaveId());
+            return downloadResult;
+        });
+    }
+
+    private static CompletableFuture<Task> getTestTaskInfo(String testName) {
+        return getURL(MESOS_MASTER_STATE).thenApply(response -> {
+            try {
+                SlaveState slaveState = new Gson().fromJson(response.body().string(), SlaveState.class);
+                return slaveState.getFrameworks().stream()
+                        //tests are executed by Metronome platform.
+                        .filter(framework -> framework.getName().equalsIgnoreCase("metronome")).findFirst()
+                        .map(framework -> framework.getCompletedTasks())
+                        .map(tasks -> {
+                            //fetch task information for the given test.
+                            List<Task> testTasks = tasks.stream().filter(task -> task.getId().contains(testName))
+                                    .collect(Collectors.toList());
+                            assert testTasks.size() > 0 : "No task information for the given test";
+                            return testTasks.get(testTasks.size() - 1);
+                        }).orElseThrow(() -> new TestFrameworkException(TestFrameworkException.Type
+                                .RequestFailed, "No task present for test"));
+
+            } catch (IOException e) {
+                throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Exception while " +
+                        "converting the response to String");
+            }
+        });
+    }
+
+    private static CompletableFuture<List<String>> getFilesToBeDownloaded(final String slaveId, final String mesosDir) {
 
         Exceptions.checkNotNullOrEmpty(slaveId, "slaveId");
-        Exceptions.checkNotNullOrEmpty(directoryPath, "directoryPath");
+        Exceptions.checkNotNullOrEmpty(mesosDir, "mesosDir");
 
-        String url = String.format(MESOS_DIRECTORY_URL, MESOS_URL, slaveId, directoryPath);
+        String mesosDirEndpoint = String.format(MESOS_DIRECTORY_URL, MESOS_URL, slaveId, mesosDir);
 
-        return getURL(url).thenApply(response -> {
+        return getURL(mesosDirEndpoint).thenApply(response -> {
             try {
                 List<String> filePaths = new ArrayList<>();
 
@@ -82,6 +176,7 @@ public class LogFileDownloader {
                 JsonArray filePathJsonArray = new JsonParser().parse(fileListJson).getAsJsonArray();
                 filePathJsonArray.forEach(jsonElement -> filePaths.add(jsonElement.getAsJsonObject().get("path")
                         .getAsString()));
+                filePaths.removeIf(path -> path.contains(".jar")); // do not add paths with .jar.
                 return filePaths;
 
             } catch (IOException e) {
@@ -91,16 +186,16 @@ public class LogFileDownloader {
         });
     }
 
-    public static CompletableFuture<Void> downloadFile(final String destinationDirectory, final String slaveId,
-                                                       final String taskId, final String filePath) {
+    private static CompletableFuture<Void> downloadFile(final String destinationDir, final String slaveId,
+                                                        final String taskId, final String filePath) {
 
-        Path url = Paths.get(MESOS_URL + "/agent/" + slaveId + "/files/download?path=" + filePath);
+        Path mesosFileEndpoint = Paths.get(MESOS_URL + "/agent/" + slaveId + "/files/download?path=" + filePath);
 
-        return getURL(url.toString()).thenApply(response -> {
+        return getURL(mesosFileEndpoint.toString()).thenApply(response -> {
 
             try {
                 //create the required file .
-                Path fp = Paths.get(destinationDirectory, taskId, url.getFileName().toString());
+                Path fp = Paths.get(destinationDir, taskId, mesosFileEndpoint.getFileName().toString());
                 File file = fp.toFile();
                 if (!fp.toFile().exists()) {
                     Files.createFile(fp);
@@ -118,42 +213,23 @@ public class LogFileDownloader {
         });
     }
 
-    public static CompletableFuture<Void> downloadServiceLogs(final String appId, final String directoryName) {
-        log.info("Download service logs for service :{}", appId);
-        CompletableFuture<JsonArray> taskInfo = getTaskInfo(appId);
+    private static CompletableFuture<Void> downloadFiles(final String destinationDir, final String mesosDir, String
+            taskId, String slaveId) {
+        try {
+            Path fp = Paths.get(destinationDir, taskId);
+            Files.createDirectories(fp);
+        } catch (IOException e) {
+            throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Failed to create" +
+                    " directories while downloading logs", e);
+        }
 
-        CompletableFuture<Void> result = taskInfo.thenCompose(tasks -> {
-            List<CompletableFuture<Void>> instanceDownloadResults = new ArrayList<>();
-            tasks.forEach(task -> {
-                JsonObject taskData = task.getAsJsonObject();
-                //read taskId and slaveId from the json object.
-                final String taskId = taskData.get("id").getAsString();
-                final String slaveId = taskData.get("slaveId").getAsString();
-                log.info("Service : {} has the following task :{} running on slave:{}", appId, taskId, slaveId);
-
-                final String directoryPath = getDirectoryPath(slaveId, taskId);
-                log.info("Directory Path: {}", directoryPath);
-
-                try {
-                    Path fp = Paths.get(directoryName, taskId);
-                    Files.createDirectories(fp);
-                } catch (IOException e) {
-                    throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Failed to create" +
-                            " directories while downloading logs", e);
-                }
-
-                CompletableFuture<Void> instanceDownloadResult = getFilesToBeDownloaded(slaveId, directoryPath)
-                        .thenCompose(fileList -> {
-                            List<CompletableFuture<Void>> r6 = fileList.stream().map(s -> downloadFile(directoryName,
-                                    slaveId, taskId, s))
-                                    .collect(Collectors.toList());
-                            return FutureHelpers.allOf(r6);
-                        });
-                instanceDownloadResults.add(instanceDownloadResult);
-            });
-            return FutureHelpers.allOf(instanceDownloadResults);
-        });
-        return result;
+        return getFilesToBeDownloaded(slaveId, mesosDir)
+                .thenCompose(fileList -> {
+                    List<CompletableFuture<Void>> fileDownloads = fileList.stream()
+                            .map(s -> downloadFile(destinationDir, slaveId, taskId, s))
+                            .collect(Collectors.toList());
+                    return FutureHelpers.allOf(fileDownloads);
+                });
     }
 
     private static CompletableFuture<JsonArray> getTaskInfo(String appId) {
@@ -176,4 +252,5 @@ public class LogFileDownloader {
 
         return taskInfo;
     }
+
 }
