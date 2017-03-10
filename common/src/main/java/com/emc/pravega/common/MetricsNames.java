@@ -41,7 +41,7 @@ public final class MetricsNames {
     //public static final String SEGMENTS_MERGES = "segments_merges"; // Dynamic Guage
 
     private static String escapeSpecialChar(String name) {
-        return name.replace('/', '.').replace(':', '.').replace('|','.').replaceAll("\\s+", "_");
+        return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
     }
 
     public static String nameFromStream(String metric, String scope, String stream) {
