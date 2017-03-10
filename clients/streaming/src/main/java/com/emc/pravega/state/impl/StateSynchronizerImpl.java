@@ -22,7 +22,9 @@ import javax.annotation.concurrent.GuardedBy;
 
 import lombok.Synchronized;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class StateSynchronizerImpl<StateT extends Revisioned>
         implements StateSynchronizer<StateT> {
 
@@ -57,9 +59,12 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void fetchUpdates() {
-        val iter = client.readFrom(getRevision());
+        Revision revision = getRevision();
+        log.trace("Fetching updates after {} ", revision);
+        val iter = client.readFrom(revision);
         while (iter.hasNext()) {
             Entry<Revision, UpdateOrInit<StateT>> entry = iter.next();
+            log.trace("Found entry {} ", entry.getValue());
             if (entry.getValue().isInit()) {
                 InitialUpdate<StateT> init = entry.getValue().getInit();
                 if (isNewer(entry.getKey())) {
@@ -92,11 +97,13 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void updateStateUnconditionally(Update<StateT> update) {
+        log.trace("Unconditionally Writeing {} ", update);
         client.writeUnconditionally(new UpdateOrInit<>(Collections.singletonList(update)));
     }
 
     @Override
     public void updateStateUnconditionally(List<? extends Update<StateT>> update) {
+        log.trace("Unconditionally Writeing {} ", update);
         client.writeUnconditionally(new UpdateOrInit<>(update));
     }
 
@@ -128,12 +135,14 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                     throw new IllegalStateException("Write was called before the state was initialized.");
                 }
             }
+            log.trace("Conditionally Writeing {} ", state);
             Revision revision = state.getRevision();
             UpdateOrInit<StateT> toWrite = generator.apply(state);
             if (toWrite == null) {
                 break;
             }
             Revision newRevision = client.writeConditionally(revision, toWrite);
+            log.trace("Conditionally write returned {} ", newRevision);
             if (newRevision == null) {
                 fetchUpdates();
             } else {
@@ -153,6 +162,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     @Synchronized
     private void updateCurrentState(StateT newValue) {
         if (newValue != null && isNewer(newValue.getRevision())) {
+            log.trace("Updating new state to {} ", newValue.getRevision());
             currentState = newValue;
         }
     }
