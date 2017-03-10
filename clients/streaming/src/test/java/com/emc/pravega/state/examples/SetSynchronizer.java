@@ -35,6 +35,7 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * The Object to by synchronized.
      */
+    @ToString
     @RequiredArgsConstructor
     @EqualsAndHashCode(callSuper=false)
     private static class UpdatableSet<T> implements Revisioned, Serializable {
@@ -65,6 +66,7 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * A base class for all updates to the state. This allows for several different types of updates.
      */
+    @ToString
     private static abstract class SetUpdate<T> implements Update<UpdatableSet<T>>, Serializable {
         private static final long serialVersionUID = 1L;
 
@@ -82,6 +84,7 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Add an item to the set.
      */
+    @ToString
     @RequiredArgsConstructor
     @EqualsAndHashCode(callSuper=false)
     private static class AddToSet<T> extends SetUpdate<T> {
@@ -97,6 +100,7 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Remove an item from the set.
      */
+    @ToString
     @RequiredArgsConstructor
     @EqualsAndHashCode(callSuper=false)
     private static class RemoveFromSet<T> extends SetUpdate<T> {
@@ -112,6 +116,7 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Clear the set.
      */
+    @ToString
     @EqualsAndHashCode(callSuper=false)
     private static class ClearSet<T> extends SetUpdate<T> {
         private static final long serialVersionUID = 1L;
