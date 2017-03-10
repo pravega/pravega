@@ -3,12 +3,14 @@
  */
 package com.emc.pravega.local;
 
+import com.twitter.distributedlog.LocalDLMEmulator;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class LocalPravegaEmulator implements AutoCloseable {
 
+    private static final int NUM_BOOKIES = 3;
     private final InProcPravegaCluster inProcPravegaCluster;
 
     @Builder
@@ -24,6 +26,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .controllerCount(1)
                 .controllerPorts(new int[] {controllerPort})
                 .isInprocHost(true)
+                .hostCount(1)
+                .containerCount("2")
                 .hostPorts(new int[] {hostPort})
                 .build();
      /*   this.zkPort = zkPort;
@@ -44,6 +48,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
             boolean runOnlyBookkeeper = Boolean.parseBoolean(args[0]);
             int zkPort = Integer.parseInt(args[1]);
+            final int controllerPort = Integer.parseInt(args[2]);
+            final int hostPort = Integer.parseInt(args[3]);
+
 
             if (runOnlyBookkeeper) {
                 final LocalDLMEmulator localDlm = LocalDLMEmulator.newBuilder().zkPort(zkPort).numBookies(NUM_BOOKIES)
@@ -65,11 +72,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 return;
             }
 
-            final int controllerPort = Integer.parseInt(args[2]);
-            final int hostPort = Integer.parseInt(args[3]);
-            final int zkPort = Integer.parseInt(args[0]);
-            final int controllerPort = Integer.parseInt(args[1]);
-            final int hostPort = Integer.parseInt(args[2]);
+
 
 
             final LocalPravegaEmulator localPravega = LocalPravegaEmulator.builder().controllerPort(
@@ -82,7 +85,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                         System.out.println("ByeBye!");
                     } catch (Exception e) {
                         // do nothing
-                        log.warn("Exception running local pravega emulator: " + e.getMessage());
+                        log.warn("Exception running local Pravega emulator: " + e.getMessage());
                     }
                 }
             });
