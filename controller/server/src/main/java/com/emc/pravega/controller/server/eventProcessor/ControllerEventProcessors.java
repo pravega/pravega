@@ -99,12 +99,12 @@ public class ControllerEventProcessors extends AbstractService {
 
         // Commit event processor configuration
         final String commitStreamReaderGroup = "commitStreamReaders";
-        final int commitReaderGroupSize = 5;
+        final int commitReaderGroupSize = 1;
         final int commitPositionPersistenceFrequency = 10;
 
         // Abort event processor configuration
         final String abortStreamReaderGroup = "abortStreamReaders";
-        final int abortReaderGroupSize = 5;
+        final int abortReaderGroupSize = 1;
         final int abortPositionPersistenceFrequency = 10;
 
         // Retry configuration
@@ -115,7 +115,7 @@ public class ControllerEventProcessors extends AbstractService {
 
         // region Create commit and abort streams
 
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 5);
+        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 2);
         StreamConfiguration commitStreamConfig =
                 StreamConfiguration.builder()
                         .scope(CONTROLLER_SCOPE)

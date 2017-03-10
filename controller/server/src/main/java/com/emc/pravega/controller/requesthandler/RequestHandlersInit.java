@@ -9,6 +9,7 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
@@ -33,7 +34,6 @@ import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.net.URI;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -59,10 +59,11 @@ public class RequestHandlersInit {
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(checkpointStore);
         Preconditions.checkNotNull(executor);
-        URI uri = URI.create("tcp://localhost:" + Config.RPC_SERVER_PORT);
-        ClientFactory clientFactory = ClientFactory.withScope(Config.INTERNAL_SCOPE, uri);
 
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
+        final LocalController localController = new LocalController(controller);
+        ClientFactory clientFactory = ClientFactory.withScope(Config.INTERNAL_SCOPE, localController);
+
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, localController, clientFactory);
 
         CHECKPOINT_STORE_REF.set(checkpointStore);
         SERIALIZER_REF.set(new JavaSerializer<>());
