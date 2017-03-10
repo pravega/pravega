@@ -1,9 +1,10 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.connectors;
+package com.emc.pravega.integrationtests.connectors;
 
 import com.emc.pravega.stream.Serializer;
+
 import java.nio.ByteBuffer;
 
 public final class IntegerSerializer implements Serializer<Integer> {
