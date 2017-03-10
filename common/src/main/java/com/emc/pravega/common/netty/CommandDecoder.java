@@ -33,7 +33,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         WireCommand command = parseCommand(in);
         if (log.isTraceEnabled()) {
-            log.trace("Decode a message on connection: {}. Message was", ctx.channel().remoteAddress(), command );
+            log.trace("Decode a message on connection: {}. Message was {}", ctx.channel().remoteAddress(), command );
         }
         if (command != null) {
             out.add(command);
