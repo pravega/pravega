@@ -20,7 +20,6 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.Transaction.Status;
 import com.google.common.base.Preconditions;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -45,17 +44,6 @@ public final class ModelHelper {
     public static final UUID encode(final TxnId txnId) {
         Preconditions.checkNotNull(txnId, "txnId");
         return new UUID(txnId.getHighBits(), txnId.getLowBits());
-    }
-
-    /**
-     * Helper to convert TxnState instance into actual status value.
-     *
-     * @param txnState The state object instance.
-     * @return Transaction.Status
-     */
-    public static final Status encode(final TxnState txnState) {
-        Preconditions.checkNotNull(txnState, "txnState");
-        return Status.valueOf(txnState.getState().name());
     }
 
     /**
@@ -169,17 +157,6 @@ public final class ModelHelper {
                 .setHighBits(txnId.getMostSignificantBits())
                 .setLowBits(txnId.getLeastSignificantBits())
                 .build();
-    }
-
-    /**
-     * Returns transaction status for a given transaction instance.
-     *
-     * @param txnStatus Transaction Status instance.
-     * @return The Status.
-     */
-    public static final TxnState.State decode(final Status txnStatus) {
-        Preconditions.checkNotNull(txnStatus, "txnStatus");
-        return TxnState.State.valueOf(txnStatus.name());
     }
 
     /**
