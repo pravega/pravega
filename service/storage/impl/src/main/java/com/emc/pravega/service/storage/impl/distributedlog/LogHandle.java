@@ -7,7 +7,7 @@ package com.emc.pravega.service.storage.impl.distributedlog;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.SegmentStoreMetricsNames;
+import com.emc.pravega.common.MetricsNames;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
@@ -464,10 +464,10 @@ class LogHandle implements AutoCloseable {
     //region Metrics
 
     private static class Metrics {
-        private static final StatsLogger DURABLE_DATALOG_LOGGER = MetricsProvider.createStatsLogger("DURABLEDATALOG");
-        private static final OpStatsLogger WRITE_LATENCY = DURABLE_DATALOG_LOGGER.createStats(SegmentStoreMetricsNames
+        private static final StatsLogger DURABLE_DATALOG_LOGGER = MetricsProvider.createStatsLogger("durablelog");
+        private static final OpStatsLogger WRITE_LATENCY = DURABLE_DATALOG_LOGGER.createStats(MetricsNames
                 .DURABLE_DATALOG_WRITE_LATENCY);
-        private static final Counter WRITE_BYTES = DURABLE_DATALOG_LOGGER.createCounter(SegmentStoreMetricsNames
+        private static final Counter WRITE_BYTES = DURABLE_DATALOG_LOGGER.createCounter(MetricsNames
                 .DURABLE_DATALOG_WRITE_BYTES);
     }
 
