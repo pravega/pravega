@@ -37,6 +37,11 @@ public class PravegaControllerService extends MarathonBasedService {
     private double cpu = 0.1;
     private double mem = 700;
 
+    public PravegaControllerService(final String id, final URI zkUri) {
+        super(id);
+        this.zkUri = zkUri;
+    }
+
     public PravegaControllerService(final String id, final URI zkUri, int instances, double cpu, double mem) {
         super(id);
         this.zkUri = zkUri;

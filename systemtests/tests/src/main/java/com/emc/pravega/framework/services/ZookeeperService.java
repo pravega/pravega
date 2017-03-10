@@ -24,7 +24,11 @@ public class ZookeeperService extends MarathonBasedService {
     private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
     private int instances = 1;
     private double cpu = 1.0;
-    private double mem = 3072.0;
+    private double mem = 1024.0;
+
+    public ZookeeperService(final  String id) {
+        super(id);
+    }
 
     public ZookeeperService(final String id, int instances, double cpu, double mem) {
         super(id);
