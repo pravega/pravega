@@ -47,6 +47,7 @@ public class PravegaTest {
     private final static String STREAM_NAME = "testStreamSampleY";
     private final static String STREAM_SCOPE = "testScopeSampleY";
     private final static String READER_GROUP = "ExampleReaderGroupY";
+    private final static int NUM_EVENTS = 100;
     private final ScalingPolicy scalingPolicy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 2, 2, 4);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
@@ -136,29 +137,28 @@ public class PravegaTest {
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
-     * @throws ReinitializationRequiredException, if error in reading next event
      */
     @Test
-    public void simpleTest() throws InterruptedException, URISyntaxException, ReinitializationRequiredException {
+    public void simpleTest() throws InterruptedException, URISyntaxException {
 
         Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
-        log.debug("Invoking producer test.");
+        log.debug("Invoking Writer test.");
         log.debug("Controller URI: {} ", controllerUri);
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < NUM_EVENTS; i++) {
             String event = "\n Publish \n";
             log.debug("Producing event: {} ", event);
             writer.writeEvent("", event);
             writer.flush();
             Thread.sleep(500);
         }
-        log.debug("Invoking consumer test.");
+        log.debug("Invoking Reader test.");
         ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri)
                 .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
                         Collections.singleton(STREAM_NAME));
@@ -166,9 +166,16 @@ public class PravegaTest {
                 READER_GROUP,
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
-        for (int i = 0; i < 100; i++) {
-            String event = reader.readNextEvent(6000).getEvent();
-            log.debug("Read event: {} ", event);
+        for (int i = 0; i < NUM_EVENTS; i++) {
+            try {
+                String event = reader.readNextEvent(6000).getEvent();
+                if (event != null) {
+                    log.debug("Read event: {} ", event);
+                }
+            } catch (ReinitializationRequiredException e) {
+                log.error("Error in reading next event {}", e);
+                System.exit(0);
+            }
         }
         reader.close();
     }
