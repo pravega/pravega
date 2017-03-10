@@ -59,6 +59,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         
         @Override
         public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
+            log.trace("Received stream segment info {}", streamInfo);
             CompletableFuture<StreamSegmentInfo> request = infoRequests.poll();
             while (request != null) {
                 request.complete(streamInfo);
@@ -84,6 +85,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void segmentRead(SegmentRead segmentRead) {
+            log.trace("Received read result {}", segmentRead);
             ReadFutureImpl future = outstandingRequests.remove(segmentRead.getOffset());
             if (future != null) {
                 future.complete(segmentRead);
@@ -161,6 +163,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         ReadFutureImpl read = new ReadFutureImpl(request);
         outstandingRequests.put(read.request.getOffset(), read);
         getConnection().thenApply((ClientConnection c) -> {
+            log.info("Sending read request {}", read);
             c.sendAsync(read.request);
             return null;
         });
@@ -168,6 +171,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     private void closeConnection(Exception exceptionToInflightRequests) {
+        log.info("Closing connection with exception: {}", exceptionToInflightRequests.toString());
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
             c = connection;
@@ -239,6 +243,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         infoRequests.add(result);
         getConnection().thenApply(c -> {
             try {
+                log.trace("Getting segment info");
                 c.send(new GetStreamSegmentInfo(segmentId.getScopedName()));
             } catch (ConnectionFailedException e) {
                 closeConnection(e);
