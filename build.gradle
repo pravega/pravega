@@ -162,6 +162,13 @@ project('common') {
             from project(":testcommon").sourceSets.main.output
         }
     }
+
+    test {
+        onlyIf {
+            false
+	}
+    }
+
     publishing {
         publications {
             maven(MavenPublication) {
@@ -184,6 +191,11 @@ project('clients:streaming') {
         compile project(":controller:contract")
         testCompile project(':testcommon')
     }
+    test {
+        onlyIf {
+            false
+        }
+    }
     publishing {
         publications {
             maven(MavenPublication) {
@@ -197,6 +209,11 @@ project('clients:streaming') {
 project('testcommon') {
     dependencies {
         compile 'junit:junit:4.12'
+    }
+    test {
+        onlyIf {
+            false
+        }
     }
 }
 
@@ -213,6 +230,11 @@ project('service:contracts') {
             }
         }
     }
+    test {
+        onlyIf {
+            false
+        }
+    }
 }
 
 project('service:storage') {
@@ -227,6 +249,11 @@ project('service:storage') {
                 artifactId 'pravega-service-storage'
                 from components.java
             }
+        }
+    }
+    test {
+        onlyIf {
+            false
         }
     }
 }
@@ -262,6 +289,11 @@ project('service:storage:impl') {
             }
         }
     }
+    test {
+        onlyIf {
+            false
+        }
+    }
 }
 
 project('service:server') {
@@ -277,6 +309,11 @@ project('service:server') {
                 artifactId 'pravega-service-server'
                 from components.java
             }
+        }
+    }
+    test {
+        onlyIf {
+            false
         }
     }
 }
@@ -331,6 +368,11 @@ project('service:server:host') {
                 artifactId 'pravega-service-server-host'
                 from components.java
             }
+        }
+    }
+    test {
+        onlyIf {
+            false
         }
     }
 }
@@ -419,6 +461,11 @@ project('controller') {
     dependencies {
         testCompile project(':testcommon')
     }
+    test {
+        onlyIf {
+            false
+        }
+    }
 }
 
 project('controller:contract') {
@@ -461,6 +508,11 @@ project('controller:contract') {
                 artifactId 'pravega-controller-contract'
                 from components.java
             }
+        }
+    }
+    test {
+        onlyIf {
+            false
         }
     }
 }
@@ -538,6 +590,11 @@ project('controller:server') {
             }
         }
     }
+    test {
+        onlyIf {
+            false
+        }
+    }
 }
 
 project('connectors:flink') {
@@ -551,6 +608,11 @@ project('connectors:flink') {
                 artifactId 'pravega-connectors-flink'
                 from components.java
             }
+        }
+    }
+    test {
+        onlyIf {
+            false
         }
     }
 }
