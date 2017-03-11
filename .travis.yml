@@ -10,6 +10,8 @@ sudo: required
 services:
   - docker
 
+script:  ./gradlew -Dtest.single=StateSynchronizerTest integrationtests:test
+
 notifications:
   slack: emcnautilus:UZK3F72LSRYWXUuvlzSilFyy
   email:
