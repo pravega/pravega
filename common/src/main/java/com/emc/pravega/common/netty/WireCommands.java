@@ -531,6 +531,7 @@ public final class WireCommands {
     @Data
     public static final class GetStreamSegmentInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
+        final long requestId;
         final String segmentName;
 
         @Override
@@ -540,18 +541,21 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segmentName);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();            
             String segment = in.readUTF();
-            return new GetStreamSegmentInfo(segment);
+            return new GetStreamSegmentInfo(requestId, segment);
         }
     }
 
     @Data
     public static final class StreamSegmentInfo implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.STREAM_SEGMENT_INFO;
+        final long requestId;
         final String segmentName;
         final boolean exists;
         final boolean isSealed;
@@ -566,6 +570,7 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segmentName);
             out.writeBoolean(exists);
             out.writeBoolean(isSealed);
@@ -575,13 +580,14 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segmentName = in.readUTF();
             boolean exists = in.readBoolean();
             boolean isSealed = in.readBoolean();
             boolean isDeleted = in.readBoolean();
             long lastModified = in.readLong();
             long segmentLength = in.readLong();
-            return new StreamSegmentInfo(segmentName, exists, isSealed, isDeleted, lastModified, segmentLength);
+            return new StreamSegmentInfo(requestId, segmentName, exists, isSealed, isDeleted, lastModified, segmentLength);
         }
     }
     

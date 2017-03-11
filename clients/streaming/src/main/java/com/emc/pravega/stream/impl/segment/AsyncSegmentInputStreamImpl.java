@@ -25,16 +25,17 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
-
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
+import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -46,12 +47,15 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 5);
     private final ConnectionFactory connectionFactory;
 
+    private final Object lock = new Object();
     @GuardedBy("lock")
     private CompletableFuture<ClientConnection> connection = null;
-    private final Object lock = new Object();
-    private final ConcurrentHashMap<Long, ReadFutureImpl> outstandingRequests = new ConcurrentHashMap<>();
+    @GuardedBy("lock")
+    private final Map<Long, ReadFutureImpl> outstandingRequests = new HashMap<>();
+    @GuardedBy("lock")
+    private final Map<Long, CompletableFuture<StreamSegmentInfo>> infoRequests = new HashMap<>();
+    private final Supplier<Long> infoRequestIdGenerator = new AtomicLong()::incrementAndGet;
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
-    private final ConcurrentLinkedQueue<CompletableFuture<StreamSegmentInfo>> infoRequests = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Controller controller;
 
@@ -60,10 +64,12 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
             log.trace("Received stream segment info {}", streamInfo);
-            CompletableFuture<StreamSegmentInfo> request = infoRequests.poll();
-            while (request != null) {
-                request.complete(streamInfo);
-                request = infoRequests.poll();
+            CompletableFuture<StreamSegmentInfo> future;
+            synchronized (lock) {
+                future = infoRequests.remove(streamInfo.getRequestId());
+            }
+            if (future != null) {
+                future.complete(streamInfo);
             }
         }        
 
@@ -86,7 +92,10 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void segmentRead(SegmentRead segmentRead) {
             log.trace("Received read result {}", segmentRead);
-            ReadFutureImpl future = outstandingRequests.remove(segmentRead.getOffset());
+            ReadFutureImpl future;
+            synchronized (lock) {
+                future = outstandingRequests.remove(segmentRead.getOffset());
+            }
             if (future != null) {
                 future.complete(segmentRead);
             }
@@ -161,7 +170,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         ReadSegment request = new ReadSegment(segmentId.getScopedName(), offset, length);
         
         ReadFutureImpl read = new ReadFutureImpl(request);
-        outstandingRequests.put(read.request.getOffset(), read);
+        synchronized (lock) {
+            outstandingRequests.put(read.request.getOffset(), read);
+        }
         getConnection().thenApply((ClientConnection c) -> {
             log.info("Sending read request {}", read);
             c.sendAsync(read.request);
@@ -206,19 +217,26 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     private void failAllInflight(Exception e) {
         log.info("Connection failed due to a {}. Read requests will be retransmitted.", e.toString());
-        for (ReadFutureImpl read : outstandingRequests.values()) {
+        List<ReadFutureImpl> readsToFail;
+        List<CompletableFuture<StreamSegmentInfo>> infoRequestsToFail;
+        synchronized (lock) {
+            readsToFail = new ArrayList<>(outstandingRequests.values());
+            infoRequestsToFail = new ArrayList<>(infoRequests.values());
+            infoRequests.clear();
+            //outstanding requests are not removed as they may be retried.
+        }
+        for (ReadFutureImpl read : readsToFail) {
             read.completeExceptionally(e);
         }
-        CompletableFuture<StreamSegmentInfo> request = infoRequests.poll();
-        while (request != null) {
-            request.completeExceptionally(e);
-            request = infoRequests.poll();
+        for (CompletableFuture<StreamSegmentInfo> infoRequest : infoRequestsToFail) {
+            infoRequest.completeExceptionally(e);
         }
     }
 
     @Override
     public SegmentRead getResult(ReadFuture ongoingRead) {
         ReadFutureImpl read = (ReadFutureImpl) ongoingRead;
+        verifyRead(read);
         return backoffSchedule.retryingOn(ExecutionException.class).throwingOn(RuntimeException.class).run(() -> {
             if (closed.get()) {
                 throw new ObjectClosedException(this);
@@ -237,14 +255,25 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         });
     }
 
+    private void verifyRead(ReadFutureImpl read) {
+        synchronized (lock) {
+            if (outstandingRequests.get(read.request.getOffset()) == null) {
+                throw new IllegalArgumentException("Read must be an outstanding read.");
+            }
+        }
+    }
+
     @Override
     public CompletableFuture<StreamSegmentInfo> getSegmentInfo() {
         CompletableFuture<StreamSegmentInfo> result = new CompletableFuture<>();
-        infoRequests.add(result);
+        long requestId = infoRequestIdGenerator.get();
+        synchronized (lock) {
+            infoRequests.put(requestId, result);
+        }
         getConnection().thenApply(c -> {
             try {
                 log.trace("Getting segment info");
-                c.send(new GetStreamSegmentInfo(segmentId.getScopedName()));
+                c.send(new GetStreamSegmentInfo(requestId, segmentId.getScopedName()));
             } catch (ConnectionFailedException e) {
                 closeConnection(e);
             }

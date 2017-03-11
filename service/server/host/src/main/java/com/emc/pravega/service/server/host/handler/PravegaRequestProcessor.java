@@ -207,17 +207,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
-                StreamSegmentInfo result = new StreamSegmentInfo(properties.getName(),
-                        true,
-                        properties.isSealed(),
-                        properties.isDeleted(),
-                        properties.getLastModified().getTime(),
-                        properties.getLength());
+                StreamSegmentInfo result = new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(),
+                                                                 properties.getName(),
+                                                                 true,
+                                                                 properties.isSealed(),
+                                                                 properties.isDeleted(),
+                                                                 properties.getLastModified().getTime(),
+                                                                 properties.getLength());
                 log.trace("Read stream segment info: {}", result);
                 connection.send(result);
             } else {
                 log.trace("getStreamSegmentInfo could not find segment {}", segmentName);
-                connection.send(new StreamSegmentInfo(segmentName, false, true, true, 0, 0));
+                connection.send(new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(), segmentName, false, true, true, 0, 0));
             }
             return null;
         }).exceptionally((Throwable e) -> {

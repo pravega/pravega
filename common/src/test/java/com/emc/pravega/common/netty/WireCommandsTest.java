@@ -81,12 +81,12 @@ public class WireCommandsTest {
 
     @Test
     public void testGetStreamSegmentInfo() throws IOException {
-        testCommand(new WireCommands.GetStreamSegmentInfo(testString1));
+        testCommand(new WireCommands.GetStreamSegmentInfo(l, testString1));
     }
 
     @Test
     public void testStreamSegmentInfo() throws IOException {
-        testCommand(new WireCommands.StreamSegmentInfo(testString1, true, false, false, l, l + 1));
+        testCommand(new WireCommands.StreamSegmentInfo(l - 1, testString1, true, false, false, l, l + 1));
     }
 
     @Test

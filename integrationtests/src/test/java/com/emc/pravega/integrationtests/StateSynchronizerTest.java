@@ -163,7 +163,7 @@ public class StateSynchronizerTest {
 
     @Test//(timeout = 10000)
     public void testSetSynchronizer() {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 20; i++) {
             String endpoint = "localhost";
             String stateName = "abc";
             int port = TestUtils.randomPort();
