@@ -59,14 +59,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.common.SegmentStoreMetricsNames.CREATE_SEGMENT;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_BYTES;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_LATENCY;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
+import static com.emc.pravega.common.MetricsNames.SEGMENT_CREATE_LATENCY;
+import static com.emc.pravega.common.MetricsNames.SEGMENT_READ_BYTES;
+import static com.emc.pravega.common.MetricsNames.SEGMENT_READ_LATENCY;
+import static com.emc.pravega.common.MetricsNames.nameFromSegment;
 import static com.emc.pravega.common.netty.WireCommands.SegmentPolicyUpdated;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.common.netty.WireCommands.UpdateSegmentPolicy;
@@ -85,11 +86,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("host");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     @VisibleForTesting
-    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
+    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
 
     private final StreamSegmentStore segmentStore;
 
@@ -112,8 +113,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
-        // A dynamic gauge records read offset of each readSegment for a segment
-        DYNAMIC_LOGGER.reportGaugeValue("readSegment." + segment, readSegment.getOffset());
 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
@@ -295,6 +294,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof WrongHostException) {
             WrongHostException wrongHost = (WrongHostException) u;
             connection.send(new WrongHost(wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
+        } else if (u instanceof CancellationException) {
+            log.info("Closing connection due to: ", u.getMessage());
+            connection.close();
         } else {
             // TODO: don't know what to do here...
             connection.close();

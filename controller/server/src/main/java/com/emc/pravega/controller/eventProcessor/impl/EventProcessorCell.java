@@ -56,7 +56,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
     private class Delegate extends AbstractExecutionThreadService {
 
-        private final long defaultTimeout = 2000L;
+        private final long defaultTimeout = 4000L;
         private final EventProcessorConfig<T> eventProcessorConfig;
         private EventRead<T> event;
         private final CheckpointState state;
@@ -87,14 +87,15 @@ class EventProcessorCell<T extends ControllerEvent> {
             while (isRunning()) {
                 try {
                     event = reader.readNextEvent(defaultTimeout);
+                    if (event != null && event.getEvent() != null) {
+                        // invoke the user specified event processing method
+                        actor.process(event.getEvent());
 
-                    // invoke the user specified event processing method
-                    actor.process(event.getEvent());
-
-                    // possibly persist event position
-                    state.store(event.getPosition());
-
+                        // possibly persist event position
+                        state.store(event.getPosition());
+                    }
                 } catch (Exception e) {
+                    log.warn("Failed in run method of event processor " + this, e);
                     handleException(e);
                 }
             }

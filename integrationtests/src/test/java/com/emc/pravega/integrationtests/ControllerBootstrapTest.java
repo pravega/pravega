@@ -55,7 +55,8 @@ public class ControllerBootstrapTest {
         server.startListening();
 
         // 3. Start controller
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
+        @Cleanup
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
                 controllerPort, serviceHost, servicePort, containerCount);
         Controller controller = controllerWrapper.getController();
 

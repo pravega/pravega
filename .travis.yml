@@ -12,6 +12,12 @@ services:
 
 script:  ./gradlew -Dtest.single=StateSynchronizerTest integrationtests:test
 
+cache:
+  directories:
+  - .gradle
+  - $HOME/.gradle
+  - $HOME/.m2
+  
 notifications:
   slack: emcnautilus:UZK3F72LSRYWXUuvlzSilFyy
   email:

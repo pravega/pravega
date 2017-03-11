@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.reading;
 
@@ -16,6 +14,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +43,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private int currentGeneration;
     private int oldestGeneration;
     private final CachePolicy policy;
-    private boolean closed;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -64,6 +63,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         this.oldestGeneration = 0;
         this.currentGeneration = 0;
         this.executorService = executorService;
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -72,13 +72,16 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @Override
     public void close() {
-        if (!this.closed) {
+        if (!this.closed.getAndSet(true)) {
             if (state() == State.RUNNING) {
                 stopAsync();
                 ServiceShutdownListener.awaitShutdown(this, false);
             }
 
-            this.closed = true;
+            synchronized (this.clients) {
+                this.clients.clear();
+            }
+
             log.info("{} Closed.", TRACE_OBJECT_ID);
         }
     }
@@ -94,7 +97,10 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @Override
     protected void runOneIteration() {
-        Exceptions.checkNotClosed(this.closed, this);
+        if (this.closed.get()) {
+            // We are done.
+            return;
+        }
 
         try {
             applyCachePolicy();
@@ -125,7 +131,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      * @param client The client to register.
      */
     void register(Client client) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkNotNull(client, "client");
         synchronized (this.clients) {
             if (!this.clients.contains(client)) {
@@ -143,7 +149,11 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      * @param client The client to unregister.
      */
     void unregister(Client client) {
-        Exceptions.checkNotClosed(this.closed, this);
+        if (this.closed.get()) {
+            // We are done. Nothing to do here.
+            return;
+        }
+
         Preconditions.checkNotNull(client, "client");
         synchronized (this.clients) {
             this.clients.remove(client);

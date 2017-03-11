@@ -5,9 +5,13 @@ package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
+import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
@@ -17,21 +21,24 @@ import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.google.common.base.Preconditions;
-import java.net.URI;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class RequestHandlersInit {
@@ -44,6 +51,7 @@ public class RequestHandlersInit {
     private static final AtomicReference<EventStreamWriter<ScaleRequest>> SCALE_WRITER_REF = new AtomicReference<>();
     private static final AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> SCALE_REQUEST_READER_REF = new AtomicReference<>();
     private static final AtomicReference<StreamMetadataStore> CHECKPOINT_STORE_REF = new AtomicReference<>();
+    private static final AtomicReference<JavaSerializer<Position>> SERIALIZER_REF = new AtomicReference<>();
 
     public static CompletableFuture<Void> bootstrapRequestHandlers(ControllerService controller,
                                                                    StreamMetadataStore checkpointStore,
@@ -51,12 +59,14 @@ public class RequestHandlersInit {
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(checkpointStore);
         Preconditions.checkNotNull(executor);
-        URI uri = URI.create("tcp://localhost:" + Config.RPC_SERVER_PORT);
-        ClientFactory clientFactory = ClientFactory.withScope(Config.INTERNAL_SCOPE, uri);
 
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
+        final LocalController localController = new LocalController(controller);
+        ClientFactory clientFactory = ClientFactory.withScope(Config.INTERNAL_SCOPE, localController);
+
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, localController);
 
         CHECKPOINT_STORE_REF.set(checkpointStore);
+        SERIALIZER_REF.set(new JavaSerializer<>());
 
         return createScope(controller, executor)
                 .thenCompose(x -> createStreams(controller, executor))
@@ -109,13 +119,32 @@ public class RequestHandlersInit {
                 .runAsync(() -> {
                     ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
 
-                    readerGroupManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Collections.singleton(Config.SCALE_STREAM_NAME));
+                    ReaderGroup readerGroup = readerGroupManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Collections.singleton(Config.SCALE_STREAM_NAME));
 
                     if (SCALE_HANDLER_REF.get() == null) {
                         SCALE_HANDLER_REF.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));
                     }
 
                     if (SCALE_READER_REF.get() == null) {
+                        // If a reader with the same reader id already exists, It means no one reported reader offline.
+                        // Report reader offline and create new reader with the same id.
+                        if (readerGroup.getOnlineReaders().contains(Config.SCALE_READER_ID)) {
+                            // read previous checkpoint if any
+                            FutureHelpers.getAndHandleExceptions(CHECKPOINT_STORE_REF.get()
+                                    .readCheckpoint(Config.SCALE_READER_GROUP, Config.SCALE_READER_ID)
+                                    .handle((res, ex) -> {
+                                        if (ex != null && !(ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException)) {
+                                            throw new CompletionException(ex);
+                                        }
+
+                                        Position position = res == null ? new PositionImpl(Collections.emptyMap()) :
+                                                SERIALIZER_REF.get().deserialize(res);
+                                        readerGroup.readerOffline(Config.SCALE_READER_ID, position);
+
+                                        return null;
+                                    }), CompletionException::new);
+                        }
+
                         SCALE_READER_REF.compareAndSet(null, clientFactory.createReader(Config.SCALE_READER_ID,
                                 Config.SCALE_READER_GROUP,
                                 new JavaSerializer<>(),
@@ -135,8 +164,9 @@ public class RequestHandlersInit {
                                 SCALE_WRITER_REF.get(),
                                 SCALE_READER_REF.get(),
                                 SCALE_HANDLER_REF.get(),
-                                executor,
-                                CHECKPOINT_STORE_REF.get()));
+                                SERIALIZER_REF.get(),
+                                CHECKPOINT_STORE_REF.get(),
+                                executor));
                     }
 
                     log.debug("bootstrapping request handlers done");

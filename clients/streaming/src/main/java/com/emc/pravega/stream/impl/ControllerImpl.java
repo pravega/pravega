@@ -94,6 +94,15 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
     }
 
     @Override
+    public CompletableFuture<Controller.DeleteScopeStatus> deleteScope(String scopeName) {
+        log.trace("Invoke AdminService.Client.deleteScope() with name: {}", scopeName);
+
+        RPCAsyncCallback<Controller.DeleteScopeStatus> callback = new RPCAsyncCallback<>();
+        client.deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+        return callback.getFuture();
+    }
+
+    @Override
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         log.trace("Invoke AdminService.Client.createStream() with streamConfiguration: {}", streamConfig);

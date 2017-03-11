@@ -31,7 +31,6 @@ allprojects {
     apply plugin: 'findbugs'
     apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
-    apply plugin: 'com.google.protobuf'
 
     apply plugin: 'jacoco'
 
@@ -385,10 +384,11 @@ project('integrationtests') {
         compile project(':service:server:host')
         compile project(':controller:server')
         compile project(':connectors:flink')
+        compile 'junit:junit:4.12'
         compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
-        compile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
-        compile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
-        compile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: '1.2.0'
+        testCompile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
+        testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
+        testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: '1.2.0'
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
@@ -469,7 +469,7 @@ project('controller') {
 }
 
 project('controller:contract') {
-
+    apply plugin: 'com.google.protobuf'
     protobuf {
         protoc {
             artifact = "com.google.protobuf:protoc:3.0.2"
@@ -719,7 +719,8 @@ project('systemtests:tests') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
         systemProperty "testVersion", project.property("pravegaVersion")
-        systemProperty "testArtifactUrl", project.property('repoUrl') + "/pravega/systemtests/"+pravegaVersion+"/systemtests-"+pravegaVersion+".jar"
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/com/emc/pravega/pravega-systemtests/" +
+                pravegaVersion+"/pravega-systemtests-"+ pravegaVersion + ".jar"
     }
     publishing {
         publications {
