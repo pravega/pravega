@@ -146,6 +146,7 @@ public class ComponentConfigTests {
             Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.getProperty(p, "correct"));
         }
     }
+
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {
         for (int componentId = 0; componentId < ComponentConfigTests.COMPONENT_COUNT; componentId++) {
             String componentCode = getComponentCode(componentId);
