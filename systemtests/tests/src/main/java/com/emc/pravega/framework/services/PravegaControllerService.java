@@ -118,7 +118,7 @@ public class PravegaControllerService extends MarathonBasedService {
         //set docker container parameters
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<Parameter> parameterList = new ArrayList<>();
-        Parameter element1 = new Parameter("env", "SERVER_OPTS=\"-DZK_URL=" + zk + "\\");
+        Parameter element1 = new Parameter("env", "SERVER_OPTS=\"-DZK_URL=" + zk + "\"");
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
