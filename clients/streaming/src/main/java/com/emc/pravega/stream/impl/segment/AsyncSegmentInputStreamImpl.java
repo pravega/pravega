@@ -236,7 +236,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public SegmentRead getResult(ReadFuture ongoingRead) {
         ReadFutureImpl read = (ReadFutureImpl) ongoingRead;
-        verifyRead(read);
         return backoffSchedule.retryingOn(ExecutionException.class).throwingOn(RuntimeException.class).run(() -> {
             if (closed.get()) {
                 throw new ObjectClosedException(this);
@@ -253,14 +252,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             }
             return Exceptions.<ExecutionException, SegmentRead>handleInterrupted(() -> read.get());
         });
-    }
-
-    private void verifyRead(ReadFutureImpl read) {
-        synchronized (lock) {
-            if (outstandingRequests.get(read.request.getOffset()) == null) {
-                throw new IllegalArgumentException("Read must be an outstanding read.");
-            }
-        }
     }
 
     @Override
