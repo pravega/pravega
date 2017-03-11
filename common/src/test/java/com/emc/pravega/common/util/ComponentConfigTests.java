@@ -109,6 +109,43 @@ public class ComponentConfigTests {
         }
     }
 
+    /**
+     * Tests extracting and interpreting values as environment variables.
+     */
+    @Test
+    public void testGetEnvVarFromEnv() throws Exception {
+        final String componentCode = "envvar";
+        int index = 1;
+        final String validEnvProp = getPropertyName(index++);
+        final String invalidEnvProp1 = getPropertyName(index++);
+        final String invalidEnvProp2 = getPropertyName(index++);
+        final String invalidEnvProp3 = getPropertyName(index++);
+        final String rawProp = getPropertyName(index++);
+        val correctProperties = Collections.singleton(validEnvProp);
+        val incorrectProperties = Arrays.asList(invalidEnvProp1, invalidEnvProp2, invalidEnvProp3, rawProp);
+        Properties props = PropertyBag.create()
+                .with(getFullyQualifiedPropertyName(componentCode, validEnvProp), "$STATSD_UDP_HOST$")
+                .with(getFullyQualifiedPropertyName(componentCode, invalidEnvProp1), "env1$")
+                .with(getFullyQualifiedPropertyName(componentCode, invalidEnvProp2), "$env1")
+                .with(getFullyQualifiedPropertyName(componentCode, invalidEnvProp3), "a$env1$")
+                .with(getFullyQualifiedPropertyName(componentCode, rawProp), "env1");
+
+        val env = new HashMap<String, String>();
+        props.forEach((key, value) -> env.put((String) value, "incorrect"));
+        env.put("STATSD_UDP_HOST", "my_stats_host");
+
+        ComponentConfig config = new TestConfig(props, componentCode, env::get);
+        for (String p : correctProperties) {
+            Assert.assertEquals("Unexpected value from valid env var reference.", "my_stats_host", config.getProperty(p));
+            Assert.assertEquals("Unexpected value from valid env var reference.", "my_stats_host", config.getProperty(p, "incorrect"));
+        }
+
+        for (String p : incorrectProperties) {
+            String expectedValue = (String) props.get(getFullyQualifiedPropertyName(componentCode, p));
+            Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.getProperty(p));
+            Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.getProperty(p, "correct"));
+        }
+    }
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {
         for (int componentId = 0; componentId < ComponentConfigTests.COMPONENT_COUNT; componentId++) {
             String componentCode = getComponentCode(componentId);
