@@ -92,7 +92,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
-        this.initialized = true;
+        this.setInitialized();
         return null;
     }
 

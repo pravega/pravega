@@ -26,6 +26,7 @@ import org.junit.Test;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
@@ -122,7 +123,8 @@ public class ControllerBootstrapTest {
         }
 
         // Sleep for a while for initialize to complete
-        Thread.sleep(2000);
+        boolean initialized = controllerWrapper.awaitTasksModuleInitialization(5000, TimeUnit.MILLISECONDS);
+        Assert.assertTrue(initialized);
 
         // Now create transaction should succeed.
         txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000, 30000, 30000);

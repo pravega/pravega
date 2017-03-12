@@ -15,8 +15,11 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -62,7 +65,8 @@ public abstract class TaskBase {
 
     protected final TaskMetadataStore taskMetadataStore;
 
-    protected volatile boolean initialized;
+    private volatile boolean initialized;
+    private final CountDownLatch latch;
 
     public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
                     final String hostId, final boolean initialized) {
@@ -75,6 +79,7 @@ public abstract class TaskBase {
         this.executor = executor;
         this.context = context;
         this.initialized = initialized;
+        latch = initialized ? new CountDownLatch(0) : new CountDownLatch(1);
     }
     
     public abstract TaskBase copyWithContext(Context context);
@@ -124,6 +129,16 @@ public abstract class TaskBase {
                         executor);
 
         return result;
+    }
+
+    protected void setInitialized() {
+        initialized = true;
+        latch.countDown();
+    }
+
+    @VisibleForTesting
+    public boolean awaitInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        return latch.await(timeout, timeUnit);
     }
 
     private <T> CompletableFuture<T> executeTask(final Resource resource,
