@@ -47,7 +47,6 @@ public class ControllerEventProcessors extends AbstractService {
     private static final int MULTIPLIER = 10;
     private static final long MAX_DELAY = 10000;
 
-    private final Controller controller;
     private final CuratorFramework client;
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
@@ -65,7 +64,6 @@ public class ControllerEventProcessors extends AbstractService {
                                      final HostControllerStore hostControllerStore,
                                      final SegmentHelper segmentHelper,
                                      final ScheduledExecutorService executor) {
-        this.controller = controller;
         this.client = client;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;

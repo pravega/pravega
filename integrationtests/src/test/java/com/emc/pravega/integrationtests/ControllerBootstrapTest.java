@@ -93,6 +93,18 @@ public class ControllerBootstrapTest {
         CompletableFuture<CreateStreamStatus> streamStatus = controller.createStream(streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
 
+        // Create transaction should fail.
+        CompletableFuture<UUID> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM),
+                10000, 30000, 30000);
+
+        try {
+            txIdFuture.join();
+            Assert.fail();
+        } catch (CompletionException ce) {
+            Assert.assertEquals(IllegalStateException.class, ce.getCause().getClass());
+            Assert.assertTrue("Expected failure", true);
+        }
+
         // Now start Pravega service.
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -113,8 +125,7 @@ public class ControllerBootstrapTest {
         Thread.sleep(2000);
 
         // Now create transaction should succeed.
-        CompletableFuture<UUID> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM),
-                10000, 30000, 30000);
+        txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000, 30000, 30000);
 
         try {
             UUID id = txIdFuture.join();
