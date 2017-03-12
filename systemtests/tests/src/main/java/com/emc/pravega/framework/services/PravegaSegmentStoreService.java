@@ -10,6 +10,7 @@ import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
 import java.net.URI;
 import java.util.ArrayList;
@@ -105,6 +106,10 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega-host:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
+        List<Parameter> parameterList = new ArrayList<>();
+        Parameter element1 = new Parameter("env", "HOST_OPTS=-Xmx900m");
+        parameterList.add(element1);
+        app.getContainer().getDocker().setParameters(parameterList);
         //set port
         app.setPorts(Arrays.asList(SEGMENTSTORE_PORT));
         app.setRequirePorts(true);
