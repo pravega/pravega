@@ -284,7 +284,7 @@ project('service:server:host') {
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
 
-    applicationDefaultJvmArgs = ["-server", "-Xms512m","-XX:+HeapDumpOnOutOfMemoryError",
+    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlogback.configurationFile=SERVER_APP_HOME/config/logback.xml"]
 
     applicationDistribution.from('src/config') {
@@ -477,7 +477,7 @@ project('controller:server') {
 
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.controller.server.Main"
-    applicationDefaultJvmArgs = ["-server", "-Xms128m","-XX:+HeapDumpOnOutOfMemoryError",
+    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-Xmx512m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
                                  "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
 
@@ -635,7 +635,7 @@ project('systemtests:tests') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
-        //dependsOn 'publish'
+        dependsOn 'publish'
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
