@@ -3,17 +3,17 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.MetricsNames;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsLogger;
 import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.metrics.StatsProvider;
-import com.emc.pravega.controller.server.MetricNames;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.cache.CacheBuilder;
@@ -36,11 +36,11 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
-import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
-import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
-import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
-import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
+import static com.emc.pravega.common.MetricsNames.ABORT_TRANSACTION;
+import static com.emc.pravega.common.MetricsNames.COMMIT_TRANSACTION;
+import static com.emc.pravega.common.MetricsNames.CREATE_TRANSACTION;
+import static com.emc.pravega.common.MetricsNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.common.MetricsNames.nameFromStream;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
@@ -54,9 +54,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("Controller");
-    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricNames.CREATE_STREAM);
-    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricNames.SEAL_STREAM);
+    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("controller");
+    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
+    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
@@ -141,23 +141,27 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (!validateName(scopeName)) {
             log.error("Create scope failed due to invalid scope name {}", scopeName);
-            return CompletableFuture.completedFuture(CreateScopeStatus.INVALID_SCOPE_NAME);
+            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
+                    CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         } else {
             return getScope(scopeName).createScope()
                     .handle((result, ex) -> {
                         if (ex != null) {
                             if (ex.getCause() instanceof StoreException &&
                                     ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
-                                return CreateScopeStatus.SCOPE_EXISTS;
+                                return CreateScopeStatus.newBuilder().setStatus(
+                                        CreateScopeStatus.Status.SCOPE_EXISTS).build();
                             } else if (ex instanceof StoreException &&
                                     ((StoreException) ex).getType() == NODE_EXISTS) {
-                                return CreateScopeStatus.SCOPE_EXISTS;
+                                return CreateScopeStatus.newBuilder().setStatus(
+                                        CreateScopeStatus.Status.SCOPE_EXISTS).build();
                             } else {
                                 log.debug("Create scope failed due to ", ex);
-                                return CreateScopeStatus.FAILURE;
+                                return CreateScopeStatus.newBuilder().setStatus(
+                                        CreateScopeStatus.Status.FAILURE).build();
                             }
                         } else {
-                            return CreateScopeStatus.SUCCESS;
+                            return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
                         }
                     });
         }
@@ -177,17 +181,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         if ((ex.getCause() instanceof StoreException &&
                                 ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) ||
                                 (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_FOUND))) {
-                            return DeleteScopeStatus.SCOPE_NOT_FOUND;
+                            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND)
+                                    .build();
                         } else if (ex.getCause() instanceof StoreException &&
                                 ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY ||
                                 (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_EMPTY))) {
-                            return DeleteScopeStatus.SCOPE_NOT_EMPTY;
+                            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY)
+                                    .build();
                         } else {
                             log.debug("DeleteScope failed due to {} ", ex);
-                            return DeleteScopeStatus.FAILURE;
+                            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE)
+                                    .build();
                         }
                     } else {
-                        return DeleteScopeStatus.SUCCESS;
+                        return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
                     }
                 });
     }

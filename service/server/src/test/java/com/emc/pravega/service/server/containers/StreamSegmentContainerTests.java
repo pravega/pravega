@@ -31,7 +31,7 @@ import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
-import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
+import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;

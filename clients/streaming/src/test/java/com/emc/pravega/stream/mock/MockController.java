@@ -19,10 +19,11 @@ import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
@@ -74,17 +75,24 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
+        throw new NotImplementedException();
+    }
+
+    @Override
     @Synchronized
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
         Stream stream = new StreamImpl(streamConfig.getScope(), streamConfig.getStreamName());
         if (createdStreams.get(stream) != null) {
-            CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
+            CompletableFuture.completedFuture(CreateStreamStatus.newBuilder()
+                                                      .setStatus(CreateStreamStatus.Status.SUCCESS).build());
         }
         createdStreams.put(stream, streamConfig);
         for (Segment segment : getSegmentsForStream(stream)) {
             createSegment(segment.getScopedName(), new PravegaNodeUri(endpoint, port));
         }
-        return CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
+        return CompletableFuture.completedFuture(CreateStreamStatus.newBuilder()
+                                                         .setStatus(CreateStreamStatus.Status.SUCCESS).build());
     }
     
     @Synchronized

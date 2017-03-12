@@ -8,12 +8,12 @@ package com.emc.pravega.controller.server.eventProcessor;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
-import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
@@ -62,7 +62,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                 .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txId, context, executor));
     }
 
-    private CompletableFuture<TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         final long retryInitialDelay = 100;
         final int retryMultiplier = 10;
         final int retryMaxAttempts = 100;
