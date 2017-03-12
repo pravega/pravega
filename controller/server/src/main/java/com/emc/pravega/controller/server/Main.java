@@ -118,8 +118,7 @@ public class Main {
         ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                 ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper, eventProcExecutor);
 
-        ControllerEventProcessors.createStreams(localController, eventProcExecutor)
-                .thenAcceptAsync(x -> streamTransactionMetadataTasks.initializeStreamWriters(localController), eventProcExecutor)
+        ControllerEventProcessors.bootstrap(localController, streamTransactionMetadataTasks, eventProcExecutor)
                 .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
 
         //endregion

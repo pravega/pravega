@@ -20,6 +20,7 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -95,7 +96,7 @@ public class ControllerEventProcessors extends AbstractService {
         }
     }
 
-    public static CompletableFuture<Void> createStreams(final Controller controller,
+    private static CompletableFuture<Void> createStreams(final Controller controller,
                                                         final ScheduledExecutorService executor) {
         StreamConfiguration commitStreamConfig =
                 StreamConfiguration.builder()
@@ -112,8 +113,9 @@ public class ControllerEventProcessors extends AbstractService {
                         .build();
 
         return createScope(controller, CONTROLLER_SCOPE, executor)
-                .thenCompose(ignore -> createStream(controller, commitStreamConfig, executor))
-                .thenCompose(ignore -> createStream(controller, abortStreamConfig, executor));
+                .thenCompose(ignore ->
+                        CompletableFuture.allOf(createStream(controller, commitStreamConfig, executor),
+                                createStream(controller, abortStreamConfig, executor)));
     }
 
     private static CompletableFuture<Void> createScope(final Controller controller,
@@ -145,6 +147,15 @@ public class ControllerEventProcessors extends AbstractService {
                                 return null;
                             }
                         }), executor);
+    }
+
+
+    public static CompletableFuture<Void> bootstrap(final Controller localController,
+                                                    final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                                    final ScheduledExecutorService executor) {
+        return ControllerEventProcessors.createStreams(localController, executor)
+                .thenAcceptAsync(x -> streamTransactionMetadataTasks.initializeStreamWriters(localController),
+                        executor);
     }
 
     private void initialize() throws Exception {

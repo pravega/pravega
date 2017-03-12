@@ -116,8 +116,7 @@ public class ControllerWrapper implements AutoCloseable {
             controllerEventProcessors = null;
         }
 
-        ControllerEventProcessors.createStreams(localController, executor)
-                .thenAcceptAsync(x -> streamTransactionMetadataTasks.initializeStreamWriters(localController), executor)
+        ControllerEventProcessors.bootstrap(localController, streamTransactionMetadataTasks, executor)
                 .thenAcceptAsync(x -> {
                     if (!disableEventProcessor) {
                         controllerEventProcessors.startAsync();
