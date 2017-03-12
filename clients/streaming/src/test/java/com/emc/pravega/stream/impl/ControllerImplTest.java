@@ -83,112 +83,109 @@ public class ControllerImplTest {
     // The controller RPC client.
     private ControllerImpl controllerClient = null;
 
-    @Before
-    public void setup() throws IOException {
+    static class MockServiceImpl extends ControllerServiceImplBase {
 
-        // Setup fake server generating different success and failure responses.
-        ControllerServiceImplBase fakeServerImpl = new ControllerServiceImplBase() {
-            @Override
-            public void createStream(StreamConfig request,
-                    StreamObserver<CreateStreamStatus> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(CreateStreamStatus.newBuilder()
-                                                    .setStatus(CreateStreamStatus.Status.SUCCESS)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream2")) {
-                    responseObserver.onNext(CreateStreamStatus.newBuilder()
-                                                    .setStatus(CreateStreamStatus.Status.FAILURE)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream3")) {
-                    responseObserver.onNext(CreateStreamStatus.newBuilder()
-                                                    .setStatus(CreateStreamStatus.Status.SCOPE_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream4")) {
-                    responseObserver.onNext(CreateStreamStatus.newBuilder()
-                                                    .setStatus(CreateStreamStatus.Status.STREAM_EXISTS)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream5")) {
-                    responseObserver.onNext(CreateStreamStatus.newBuilder()
-                                                    .setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("streamparallel")) {
+        @Override
+        public void createStream(StreamConfig request,
+                                 StreamObserver<CreateStreamStatus> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(CreateStreamStatus.newBuilder()
+                        .setStatus(CreateStreamStatus.Status.SUCCESS)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                responseObserver.onNext(CreateStreamStatus.newBuilder()
+                        .setStatus(CreateStreamStatus.Status.FAILURE)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream3")) {
+                responseObserver.onNext(CreateStreamStatus.newBuilder()
+                        .setStatus(CreateStreamStatus.Status.SCOPE_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream4")) {
+                responseObserver.onNext(CreateStreamStatus.newBuilder()
+                        .setStatus(CreateStreamStatus.Status.STREAM_EXISTS)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream5")) {
+                responseObserver.onNext(CreateStreamStatus.newBuilder()
+                        .setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("streamparallel")) {
 
-                    // Simulating delay in sending response.
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException e) {
-                        log.error("Unexpected interrupt");
-                        responseObserver.onError(e);
-                        return;
-                    }
-                    responseObserver.onNext(CreateStreamStatus.newBuilder()
-                                                    .setStatus(CreateStreamStatus.Status.SUCCESS)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                // Simulating delay in sending response.
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    log.error("Unexpected interrupt");
+                    responseObserver.onError(e);
+                    return;
                 }
+                responseObserver.onNext(CreateStreamStatus.newBuilder()
+                        .setStatus(CreateStreamStatus.Status.SUCCESS)
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void alterStream(StreamConfig request,
-                    StreamObserver<UpdateStreamStatus> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
-                                                    .setStatus(UpdateStreamStatus.Status.SUCCESS)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream2")) {
-                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
-                                                    .setStatus(UpdateStreamStatus.Status.FAILURE)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream3")) {
-                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
-                                                    .setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream4")) {
-                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
-                                                    .setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void alterStream(StreamConfig request,
+                                StreamObserver<UpdateStreamStatus> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                        .setStatus(UpdateStreamStatus.Status.SUCCESS)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                        .setStatus(UpdateStreamStatus.Status.FAILURE)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream3")) {
+                responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                        .setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream4")) {
+                responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                        .setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
-                if (request.getStream().equals("stream1")) {
-                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
-                                                    .setStatus(UpdateStreamStatus.Status.SUCCESS)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStream().equals("stream2")) {
-                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
-                                                    .setStatus(UpdateStreamStatus.Status.FAILURE)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStream().equals("stream3")) {
-                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
-                                                    .setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStream().equals("stream4")) {
-                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
-                                                    .setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
+            if (request.getStream().equals("stream1")) {
+                responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                        .setStatus(UpdateStreamStatus.Status.SUCCESS)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStream().equals("stream2")) {
+                responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                        .setStatus(UpdateStreamStatus.Status.FAILURE)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStream().equals("stream3")) {
+                responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                        .setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStream().equals("stream4")) {
+                responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                        .setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
             @Override
             public void deleteStream(StreamInfo request,
@@ -259,265 +256,285 @@ public class ControllerImplTest {
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
+                responseObserver.onNext(SegmentRanges.newBuilder()
+                        .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                "streamparallel",
+                                0,
+                                0.0,
+                                0.4))
+                        .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                "streamparallel",
+                                1,
+                                0.4,
+                                1.0))
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void getPositions(GetPositionRequest request, StreamObserver<Positions> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(Positions.newBuilder()
-                                            .addPositions(Position.newBuilder()
-                                                          .addOwnedSegments(Position.OwnedSegmentEntry.newBuilder()
-                                                                                    .setSegmentId(
-                                                                                            ModelHelper.createSegmentId(
-                                                                                                    "scope1",
-                                                                                                    "stream1",
-                                                                                                    0))
-                                                                                    .setValue(10)
-                                                                                    .build()))
-                                            .addPositions(Position.newBuilder()
-                                                          .addOwnedSegments(Position.OwnedSegmentEntry.newBuilder()
-                                                                                    .setSegmentId(
-                                                                                            ModelHelper.createSegmentId(
-                                                                                                    "scope1",
-                                                                                                    "stream1",
-                                                                                                    1))
-                                                                                    .setValue(20)
-                                                                                    .build()))
-                                            .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void getPositions(GetPositionRequest request, StreamObserver<Positions> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(Positions.newBuilder()
+                        .addPositions(Position.newBuilder()
+                                .addOwnedSegments(Position.OwnedSegmentEntry.newBuilder()
+                                        .setSegmentId(
+                                                ModelHelper.createSegmentId(
+                                                        "scope1",
+                                                        "stream1",
+                                                        0))
+                                        .setValue(10)
+                                        .build()))
+                        .addPositions(Position.newBuilder()
+                                .addOwnedSegments(Position.OwnedSegmentEntry.newBuilder()
+                                        .setSegmentId(
+                                                ModelHelper.createSegmentId(
+                                                        "scope1",
+                                                        "stream1",
+                                                        1))
+                                        .setValue(20)
+                                        .build()))
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void getSegmentsImmediatlyFollowing(SegmentId request,
-                    StreamObserver<SuccessorResponse> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(SuccessorResponse.newBuilder()
-                                                    .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                                                         .setSegmentId(ModelHelper.createSegmentId(
-                                                                                 "scope1",
-                                                                                 "stream1",
-                                                                                 0))
-                                                                         .addValue(10)
-                                                                         .build())
-                                                    .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                                                         .setSegmentId(ModelHelper.createSegmentId(
-                                                                                 "scope1",
-                                                                                 "stream1",
-                                                                                 1))
-                                                                         .addValue(20)
-                                                                         .build())
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void getSegmentsImmediatlyFollowing(SegmentId request,
+                                                   StreamObserver<SuccessorResponse> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(SuccessorResponse.newBuilder()
+                        .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
+                                .setSegmentId(ModelHelper.createSegmentId(
+                                        "scope1",
+                                        "stream1",
+                                        0))
+                                .addValue(10)
+                                .build())
+                        .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
+                                .setSegmentId(ModelHelper.createSegmentId(
+                                        "scope1",
+                                        "stream1",
+                                        1))
+                                .addValue(20)
+                                .build())
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(ScaleResponse.newBuilder()
-                                                    .setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS)
-                                                    .addSegments(ModelHelper.createSegmentRange("scope1",
-                                                                                                "stream1",
-                                                                                                0,
-                                                                                                0.0,
-                                                                                                0.5))
-                                                    .addSegments(ModelHelper.createSegmentRange("scope1",
-                                                                                                "stream1",
-                                                                                                1,
-                                                                                                0.5,
-                                                                                                1.0))
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(ScaleResponse.newBuilder()
+                        .setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS)
+                        .addSegments(ModelHelper.createSegmentRange("scope1",
+                                "stream1",
+                                0,
+                                0.0,
+                                0.5))
+                        .addSegments(ModelHelper.createSegmentRange("scope1",
+                                "stream1",
+                                1,
+                                0.5,
+                                1.0))
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(NodeUri.newBuilder().setEndpoint("localhost").setPort(12345).build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(NodeUri.newBuilder().setEndpoint("localhost").setPort(12345).build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void isSegmentValid(SegmentId request,
-                    StreamObserver<SegmentValidityResponse> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(SegmentValidityResponse.newBuilder().setResponse(true).build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream2")) {
-                    responseObserver.onNext(SegmentValidityResponse.newBuilder().setResponse(false).build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void isSegmentValid(SegmentId request,
+                                   StreamObserver<SegmentValidityResponse> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(SegmentValidityResponse.newBuilder().setResponse(true).build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                responseObserver.onNext(SegmentValidityResponse.newBuilder().setResponse(false).build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void createTransaction(CreateTxnRequest request, StreamObserver<TxnId> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(TxnId.newBuilder().setHighBits(11L).setLowBits(22L).build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream2")) {
-                    responseObserver.onNext(TxnId.newBuilder().setHighBits(33L).setLowBits(44L).build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void createTransaction(CreateTxnRequest request, StreamObserver<TxnId> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(TxnId.newBuilder().setHighBits(11L).setLowBits(22L).build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                responseObserver.onNext(TxnId.newBuilder().setHighBits(33L).setLowBits(44L).build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void commitTransaction(TxnRequest request,
-                    StreamObserver<Controller.TxnStatus> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(Controller.TxnStatus.newBuilder()
-                                                    .setStatus(Controller.TxnStatus.Status.SUCCESS)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream2")) {
-                    responseObserver.onNext(Controller.TxnStatus.newBuilder()
-                                                    .setStatus(Controller.TxnStatus.Status.FAILURE)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream3")) {
-                    responseObserver.onNext(Controller.TxnStatus.newBuilder()
-                                                    .setStatus(Controller.TxnStatus.Status.STREAM_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream4")) {
-                    responseObserver.onNext(Controller.TxnStatus.newBuilder()
-                                                    .setStatus(Controller.TxnStatus.Status.TRANSACTION_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void commitTransaction(TxnRequest request,
+                                      StreamObserver<Controller.TxnStatus> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(Controller.TxnStatus.newBuilder()
+                        .setStatus(Controller.TxnStatus.Status.SUCCESS)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                responseObserver.onNext(Controller.TxnStatus.newBuilder()
+                        .setStatus(Controller.TxnStatus.Status.FAILURE)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream3")) {
+                responseObserver.onNext(Controller.TxnStatus.newBuilder()
+                        .setStatus(Controller.TxnStatus.Status.STREAM_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream4")) {
+                responseObserver.onNext(Controller.TxnStatus.newBuilder()
+                        .setStatus(Controller.TxnStatus.Status.TRANSACTION_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void abortTransaction(TxnRequest request,
-                    StreamObserver<Controller.TxnStatus> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(Controller.TxnStatus.newBuilder()
-                                                    .setStatus(Controller.TxnStatus.Status.SUCCESS)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream2")) {
-                    responseObserver.onNext(Controller.TxnStatus.newBuilder()
-                                                    .setStatus(Controller.TxnStatus.Status.FAILURE)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream3")) {
-                    responseObserver.onNext(Controller.TxnStatus.newBuilder()
-                                                    .setStatus(Controller.TxnStatus.Status.STREAM_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream4")) {
-                    responseObserver.onNext(Controller.TxnStatus.newBuilder()
-                                                    .setStatus(Controller.TxnStatus.Status.TRANSACTION_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void abortTransaction(TxnRequest request,
+                                     StreamObserver<Controller.TxnStatus> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(Controller.TxnStatus.newBuilder()
+                        .setStatus(Controller.TxnStatus.Status.SUCCESS)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                responseObserver.onNext(Controller.TxnStatus.newBuilder()
+                        .setStatus(Controller.TxnStatus.Status.FAILURE)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream3")) {
+                responseObserver.onNext(Controller.TxnStatus.newBuilder()
+                        .setStatus(Controller.TxnStatus.Status.STREAM_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream4")) {
+                responseObserver.onNext(Controller.TxnStatus.newBuilder()
+                        .setStatus(Controller.TxnStatus.Status.TRANSACTION_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void pingTransaction(PingTxnRequest request,
-                    StreamObserver<PingTxnStatus> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void pingTransaction(PingTxnRequest request,
+                                    StreamObserver<PingTxnStatus> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.OPEN).build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream2")) {
-                    responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.UNKNOWN).build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream3")) {
-                    responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.COMMITTING).build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream4")) {
-                    responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.COMMITTED).build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream5")) {
-                    responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.ABORTING).build());
-                    responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("stream6")) {
-                    responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.ABORTED).build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
+            if (request.getStreamInfo().getStream().equals("stream1")) {
+                responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.OPEN).build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.UNKNOWN).build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream3")) {
+                responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.COMMITTING).build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream4")) {
+                responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.COMMITTED).build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream5")) {
+                responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.ABORTING).build());
+                responseObserver.onCompleted();
+            } else if (request.getStreamInfo().getStream().equals("stream6")) {
+                responseObserver.onNext(TxnState.newBuilder().setState(TxnState.State.ABORTED).build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {
-                if (request.getScope().equals("scope1")) {
-                    responseObserver.onNext(CreateScopeStatus.newBuilder().setStatus(
-                            CreateScopeStatus.Status.SUCCESS).build());
-                    responseObserver.onCompleted();
-                } else if (request.getScope().equals("scope2")) {
-                    responseObserver.onNext(CreateScopeStatus.newBuilder().setStatus(
-                            CreateScopeStatus.Status.FAILURE).build());
-                    responseObserver.onCompleted();
-                } else if (request.getScope().equals("scope3")) {
-                    responseObserver.onNext(CreateScopeStatus.newBuilder()
-                                                    .setStatus(CreateScopeStatus.Status.INVALID_SCOPE_NAME)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getScope().equals("scope4")) {
-                    responseObserver.onNext(CreateScopeStatus.newBuilder()
-                                                    .setStatus(CreateScopeStatus.Status.SCOPE_EXISTS)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {
+            if (request.getScope().equals("scope1")) {
+                responseObserver.onNext(CreateScopeStatus.newBuilder().setStatus(
+                        CreateScopeStatus.Status.SUCCESS).build());
+                responseObserver.onCompleted();
+            } else if (request.getScope().equals("scope2")) {
+                responseObserver.onNext(CreateScopeStatus.newBuilder().setStatus(
+                        CreateScopeStatus.Status.FAILURE).build());
+                responseObserver.onCompleted();
+            } else if (request.getScope().equals("scope3")) {
+                responseObserver.onNext(CreateScopeStatus.newBuilder()
+                        .setStatus(CreateScopeStatus.Status.INVALID_SCOPE_NAME)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getScope().equals("scope4")) {
+                responseObserver.onNext(CreateScopeStatus.newBuilder()
+                        .setStatus(CreateScopeStatus.Status.SCOPE_EXISTS)
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
+        }
 
-            @Override
-            public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
-                if (request.getScope().equals("scope1")) {
-                    responseObserver.onNext(DeleteScopeStatus.newBuilder().setStatus(
-                            DeleteScopeStatus.Status.SUCCESS).build());
-                    responseObserver.onCompleted();
-                } else if (request.getScope().equals("scope2")) {
-                    responseObserver.onNext(DeleteScopeStatus.newBuilder().setStatus(
-                            DeleteScopeStatus.Status.FAILURE).build());
-                    responseObserver.onCompleted();
-                } else if (request.getScope().equals("scope3")) {
-                    responseObserver.onNext(DeleteScopeStatus.newBuilder()
-                                                    .setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else if (request.getScope().equals("scope4")) {
-                    responseObserver.onNext(DeleteScopeStatus.newBuilder()
-                                                    .setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND)
-                                                    .build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
+        @Override
+        public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
+            if (request.getScope().equals("scope1")) {
+                responseObserver.onNext(DeleteScopeStatus.newBuilder().setStatus(
+                        DeleteScopeStatus.Status.SUCCESS).build());
+                responseObserver.onCompleted();
+            } else if (request.getScope().equals("scope2")) {
+                responseObserver.onNext(DeleteScopeStatus.newBuilder().setStatus(
+                        DeleteScopeStatus.Status.FAILURE).build());
+                responseObserver.onCompleted();
+            } else if (request.getScope().equals("scope3")) {
+                responseObserver.onNext(DeleteScopeStatus.newBuilder()
+                        .setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY)
+                        .build());
+                responseObserver.onCompleted();
+            } else if (request.getScope().equals("scope4")) {
+                responseObserver.onNext(DeleteScopeStatus.newBuilder()
+                        .setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND)
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
             }
-        };
+        }
+    }
 
+    @Before
+    public void setup() throws IOException {
+        // Setup fake server generating different success and failure responses.
+        ControllerServiceImplBase fakeServerImpl = new MockServiceImpl();
         fakeServer = InProcessServerBuilder.forName("fakeserver")
                 .addService(fakeServerImpl)
                 .directExecutor()
