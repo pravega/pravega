@@ -110,6 +110,11 @@
               "docker": {
                   "image": "arvindkandhare/pravega_host",
                   "network": "HOST",
+                "parameters": [
+                  { "key": "env",
+                    "value": "HOST_OPTS=-Xmx900m"
+                  }
+                ],
 		  "forcePullImage": true
               }
           },
