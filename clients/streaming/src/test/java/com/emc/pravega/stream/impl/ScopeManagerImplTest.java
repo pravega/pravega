@@ -28,12 +28,12 @@ public class ScopeManagerImplTest {
     public void setUp() {
         ControllerServiceImplBase fakeServerImpl = new ControllerImplTest.MockServiceImpl();
         try {
-            fakeServer = InProcessServerBuilder.forName("fakeserver")
+            fakeServer = InProcessServerBuilder.forName("mockServiceImpl")
                     .addService(fakeServerImpl)
                     .directExecutor()
                     .build()
                     .start();
-            controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("fakeserver").directExecutor());
+            controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("mockServiceImpl").directExecutor());
         } catch (IOException e) {
             Assert.fail("Exception during set up" +  e.getMessage());
         }

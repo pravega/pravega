@@ -544,8 +544,11 @@ public class ControllerImplTest {
     }
 
     @After
-    public void tearDown() {
-        fakeServer.shutdown();
+    public void tearDown()
+    {
+        if( fakeserver != null ) {
+            fakeServer.shutdown();
+        }
     }
 
     @Test
