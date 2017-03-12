@@ -110,6 +110,9 @@ public class InProcPravegaCluster implements AutoCloseable {
             startLocalDL();
         }
 
+        configureDLBinding(this.zkUrl);
+
+
         if(isInprocController) {
             controllerServices = new ControllerService[controllerCount];
             startLocalControllers();
@@ -148,7 +151,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                     zkPort(zkPort).numBookies(this.bookieCount).build();
         }
         localDlm.start();
-        configureDLBinding(this.zkUrl);
     }
 
 
@@ -190,8 +192,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE,
                     Long.toString(128 * 1024 * 1024));
 
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, "localhost:" +
-                    zkPort);
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, zkUrl);
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
                     Integer.toString(this.hostPorts[hostId]));
 
@@ -234,7 +235,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
 
         //1. LOAD configuration.
-        CuratorFramework client = CuratorFrameworkFactory.newClient("localhost:" + zkPort, new RetryOneTime(2000));
+        CuratorFramework client = CuratorFrameworkFactory.newClient(zkUrl, new RetryOneTime(2000));
         client.start();
 
         StoreClient storeClient = new ZKStoreClient(client);

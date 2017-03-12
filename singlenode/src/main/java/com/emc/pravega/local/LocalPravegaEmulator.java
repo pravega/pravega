@@ -18,6 +18,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         inProcPravegaCluster = InProcPravegaCluster
                 .builder()
                 .isInProcZK(false)
+                .zkUrl("localhost:" + zkPort)
                 .zkPort(zkPort)
                 .isInProcHDFS(true)
                 .isInProcDL(false)
