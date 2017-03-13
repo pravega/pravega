@@ -9,8 +9,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
 import java.util.function.Supplier;
-import lombok.extern.log4j.Log4j;
-
+import lombok.extern.slf4j.Slf4j;
 
 import static com.codahale.metrics.MetricRegistry.name;
 import static com.emc.pravega.common.metrics.NullStatsLogger.NULLCOUNTER;
@@ -18,7 +17,7 @@ import static com.emc.pravega.common.metrics.NullStatsLogger.NULLGAUGE;
 import static com.emc.pravega.common.metrics.NullStatsLogger.NULLMETER;
 import static com.emc.pravega.common.metrics.NullStatsLogger.NULLOPSTATSLOGGER;
 
-@Log4j
+@Slf4j
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
     private final MetricRegistry metrics;
@@ -36,7 +35,7 @@ public class YammerStatsLogger implements StatsLogger {
             Timer failure = metrics.timer(name(basename, statName + "-fail"));
             return new YammerOpStatsLogger(success, failure);
         } catch (Exception e) {
-            log.warn("Create metrics failure: {}", e);
+            log.warn("createStats failure: {}", e);
             return NULLOPSTATSLOGGER;
 
         }
@@ -48,7 +47,7 @@ public class YammerStatsLogger implements StatsLogger {
             final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
             return new CounterImpl(c, name(basename, statName));
         } catch (Exception e) {
-            log.warn("Create metrics failure: {}", e);
+            log.warn("createCounter failure: {}", e);
             return NULLCOUNTER;
         }
     }
@@ -67,7 +66,7 @@ public class YammerStatsLogger implements StatsLogger {
             metrics.register(metricName, gauge);
             return new GaugeImpl(gauge, metricName);
         } catch (Exception e) {
-            log.warn("Create metrics failure: {}", e);
+            log.warn("registerGauge failure: {}", e);
             return NULLGAUGE;
         }
     }
@@ -78,7 +77,7 @@ public class YammerStatsLogger implements StatsLogger {
             final com.codahale.metrics.Meter meter = metrics.meter(name(basename, statName));
             return new MeterImpl(meter, name(basename, statName));
         } catch (Exception e) {
-            log.warn("Create metrics failure: {}", e);
+            log.warn("createMeter failure: {}", e);
             return NULLMETER;
         }
     }
