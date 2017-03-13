@@ -48,7 +48,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (stream != null) {
             return stream;
         } else {
-            throw new DataNotFoundException(name);
+            return new InMemoryStream.NonExistentStream(scope, name);
         }
     }
 
