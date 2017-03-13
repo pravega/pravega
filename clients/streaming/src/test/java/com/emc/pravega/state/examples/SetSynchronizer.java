@@ -37,7 +37,7 @@ public class SetSynchronizer<T extends Serializable> {
      */
     @ToString
     @RequiredArgsConstructor
-    @EqualsAndHashCode(callSuper=false)
+    @EqualsAndHashCode(callSuper = false)
     private static class UpdatableSet<T> implements Revisioned, Serializable {
         private static final long serialVersionUID = 1L;
         private final String streamName;
@@ -86,7 +86,7 @@ public class SetSynchronizer<T extends Serializable> {
      */
     @ToString
     @RequiredArgsConstructor
-    @EqualsAndHashCode(callSuper=false)
+    @EqualsAndHashCode(callSuper = false)
     private static class AddToSet<T> extends SetUpdate<T> {
         private static final long serialVersionUID = 1L;
         private final T value;
@@ -102,7 +102,7 @@ public class SetSynchronizer<T extends Serializable> {
      */
     @ToString
     @RequiredArgsConstructor
-    @EqualsAndHashCode(callSuper=false)
+    @EqualsAndHashCode(callSuper = false)
     private static class RemoveFromSet<T> extends SetUpdate<T> {
         private static final long serialVersionUID = 1L;
         private final T value;
@@ -117,7 +117,7 @@ public class SetSynchronizer<T extends Serializable> {
      * Clear the set.
      */
     @ToString
-    @EqualsAndHashCode(callSuper=false)
+    @EqualsAndHashCode(callSuper = false)
     private static class ClearSet<T> extends SetUpdate<T> {
         private static final long serialVersionUID = 1L;
 
