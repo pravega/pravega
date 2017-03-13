@@ -91,12 +91,12 @@ public class WireCommandsTest {
 
     @Test
     public void testGetTransactionInfo() throws IOException {
-        testCommand(new WireCommands.GetTransactionInfo(testString1, uuid));
+        testCommand(new WireCommands.GetTransactionInfo(l - 1, testString1, uuid));
     }
 
     @Test
     public void testTransactionInfo() throws IOException {
-        testCommand(new WireCommands.TransactionInfo(testString1, uuid, testString1, false, true, l, l + 1));
+        testCommand(new WireCommands.TransactionInfo(l - 1, testString1, uuid, testString1, false, true, l, l + 1));
     }
 
     @Test

@@ -233,18 +233,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
-                TransactionInfo result = new TransactionInfo(request.getSegment(),
-                        request.getTxid(),
-                        transactionName,
-                        !properties.isDeleted(),
-                        properties.isSealed(),
-                        properties.getLastModified().getTime(),
-                        properties.getLength());
+                TransactionInfo result = new TransactionInfo(request.getRequestId(),
+                                                             request.getSegment(),
+                                                             request.getTxid(),
+                                                             transactionName,
+                                                             !properties.isDeleted(),
+                                                             properties.isSealed(),
+                                                             properties.getLastModified().getTime(),
+                                                             properties.getLength());
                 log.trace("Read transaction segment info: {}", result);
                 connection.send(result);
             } else {
                 log.trace("getTransactionInfo could not find segment {}", transactionName);
-                connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), transactionName, false, true, 0, 0));
+                connection.send(new TransactionInfo(request.getRequestId(),
+                                                    request.getSegment(),
+                                                    request.getTxid(),
+                                                    transactionName,
+                                                    false,
+                                                    true,
+                                                    0,
+                                                    0));
             }
             return null;
         }).exceptionally((Throwable e) -> {
