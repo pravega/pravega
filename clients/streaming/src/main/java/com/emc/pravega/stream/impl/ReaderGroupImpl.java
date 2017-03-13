@@ -104,7 +104,7 @@ public class ReaderGroupImpl implements ReaderGroup {
                 synchronizer.fetchUpdates();
                 checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
                 return null;
-            }, Duration.ofSeconds(2), backgroundExecutor);
+            }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor).thenApply(v ->  completeCheckpoint(checkpointName, synchronizer)
         );
     }
