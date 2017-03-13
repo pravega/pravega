@@ -61,7 +61,7 @@ public class CommandTask extends MetronomeBasedTask {
 
         Run run = new Run();
         run.setArtifacts(Collections.emptyList());
-        run.setCmd("/bin/bash -c " + command); // enable multiple commands seperated by ;
+        run.setCmd("/bin/bash -c " + command.replaceAll(" ", "\\ ")); // enable multiple commands seperated by ;
 
         run.setCpus(0.5);
         run.setMem(64.0);
