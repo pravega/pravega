@@ -40,6 +40,9 @@ import static com.emc.pravega.common.MetricsNames.ABORT_TRANSACTION;
 import static com.emc.pravega.common.MetricsNames.COMMIT_TRANSACTION;
 import static com.emc.pravega.common.MetricsNames.CREATE_TRANSACTION;
 import static com.emc.pravega.common.MetricsNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.common.MetricsNames.SEGMENTS_COUNT;
+import static com.emc.pravega.common.MetricsNames.SEGMENTS_MERGES;
+import static com.emc.pravega.common.MetricsNames.SEGMENTS_SPLITS;
 import static com.emc.pravega.common.MetricsNames.nameFromStream;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
@@ -119,6 +122,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 .thenApply(result -> {
                     CREATE_STREAM.reportSuccessValue(1);
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
+                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+                                    configuration.getScalingPolicy().getMinNumSegments());
+                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
+                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
+
                     return result;
                 });
     }
@@ -307,9 +315,24 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<List<Segment>> scale(final String scope, final String name,
                                                   final List<Integer> sealedSegments,
                                                   final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                  final long scaleTimestamp, final OperationContext context, final Executor executor) {
+                                                  final long scaleTimestamp,
+                                                  final OperationContext context,
+                                                  final Executor executor) {
         CompletableFuture<List<Segment>> future = withCompletion(getStream(scope, name, context)
                 .scale(sealedSegments, newRanges, scaleTimestamp), executor);
+
+        future.thenApply(result -> {
+            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+                    newRanges.size() - sealedSegments.size());
+            getSealedRanges(scope, name, sealedSegments, context, executor)
+                    .thenAccept(sealedRanges -> {
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
+                                findSplits(sealedRanges, newRanges));
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name),
+                                findSplits(newRanges, sealedRanges));
+                    });
+            return result;
+        });
 
         return future;
     }
@@ -498,6 +521,39 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         }, executor);
 
         return result;
+    }
+
+    private CompletableFuture<List<AbstractMap.SimpleEntry<Double, Double>>> getSealedRanges(final String scopeName,
+                                                                                             final String streamName,
+                                                                                             final List<Integer> sealedSegments,
+                                                                                             final OperationContext context,
+                                                                                             final Executor executor) {
+        return FutureHelpers.allOfWithResults(
+                sealedSegments.stream()
+                        .map(value ->
+                                getSegment(scopeName, streamName, value, context, executor).thenApply(segment ->
+                                        new AbstractMap.SimpleEntry<>(
+                                                segment.getKeyStart(),
+                                                segment.getKeyEnd())))
+                        .collect(Collectors.toList()));
+    }
+
+    private int findSplits(final List<AbstractMap.SimpleEntry<Double, Double>> sealedRanges,
+                           final List<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
+        int splits = 0;
+        for (AbstractMap.SimpleEntry<Double, Double> sealedRange : sealedRanges) {
+            int overlaps = 0;
+            for (AbstractMap.SimpleEntry<Double, Double> newRange : newRanges) {
+                if (Segment.overlaps(sealedRange, newRange)) {
+                    overlaps++;
+                }
+                if (overlaps > 1) {
+                    splits++;
+                    break;
+                }
+            }
+        }
+        return splits;
     }
 
     static boolean validateName(final String path) {
