@@ -97,13 +97,13 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void updateStateUnconditionally(Update<StateT> update) {
-        log.trace("Unconditionally Writeing {} ", update);
+        log.trace("Unconditionally Writing {} ", update);
         client.writeUnconditionally(new UpdateOrInit<>(Collections.singletonList(update)));
     }
 
     @Override
     public void updateStateUnconditionally(List<? extends Update<StateT>> update) {
-        log.trace("Unconditionally Writeing {} ", update);
+        log.trace("Unconditionally Writing {} ", update);
         client.writeUnconditionally(new UpdateOrInit<>(update));
     }
 
@@ -135,7 +135,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                     throw new IllegalStateException("Write was called before the state was initialized.");
                 }
             }
-            log.trace("Conditionally Writeing {} ", state);
+            log.trace("Conditionally Writing {} ", state);
             Revision revision = state.getRevision();
             UpdateOrInit<StateT> toWrite = generator.apply(state);
             if (toWrite == null) {

@@ -173,16 +173,15 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         synchronized (lock) {
             outstandingRequests.put(read.request.getOffset(), read);
         }
-        getConnection().thenApply((ClientConnection c) -> {
+        getConnection().thenAccept((ClientConnection c) -> {
             log.info("Sending read request {}", read);
             c.sendAsync(read.request);
-            return null;
         });
         return read;
     }
 
     private void closeConnection(Exception exceptionToInflightRequests) {
-        log.info("Closing connection with exception: {}", exceptionToInflightRequests.toString());
+        log.trace("Closing connection with exception: {}", exceptionToInflightRequests.toString());
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
             c = connection;
@@ -261,14 +260,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         synchronized (lock) {
             infoRequests.put(requestId, result);
         }
-        getConnection().thenApply(c -> {
+        getConnection().thenAccept(c -> {
             try {
                 log.trace("Getting segment info");
                 c.send(new GetStreamSegmentInfo(requestId, segmentId.getScopedName()));
             } catch (ConnectionFailedException e) {
                 closeConnection(e);
             }
-            return null; 
         });
         return result;
     }
