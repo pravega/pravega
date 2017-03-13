@@ -115,6 +115,17 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return new PositionImpl(positions);
     }
     
+    /**
+     * Releases or acquires segments as needed. Returns the name of the checkpoint if the reader is
+     * at one.
+     * 
+     * Segments can only be released on the next read call following a checkpoint because this is
+     * the only point we can be sure the caller has persisted their position, which is needed to be
+     * sure the segment is located in the position of one of the readers and not left out because it
+     * was moved while the checkpoint was occurring, while at the same time guaranteeing that
+     * another reader will not see events following the ones read by this reader until after they
+     * have been persisted.
+     */
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReinitializationRequiredException {
         try {

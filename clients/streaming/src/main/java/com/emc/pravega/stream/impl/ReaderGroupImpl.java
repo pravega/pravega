@@ -32,6 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.Data;
+import lombok.SneakyThrows;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.allOfWithResults;
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
@@ -104,14 +105,18 @@ public class ReaderGroupImpl implements ReaderGroup {
                 checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
                 return null;
             }, Duration.ofSeconds(2), backgroundExecutor);
-        }, backgroundExecutor).thenApply(v -> {
-            Map<Segment, Long> map = synchronizer.getState().getPositionsForCompletedCheckpoint(checkpointName);
-            synchronizer.updateStateUnconditionally(new ClearCheckpoints(checkpointName));
-            if (map == null) {
-                throw new CheckpointFailedException("Checkpoint was cleared before results could be read.");
-            }
-            return new CheckpointImpl(checkpointName, map);
-        });
+        }, backgroundExecutor).thenApply(v ->  completeCheckpoint(checkpointName, synchronizer)
+        );
+    }
+
+    @SneakyThrows(CheckpointFailedException.class)
+    private Checkpoint completeCheckpoint(String checkpointName, StateSynchronizer<ReaderGroupState> synchronizer) {
+        Map<Segment, Long> map = synchronizer.getState().getPositionsForCompletedCheckpoint(checkpointName);
+        synchronizer.updateStateUnconditionally(new ClearCheckpoints(checkpointName));
+        if (map == null) {
+            throw new CheckpointFailedException("Checkpoint was cleared before results could be read.");
+        }
+        return new CheckpointImpl(checkpointName, map);
     }
 
     @Override

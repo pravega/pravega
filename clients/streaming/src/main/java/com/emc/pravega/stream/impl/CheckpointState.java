@@ -21,10 +21,16 @@ import lombok.Synchronized;
 public class CheckpointState {
     @GuardedBy("$lock")
     private final List<String> checkpoints = new ArrayList<>();
+    /**
+     * Maps CheckpointId to remaining hosts.
+     */
     @GuardedBy("$lock")
-    private final Map<String, List<String>> uncheckpointedHosts = new HashMap<>(); // Maps CheckpointId to remaining hosts.
+    private final Map<String, List<String>> uncheckpointedHosts = new HashMap<>();
+    /**
+     *  Maps CheckpointId to positions in segments.
+     */
     @GuardedBy("$lock")
-    private final Map<String, Map<Segment, Long>> checkpointPositions = new HashMap<>(); // Maps CheckpointId to positions in segments.
+    private final Map<String, Map<Segment, Long>> checkpointPositions = new HashMap<>();
     
     @Synchronized
     void beginNewCheckpoint(String checkpointId, Set<String> currentReaders) {

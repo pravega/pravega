@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-public class CheckpointFailedException extends RuntimeException {
+public class CheckpointFailedException extends Exception {
 
     private static final long serialVersionUID = 1L;
 
