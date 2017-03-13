@@ -15,6 +15,8 @@ import mesosphere.marathon.client.utils.MarathonException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
@@ -25,7 +27,11 @@ public class ZookeeperService extends MarathonBasedService {
     private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
     private int instances = 1;
     private double cpu = 1.0;
-    private double mem = 128.0;
+    private double mem = 1024.0;
+
+    public ZookeeperService(final  String id) {
+        super(id);
+    }
 
     public ZookeeperService(final String id, int instances, double cpu, double mem) {
         // if SkipserviceInstallation flag is enabled used the default id.
@@ -42,11 +48,11 @@ public class ZookeeperService extends MarathonBasedService {
         try {
             marathonClient.createApp(createZookeeperApp());
             if (wait) {
-                waitUntilServiceRunning().get();
+                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
-        } catch (InterruptedException | ExecutionException ex) {
+        } catch (InterruptedException | ExecutionException | TimeoutException ex) {
             throw new TestFrameworkException(InternalError, "Exception while " +
                     "starting Zookeeper Service", ex);
         }

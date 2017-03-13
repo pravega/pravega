@@ -12,7 +12,6 @@ import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,7 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
@@ -31,8 +31,14 @@ public class BookkeeperService extends MarathonBasedService {
     private static final int BK_PORT = 3181;
     private final URI zkUri;
     private int instances = 3;
-    private double cpu = 0.5;
-    private double mem = 512.0;
+    private double cpu = 0.1;
+    private double mem = 1024.0;
+
+    public BookkeeperService(final String id, final URI zkUri) {
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/bookkeeper" : id);
+        this.zkUri = zkUri;
+    }
 
     public BookkeeperService(final String id, final URI zkUri, int instances, double cpu, double mem) {
         // if SkipserviceInstallation flag is enabled used the default id.
@@ -50,11 +56,11 @@ public class BookkeeperService extends MarathonBasedService {
         try {
             marathonClient.createApp(createBookieApp());
             if (wait) {
-                waitUntilServiceRunning().get();
+                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
-        } catch (InterruptedException | ExecutionException ex) {
+        } catch (InterruptedException | ExecutionException | TimeoutException ex) {
             throw new TestFrameworkException(InternalError, "Exception while " +
                     "starting Bookkeeper Service", ex);
         }
