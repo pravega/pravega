@@ -644,6 +644,7 @@ project('systemtests:tests') {
         systemProperty "execType", System.getProperty("execType")
         systemProperty "masterIP", System.getProperty("masterIP")
         systemProperty "imageVersion", System.getProperty("imageVersion")
+        systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
@@ -653,6 +654,10 @@ project('systemtests:tests') {
         }
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
+        }
+        if (System.getProperty("skipServiceInstallation") == null) {
+            //skipServiceInstallation by default.
+            systemProperty "skipServiceInstallation", "true"
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")

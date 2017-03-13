@@ -11,12 +11,15 @@ import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.utils.MarathonException;
-import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
 @Slf4j
 public class ZookeeperService extends MarathonBasedService {
@@ -27,11 +30,13 @@ public class ZookeeperService extends MarathonBasedService {
     private double mem = 1024.0;
 
     public ZookeeperService(final  String id) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/exhibitor" : id);
     }
 
     public ZookeeperService(final String id, int instances, double cpu, double mem) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/exhibitor" : id);
         this.instances = instances;
         this.cpu = cpu;
         this.mem = mem;

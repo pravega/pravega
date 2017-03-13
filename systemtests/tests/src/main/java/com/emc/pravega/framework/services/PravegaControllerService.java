@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
 /**
  * Controller Service.
@@ -38,12 +39,14 @@ public class PravegaControllerService extends MarathonBasedService {
     private double mem = 700;
 
     public PravegaControllerService(final String id, final URI zkUri) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
         this.zkUri = zkUri;
     }
 
     public PravegaControllerService(final String id, final URI zkUri, int instances, double cpu, double mem) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
         this.zkUri = zkUri;
         this.instances = instances;
         this.cpu = cpu;

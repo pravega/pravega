@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
 @Slf4j
 public class PravegaSegmentStoreService extends MarathonBasedService {
@@ -35,13 +36,15 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private final URI conUri;
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/host" : id);
         this.zkUri = zkUri;
         this.conUri = conUri;
     }
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri, int instances, double cpu, double mem) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/host" : id);
         this.zkUri = zkUri;
         this.instances = instances;
         this.cpu = cpu;
