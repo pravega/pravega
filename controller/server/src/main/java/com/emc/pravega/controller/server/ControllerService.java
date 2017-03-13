@@ -91,8 +91,8 @@ public class ControllerService {
     }
 
     public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String stream) {
-        Preconditions.checkNotNull(scope, "scope");
-        Preconditions.checkNotNull(stream, "stream");
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
         return streamMetadataTasks.deleteStream(scope, stream, null)
                 .thenApplyAsync(status -> DeleteStreamStatus.newBuilder().setStatus(status).build(), executor);
     }

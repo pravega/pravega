@@ -131,8 +131,6 @@ public abstract class StreamMetadataStoreTest {
             store.setSealed(scope, "streamNonExistent", null, executor).join();
         } catch (CompletionException e) {
             assertEquals(DataNotFoundException.class, e.getCause().getClass());
-        } catch (Exception e) {
-            assertEquals(DataNotFoundException.class, e.getCause().getCause().getClass());
         }
         // endregion
 
