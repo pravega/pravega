@@ -58,10 +58,8 @@ public class YammerStatsLogger implements StatsLogger {
                     return value.get();
                 }
             };
-            synchronized (this.metrics) {
-                metrics.remove(metricName);
-                metrics.register(metricName, gauge);
-            }
+            metrics.remove(metricName);
+            metrics.register(metricName, gauge);
             return new GaugeImpl(gauge, metricName);
         } catch (Exception e) {
             log.warn("Create metrics failure: {}", e);
