@@ -30,7 +30,8 @@ public class ZookeeperService extends MarathonBasedService {
     private double mem = 1024.0;
 
     public ZookeeperService(final  String id) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/exhibitor" : id);
     }
 
     public ZookeeperService(final String id, int instances, double cpu, double mem) {

@@ -31,7 +31,7 @@ import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 @Slf4j
 public class PravegaControllerService extends MarathonBasedService {
 
-    private static final int CONTROLLER_PORT = 9090;
+    private static final int CONTROLLER_PORT = 9092;
     private static final int REST_PORT = 10080;
     private final URI zkUri;
     private int instances = 1;
@@ -39,7 +39,8 @@ public class PravegaControllerService extends MarathonBasedService {
     private double mem = 700;
 
     public PravegaControllerService(final String id, final URI zkUri) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
         this.zkUri = zkUri;
     }
 
