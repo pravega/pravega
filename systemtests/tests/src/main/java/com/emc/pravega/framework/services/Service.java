@@ -8,7 +8,7 @@ import java.net.URI;
 import java.util.List;
 
 /**
- * Service abstraction for the test framework. T
+ * Service abstraction for the test framework.
  * System tests use Service apis to configure, fetch deployment details and get the current status of the service.
  * .
  */
