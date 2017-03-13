@@ -75,7 +75,8 @@ public class TableHelper {
      * @return             total number of segments in the stream.
      */
     public static int getSegmentCount(final byte[] historyTable) {
-        // TODO: once stream seal is properly implemented to add an empty record to history table, this method needs
+        // TODO: issue #711
+        // Once stream seal is properly implemented to add an empty record to history table, this method needs
         // to change to read penultimate row and operate on it, if the last row is empty.
         final Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyTable);
 
