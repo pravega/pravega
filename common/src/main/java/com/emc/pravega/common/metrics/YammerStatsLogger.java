@@ -13,6 +13,10 @@ import lombok.extern.log4j.Log4j;
 
 
 import static com.codahale.metrics.MetricRegistry.name;
+import static com.emc.pravega.common.metrics.NullStatsLogger.NULLCOUNTER;
+import static com.emc.pravega.common.metrics.NullStatsLogger.NULLGAUGE;
+import static com.emc.pravega.common.metrics.NullStatsLogger.NULLMETER;
+import static com.emc.pravega.common.metrics.NullStatsLogger.NULLOPSTATSLOGGER;
 
 @Log4j
 public class YammerStatsLogger implements StatsLogger {
@@ -33,7 +37,8 @@ public class YammerStatsLogger implements StatsLogger {
             return new YammerOpStatsLogger(success, failure);
         } catch (Exception e) {
             log.warn("Create metrics failure: {}", e);
-            return null;
+            return NULLOPSTATSLOGGER;
+
         }
     }
 
@@ -44,7 +49,7 @@ public class YammerStatsLogger implements StatsLogger {
             return new CounterImpl(c, name(basename, statName));
         } catch (Exception e) {
             log.warn("Create metrics failure: {}", e);
-            return null;
+            return NULLCOUNTER;
         }
     }
 
@@ -63,7 +68,7 @@ public class YammerStatsLogger implements StatsLogger {
             return new GaugeImpl(gauge, metricName);
         } catch (Exception e) {
             log.warn("Create metrics failure: {}", e);
-            return null;
+            return NULLGAUGE;
         }
     }
 
@@ -74,7 +79,7 @@ public class YammerStatsLogger implements StatsLogger {
             return new MeterImpl(meter, name(basename, statName));
         } catch (Exception e) {
             log.warn("Create metrics failure: {}", e);
-            return null;
+            return NULLMETER;
         }
     }
 
