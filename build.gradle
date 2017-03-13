@@ -15,6 +15,7 @@ buildscript {
     dependencies {
         classpath 'com.bmuschko:gradle-docker-plugin:3.0.3'
         classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.0'
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.4'
     }
 }
 
@@ -31,7 +32,6 @@ allprojects {
     apply plugin: 'findbugs'
     apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
-
     apply plugin: 'jacoco'
 
     checkstyle {
@@ -92,7 +92,6 @@ allprojects {
     dependencies {
         // The production code uses the SLF4J logging API at compile time
         compile 'org.slf4j:slf4j-api:1.7.14'
-        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
 
         testCompile 'junit:junit:4.12'
         compile group: 'com.google.guava', name: 'guava', version: '20.0'
@@ -246,6 +245,7 @@ project('service:storage:impl') {
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
 
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
 
         compile project(':common')
@@ -304,6 +304,7 @@ project('service:server:host') {
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         testCompile project(':testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
@@ -346,6 +347,7 @@ project('integrationtests') {
         compile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
         compile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
         compile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: '1.2.0'
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
@@ -495,6 +497,7 @@ project('controller:server') {
         compile project(':common')
         compile project(":controller:contract")
         compile project(":clients:streaming")
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         compile group: 'javax.servlet', name: 'servlet-api', version: '2.5'
         compile('io.swagger:swagger-jersey2-jaxrs:1.5.9') {
             exclude group: 'com.google.guava', module: 'guava'
@@ -540,15 +543,41 @@ project('controller:server') {
 }
 
 project('connectors:flink') {
+    apply plugin: 'com.github.johnrengelman.shadow'
+
     dependencies {
-        compile project(":clients:streaming")
+        compile (project(":clients:streaming"))
+        shadow (project(":clients:streaming"))
         compile group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
     }
+
+    shadowJar {
+        dependencies {
+            include dependency("com.google.guava:guava")
+            include dependency("commons-lang:commons-lang")
+            include dependency("commons-io:commons-io")
+            include dependency("io.netty:netty-all")
+        }
+
+        // Shading the libraries which could cause potential version conflicts with flink.
+        relocate "com.google", "com.emc.pravega.shaded.com.guava"
+        relocate "org.apache.commons.lang", "com.emc.pravega.shaded.org.apache.commons.lang"
+        relocate "org.apache.commons.io", "com.emc.pravega.shaded.org.apache.commons.io"
+        relocate "io.netty", "com.emc.pravega.shaded.io.netty"
+    }
+
+    // Publishing both shaded and non-shaded versions of the flink connector.
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-connectors-flink'
+                artifactId 'pravega-connectors-flink_2.11'
                 from components.java
+            }
+            shadow(MavenPublication) {
+                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "com.emc.pravega"
+                version = pravegaVersion
+                artifactId 'pravega-connectors-flink-shaded_2.11'
+                from components.shadow
             }
         }
     }
@@ -570,6 +599,7 @@ project('singlenode') {
         compile project(':service:storage')
         compile project(':service:storage:impl')
 
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: '2.7.3'
@@ -613,6 +643,7 @@ project('singlenode') {
 project('systemtests:tests') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         compile group: 'com.mesosphere', name: 'marathon-client', version: '0.3.0'
         compile project(":clients:streaming")
         compile 'junit:junit:4.12'
