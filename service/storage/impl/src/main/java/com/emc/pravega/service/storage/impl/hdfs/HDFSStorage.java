@@ -264,7 +264,12 @@ class HDFSStorage implements Storage {
     }
 
     /**
-     * "Unfences" the given segment by renaming it to its original name.
+     * "Unfences" the given segment by renaming it to its original name. Currently the unfencing is done explicitly
+     * only when the segment is sealed. Ideally we'd be unfencing a segment when we don't need it anymore, but that is
+     * not necessary. If some other instance of HDFSStorage "fences out" this segment, then this instance will
+     * automatically detect that and stop working on it.
+     * <p>
+     * As such, this method is only effective once the segment is sealed.
      *
      * @param streamSegmentName The name of the Segment to unfence.
      * @throws IOException                If some IO error occurred.
@@ -491,7 +496,7 @@ class HDFSStorage implements Storage {
             }
 
             if (isSealed(all[0])) {
-                // We stumbled across a FileNotFound, then found a file that is sealed; the behavior here is dependend
+                // We ran into a FileNotFoundException, then found a file that is sealed; the behavior here is dependent
                 // on the method invoking this, hence the need for a configurable callback
                 sealedCallback.accept(notFoundEx);
             } else {
