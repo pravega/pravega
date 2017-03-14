@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
@@ -13,6 +14,11 @@ import java.util.concurrent.ScheduledExecutorService;
  * Represents a DurableDataLogFactory that creates and manages instances of DistributedLogDataLog instances.
  */
 public class DistributedLogDataLogFactory implements DurableDataLogFactory {
+
+    private static final Retry.RetryAndThrowBase<DurableDataLogException> RETRY_POLICY = Retry // TODO: config.
+            .withExpBackoff(100, 4, 5, 30000)
+            .retryWhen(DistributedLogDataLog::isRetryable)
+            .throwingOn(DurableDataLogException.class);
     private final LogClient client;
     private final ScheduledExecutorService executor;
 
@@ -40,7 +46,10 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
      *                                 the failure reason.
      */
     public void initialize() throws DurableDataLogException {
-        this.client.initialize();
+        RETRY_POLICY.run(() -> {
+            this.client.initialize();
+            return null;
+        });
     }
 
     //region DurableDataLogFactory Implementation

@@ -129,7 +129,7 @@ allprojects {
 
     tasks.withType(Test) {
         systemProperties 'logback.configurationFile' : new File(buildDir,'resources/test/logback.xml').absolutePath
-        testLogging.showStandardStreams = true
+        testLogging.showStandardStreams = false
         testLogging.exceptionFormat = "FULL"
         testLogging.showCauses = true
         testLogging.showExceptions = true
@@ -240,6 +240,16 @@ project('service:storage:impl') {
         }
         testCompile ('com.twitter:distributedlog-service:0.3.51-RC1') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        }
+
+        test {
+            // We use Guava 20.0, however DistributedLog use Guava 16.0. We cannot start DistributedLog in process or
+            // using our own classpath because it can't find required classes. As such, we get the path to Guava 16.0
+            // and pass it down via a System Property, so the DistributedLogDataLogTests can make use of it.
+            // TODO: we should get rid of this when DistributedLog upgrades to the latest Guava or when we use something else.
+            configurations { guava16 }
+            dependencies { guava16 "com.google.guava:guava:16.0" }
+            systemProperty "user.guava16", configurations.guava16.files
         }
 
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: '4.11.2'

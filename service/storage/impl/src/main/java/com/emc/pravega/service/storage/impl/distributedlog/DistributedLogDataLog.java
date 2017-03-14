@@ -39,7 +39,7 @@ class DistributedLogDataLog implements DurableDataLog {
     //region Members
 
     private static final Retry.RetryAndThrowBase<Exception> RETRY_POLICY = Retry
-            .withExpBackoff(50, 5, 3, 1000)
+            .withExpBackoff(100, 4, 5, 30000)
             .retryWhen(DistributedLogDataLog::isRetryable)
             .throwingOn(Exception.class);
     private final LogClient client;
@@ -286,7 +286,7 @@ class DistributedLogDataLog implements DurableDataLog {
     /**
      * Determines whether the given exception can be retried.
      */
-    private static boolean isRetryable(Throwable ex) {
+    static boolean isRetryable(Throwable ex) {
         ex = ExceptionHelpers.getRealException(ex);
         return ex instanceof DataLogNotAvailableException
                 || ex instanceof WriteFailureException;
