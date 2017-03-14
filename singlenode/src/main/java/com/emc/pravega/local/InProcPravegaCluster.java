@@ -5,8 +5,10 @@
  */
 package com.emc.pravega.local;
 
+import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
@@ -292,6 +294,12 @@ public class InProcPravegaCluster implements AutoCloseable {
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
+
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
+        // 4. Start the REST server.
+        log.info("Starting Pravega REST Service");
+        RESTServer.start(controllerService);
+
     }
 
     @Override
