@@ -118,16 +118,16 @@ public class PravegaTest {
         Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
-        log.debug("Invoking create stream.");
-        log.debug("Controller URI: {} ", controllerUri);
+        log.info("Invoking create stream.");
+        log.info("Controller URI: {} ", controllerUri);
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
         //create a scope
         CompletableFuture<Controller.CreateScopeStatus> createScopeStatus = controller.createScope(STREAM_SCOPE);
-        log.debug("create scope status {}", createScopeStatus.get());
+        log.info("create scope status {}", createScopeStatus.get().getStatus());
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.get().getStatus());
         //create a stream
         CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(config);
-        log.debug("create stream status {}", createStreamStatus.get());
+        log.info("create stream status {}", createStreamStatus.get().getStatus());
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
     }
 
@@ -144,8 +144,8 @@ public class PravegaTest {
         Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
-        log.debug("Invoking Writer test.");
-        log.debug("Controller URI: {} ", controllerUri);
+        log.info("Invoking Writer test.");
+        log.info("Controller URI: {} ", controllerUri);
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
