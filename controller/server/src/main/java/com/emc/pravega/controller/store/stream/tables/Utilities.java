@@ -1,9 +1,9 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream.tables;
+
+import com.emc.pravega.common.util.BitConverter;
 
 import java.nio.ByteBuffer;
 
@@ -12,21 +12,14 @@ import java.nio.ByteBuffer;
  */
 public class Utilities {
 
-    public static int toInt(final byte[] b) {
-        return ByteBuffer.wrap(b).getInt();
-    }
-
-    public static long toLong(final byte[] b) {
-        return ByteBuffer.wrap(b).getLong();
-    }
-
     public static double toDouble(final byte[] b) {
-        return ByteBuffer.wrap(b).getDouble();
+        return Double.longBitsToDouble(BitConverter.readLong(b, 0));
     }
 
     public static byte[] toByteArray(final double value) {
         final byte[] bytes = new byte[Double.SIZE / 8];
-        ByteBuffer.wrap(bytes).putDouble(value);
+
+        ByteBuffer.wrap(bytes).putLong(Double.doubleToRawLongBits(value));
         return bytes;
     }
 

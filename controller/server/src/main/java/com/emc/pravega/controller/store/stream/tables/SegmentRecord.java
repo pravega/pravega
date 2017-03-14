@@ -1,10 +1,9 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream.tables;
 
+import com.emc.pravega.common.util.BitConverter;
 import lombok.Data;
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -40,8 +39,8 @@ public class SegmentRecord {
     private static SegmentRecord parse(final byte[] bytes) {
         assert bytes.length == SEGMENT_RECORD_SIZE;
 
-        return new SegmentRecord(Utilities.toInt(ArrayUtils.subarray(bytes, 0, Integer.SIZE / 8)),
-                Utilities.toLong(ArrayUtils.subarray(bytes, Integer.SIZE / 8, (Integer.SIZE + Long.SIZE) / 8)),
+        return new SegmentRecord(BitConverter.readInt(bytes, 0),
+                BitConverter.readLong(bytes, Integer.SIZE / 8),
                 Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE) / 8, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8)),
                 Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8, (Integer.SIZE + Long.SIZE + Double.SIZE + Double.SIZE) / 8)));
     }

@@ -5,6 +5,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
@@ -491,7 +492,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Long> getColdMarker(int segmentNumber) {
         return verifyLegalState(getMarkerData(segmentNumber)
-                .thenApply(x -> (x != null) ? Utilities.toLong(x.getData()) : 0L));
+                .thenApply(x -> (x != null) ? BitConverter.readLong(x.getData(), 0) : 0L));
     }
 
     @Override
