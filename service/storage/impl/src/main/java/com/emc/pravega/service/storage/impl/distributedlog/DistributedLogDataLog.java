@@ -38,20 +38,17 @@ import lombok.val;
 class DistributedLogDataLog implements DurableDataLog {
     //region Members
 
-    private static final Retry.RetryAndThrowBase<Exception> RETRY_POLICY = Retry
-            .withExpBackoff(100, 4, 5, 30000)
-            .retryWhen(DistributedLogDataLog::isRetryable)
-            .throwingOn(Exception.class);
     private final LogClient client;
     private final String logName;
     private final AtomicReference<DLSNAddress> truncatedAddress;
     private final ScheduledExecutorService executor;
     private final AtomicBoolean closed;
-    private final Object handleInitLock = new Object();
+    private final Retry.RetryAndThrowBase<Exception> retryPolicy;
+    private final Object handleLock = new Object();
     private final String traceObjectId;
-    @GuardedBy("handleInitLock")
+    @GuardedBy("handleLock")
     private LogHandle handle;
-    @GuardedBy("handleInitLock")
+    @GuardedBy("handleLock")
     private LogHandle truncateHandle;
 
     //endregion
@@ -62,12 +59,13 @@ class DistributedLogDataLog implements DurableDataLog {
      * Creates a new instance of the DistributedLogDataLog class.
      *
      * @param logName  The name of the DistributedLog Log to use.
+     * @param config   The DistributedLog Configuration to use.
      * @param client   The DistributedLog Client to use.
      * @param executor An Executor to use for async operations.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If logName is an empty string.
      */
-    DistributedLogDataLog(String logName, LogClient client, ScheduledExecutorService executor) {
+    DistributedLogDataLog(String logName, DistributedLogConfig config, LogClient client, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(client, "client");
         Exceptions.checkNotNullOrEmpty(logName, "logName");
         Preconditions.checkNotNull(executor, "executor");
@@ -78,6 +76,9 @@ class DistributedLogDataLog implements DurableDataLog {
         this.truncatedAddress = new AtomicReference<>();
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("Log[%s]", logName);
+        this.retryPolicy = config.getRetryPolicy()
+                                 .retryWhen(DistributedLogDataLog::isRetryable)
+                                 .throwingOn(Exception.class);
     }
 
     //endregion
@@ -149,7 +150,7 @@ class DistributedLogDataLog implements DurableDataLog {
 
     private void ensureActive() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        synchronized (this.handleInitLock) {
+        synchronized (this.handleLock) {
             Preconditions.checkState(this.handle != null, "DistributedLogDataLog is not initialized.");
         }
     }
@@ -164,7 +165,7 @@ class DistributedLogDataLog implements DurableDataLog {
      */
     @SneakyThrows(DurableDataLogException.class)
     private LogHandle getHandle() {
-        synchronized (this.handleInitLock) {
+        synchronized (this.handleLock) {
             if (!areHandlesOpen()) {
                 openHandles();
             }
@@ -179,7 +180,7 @@ class DistributedLogDataLog implements DurableDataLog {
      */
     @SneakyThrows(DurableDataLogException.class)
     private LogHandle getTruncateHandle() {
-        synchronized (this.handleInitLock) {
+        synchronized (this.handleLock) {
             if (!areHandlesOpen()) {
                 openHandles();
             }
@@ -193,7 +194,7 @@ class DistributedLogDataLog implements DurableDataLog {
      *
      * @throws DurableDataLogException If either handle could not be opened.
      */
-    @GuardedBy("handleInitLock")
+    @GuardedBy("handleLock")
     private void openHandles() throws DurableDataLogException {
         Preconditions.checkState(!areHandlesOpen(), "DistributedLogDataLog is already initialized.");
         try {
@@ -222,7 +223,7 @@ class DistributedLogDataLog implements DurableDataLog {
     /**
      * Determines whether the Log Handles are open.
      */
-    @GuardedBy("handleInitLock")
+    @GuardedBy("handleLock")
     private boolean areHandlesOpen() {
         return this.handle != null && this.truncateHandle != null;
     }
@@ -231,7 +232,7 @@ class DistributedLogDataLog implements DurableDataLog {
      * Closes any open Log Handle.
      */
     private void closeHandles() {
-        synchronized (this.handleInitLock) {
+        synchronized (this.handleLock) {
             if (this.handle != null) {
                 this.handle.close();
                 this.handle = null;
@@ -250,7 +251,7 @@ class DistributedLogDataLog implements DurableDataLog {
      * Executes the given futureSupplier with this class' Retry Policy and default Exception Handler.
      */
     private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier) {
-        return RETRY_POLICY.runAsync(() -> futureSupplier.get().exceptionally(this::handleException), this.executor);
+        return this.retryPolicy.runAsync(() -> futureSupplier.get().exceptionally(this::handleException), this.executor);
     }
 
     /**
@@ -258,7 +259,7 @@ class DistributedLogDataLog implements DurableDataLog {
      */
     private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Runnable onRetry) {
         AtomicInteger retryCount = new AtomicInteger(0);
-        return RETRY_POLICY.runAsync(() -> {
+        return this.retryPolicy.runAsync(() -> {
             if (onRetry != null && retryCount.incrementAndGet() > 1) {
                 onRetry.run();
             }

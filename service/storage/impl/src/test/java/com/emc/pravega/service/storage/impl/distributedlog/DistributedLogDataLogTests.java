@@ -90,7 +90,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
                 DLOG_HOST,
                 Integer.toString(port),
                 DLOG_NAMESPACE);
-        pb.inheritIO();
+        //pb.inheritIO(); // Enable only for test debugging (has lots of uninteresting output).
         this.dlogProcess.set(pb.start());
     }
 

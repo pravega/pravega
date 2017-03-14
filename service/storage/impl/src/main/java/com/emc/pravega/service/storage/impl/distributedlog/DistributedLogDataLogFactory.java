@@ -15,12 +15,10 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class DistributedLogDataLogFactory implements DurableDataLogFactory {
 
-    private static final Retry.RetryAndThrowBase<DurableDataLogException> RETRY_POLICY = Retry // TODO: config.
-            .withExpBackoff(100, 4, 5, 30000)
-            .retryWhen(DistributedLogDataLog::isRetryable)
-            .throwingOn(DurableDataLogException.class);
     private final LogClient client;
     private final ScheduledExecutorService executor;
+    private final DistributedLogConfig config;
+    private final Retry.RetryAndThrowBase<DurableDataLogException> retryPolicy;
 
     /**
      * Creates a new instance of the DistributedLogDataLogFactory class.
@@ -32,9 +30,14 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
      * @throws IllegalArgumentException If the clientId is invalid.
      */
     public DistributedLogDataLogFactory(String clientId, DistributedLogConfig config, ScheduledExecutorService executor) {
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.executor = executor;
+        this.config = config;
         this.client = new LogClient(clientId, config);
+        this.retryPolicy = config.getRetryPolicy()
+                                 .retryWhen(DistributedLogDataLog::isRetryable)
+                                 .throwingOn(DurableDataLogException.class);
     }
 
     /**
@@ -46,7 +49,7 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
      *                                 the failure reason.
      */
     public void initialize() throws DurableDataLogException {
-        RETRY_POLICY.run(() -> {
+        this.retryPolicy.run(() -> {
             this.client.initialize();
             return null;
         });
@@ -57,7 +60,7 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
     @Override
     public DurableDataLog createDurableDataLog(int containerId) {
         String logName = ContainerToLogNameConverter.getLogName(containerId);
-        return new DistributedLogDataLog(logName, this.client, this.executor);
+        return new DistributedLogDataLog(logName, this.config, this.client, this.executor);
     }
 
     @Override
