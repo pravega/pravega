@@ -21,11 +21,12 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
 import com.emc.pravega.testcommon.TestUtils;
-import lombok.Cleanup;
+
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.curator.test.TestingServer;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,8 +38,11 @@ import org.junit.Test;
 public class ControllerStreamMetadataTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream";
-    private Controller controller;
-    private StreamConfiguration streamConfiguration;
+    private TestingServer zkTestServer = null;
+    private PravegaConnectionListener server = null;
+    private ControllerWrapper controllerWrapper = null;
+    private Controller controller = null;
+    private StreamConfiguration streamConfiguration = null;
 
     @Before
     public void setUp() {
@@ -49,21 +53,20 @@ public class ControllerStreamMetadataTest {
 
         try {
             // 1. Start ZK
-            @Cleanup
-            TestingServer zkTestServer = new TestingServer();
+            this.zkTestServer = new TestingServer();
 
             // 2. Start Pravega service.
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-            @Cleanup
-            PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
-            server.startListening();
+            //@Cleanup
+            this.server = new PravegaConnectionListener(false, servicePort, store);
+            this.server.startListening();
 
             // 3. Start controller
-            @Cleanup
-            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
+            //@Cleanup
+            this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
                     controllerPort, serviceHost, servicePort, containerCount);
             this.controller = controllerWrapper.getController();
             this.streamConfiguration = StreamConfiguration.builder()
@@ -77,8 +80,29 @@ public class ControllerStreamMetadataTest {
         }
     }
 
+    @After
+    public void tearDown() {
+        try {
+            if (this.zkTestServer != null) {
+                this.zkTestServer.close();
+                this.zkTestServer = null;
+            }
+            if (this.server != null) {
+                this.server.close();
+                this.server = null;
+            }
+            if (this.controllerWrapper != null) {
+                this.controllerWrapper.close();
+                this.controllerWrapper = null;
+            }
+        } catch (Exception e) {
+            log.warn("Exception while tearing down", e);
+        }
+    }
+
     @Test(timeout = 2000000)
     public void streamMetadataTest() throws Exception {
+        log.info("### I'm here");
         // Create test scope. This operation should succeed.
         CreateScopeStatus scopeStatus = controller.createScope(SCOPE).join();
         Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
@@ -146,7 +170,7 @@ public class ControllerStreamMetadataTest {
     }
 
 
-    //@Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void streamManagerImpltest() {
         StreamManager streamManager = new StreamManagerImpl(SCOPE, controller);
 
