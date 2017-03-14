@@ -120,6 +120,12 @@ public class InProcPravegaCluster implements AutoCloseable {
             assert(controllerURI!= null);
         }
 
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
         if(isInprocHost) {
             nodeServiceStarter = new ServiceStarter[hostCount];
             startLocalHosts();
