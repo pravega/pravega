@@ -138,41 +138,42 @@ public class PravegaTest {
     @Test
     public void simpleTest() throws InterruptedException, URISyntaxException {
 
-        Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
+        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
-        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
-        @Cleanup
-        EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
-                new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
-        for (int i = 0; i < NUM_EVENTS; i++) {
-            String event = "\n Publish \n";
-            log.debug("Producing event: {} ", event);
-            writer.writeEvent("", event);
-            writer.flush();
-            Thread.sleep(500);
-        }
-        log.debug("Invoking Reader test.");
-        ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri)
-                .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
-                        Collections.singleton(STREAM_NAME));
-        EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
-                READER_GROUP,
-                new JavaSerializer<>(),
-                ReaderConfig.builder().build());
-        for (int i = 0; i < NUM_EVENTS; i++) {
-            try {
-                String event = reader.readNextEvent(6000).getEvent();
-                if (event != null) {
-                    log.debug("Read event: {} ", event);
-                }
-            } catch (ReinitializationRequiredException e) {
-                log.error("Unexpected request to reinitialize {}", e);
-                System.exit(0);
+        try (ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri)) {
+            @Cleanup
+            EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
+                    new JavaSerializer<>(),
+                    EventWriterConfig.builder().build());
+            for (int i = 0; i < NUM_EVENTS; i++) {
+                String event = "\n Publish \n";
+                log.debug("Producing event: {} ", event);
+                writer.writeEvent("", event);
+                writer.flush();
+                Thread.sleep(500);
             }
+            log.debug("Invoking Reader test.");
+            ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri)
+                    .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
+                            Collections.singleton(STREAM_NAME));
+            EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
+                    READER_GROUP,
+                    new JavaSerializer<>(),
+                    ReaderConfig.builder().build());
+            for (int i = 0; i < NUM_EVENTS; i++) {
+                try {
+                    String event = reader.readNextEvent(6000).getEvent();
+                    if (event != null) {
+                        log.debug("Read event: {} ", event);
+                    }
+                } catch (ReinitializationRequiredException e) {
+                    log.error("Unexpected request to reinitialize {}", e);
+                    System.exit(0);
+                }
+            }
+            reader.close();
         }
-        reader.close();
     }
 }
