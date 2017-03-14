@@ -128,6 +128,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     }
     
     private AckFuture writeEventInternal(String routingKey, Type event) {
+        Preconditions.checkNotNull(event);
         Preconditions.checkState(!closed.get());
         CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         synchronized (lock) {
@@ -145,7 +146,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      */
     private void handleLogSealed() {
         List<PendingEvent<Type>> toResend = setupSegmentEventWriters();
-        while (toResend.isEmpty()) {
+        while (!toResend.isEmpty()) {
             List<PendingEvent<Type>> unsent = new ArrayList<>();
             for (PendingEvent<Type> event : toResend) {
                 if (!attemptWrite(event)) {
@@ -205,6 +206,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         
         @Override
         public void writeEvent(String routingKey, Type event) throws TxnFailedException {
+            Preconditions.checkNotNull(event);
             Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
