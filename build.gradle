@@ -693,3 +693,16 @@ task publishAllJars() {
     dependsOn ':singlenode:publish'
     dependsOn ':systemtests:tests:publish'
 }
+
+task sourceCopy(type: Copy) {
+    from rootDir
+    into 'source'
+}
+
+task sourceTar(type: Tar) {
+    dependsOn 'sourceCopy'
+    from  'source'
+    destinationDir = file('sourceArtifacts')
+    extension = 'tgz'
+    compression = Compression.GZIP
+}
