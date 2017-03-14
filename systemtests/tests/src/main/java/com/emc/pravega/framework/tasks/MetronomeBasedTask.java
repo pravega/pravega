@@ -41,7 +41,7 @@ public abstract class MetronomeBasedTask implements Task {
         return this.id;
     }
 
-    private boolean isTaskRunning(String jobId) {
+    private boolean isTaskRunning(final String jobId) {
         Job jobStatus = metronomeClient.getJob(jobId);
         boolean isRunning = false;
         if (jobStatus.getHistory() == null) {
@@ -58,7 +58,7 @@ public abstract class MetronomeBasedTask implements Task {
                 executorService);
     }
 
-    protected void deleteTask(String jobId) {
+    protected void deleteTask(final String jobId) {
         try {
             metronomeClient.deleteJob(jobId);
         } catch (MetronomeException e) {
@@ -67,7 +67,7 @@ public abstract class MetronomeBasedTask implements Task {
         }
     }
 
-    protected CompletableFuture<Void> startTaskExecution(Job job) {
+    protected CompletableFuture<Void> startTaskExecution(final Job job) {
         return CompletableFuture.<Void>runAsync(() -> {
             metronomeClient.createJob(job);
             Response response = metronomeClient.triggerJobRun(job.getId());

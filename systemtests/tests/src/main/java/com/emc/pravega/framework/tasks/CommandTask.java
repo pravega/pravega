@@ -47,7 +47,7 @@ public class CommandTask extends MetronomeBasedTask {
         throw new NotImplementedException("Stopping a Metronome task is not implemented");
     }
 
-    private Job newJob(String id) {
+    private Job newJob(final String id) {
         Map<String, String> labels = new HashMap<>(1);
         labels.put("name", "Command task for SystemTest framework");
 
