@@ -283,26 +283,26 @@ public class StreamMetadataTasks extends TaskBase {
     CompletableFuture<DeleteStreamStatus.Status> deleteStreamBody(final String scope, final String stream,
                                                                   final OperationContext contextOpt) {
         return withRetries(() -> streamMetadataStore.isSealed(scope, stream, contextOpt, executor), executor)
-                .thenCompose(sealed -> {
+                .thenComposeAsync(sealed -> {
                     if (!sealed) {
                         return CompletableFuture.completedFuture(DeleteStreamStatus.Status.STREAM_NOT_SEALED);
                     }
                     return withRetries(
                             () -> streamMetadataStore.getSegmentCount(scope, stream, contextOpt, executor), executor)
-                            .thenCompose(count ->
+                            .thenComposeAsync(count ->
                                     notifyDeleteSegments(scope, stream, count)
-                                            .thenCompose(x -> withRetries(() ->
-                                            streamMetadataStore.deleteStream(scope, stream, contextOpt,
-                                                    executor), executor))
-                                            .handle((result, ex) -> {
+                                            .thenComposeAsync(x -> withRetries(() ->
+                                                            streamMetadataStore.deleteStream(scope, stream, contextOpt,
+                                                                    executor), executor), executor)
+                                            .handleAsync((result, ex) -> {
                                                 if (ex != null) {
                                                     log.warn("Exception thrown while deleting stream", ex.getMessage());
                                                     return handleDeleteStreamError(ex);
                                                 } else {
                                                     return DeleteStreamStatus.Status.SUCCESS;
                                                 }
-                                            }));
-                }).exceptionally(this::handleDeleteStreamError);
+                                            }, executor), executor);
+                }, executor).exceptionally(this::handleDeleteStreamError);
     }
 
     CompletableFuture<ScaleResponse> scaleBody(final String scope, final String stream, final List<Integer> segmentsToSeal,
@@ -407,10 +407,10 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, int count) {
-        return FutureHelpers.toVoid(FutureHelpers.allOfWithResults(IntStream.range(0, count)
+        return FutureHelpers.allOf(IntStream.range(0, count)
                 .parallel()
                 .mapToObj(segment -> notifyDeleteSegment(scope, stream, segment))
-                .collect(Collectors.toList())));
+                .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, int segmentNumber) {
