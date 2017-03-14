@@ -53,6 +53,7 @@ import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 public class InProcPravegaCluster implements AutoCloseable {
 
     private static final String THREADPOOL_SIZE = "20";
+    private static final String CONTAINER_COUNT = "2";
 
     /*Controller related variables*/
     private boolean isInprocController;
@@ -176,13 +177,13 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         try {
             Properties p = new Properties();
+            ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
             ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
                     String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
 
             // Change Number of containers and Thread Pool Size for each test.
-
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT,
-                    containerCount);
+                    CONTAINER_COUNT);
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE,
                     THREADPOOL_SIZE);
 
@@ -198,27 +199,26 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE,
                     Long.toString(128 * 1024 * 1024));
 
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, zkUrl);
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, "localhost:" +
+                    zkPort);
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
-                    Integer.toString(this.hostPorts[hostId]));
+                    Integer.toString(hostPorts[0]));
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTROLLER_URI,
-                    "tcp://localhost:" + this.controllerPorts[0]);
-
+                    "tcp://localhost:" + controllerPorts[0]);
 
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
                     "localhost");
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
                     Integer.toString(zkPort));
 
-            ServiceBuilderConfig props = new ServiceBuilderConfig(p);
+            props = new ServiceBuilderConfig(p);
 
-            nodeServiceStarter[hostId] = new ServiceStarter(props);
+            nodeServiceStarter[0] = new ServiceStarter(props);
         } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
         }
-        nodeServiceStarter[hostId].start();
-
+        nodeServiceStarter[0].start();
     }
 
     private void startLocalControllers() {
