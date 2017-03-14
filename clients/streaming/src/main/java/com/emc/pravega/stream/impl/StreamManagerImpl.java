@@ -32,7 +32,7 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @VisibleForTesting
-    StreamManagerImpl(String scope, Controller controller) {
+    public StreamManagerImpl(String scope, Controller controller) {
         this.scope = scope;
         this.controller = controller;
     }

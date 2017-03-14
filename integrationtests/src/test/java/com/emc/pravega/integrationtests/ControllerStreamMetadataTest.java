@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.integrationtests;
 
+import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -18,51 +19,66 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
 import com.emc.pravega.testcommon.TestUtils;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.curator.test.TestingServer;
+
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
  * Controller stream metadata tests.
  */
+@Slf4j
 public class ControllerStreamMetadataTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream";
+    private Controller controller;
+    private StreamConfiguration streamConfiguration;
 
-    @Test(timeout = 2000000)
-    public void streamMetadataTest() throws Exception {
+    @Before
+    public void setUp() {
         final int controllerPort = TestUtils.randomPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.randomPort();
         final int containerCount = 4;
 
-        // 1. Start ZK
-        @Cleanup
-        TestingServer zkTestServer = new TestingServer();
+        try {
+            // 1. Start ZK
+            @Cleanup
+            TestingServer zkTestServer = new TestingServer();
 
-        // 2. Start Pravega service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            // 2. Start Pravega service.
+            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+            serviceBuilder.initialize().get();
+            StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
-        server.startListening();
+            @Cleanup
+            PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
+            server.startListening();
 
-        // 3. Start controller
-        @Cleanup
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
-                controllerPort, serviceHost, servicePort, containerCount);
-        Controller controller = controllerWrapper.getController();
+            // 3. Start controller
+            @Cleanup
+            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
+                    controllerPort, serviceHost, servicePort, containerCount);
+            this.controller = controllerWrapper.getController();
+            this.streamConfiguration = StreamConfiguration.builder()
+                    .scope(SCOPE)
+                    .streamName(STREAM)
+                    .scalingPolicy(ScalingPolicy.fixed(1))
+                    .build();
+        } catch (Exception e) {
+            log.error("Error during setup", e);
+            Assert.fail();
+        }
+    }
 
-        StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(STREAM)
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build();
-
+    @Test(timeout = 2000000)
+    public void streamMetadataTest() throws Exception {
         // Create test scope. This operation should succeed.
         CreateScopeStatus scopeStatus = controller.createScope(SCOPE).join();
         Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
@@ -127,5 +143,14 @@ public class ControllerStreamMetadataTest {
         streamStatus = controller.createStream(StreamConfiguration.builder()
                 .scope(SCOPE).streamName("abc/def").scalingPolicy(ScalingPolicy.fixed(1)).build()).join();
         Assert.assertEquals(CreateStreamStatus.Status.INVALID_STREAM_NAME, streamStatus.getStatus());
+    }
+
+
+    @Test(timeout = 10000)
+    public void streamManagerImpltest() {
+        StreamManager streamManager = new StreamManagerImpl(SCOPE, controller);
+
+        streamManager.createScope(SCOPE);
+        streamManager.deleteScope(SCOPE);
     }
 }
