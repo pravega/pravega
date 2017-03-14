@@ -33,7 +33,7 @@ public class HistoryRecord {
         this.eventTime = eventTime;
         this.segments = segments;
         this.startOfRowPointer = offset;
-        endOfRowPointer = offset + (Integer.SIZE + Long.SIZE + segments.size() * Integer.SIZE + Integer.SIZE) / 8 - 1;
+        endOfRowPointer = offset + (Integer.BYTES + Long.BYTES + segments.size() * Integer.BYTES + Integer.BYTES) - 1;
     }
 
     public static Optional<HistoryRecord> readRecord(final byte[] historyTable, final int offset) {
@@ -55,7 +55,7 @@ public class HistoryRecord {
         }
 
         final int lastRowStartOffset = BitConverter.readInt(historyTable,
-                historyTable.length - (Integer.SIZE / 8));
+                historyTable.length - (Integer.BYTES));
 
         return readRecord(historyTable, lastRowStartOffset);
     }
@@ -76,7 +76,7 @@ public class HistoryRecord {
             return Optional.empty();
         } else {
             final int rowStartOffset = BitConverter.readInt(historyTable,
-                    record.getStartOfRowPointer() - (Integer.SIZE / 8));
+                    record.getStartOfRowPointer() - (Integer.BYTES));
 
             return HistoryRecord.readRecord(historyTable, rowStartOffset);
         }
@@ -84,20 +84,20 @@ public class HistoryRecord {
 
     private static HistoryRecord parse(final byte[] b) {
         final int endOfRowPtr = BitConverter.readInt(b, 0);
-        final long eventTime = BitConverter.readLong(b, Integer.SIZE / 8);
+        final long eventTime = BitConverter.readLong(b, Integer.BYTES);
 
         final List<Integer> segments = extractSegments(ArrayUtils.subarray(b,
-                (Integer.SIZE + Long.SIZE) / 8,
-                b.length - (Integer.SIZE / 8)));
+                Integer.BYTES + Long.BYTES,
+                b.length - Integer.BYTES));
 
-        final int startOfRowPtr = BitConverter.readInt(b, b.length - (Integer.SIZE / 8));
+        final int startOfRowPtr = BitConverter.readInt(b, b.length - Integer.BYTES);
 
         return new HistoryRecord(endOfRowPtr, eventTime, segments, startOfRowPtr);
     }
 
     private static List<Integer> extractSegments(final byte[] b) {
         final List<Integer> result = new ArrayList<>();
-        for (int i = 0; i < b.length; i = i + (Integer.SIZE / 8)) {
+        for (int i = 0; i < b.length; i = i + Integer.BYTES) {
             result.add(BitConverter.readInt(b, i));
         }
         return result;

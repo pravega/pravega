@@ -19,7 +19,7 @@ import java.util.Optional;
  * Row: [segment-number, segment-creation-time, routing-key-floor-inclusive, routing-key-ceiling-exclusive]
  */
 public class SegmentRecord {
-    public static final int SEGMENT_RECORD_SIZE = (Integer.SIZE + Long.SIZE + Double.SIZE + Double.SIZE) / 8;
+    public static final int SEGMENT_RECORD_SIZE = Integer.BYTES + Long.BYTES + Double.BYTES + Double.BYTES;
     public static final int SEGMENT_CHUNK_SIZE = 100000;
 
     private final int segmentNumber;
@@ -40,9 +40,9 @@ public class SegmentRecord {
         assert bytes.length == SEGMENT_RECORD_SIZE;
 
         return new SegmentRecord(BitConverter.readInt(bytes, 0),
-                BitConverter.readLong(bytes, Integer.SIZE / 8),
-                Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE) / 8, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8)),
-                Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8, (Integer.SIZE + Long.SIZE + Double.SIZE + Double.SIZE) / 8)));
+                BitConverter.readLong(bytes, Integer.BYTES),
+                Utilities.toDouble(bytes, Integer.BYTES + Long.BYTES),
+                Utilities.toDouble(bytes, Integer.BYTES + Long.BYTES + Double.BYTES));
     }
 
     public byte[] toByteArray() {

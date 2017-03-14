@@ -12,25 +12,25 @@ import java.nio.ByteBuffer;
  */
 public class Utilities {
 
-    public static double toDouble(final byte[] b) {
-        return Double.longBitsToDouble(BitConverter.readLong(b, 0));
+    public static double toDouble(final byte[] b, int offset) {
+        return Double.longBitsToDouble(BitConverter.readLong(b, offset));
     }
 
     public static byte[] toByteArray(final double value) {
-        final byte[] bytes = new byte[Double.SIZE / 8];
+        final byte[] bytes = new byte[Double.BYTES];
 
         ByteBuffer.wrap(bytes).putLong(Double.doubleToRawLongBits(value));
         return bytes;
     }
 
     public static byte[] toByteArray(final int value) {
-        final byte[] bytes = new byte[Integer.SIZE / 8];
+        final byte[] bytes = new byte[Integer.BYTES];
         ByteBuffer.wrap(bytes).putInt(value);
         return bytes;
     }
 
     public static byte[] toByteArray(final long value) {
-        final byte[] bytes = new byte[Long.SIZE / 8];
+        final byte[] bytes = new byte[Long.BYTES];
         ByteBuffer.wrap(bytes).putLong(value);
         return bytes;
     }

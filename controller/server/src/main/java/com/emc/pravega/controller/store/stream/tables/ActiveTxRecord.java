@@ -19,7 +19,7 @@ public class ActiveTxRecord {
     private final TxnStatus txnStatus;
 
     public static ActiveTxRecord parse(final byte[] bytes) {
-        final int longSize = Long.SIZE / 8;
+        final int longSize = Long.BYTES;
 
         final long txCreationTimestamp = BitConverter.readLong(bytes, 0);
 

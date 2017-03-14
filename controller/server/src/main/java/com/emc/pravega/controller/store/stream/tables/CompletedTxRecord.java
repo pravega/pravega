@@ -18,7 +18,7 @@ public class CompletedTxRecord {
     public static CompletedTxRecord parse(final byte[] bytes) {
         final long completeTimeStamp = BitConverter.readLong(bytes, 0);
 
-        final TxnStatus status = TxnStatus.values()[BitConverter.readInt(bytes, Long.SIZE / 8)];
+        final TxnStatus status = TxnStatus.values()[BitConverter.readInt(bytes, Long.BYTES)];
 
         return new CompletedTxRecord(completeTimeStamp, status);
     }

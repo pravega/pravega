@@ -20,7 +20,7 @@ import java.util.Optional;
  * Row: [eventTime, pointer-into-history-table]
  */
 public class IndexRecord {
-    public static final int INDEX_RECORD_SIZE = (Long.SIZE + Integer.SIZE) / 8;
+    public static final int INDEX_RECORD_SIZE = Long.BYTES + Integer.BYTES;
 
     private final long eventTime;
     private final int historyOffset;
@@ -63,7 +63,7 @@ public class IndexRecord {
 
     private static IndexRecord parse(final byte[] bytes) {
         final long eventTime = BitConverter.readLong(bytes, 0);
-        final int offset = BitConverter.readInt(bytes, Long.SIZE / 8);
+        final int offset = BitConverter.readInt(bytes, Long.BYTES);
         return new IndexRecord(eventTime, offset);
     }
 
