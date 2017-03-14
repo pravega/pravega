@@ -19,7 +19,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
 @Slf4j
 public class PravegaSegmentStoreService extends MarathonBasedService {
@@ -28,28 +31,39 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private static final int BACK_OFF_SECS = 7200;
     private final URI zkUri;
     private int instances = 1;
-    private double cpu = 1.0;
-    private double mem = 512.0;
+    private double cpu = 0.1;
+    private double mem = 1000.0;
+    private final URI conUri;
 
-    public PravegaSegmentStoreService(final String id, final URI zkUri, int instances, double cpu, double mem) {
-        super(id);
+    public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri) {
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/host" : id);
+        this.zkUri = zkUri;
+        this.conUri = conUri;
+    }
+
+    public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri, int instances, double cpu, double mem) {
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/host" : id);
         this.zkUri = zkUri;
         this.instances = instances;
         this.cpu = cpu;
         this.mem = mem;
+        this.conUri = conUri;
     }
 
     @Override
     public void start(final boolean wait) {
+        deleteApp("/pravega/host");
         log.info("Starting Pravega SegmentStore Service: {}", getID());
         try {
             marathonClient.createApp(createPravegaSegmentStoreApp());
             if (wait) {
-                waitUntilServiceRunning().get();
+                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
-        } catch (InterruptedException | ExecutionException ex) {
+        } catch (InterruptedException | ExecutionException | TimeoutException ex) {
             throw new TestFrameworkException(InternalError, "Exception while " +
                     "starting Pravega SegmentStore Service", ex);
         }
@@ -108,6 +122,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         map.put("pravegaservice_zkURL", zk);
         map.put("dlog_hostname", zkUri.getHost());
         map.put("hdfs_fs_default_name", "namenode-0.hdfs.mesos:9001");
+        map.put("pravegaservice_controllerUri", conUri.toString());
         app.setEnv(map);
 
         return app;

@@ -355,10 +355,11 @@ project('integrationtests') {
         compile project(':service:server:host')
         compile project(':controller:server')
         compile project(':connectors:flink')
+        compile 'junit:junit:4.12'
         compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
-        compile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
-        compile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
-        compile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: '1.2.0'
+        testCompile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
+        testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
+        testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: '1.2.0'
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
@@ -656,6 +657,7 @@ project('systemtests:tests') {
         systemProperty "execType", System.getProperty("execType")
         systemProperty "masterIP", System.getProperty("masterIP")
         systemProperty "imageVersion", System.getProperty("imageVersion")
+        systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
@@ -666,10 +668,15 @@ project('systemtests:tests') {
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
+        if (System.getProperty("skipServiceInstallation") == null) {
+            //skipServiceInstallation by default.
+            systemProperty "skipServiceInstallation", "true"
+        }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
         systemProperty "testVersion", project.property("pravegaVersion")
-        systemProperty "testArtifactUrl", project.property('repoUrl') + "/pravega/systemtests/"+pravegaVersion+"/systemtests-"+pravegaVersion+".jar"
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/com/emc/pravega/pravega-systemtests/" +
+                pravegaVersion+"/pravega-systemtests-"+ pravegaVersion + ".jar"
     }
     publishing {
         publications {

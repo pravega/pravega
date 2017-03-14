@@ -44,7 +44,6 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Properties;
@@ -160,7 +159,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     /**
      * Start controller and host.
      */
-    private void start() throws IOException {
+    private void start() {
         startController();
         try {
             Thread.sleep(10000);
@@ -215,7 +214,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         nodeServiceStarter.get().start();
     }
 
-    private void startController() throws IOException {
+    private void startController() {
         String hostId;
         try {
             //On each controller report restart, it gets a fresh hostId,
@@ -261,7 +260,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
                 .port(controllerPort)
                 .build();
-        GRPCServer.start(controllerService, gRPCServerConfig);
+        new GRPCServer(controllerService, gRPCServerConfig).startAsync();
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

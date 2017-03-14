@@ -189,5 +189,5 @@ public class StateSynchronizerTest {
         assertEquals(2, setB.getCurrentSize());
         assertTrue(setB.getCurrentValues().contains("bar"));
     }
-    
+
 }

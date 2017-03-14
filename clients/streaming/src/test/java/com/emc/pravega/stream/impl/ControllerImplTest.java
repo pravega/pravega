@@ -60,6 +60,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -73,7 +74,7 @@ import static org.junit.Assert.assertTrue;
 public class ControllerImplTest {
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     // Test implementation for simulating the server responses.
     private ServerImpl fakeServer = null;
@@ -115,10 +116,14 @@ public class ControllerImplTest {
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getStreamInfo().getStream().equals("streamparallel")) {
+
                     // Simulating delay in sending response.
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(500);
                     } catch (InterruptedException e) {
+                        log.error("Unexpected interrupt");
+                        responseObserver.onError(e);
+                        return;
                     }
                     responseObserver.onNext(CreateStreamStatus.newBuilder()
                                                     .setStatus(CreateStreamStatus.Status.SUCCESS)
@@ -202,10 +207,12 @@ public class ControllerImplTest {
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("streamparallel")) {
-                    // Simulating delay in sending response.
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(500);
                     } catch (InterruptedException e) {
+                        log.error("Unexpected interrupt");
+                        responseObserver.onError(e);
+                        return;
                     }
                     responseObserver.onNext(SegmentRanges.newBuilder()
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
@@ -816,9 +823,35 @@ public class ControllerImplTest {
     }
 
     @Test
+    public void testDeleteScope() {
+        CompletableFuture<DeleteScopeStatus> deleteStatus;
+        String scope1 = "scope1";
+        String scope2 = "scope2";
+        String scope3 = "scope3";
+        String scope4 = "scope4";
+        String scope5 = "scope5";
+
+        deleteStatus = controllerClient.deleteScope(scope1);
+        assertEquals(DeleteScopeStatus.Status.SUCCESS, deleteStatus.join().getStatus());
+
+        deleteStatus = controllerClient.deleteScope(scope2);
+        assertEquals(DeleteScopeStatus.Status.FAILURE, deleteStatus.join().getStatus());
+
+        deleteStatus = controllerClient.deleteScope(scope3);
+        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY, deleteStatus.join().getStatus());
+
+        deleteStatus = controllerClient.deleteScope(scope4);
+        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, deleteStatus.join().getStatus());
+
+        deleteStatus = controllerClient.deleteScope(scope5);
+        AssertExtensions.assertThrows("Server should throw exception", deleteStatus, Throwable -> true);
+    }
+
+    @Test
     public void testParallelCreateStream() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
         Semaphore createCount = new Semaphore(-19);
+        AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
@@ -831,23 +864,29 @@ public class ControllerImplTest {
                                         .retentionPolicy(RetentionPolicy.builder().retentionTimeMillis(0).build())
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build());
-                        assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
                         log.info("{}", createStreamStatus.get().getStatus());
+                        assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
                         createCount.release();
                     } catch (Exception e) {
-                        assertFalse(true);
+                        log.error("Exception when creating stream: {}", e);
+
+                        // Don't wait for other threads to complete.
+                        success.set(false);
+                        createCount.release(20);
                     }
                 }
             });
         }
         createCount.acquire();
-        assertTrue(true);
+        executorService.shutdownNow();
+        assertTrue(success.get());
     }
 
     @Test
     public void testParallelGetCurrentSegments() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
         Semaphore createCount = new Semaphore(-19);
+        AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
@@ -861,12 +900,17 @@ public class ControllerImplTest {
                                      streamSegments.get().getSegmentForKey(0.6));
                         createCount.release();
                     } catch (Exception e) {
-                        assertFalse(true);
+                        log.error("Exception when getting segments: {}", e);
+
+                        // Don't wait for other threads to complete.
+                        success.set(false);
+                        createCount.release(20);
                     }
                 }
             });
         }
         createCount.acquire();
-        assertTrue(true);
+        executorService.shutdownNow();
+        assertTrue(success.get());
     }
 }
