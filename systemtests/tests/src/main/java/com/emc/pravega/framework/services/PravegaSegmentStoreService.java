@@ -107,7 +107,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         List<Parameter> parameterList = new ArrayList<>();
-        Parameter element1 = new Parameter("env", "HOST_OPTS=-Xmx900m");
+        Parameter element1 = new Parameter("env", "JAVA_OPTS=-Xmx900m");
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
