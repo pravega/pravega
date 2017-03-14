@@ -124,11 +124,11 @@ public class PravegaTest {
         //create a scope
         CompletableFuture<Controller.CreateScopeStatus> createScopeStatus = controller.createScope(STREAM_SCOPE);
         log.debug("create scope status {}", createScopeStatus.get());
-        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.get());
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.get().getStatus());
         //create a stream
         CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(config);
         log.debug("create stream status {}", createStreamStatus.get());
-        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStreamStatus.get());
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
     }
 
     /**
