@@ -615,8 +615,11 @@ project('systemtests:tests') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         compile group: 'com.mesosphere', name: 'marathon-client', version: '0.3.0'
+        compile project(':controller:server')
         compile project(":clients:streaming")
         compile 'junit:junit:4.12'
+        compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: '2.0.1'
+        compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: '2.25'
     }
     //disable the default test task.
     test {
