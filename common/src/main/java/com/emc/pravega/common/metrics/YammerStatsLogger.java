@@ -9,10 +9,15 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
 import java.util.function.Supplier;
-
+import lombok.extern.slf4j.Slf4j;
 
 import static com.codahale.metrics.MetricRegistry.name;
+import static com.emc.pravega.common.metrics.NullStatsLogger.NULLCOUNTER;
+import static com.emc.pravega.common.metrics.NullStatsLogger.NULLGAUGE;
+import static com.emc.pravega.common.metrics.NullStatsLogger.NULLMETER;
+import static com.emc.pravega.common.metrics.NullStatsLogger.NULLOPSTATSLOGGER;
 
+@Slf4j
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
     private final MetricRegistry metrics;
@@ -25,35 +30,56 @@ public class YammerStatsLogger implements StatsLogger {
 
     @Override
     public OpStatsLogger createStats(String statName) {
-        Timer success = metrics.timer(name(basename, statName));
-        Timer failure = metrics.timer(name(basename, statName+"-fail"));
-        return new YammerOpStatsLogger(success, failure);
+        try {
+            Timer success = metrics.timer(name(basename, statName));
+            Timer failure = metrics.timer(name(basename, statName + "-fail"));
+            return new YammerOpStatsLogger(success, failure);
+        } catch (Exception e) {
+            log.warn("createStats failure: {}", e);
+            return NULLOPSTATSLOGGER;
+
+        }
     }
 
     @Override
     public Counter createCounter(String statName) {
-        final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
-        return new CounterImpl(c, name(basename, statName));
+        try {
+            final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
+            return new CounterImpl(c, name(basename, statName));
+        } catch (Exception e) {
+            log.warn("createCounter failure: {}", e);
+            return NULLCOUNTER;
+        }
     }
 
     @Override
     public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value) {
-        String metricName = name(basename, statName);
-        metrics.remove(metricName);
-        com.codahale.metrics.Gauge gauge = new com.codahale.metrics.Gauge<T>() {
-            @Override
-            public T getValue() {
-                return value.get();
-            }
-        };
-        metrics.register(metricName, gauge);
-        return new GaugeImpl(gauge, metricName);
+        try {
+            String metricName = name(basename, statName);
+            com.codahale.metrics.Gauge gauge = new com.codahale.metrics.Gauge<T>() {
+                @Override
+                public T getValue() {
+                    return value.get();
+                }
+            };
+            metrics.remove(metricName);
+            metrics.register(metricName, gauge);
+            return new GaugeImpl(gauge, metricName);
+        } catch (Exception e) {
+            log.warn("registerGauge failure: {}", e);
+            return NULLGAUGE;
+        }
     }
 
     @Override
     public Meter createMeter(String statName) {
-        final com.codahale.metrics.Meter meter = metrics.meter(name(basename, statName));
-        return new MeterImpl(meter, name(basename, statName));
+        try {
+            final com.codahale.metrics.Meter meter = metrics.meter(name(basename, statName));
+            return new MeterImpl(meter, name(basename, statName));
+        } catch (Exception e) {
+            log.warn("createMeter failure: {}", e);
+            return NULLMETER;
+        }
     }
 
     @Override
