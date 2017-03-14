@@ -103,7 +103,7 @@ public final class ModelHelper {
      * @param position Position object
      * @return An instance of PositionImpl.
      */
-    public static final PositionImpl encode(final Position position) {
+    public static final PositionInternal encode(final Position position) {
         Preconditions.checkNotNull(position, "position");
         return new PositionImpl(encodeSegmentMap(position.getOwnedSegmentsList()));
     }

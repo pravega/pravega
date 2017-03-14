@@ -165,7 +165,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
-        log.info("dropTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
+        log.info("abortTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getTxnId());
         processResult(controllerService.abortTransaction(request.getStreamInfo().getScope(),
                                                         request.getStreamInfo().getStream(),

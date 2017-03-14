@@ -121,10 +121,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         RPCAsyncCallback<CreateStreamStatus> callback = new RPCAsyncCallback<>();
         client.createStream(ModelHelper.decode(streamConfig), callback);
         return callback.getFuture()
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "createStream", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "createStream", traceId));
     }
 
     @Override
@@ -135,10 +132,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
         client.alterStream(ModelHelper.decode(streamConfig), callback);
         return callback.getFuture()
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "alterStream", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "alterStream", traceId));
     }
 
     @Override
@@ -161,10 +155,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                              .build(),
                      callback);
         return callback.getFuture()
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "scaleStream", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "scaleStream", traceId));
     }
 
     @Override
@@ -176,25 +167,19 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
         client.sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
         return callback.getFuture()
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "sealStream", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "sealStream", traceId));
     }
 
     @Override
-    public CompletableFuture<DeleteStreamStatus> deleteStream(String scope, String streamName) {
+    public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String streamName) {
         long traceId = LoggerHelpers.traceEnter(log, "deleteStream", scope, streamName);
-        Preconditions.checkNotNull(scope, "scope");
-        Preconditions.checkNotNull(streamName, "streamName");
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
 
         RPCAsyncCallback<DeleteStreamStatus> callback = new RPCAsyncCallback<>();
         client.deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
         return callback.getFuture()
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "deleteStream", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "deleteStream", traceId));
     }
 
     @Override
@@ -214,9 +199,9 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         return callback.getFuture()
                 .thenApply(positions -> {
                     log.debug("Received the following data from the controller {}", positions);
-                    LoggerHelpers.traceLeave(log, "getPositions", traceId);
                     return positions.getPositionsList().stream().map(ModelHelper::encode).collect(Collectors.toList());
-                });
+                })
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "getPositions", traceId));
     }
 
     @Override
@@ -232,9 +217,9 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                            for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
                                result.put(ModelHelper.encode(entry.getSegmentId()), entry.getValueList());
                            }
-                           LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
                            return result;
-                       });
+                       })
+                       .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "getSuccessors", traceId));
     }
 
     @Override
@@ -254,10 +239,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                 return rangeMap;
             })
             .thenApply(StreamSegments::new)
-            .thenApply(x -> {
-                LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
-                return x;
-            });
+            .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId));
     }
 
     @Override
@@ -272,10 +254,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                                                   segment.getSegmentNumber()),
                       callback);
         return callback.getFuture().thenApply(ModelHelper::encode)
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "getEndpointForSegment", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "getEndpointForSegment", traceId));
     }
 
     @Override
@@ -287,10 +266,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                                                           segment.getSegmentNumber()),
                               callback);
         return callback.getFuture().thenApply(SegmentValidityResponse::getResponse)
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "isSegmentOpen", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "isSegmentOpen", traceId));
     }
 
     @Override
@@ -307,10 +283,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                                          .build(),
                                  callback);
         return callback.getFuture().thenApply(ModelHelper::encode)
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "createTransaction", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "createTransaction", traceId));
     }
 
     @Override
@@ -326,10 +299,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         return FutureHelpers.toVoidExpecting(callback.getFuture(),
                                              PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
                                              PingFailedException::new)
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "pingTransaction", traceId));
     }
 
     @Override
@@ -350,10 +320,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                 callback.getFuture(),
                 Controller.TxnStatus.newBuilder().setStatus(Controller.TxnStatus.Status.SUCCESS).build(),
                 TxnFailedException::new)
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "commitTransaction", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "commitTransaction", traceId));
     }
 
     @Override
@@ -373,10 +340,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                 Controller.TxnStatus.newBuilder().setStatus(
                         Controller.TxnStatus.Status.SUCCESS).build(),
                 TxnFailedException::new)
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "abortTransaction", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "abortTransaction", traceId));
     }
 
     @Override
@@ -394,10 +358,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                                      callback);
         return callback.getFuture()
                 .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId))
-                .thenApply(x -> {
-                    LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
-                    return x;
-                });
+                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId));
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
