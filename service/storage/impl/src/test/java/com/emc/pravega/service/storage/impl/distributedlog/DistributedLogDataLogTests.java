@@ -12,20 +12,26 @@ import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestUtils;
 import com.twitter.distributedlog.DLSN;
+import com.twitter.distributedlog.admin.DistributedLogAdmin;
+import com.twitter.distributedlog.tools.Tool;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Properties;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.bookkeeper.util.ReflectionUtils;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
@@ -36,27 +42,63 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
 
     private static final String DLOG_HOST = "127.0.0.1";
-    private static final String DLOG_NAMESPACE = "pravegatest";
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT_WRITES = 250;
     private static final int WRITE_COUNT_READS = 25;
     private static final String CLIENT_ID = "UnitTest";
 
+    private static final AtomicReference<Process> DLOG_PROCESS = new AtomicReference<>();
+    private static final AtomicInteger DLOG_PORT = new AtomicInteger();
     private final AtomicReference<DistributedLogConfig> config = new AtomicReference<>();
-    private final AtomicReference<Process> dlogProcess = new AtomicReference<>();
     private final AtomicReference<DistributedLogDataLogFactory> factory = new AtomicReference<>();
 
+    /**
+     * Start DistributedLog once for the duration of this class. This is pretty strenuous, and it actually starts a
+     * new process, so in the interest of running time we only do it once.
+     */
+    @BeforeClass
+    public static void setUpDistributedLog() throws Exception {
+        // Pick a random port to reduce chances of collisions during concurrent test executions.
+        DLOG_PORT.set(TestUtils.randomPort());
+        String classPath = getClassPath();
+        val pb = new ProcessBuilder(
+                "java",
+                "-cp", String.join(":", classPath),
+                DistributedLogStarter.class.getCanonicalName(),
+                DLOG_HOST,
+                Integer.toString(DLOG_PORT.get()));
+        pb.inheritIO(); // For some reason we need to inherit IO, otherwise this process is not responsive and we can't use it.
+        DLOG_PROCESS.set(pb.start());
+    }
+
+    @AfterClass
+    public static void tearDownDistributedLog() throws Exception {
+        val process = DLOG_PROCESS.getAndSet(null);
+        if (process != null) {
+            process.destroy();
+        }
+    }
+
+    /**
+     * Before each test, we create a new namespace; this ensures that data created from a previous test does not leak
+     * into the current one (namespaces cannot be deleted (at least not through the API)).
+     */
     @Before
     public void setUp() throws Exception {
-        // Pick a random port to reduce chances of collisions during concurrent test executions.
-        final int port = TestUtils.randomPort();
-        startDistributedLog(port);
+        // Create a namespace.
+        String namespace = "pravegatest_" + Long.toHexString(System.nanoTime());
+        Tool tool = ReflectionUtils.newInstance(DistributedLogAdmin.class.getName(), Tool.class);
+        tool.run(new String[]{
+                "bind",
+                "-l", "/ledgers",
+                "-s", String.format("%s:%s", DLOG_HOST, DLOG_PORT.get()),
+                "-c", String.format("distributedlog://%s:%s/%s", DLOG_HOST, DLOG_PORT.get(), namespace)});
 
         // Setup config to use the port and namespace.
         this.config.set(new TestConfig()
                 .withDistributedLogHost(DLOG_HOST)
-                .withDistributedLogPort(port)
-                .withDistributedLogNamespace(DLOG_NAMESPACE));
+                .withDistributedLogPort(DLOG_PORT.get())
+                .withDistributedLogNamespace(namespace));
 
         // Create default factory.
         val factory = new DistributedLogDataLogFactory(CLIENT_ID, this.config.get(), executorService());
@@ -70,34 +112,12 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
         if (factory != null) {
             factory.close();
         }
-
-        stopDistributedLog();
-    }
-
-    private void stopDistributedLog() throws Exception {
-        val dlm = this.dlogProcess.getAndSet(null);
-        if (dlm != null) {
-            dlm.destroy();
-        }
-    }
-
-    private void startDistributedLog(int port) throws Exception {
-        String classPath = getClassPath();
-        val pb = new ProcessBuilder(
-                "java",
-                "-cp", String.join(":", classPath),
-                DistributedLogStarter.class.getCanonicalName(),
-                DLOG_HOST,
-                Integer.toString(port),
-                DLOG_NAMESPACE);
-        //pb.inheritIO(); // Enable only for test debugging (has lots of uninteresting output).
-        this.dlogProcess.set(pb.start());
     }
 
     /**
      * Gets the current class path and updates the path to Guava to point to version 16.0 of it.
      */
-    private String getClassPath() {
+    private static String getClassPath() {
         String[] classPath = System.getProperty("java.class.path").split(":");
         String guava16Path = getGuava16PathFromSystemProperties();
         if (guava16Path == null) {
@@ -113,7 +133,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
         return String.join(":", classPath);
     }
 
-    private String getGuava16PathFromSystemProperties() {
+    private static String getGuava16PathFromSystemProperties() {
         String guava16Path = System.getProperty("user.guava16");
         if (guava16Path != null && guava16Path.length() > 2 && guava16Path.startsWith("[") && guava16Path.endsWith("]")) {
             guava16Path = guava16Path.substring(1, guava16Path.length() - 1);
@@ -123,7 +143,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     }
 
     @SneakyThrows(IOException.class)
-    private String inferGuava16PathFromClassPath(String[] classPath) {
+    private static String inferGuava16PathFromClassPath(String[] classPath) {
         // Example path: /home/username/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/16.0/aca09d2e5e8416bf91550e72281958e35460be52/guava-16.0.jar
         final String searchString = "com.google.guava/guava";
         final Path jarPath = Paths.get("guava-16.0.jar");

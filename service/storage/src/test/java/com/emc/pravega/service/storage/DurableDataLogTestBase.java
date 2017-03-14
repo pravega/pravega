@@ -18,7 +18,6 @@ import java.util.TreeMap;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -151,7 +150,6 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      * @throws Exception If one got thrown.
      */
     @Test
-    @Ignore
     public void testOpenCloseClient() throws Exception {
         // This is a very repetitive test; and we only care about "recovery" from no client; all else is already tested.
         final int writeCount = 10;
