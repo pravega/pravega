@@ -31,13 +31,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .containerCount("2")
                 .hostPorts(new int[] {hostPort})
                 .build();
-     /*   this.zkPort = zkPort;
-        this.controllerPort = controllerPort;
-        this.hostPort = hostPort;
-        this.localHdfs = localHdfs;
-        this.controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
-                new ThreadFactoryBuilder().setNameFormat("taskpool-%d")
-                        .build());*/
     }
 
     public static void main(String[] args) {
