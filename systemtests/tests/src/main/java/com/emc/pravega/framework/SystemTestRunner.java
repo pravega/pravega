@@ -39,7 +39,13 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
     @Override
     protected Statement classBlock(final RunNotifier notifier) {
         final Statement statement = super.classBlock(notifier);
-        return withEnvironment(statement);
+        if (Utils.isSkipServiceInstallationEnabled()) {
+            log.info("skipServiceInstallation flag is set, skipping invocation of @Environment method");
+            return statement;
+        } else {
+            log.info("skipServiceInstallation flag is disabled, invoking @Environment method");
+            return withEnvironment(statement);
+        }
     }
 
     @Override

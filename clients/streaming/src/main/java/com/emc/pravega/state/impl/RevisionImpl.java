@@ -22,6 +22,7 @@ import lombok.ToString;
 @ToString
 public class RevisionImpl implements Revision, Serializable {
 
+    private static final long serialVersionUID = 1L;
     @Getter(value = AccessLevel.PACKAGE)
     private final Segment segment;
     @Getter(value = AccessLevel.PACKAGE)

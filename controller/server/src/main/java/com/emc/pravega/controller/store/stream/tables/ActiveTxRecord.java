@@ -1,15 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream.tables;
 
-import lombok.Data;
-import org.apache.commons.lang.ArrayUtils;
+
+import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.controller.store.stream.TxnStatus;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import lombok.Data;
 
 @Data
 public class ActiveTxRecord {
@@ -20,17 +19,17 @@ public class ActiveTxRecord {
     private final TxnStatus txnStatus;
 
     public static ActiveTxRecord parse(final byte[] bytes) {
-        final int longSize = Long.SIZE / 8;
+        final int longSize = Long.BYTES;
 
-        final long txCreationTimestamp = Utilities.toLong(ArrayUtils.subarray(bytes, 0, longSize));
+        final long txCreationTimestamp = BitConverter.readLong(bytes, 0);
 
-        final long leaseExpiryTime = Utilities.toLong(ArrayUtils.subarray(bytes, longSize, 2 * longSize));
+        final long leaseExpiryTime = BitConverter.readLong(bytes, longSize);
 
-        final long maxExecutionExpiryTime = Utilities.toLong(ArrayUtils.subarray(bytes, 2 * longSize, 3 * longSize));
+        final long maxExecutionExpiryTime = BitConverter.readLong(bytes, 2 * longSize);
 
-        final long scaleGracePeriod = Utilities.toLong(ArrayUtils.subarray(bytes, 3 * longSize, 4 * longSize));
+        final long scaleGracePeriod = BitConverter.readLong(bytes, 3 * longSize);
 
-        final TxnStatus status = TxnStatus.values()[Utilities.toInt(ArrayUtils.subarray(bytes, 4 * longSize, bytes.length))];
+        final TxnStatus status = TxnStatus.values()[BitConverter.readInt(bytes, 4 * longSize)];
 
         return new ActiveTxRecord(txCreationTimestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, status);
     }

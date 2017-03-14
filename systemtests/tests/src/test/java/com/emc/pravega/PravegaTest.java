@@ -29,6 +29,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -118,17 +120,14 @@ public class PravegaTest {
         Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
-        log.debug("Invoking create stream.");
-        log.debug("Controller URI: {} ", controllerUri);
+        log.info("Invoking create stream with Controller URI: {}", controllerUri);
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
         //create a scope
         CompletableFuture<Controller.CreateScopeStatus> createScopeStatus = controller.createScope(STREAM_SCOPE);
-        log.debug("create scope status {}", createScopeStatus.get());
-        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.get());
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.get().getStatus());
         //create a stream
         CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(config);
-        log.debug("create stream status {}", createStreamStatus.get());
-        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStreamStatus.get());
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
     }
 
     /**
@@ -141,12 +140,12 @@ public class PravegaTest {
     @Test
     public void simpleTest() throws InterruptedException, URISyntaxException {
 
-        Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
+        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
-        log.debug("Invoking Writer test.");
-        log.debug("Controller URI: {} ", controllerUri);
+        @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
+        log.info("Invoking Writer test with Controller URI: {}", controllerUri);
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
                 new JavaSerializer<>(),
@@ -158,7 +157,7 @@ public class PravegaTest {
             writer.flush();
             Thread.sleep(500);
         }
-        log.debug("Invoking Reader test.");
+        log.info("Invoking Reader test.");
         ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri)
                 .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
                         Collections.singleton(STREAM_NAME));
@@ -179,4 +178,5 @@ public class PravegaTest {
         }
         reader.close();
     }
+
 }

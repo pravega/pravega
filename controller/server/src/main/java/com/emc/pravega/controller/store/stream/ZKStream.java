@@ -5,6 +5,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Cache;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
@@ -99,7 +100,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenCompose(x -> {
                     if (x) {
                         return cache.getCachedData(creationPath)
-                                .thenApply(creationTime -> Utilities.toLong(creationTime.getData()) != create.getEventTime());
+                                .thenApply(creationTime -> BitConverter.readLong(creationTime.getData(), 0) != create.getEventTime());
                     } else {
                         return CompletableFuture.completedFuture(false);
                     }
