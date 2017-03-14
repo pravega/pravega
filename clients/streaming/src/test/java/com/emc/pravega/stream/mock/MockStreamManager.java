@@ -41,6 +41,18 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
+    public void createScope(String scope) {
+        FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
+                RuntimeException::new);
+    }
+
+    @Override
+    public void deleteScope(String scope) {
+        FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
+                RuntimeException::new);
+    }
+
+    @Override
     public void createStream(String streamName, StreamConfiguration config) {
         if (config == null) {
             config = StreamConfiguration.builder()
