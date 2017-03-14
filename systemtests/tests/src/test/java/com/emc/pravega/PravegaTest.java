@@ -141,8 +141,8 @@ public class PravegaTest {
         Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
-        log.info("Invoking Writer test with Controller URI: {}", controllerUri);
         try (ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri)) {
+            log.info("Invoking Writer test with Controller URI: {}", controllerUri);
             @Cleanup
             EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<>(),
@@ -154,7 +154,7 @@ public class PravegaTest {
                 writer.flush();
                 Thread.sleep(500);
             }
-            log.debug("Invoking Reader test.");
+            log.info("Invoking Reader test.");
             ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri)
                     .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
                             Collections.singleton(STREAM_NAME));
