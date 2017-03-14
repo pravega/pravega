@@ -158,6 +158,7 @@ public class ReadTest {
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
+        controller.createScope(scope);
         controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
 
         SegmentOutputStreamFactoryImpl segmentproducerClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
@@ -195,6 +196,7 @@ public class ReadTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        streamManager.createScope(scope);
         streamManager.createStream(streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
@@ -227,6 +229,7 @@ public class ReadTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        streamManager.createScope(scope);
         streamManager.createStream(streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();

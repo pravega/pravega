@@ -111,7 +111,7 @@ public class MockController implements Controller {
                                                       .setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
         }
 
-        if (createdScopes.get(streamConfig.getScope()) != null) {
+        if (createdScopes.get(streamConfig.getScope()) == null) {
             return CompletableFuture.completedFuture(CreateStreamStatus.newBuilder()
                                                        .setStatus(CreateStreamStatus.Status.SCOPE_NOT_FOUND).build());
         }
