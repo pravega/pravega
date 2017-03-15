@@ -6,8 +6,10 @@ package com.emc.pravega.common.util;
 import com.emc.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.util.Map;
 import java.util.Properties;
 import java.util.function.Function;
+import lombok.SneakyThrows;
 
 /**
  * Base Configuration for an application Component. Allows sharing a single .properties file (loaded up as a
@@ -287,4 +289,60 @@ public abstract class ComponentConfig {
     protected abstract void refresh() throws ConfigurationException;
 
     //endregion
+
+    protected static <T extends ComponentConfig> Builder<T> builder(Class<T> classType, String componentCode) {
+        return new Builder<>(classType, componentCode);
+    }
+
+    /**
+     * A builder for a generic ComponentConfig.
+     *
+     * @param <T> Type of the ComponentConfig.
+     */
+    public static class Builder<T extends ComponentConfig> {
+        private final Properties properties;
+        private final String componentCode;
+        private final Class<T> classType;
+
+        private Builder(Class<T> classType, String componentCode) {
+            Preconditions.checkNotNull(classType, "classType");
+            Exceptions.checkNotNullOrEmpty(componentCode, "componentName");
+            this.properties = new Properties();
+            this.componentCode = componentCode;
+            this.classType = classType;
+        }
+
+        /**
+         * Includes the given property and its value in the builder.
+         *
+         * @param propertyName The name of the property.
+         * @param value        The value of the property.
+         * @return This instance.
+         */
+        public Builder<T> with(String propertyName, Object value) {
+            String key = String.format("%s.%s", this.componentCode, propertyName);
+            this.properties.setProperty(key, value.toString());
+            return this;
+        }
+
+        /**
+         * Copies the contents of this builder to the given target.
+         *
+         * @param target A Map to copy to.
+         */
+        public void copyTo(Map<Object, Object> target) {
+            target.putAll(this.properties);
+        }
+
+        /**
+         * Creates a new instance of the ComponentConfig class as defined by this builder with the information
+         * contained herein.
+         *
+         * @return The newly created instance.
+         */
+        @SneakyThrows(Exception.class)
+        public T build() {
+            return this.classType.getConstructor(Properties.class).newInstance(this.properties);
+        }
+    }
 }

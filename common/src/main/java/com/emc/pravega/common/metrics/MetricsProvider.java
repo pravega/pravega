@@ -7,8 +7,6 @@ package com.emc.pravega.common.metrics;
 
 import com.codahale.metrics.MetricRegistry;
 
-import java.util.Properties;
-
 public class MetricsProvider {
     public static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
     private static final MetricsProvider INSTANCE  = new MetricsProvider();
@@ -22,7 +20,7 @@ public class MetricsProvider {
     private MetricsConfig metricsConfig;
 
     private MetricsProvider() {
-        this.metricsConfig = new MetricsConfig(new Properties());
+        this.metricsConfig = MetricsConfig.builder().build();
         this.nullDynamicLogger = nullProvider.createDynamicLogger();
         this.yammerProvider = new YammerStatsProvider(metricsConfig);
         this.yammerDynamicLogger = yammerProvider.createDynamicLogger();

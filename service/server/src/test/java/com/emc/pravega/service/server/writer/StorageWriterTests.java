@@ -1,19 +1,15 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.writer;
 
+import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -60,14 +56,15 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT = 1000;
     private static final int APPENDS_PER_SEGMENT_RECOVERY = 500; // We use depth-first, which has slower performance.
     private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
-    private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(
-            PropertyBag.create()
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
-                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
-                       .with(WriterConfig.PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, 100)
-                       .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
+    private static final WriterConfig DEFAULT_CONFIG = WriterConfig
+            .builder()
+            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
+            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+            .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
+            .with(WriterConfig.PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, 100)
+            .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0)
+            .build();
 
     private static final Duration TIMEOUT = Duration.ofSeconds(20);
 

@@ -85,12 +85,12 @@ public class ComponentConfigTests {
         final String rawProp = getPropertyName(index++);
         val correctProperties = Collections.singleton(validEnvProp);
         val incorrectProperties = Arrays.asList(invalidEnvProp1, invalidEnvProp2, invalidEnvProp3, rawProp);
-        Properties props = PropertyBag.create()
-                                      .with(getFullyQualifiedPropertyName(componentCode, validEnvProp), "$env1$")
-                                      .with(getFullyQualifiedPropertyName(componentCode, invalidEnvProp1), "env1$")
-                                      .with(getFullyQualifiedPropertyName(componentCode, invalidEnvProp2), "$env1")
-                                      .with(getFullyQualifiedPropertyName(componentCode, invalidEnvProp3), "a$env1$")
-                                      .with(getFullyQualifiedPropertyName(componentCode, rawProp), "env1");
+        Properties props = new Properties();
+        props.setProperty(getFullyQualifiedPropertyName(componentCode, validEnvProp), "$env1$");
+        props.setProperty(getFullyQualifiedPropertyName(componentCode, invalidEnvProp1), "env1$");
+        props.setProperty(getFullyQualifiedPropertyName(componentCode, invalidEnvProp2), "$env1");
+        props.setProperty(getFullyQualifiedPropertyName(componentCode, invalidEnvProp3), "a$env1$");
+        props.setProperty(getFullyQualifiedPropertyName(componentCode, rawProp), "env1");
 
         val env = new HashMap<String, String>();
         props.forEach((key, value) -> env.put((String) value, "incorrect"));

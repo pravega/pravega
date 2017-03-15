@@ -7,11 +7,10 @@ package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
-import lombok.Getter;
-
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.util.Properties;
+import lombok.Getter;
 
 /**
  * General Service Configuration.
@@ -19,7 +18,6 @@ import java.util.Properties;
 public class ServiceConfig extends ComponentConfig {
     //region Members
 
-    public static final String COMPONENT_CODE = "pravegaservice";
     public static final String PROPERTY_CONTAINER_COUNT = "containerCount";
     public static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     public static final String PROPERTY_LISTENING_PORT = "listeningPort";
@@ -31,6 +29,7 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_CONTROLLER_URI = "controllerUri";
     public static final String PROPERTY_REQUEST_STREAM = "internalRequestStream";
     public static final String PROPERTY_INTERNAL_SCOPE = "internalScope";
+    private static final String COMPONENT_CODE = "pravegaservice";
 
     private static final int DEFAULT_LISTENING_PORT = 12345;
     private static final int DEFAULT_THREAD_POOL_SIZE = 50;
@@ -77,6 +76,15 @@ public class ServiceConfig extends ComponentConfig {
      */
     public ServiceConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+    }
+
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static Builder<ServiceConfig> builder() {
+        return ComponentConfig.builder(ServiceConfig.class, COMPONENT_CODE);
     }
 
     //endregion

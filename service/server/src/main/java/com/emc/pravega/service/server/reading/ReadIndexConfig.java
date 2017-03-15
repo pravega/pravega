@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.reading;
 
@@ -16,12 +14,12 @@ import lombok.Getter;
  */
 public class ReadIndexConfig extends ComponentConfig {
     //region Members
-    public final static String COMPONENT_CODE = "readindex";
     public static final String PROPERTY_STORAGE_READ_ALIGNMENT = "storageReadAlignment";
     public static final String PROPERTY_MEMORY_READ_MIN_LENGTH = "memoryReadMinLength";
     public static final String PROPERTY_CACHE_POLICY_MAX_SIZE = "cacheMaxSize";
     public static final String PROPERTY_CACHE_POLICY_MAX_TIME = "cacheMaxTimeMillis";
     public static final String PROPERTY_CACHE_POLICY_GENERATION_TIME = "cacheGenerationTimeMillis";
+    private static final String COMPONENT_CODE = "readindex";
 
     private final static int DEFAULT_STORAGE_READ_ALIGNMENT = 1024 * 1024;
     private final static int DEFAULT_MEMORY_READ_MIN_LENGTH = 4 * 1024;
@@ -72,6 +70,15 @@ public class ReadIndexConfig extends ComponentConfig {
      */
     public ReadIndexConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+    }
+
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static Builder<ReadIndexConfig> builder() {
+        return ComponentConfig.builder(ReadIndexConfig.class, COMPONENT_CODE);
     }
 
     //endregion

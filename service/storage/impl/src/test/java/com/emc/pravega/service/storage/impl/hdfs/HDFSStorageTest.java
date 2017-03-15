@@ -16,7 +16,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -61,13 +60,10 @@ public class HDFSStorageTest extends StorageTestBase {
     @SneakyThrows(IOException.class)
     protected Storage createStorage() {
         // Create a config object, using all defaults, except for the HDFS URL.
-        // TODO: see if we can reuse ConfigHelpers from Storage Tests here, to avoid this code duplication.
-        Properties prop = new Properties();
-        prop.setProperty(
-                String.format("%s.%s", HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL),
-                String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
-
-        HDFSStorageConfig config = new HDFSStorageConfig(prop);
+        HDFSStorageConfig config = HDFSStorageConfig
+                .builder()
+                .with(HDFSStorageConfig.PROPERTY_HDFS_URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
+                .build();
         val storage = new HDFSStorage(config, executorService());
         storage.initialize();
         return new MiniClusterPermFixer(storage);

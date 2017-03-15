@@ -1,14 +1,11 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.InvalidPropertyValueException;
-
 import java.util.Properties;
 
 /**
@@ -16,10 +13,10 @@ import java.util.Properties;
  */
 public class DurableLogConfig extends ComponentConfig {
     //region Members
-    public final static String COMPONENT_CODE = "durablelog";
     public static final String PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT = "checkpointMinCommitCount";
     public static final String PROPERTY_CHECKPOINT_COMMIT_COUNT = "checkpointCommitCountThreshold";
     public static final String PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH = "checkpointTotalCommitLengthThreshold";
+    private static final String COMPONENT_CODE = "durablelog";
 
     private final static int DEFAULT_MIN_COMMIT_COUNT = 10;
     private final static int DEFAULT_COMMIT_COUNT = Integer.MAX_VALUE;
@@ -41,10 +38,19 @@ public class DurableLogConfig extends ComponentConfig {
      *                                  MissingPropertyException (a required Property is missing from the given properties collection),
      *                                  NumberFormatException (a Property has a value that is invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
+     * @throws IllegalArgumentException If componentCode is an empty string.
      */
     public DurableLogConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+    }
+
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static Builder<DurableLogConfig> builder() {
+        return ComponentConfig.builder(DurableLogConfig.class, COMPONENT_CODE);
     }
 
     //endregion

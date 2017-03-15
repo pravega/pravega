@@ -20,12 +20,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class HDFSStorageConfig extends ComponentConfig {
 
-    public static final String COMPONENT_CODE = "hdfs";
     public static final String PROPERTY_HDFS_URL = "fs.default.name";
     public static final String PROPERTY_HDFS_ROOT = "hdfsRoot";
     public static final String PROPERTY_PRAVEGA_ID = "pravegaId";
     public static final String PROPERTY_REPLICATION = "replication";
     public static final String PROPERTY_BLOCK_SIZE = "blockSize";
+    private static final String COMPONENT_CODE = "hdfs";
 
     private static final String DEFAULT_HDFS_URL = "localhost:9000";
     private static final String DEFAULT_HDFS_ROOT = "";
@@ -47,6 +47,15 @@ public class HDFSStorageConfig extends ComponentConfig {
      */
     public HDFSStorageConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+    }
+
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static Builder<HDFSStorageConfig> builder() {
+        return ComponentConfig.builder(HDFSStorageConfig.class, COMPONENT_CODE);
     }
 
     @Override

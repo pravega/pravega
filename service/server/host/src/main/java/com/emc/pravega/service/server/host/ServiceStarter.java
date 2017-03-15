@@ -193,7 +193,7 @@ public final class ServiceStarter {
     public static void main(String[] args) {
         AtomicReference<ServiceStarter> serviceStarter = new AtomicReference<>();
         try {
-            serviceStarter.set(new ServiceStarter(ServiceBuilderConfig.getConfigFromFile()));
+            serviceStarter.set(new ServiceStarter(ServiceBuilderConfig.builder().fromFile("config.properties").build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);

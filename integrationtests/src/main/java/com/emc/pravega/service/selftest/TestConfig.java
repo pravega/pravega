@@ -8,12 +8,9 @@ package com.emc.pravega.service.selftest;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.MissingPropertyException;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import lombok.Getter;
-
 import java.time.Duration;
-import java.util.Map;
 import java.util.Properties;
+import lombok.Getter;
 
 /**
  * Configuration for Self-Tester.
@@ -21,7 +18,6 @@ import java.util.Properties;
 class TestConfig extends ComponentConfig {
     //region Members
 
-    static final String COMPONENT_CODE = "selftest";
     static final String PROPERTY_OPERATION_COUNT = "operationCount";
     static final String PROPERTY_SEGMENT_COUNT = "segmentCount";
     static final String PROPERTY_TRANSACTION_FREQUENCY = "transactionFrequency";
@@ -37,6 +33,7 @@ class TestConfig extends ComponentConfig {
     static final String PROPERTY_CLIENT_PORT = "clientPort";
     static final String PROPERTY_CLIENT_AUTO_FLUSH = "clientAutoFlush";
     static final String PROPERTY_CLIENT_WRITER_COUNT = "clientWriterCount"; // Per segment.
+    private static final String COMPONENT_CODE = "selftest";
 
     private static final int DEFAULT_OPERATION_COUNT = 1000 * 1000;
     private static final int DEFAULT_SEGMENT_COUNT = 100;
@@ -101,6 +98,15 @@ class TestConfig extends ComponentConfig {
         super(properties, COMPONENT_CODE);
     }
 
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static Builder<TestConfig> builder() {
+        return ComponentConfig.builder(TestConfig.class, COMPONENT_CODE);
+    }
+
     //endregion
 
     //region ComponentConfig Implementation
@@ -127,13 +133,4 @@ class TestConfig extends ComponentConfig {
     }
 
     //endregion
-
-    static Properties convert(String componentCode, Properties rawProperties) {
-        Properties p = new Properties();
-        for (Map.Entry<Object, Object> e : rawProperties.entrySet()) {
-            ServiceBuilderConfig.set(p, componentCode, e.getKey().toString(), e.getValue().toString());
-        }
-
-        return p;
-    }
 }

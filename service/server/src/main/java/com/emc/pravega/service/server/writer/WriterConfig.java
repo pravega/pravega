@@ -7,7 +7,6 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
-
 import java.time.Duration;
 import java.util.Properties;
 
@@ -17,7 +16,6 @@ import java.util.Properties;
 public class WriterConfig extends ComponentConfig {
     //region Members
 
-    public final static String COMPONENT_CODE = "writer";
     public static final String PROPERTY_FLUSH_THRESHOLD_BYTES = "flushThresholdBytes";
     public static final String PROPERTY_FLUSH_THRESHOLD_MILLIS = "flushThresholdMillis";
     public static final String PROPERTY_MAX_FLUSH_SIZE_BYTES = "maxFlushSizeBytes";
@@ -28,6 +26,7 @@ public class WriterConfig extends ComponentConfig {
     public static final String PROPERTY_FLUSH_TIMEOUT_MILLIS = "flushTimeoutMillis";
     public static final String PROPERTY_ACK_TIMEOUT_MILLIS = "ackTimeoutMillis";
     public static final String PROPERTY_SHUTDOWN_TIMEOUT_MILLIS = "shutdownTimeoutMillis";
+    private static final String COMPONENT_CODE = "writer";
 
     private static final int DEFAULT_FLUSH_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4MB
     private static final int DEFAULT_FLUSH_THRESHOLD_MILLIS = 30 * 1000; // 30s
@@ -67,6 +66,15 @@ public class WriterConfig extends ComponentConfig {
      */
     public WriterConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+    }
+
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static Builder<WriterConfig> builder() {
+        return ComponentConfig.builder(WriterConfig.class, COMPONENT_CODE);
     }
 
     //endregion

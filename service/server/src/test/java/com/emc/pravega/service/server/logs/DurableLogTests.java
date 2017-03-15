@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
@@ -11,7 +9,6 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ImmutableDate;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -31,15 +28,14 @@ import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
-import com.emc.pravega.service.storage.mocks.InMemoryCache;
 import com.emc.pravega.service.server.reading.CacheManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -82,9 +78,9 @@ public class DurableLogTests extends OperationLogTestBase {
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
     private static final int NO_METADATA_CHECKPOINT = 0;
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-            PropertyBag.create()
-                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
+            .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024))
+            .build();
 
     //region Adding operations
 
@@ -1140,14 +1136,10 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         static DurableLogConfig defaultDurableLogConfig() {
-            return new DurableLogConfig(createRawDurableLogConfig(null, null));
+            return createDurableLogConfig(null, null);
         }
 
         static DurableLogConfig createDurableLogConfig(Integer checkpointMinCommitCount, Long checkpointMinTotalCommitLength) {
-            return new DurableLogConfig(createRawDurableLogConfig(checkpointMinCommitCount, checkpointMinTotalCommitLength));
-        }
-
-        private static Properties createRawDurableLogConfig(Integer checkpointMinCommitCount, Long checkpointMinTotalCommitLength) {
             Properties p = new Properties();
             if (checkpointMinCommitCount == null) {
                 checkpointMinCommitCount = Integer.MAX_VALUE;
@@ -1157,9 +1149,11 @@ public class DurableLogTests extends OperationLogTestBase {
                 checkpointMinTotalCommitLength = Long.MAX_VALUE;
             }
 
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, checkpointMinCommitCount.toString());
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, checkpointMinTotalCommitLength.toString());
-            return p;
+            return DurableLogConfig
+                    .builder()
+                    .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, checkpointMinCommitCount)
+                    .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, checkpointMinTotalCommitLength)
+                    .build();
         }
     }
 

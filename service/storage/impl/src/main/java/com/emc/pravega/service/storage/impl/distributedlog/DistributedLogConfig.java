@@ -16,10 +16,10 @@ import java.util.Properties;
 public class DistributedLogConfig extends ComponentConfig {
     //region Members
 
-    public static final String COMPONENT_CODE = "dlog";
     public static final String PROPERTY_HOSTNAME = "hostname";
     public static final String PROPERTY_PORT = "port";
     public static final String PROPERTY_NAMESPACE = "namespace";
+    private static final String COMPONENT_CODE = "dlog";
 
     private static final String DEFAULT_HOSTNAME = "zk1";
     private static final int DEFAULT_PORT = 2181;
@@ -45,6 +45,15 @@ public class DistributedLogConfig extends ComponentConfig {
      */
     public DistributedLogConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+    }
+
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static Builder<DistributedLogConfig> builder() {
+        return ComponentConfig.builder(DistributedLogConfig.class, COMPONENT_CODE);
     }
 
     //endregion

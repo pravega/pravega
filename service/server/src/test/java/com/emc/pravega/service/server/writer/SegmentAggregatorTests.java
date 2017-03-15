@@ -1,18 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.io.FixedByteArrayOutputStream;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
@@ -67,12 +63,13 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     private static final String TRANSACTION_NAME_PREFIX = "Transaction";
     private static final int TRANSACTION_COUNT = 10;
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
-    private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(
-            PropertyBag.create()
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 100)
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                       .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 150)
-                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
+    private static final WriterConfig DEFAULT_CONFIG = WriterConfig
+            .builder()
+            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 100)
+            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+            .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 150)
+            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+            .build();
 
     @Override
     protected int getThreadPoolSize() {
@@ -573,12 +570,13 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     public void testSeal() throws Exception {
         // Add some appends and seal, and then flush together. Verify that everything got flushed in one go.
         final int appendCount = 1000;
-        final WriterConfig config = ConfigHelpers.createWriterConfig(
-                PropertyBag.create()
-                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
-                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                           .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
-                           .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
+        final WriterConfig config = WriterConfig
+                .builder()
+                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+                .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
+                .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                .build();
 
         // We use this currentTime to simulate time passage - trigger based on time thresholds.
         final AtomicLong currentTime = new AtomicLong();
@@ -670,12 +668,13 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     public void testSealWithStorageErrors() throws Exception {
         // Add some appends and seal, and then flush together. Verify that everything got flushed in one go.
         final int appendCount = 1000;
-        final WriterConfig config = ConfigHelpers.createWriterConfig(
-                PropertyBag.create()
-                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
-                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                           .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
-                           .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
+        final WriterConfig config = WriterConfig
+                .builder()
+                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+                .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
+                .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                .build();
 
         // We use this currentTime to simulate time passage - trigger based on time thresholds.
         final AtomicLong currentTime = new AtomicLong();
@@ -762,12 +761,13 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testMerge() throws Exception {
         final int appendCount = 100; // This is number of appends per Segment/Transaction - there will be a lot of appends here.
-        final WriterConfig config = ConfigHelpers.createWriterConfig(
-                PropertyBag.create()
-                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
-                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                           .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
-                           .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
+        final WriterConfig config = WriterConfig
+                .builder()
+                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+                .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
+                .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                .build();
 
         // We use this currentTime to simulate time passage - trigger based on time thresholds.
         final AtomicLong currentTime = new AtomicLong();
@@ -882,12 +882,13 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final int appendCount = 100; // This is number of appends per Segment/Transaction - there will be a lot of appends here.
         final int failSyncEvery = 2;
         final int failAsyncEvery = 3;
-        final WriterConfig config = ConfigHelpers.createWriterConfig(
-                PropertyBag.create()
-                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
-                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                           .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
-                           .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
+        final WriterConfig config = WriterConfig
+                .builder()
+                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+                .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
+                .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                .build();
 
         // We use this currentTime to simulate time passage - trigger based on time thresholds.
         final AtomicLong currentTime = new AtomicLong();

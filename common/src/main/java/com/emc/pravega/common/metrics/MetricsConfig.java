@@ -15,7 +15,6 @@ import java.util.Properties;
  */
 public class MetricsConfig extends ComponentConfig {
     //region Members
-    public static final String COMPONENT_CODE = "metrics";
     public final static String ENABLE_STATISTICS = "enableStatistics";
     public final static String DYNAMIC_CACHE_SIZE = "dynamicCacheSize";
     public final static String DYNAMIC_TTL_SECONDS = "dynamicTTLSeconds";
@@ -24,15 +23,16 @@ public class MetricsConfig extends ComponentConfig {
     public final static String CSV_ENDPOINT = "yammerCSVEndpoint";
     public final static String STATSD_HOST = "yammerStatsDHost";
     public final static String STATSD_PORT = "yammerStatsDPort";
+    private static final String COMPONENT_CODE = "metrics";
 
-    public final static boolean DEFAULT_ENABLE_STATISTICS = true;
-    public final static long DEFAULT_DYNAMIC_CACHE_SIZE = 1000000L;
-    public final static long DEFAULT_DYNAMIC_TTL_SECONDS = 120L;
-    public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
-    public final static String DEFAULT_METRICS_PREFIX = "pravega";
-    public final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
-    public final static String DEFAULT_STATSD_HOST = "localhost";
-    public final static int DEFAULT_STATSD_PORT = 8125;
+    private final static boolean DEFAULT_ENABLE_STATISTICS = true;
+    private final static long DEFAULT_DYNAMIC_CACHE_SIZE = 1000000L;
+    private final static long DEFAULT_DYNAMIC_TTL_SECONDS = 120L;
+    private final static int DEFAULT_OUTPUT_FREQUENCY = 60;
+    private final static String DEFAULT_METRICS_PREFIX = "pravega";
+    private final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
+    private final static String DEFAULT_STATSD_HOST = "localhost";
+    private final static int DEFAULT_STATSD_PORT = 8125;
 
     private boolean enableStatistics = true;
     private long dynamicCacheSize = 1000000L;
@@ -55,6 +55,15 @@ public class MetricsConfig extends ComponentConfig {
      */
     public MetricsConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+    }
+
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static Builder<MetricsConfig> builder() {
+        return ComponentConfig.builder(MetricsConfig.class, COMPONENT_CODE);
     }
 
     /**

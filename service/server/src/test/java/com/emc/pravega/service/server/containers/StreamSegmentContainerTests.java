@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.containers;
 
@@ -9,7 +7,6 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;
@@ -31,7 +28,6 @@ import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
-import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
@@ -42,6 +38,7 @@ import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
+import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
@@ -80,21 +77,24 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(100);
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
-    private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(
-            PropertyBag.create()
-                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 10)
-                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
-                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
+    private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = DurableLogConfig
+            .builder()
+            .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 10)
+            .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
+            .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024)
+            .build();
 
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-            PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
+            .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024))
+            .build();
 
-    private static final WriterConfig DEFAULT_WRITER_CONFIG = ConfigHelpers.createWriterConfig(
-            PropertyBag.create()
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1)
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 25)
-                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
-                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
+    private static final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig
+            .builder()
+            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1)
+            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 25)
+            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+            .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
+            .build();
 
     @Override
     protected int getThreadPoolSize() {

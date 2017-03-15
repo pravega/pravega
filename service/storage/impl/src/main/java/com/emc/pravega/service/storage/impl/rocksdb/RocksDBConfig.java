@@ -16,8 +16,8 @@ import java.util.Properties;
 public class RocksDBConfig extends ComponentConfig {
     //region Members
 
-    public static final String COMPONENT_CODE = "rocksdb";
     public static final String PROPERTY_DATABASE_DIR = "dbDir";
+    private static final String COMPONENT_CODE = "rocksdb";
 
     private static final String DEFAULT_DATABASE_DIR = "/tmp/pravega/cache";
 
@@ -39,6 +39,15 @@ public class RocksDBConfig extends ComponentConfig {
      */
     public RocksDBConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+    }
+
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static Builder<RocksDBConfig> builder() {
+        return ComponentConfig.builder(RocksDBConfig.class, COMPONENT_CODE);
     }
 
     //endregion
