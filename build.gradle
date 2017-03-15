@@ -632,6 +632,22 @@ project('singlenode') {
         }
     }
 
+    test {
+        doFirst {
+            ExecutorService es = Executors.newSingleThreadExecutor()
+            es.submit({
+                project.javaexec {
+                    main = "com.emc.pravega.local.LocalPravegaEmulator"
+                    classpath = sourceSets.main.runtimeClasspath
+
+                    standardInput = System.in
+                    // Starts all services other than bookkeeper.
+                    args = ["false", "4000", "5000", "6000"]
+                }
+            } as Callable)
+        }
+    }
+
     publishing {
         publications {
             maven(MavenPublication) {

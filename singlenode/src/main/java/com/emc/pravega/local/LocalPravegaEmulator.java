@@ -25,12 +25,12 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .initialBookiePort(5000)
                 .isInprocController(true)
                 .controllerCount(1)
-                .controllerPorts(new int[] {controllerPort})
                 .isInprocHost(true)
                 .hostCount(1)
                 .containerCount("2")
-                .hostPorts(new int[] {hostPort})
                 .build();
+        inProcPravegaCluster.setControllerPorts(new int[] {controllerPort});
+        inProcPravegaCluster.setHostPorts(new int[] {hostPort});
     }
 
     public static void main(String[] args) {
@@ -44,7 +44,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
             int zkPort = Integer.parseInt(args[1]);
             final int controllerPort = Integer.parseInt(args[2]);
             final int hostPort = Integer.parseInt(args[3]);
-
 
             if (runOnlyBookkeeper) {
                 final LocalDLMEmulator localDlm = LocalDLMEmulator.newBuilder().zkPort(zkPort).numBookies(NUM_BOOKIES)
@@ -65,9 +64,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 log.info("Started Bookkeeper Emulator");
                 return;
             }
-
-
-
 
             final LocalPravegaEmulator localPravega = LocalPravegaEmulator.builder().controllerPort(
                     controllerPort).hostPort(hostPort).zkPort(zkPort).build();
