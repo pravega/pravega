@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
@@ -61,9 +60,6 @@ public class ControllerWrapper implements AutoCloseable {
                              final boolean disableRequestHandler,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) throws Exception {
-        // Disables metrics
-        MetricsProvider.disable();
-
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,

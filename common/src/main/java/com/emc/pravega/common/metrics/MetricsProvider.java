@@ -10,7 +10,6 @@ import com.codahale.metrics.MetricRegistry;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,8 +38,7 @@ public class MetricsProvider {
         INSTANCE.set(new MetricsProvider(metricsConfig));
     }
 
-    @VisibleForTesting
-    public static void disable() {
+    private static void initializeDefault() {
         Properties properties = new Properties();
 
         properties.setProperty("metrics.enableStatistics", "false");
@@ -48,7 +46,9 @@ public class MetricsProvider {
     }
 
     public static StatsProvider getMetricsProvider() {
-        Preconditions.checkNotNull(INSTANCE.get(), "MetricsProvider not initialized");
+        if (INSTANCE.get() == null) {
+            initializeDefault();
+        }
 
         MetricsProvider metricsProvider = INSTANCE.get();
 
@@ -57,7 +57,9 @@ public class MetricsProvider {
     }
 
     public static StatsLogger createStatsLogger(String loggerName) {
-        Preconditions.checkNotNull(INSTANCE.get(), "MetricsProvider not initialized");
+        if (INSTANCE.get() == null) {
+            initializeDefault();
+        }
 
         MetricsProvider metricsProvider = INSTANCE.get();
 
@@ -66,7 +68,9 @@ public class MetricsProvider {
     }
 
     public static DynamicLogger getDynamicLogger() {
-        Preconditions.checkNotNull(INSTANCE.get(), "MetricsProvider not initialized");
+        if (INSTANCE.get() == null) {
+            initializeDefault();
+        }
 
         MetricsProvider metricsProvider = INSTANCE.get();
 
@@ -75,7 +79,9 @@ public class MetricsProvider {
     }
 
     public static MetricsConfig getConfig() {
-        Preconditions.checkNotNull(INSTANCE.get(), "MetricsProvider not initialized");
+        if (INSTANCE.get() == null) {
+            initializeDefault();
+        }
 
         return INSTANCE.get().metricsConfig;
     }
