@@ -3,10 +3,22 @@
  */
 package com.emc.pravega;
 
-import com.emc.pravega.controller.server.rest.generated.model.*;
+import com.emc.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
+import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
+import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
+import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
+import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
+import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
+import com.emc.pravega.controller.server.rest.generated.model.ScopeProperty;
+import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
-import com.emc.pravega.framework.services.*;
+import com.emc.pravega.framework.services.BookkeeperService;
+import com.emc.pravega.framework.services.PravegaControllerService;
+import com.emc.pravega.framework.services.PravegaSegmentStoreService;
+import com.emc.pravega.framework.services.Service;
+import com.emc.pravega.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.glassfish.jersey.client.ClientConfig;
@@ -38,7 +50,11 @@ public class ControllerRestApiTest {
     private String resourceURl;
 
     public ControllerRestApiTest() {
-        client = ClientBuilder.newClient(new ClientConfig());
+        ClientConfig clientConfig = new ClientConfig();
+        System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
+        clientConfig.register(JacksonJsonProvider.class);
+        clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
+        client = ClientBuilder.newClient(clientConfig);
     }
 
     /**
@@ -91,18 +107,25 @@ public class ControllerRestApiTest {
     }
 
     @Test
-    public void StreamMetadataTests() {
+    public void restApiTests() {
 
         Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerRESTUri = ctlURIs.get(1);
-
-        restServerURI = controllerRESTUri.toString();
-        log.info("REST Server URI: {}", restServerURI);
-        final String scope1 = "scope1";
-        final String stream1 = "stream1";
         Invocation.Builder builder;
         Response response;
+
+        restServerURI = "http://" + controllerRESTUri.getHost() + ":" + controllerRESTUri.getPort();
+        log.info("REST Server URI: {}", restServerURI);
+        resourceURl = new StringBuilder(restServerURI).append("/ping").toString();
+        webTarget = client.target(resourceURl);
+        builder = webTarget.request();
+        response = builder.get();
+        assertEquals("Ping test", 200, response.getStatus());
+
+        final String scope1 = "scope1";
+        final String stream1 = "stream1";
+
 
         // TEST CreateScope POST http://controllerURI:Port/v1/scopes
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes").toString();
@@ -110,7 +133,8 @@ public class ControllerRestApiTest {
         final CreateScopeRequest createScopeRequest = new CreateScopeRequest();
         createScopeRequest.setScopeName(scope1);
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
-        response = builder.post(Entity.entity(createScopeRequest, MediaType.APPLICATION_JSON_TYPE));
+        response = builder.post(Entity.json(createScopeRequest));
+        //response = builder.post(Entity.entity(createScopeRequest, MediaType.APPLICATION_JSON_TYPE));
 
         assertEquals("Create scope status", 201, response.getStatus());
         assertEquals("Create scope response", scope1, response.readEntity(ScopeProperty.class).getScopeName());
@@ -135,7 +159,8 @@ public class ControllerRestApiTest {
         createStreamRequest.setRetentionPolicy(retentionConfig);
 
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
-        response = builder.post(Entity.entity(createStreamRequest, MediaType.APPLICATION_JSON_TYPE));
+        response = builder.post(Entity.json(createStreamRequest));
+        //response = builder.post(Entity.entity(createStreamRequest, MediaType.APPLICATION_JSON_TYPE));
         assertEquals("Create stream status", 201, response.getStatus());
         final StreamProperty streamPropertyResponse = response.readEntity(StreamProperty.class);
         assertEquals("Create stream response", scope1, streamPropertyResponse.getScopeName());
@@ -147,13 +172,13 @@ public class ControllerRestApiTest {
         webTarget = client.target(resourceURl);
         builder = webTarget.request();
         response = builder.get();
-        assertEquals("List Scopes ", 200, response.getStatus());
+        assertEquals("List scopes ", 200, response.getStatus());
 
         final ScopesList scopesList;
         scopesList = response.readEntity(ScopesList.class);
         // verify that size of scopeslist is 3 (system, pravega, scope1)
-        assertEquals("List scope size", 3, scopesList.getScopes().size());
-        log.info("List scope successful");
+        assertEquals("List scopes size", 3, scopesList.getScopes().size());
+        log.info("List scopes successful");
 
         // Test listStream GET /v1/scopes/scope1/streams
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams").toString();
@@ -162,6 +187,6 @@ public class ControllerRestApiTest {
         response = builder.get();
         assertEquals("List streams", 200, response.getStatus());
         assertEquals("List streams size", 1, response.readEntity(StreamsList.class).getStreams().size());
-        log.info("List stream successful");
+        log.info("List streams successful");
     }
 }
