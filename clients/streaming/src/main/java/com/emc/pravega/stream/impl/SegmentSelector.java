@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class EventRouter {
+public class SegmentSelector {
 
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
     

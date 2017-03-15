@@ -18,7 +18,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-public class EventRouterTest {
+public class SegmentSelectorTest {
 
     private final String scope = "scope";
     private final String streamName = "streamName";
@@ -27,7 +27,7 @@ public class EventRouterTest {
     public void testUsesAllSegments() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        EventRouter router = new EventRouter(new StreamImpl(scope, streamName), controller, factory);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -37,11 +37,11 @@ public class EventRouterTest {
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
-        router.refreshSegmentEventWriters();
+        selector.refreshSegmentEventWriters();
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {
-            Segment segment = router.getSegmentForEvent("" + i);
+            Segment segment = selector.getSegmentForEvent("" + i);
             assertNotNull(segment);
             counts[segment.getSegmentNumber()]++;
         }
@@ -54,7 +54,7 @@ public class EventRouterTest {
     public void testNullRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        EventRouter router = new EventRouter(new StreamImpl(scope, streamName), controller, factory);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -64,11 +64,11 @@ public class EventRouterTest {
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
-        router.refreshSegmentEventWriters();
+        selector.refreshSegmentEventWriters();
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 100; i++) {
-            Segment segment = router.getSegmentForEvent(null);
+            Segment segment = selector.getSegmentForEvent(null);
             assertNotNull(segment);
             counts[segment.getSegmentNumber()]++;
         }
@@ -81,7 +81,7 @@ public class EventRouterTest {
     public void testSameRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        EventRouter router = new EventRouter(new StreamImpl(scope, streamName), controller, factory);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -91,11 +91,11 @@ public class EventRouterTest {
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
-        router.refreshSegmentEventWriters();
+        selector.refreshSegmentEventWriters();
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {
-            Segment segment = router.getSegmentForEvent("Foo");
+            Segment segment = selector.getSegmentForEvent("Foo");
             assertNotNull(segment);
             counts[segment.getSegmentNumber()]++;
         }
