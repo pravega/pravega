@@ -345,7 +345,7 @@ project('integrationtests') {
         compile project(':connectors:flink')
         compile 'junit:junit:4.12'
         compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
-        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         testCompile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
         testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
         testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: '1.2.0'
@@ -498,7 +498,7 @@ project('controller:server') {
         compile project(':common')
         compile project(":controller:contract")
         compile project(":clients:streaming")
-        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         compile group: 'javax.servlet', name: 'servlet-api', version: '2.5'
         compile('io.swagger:swagger-jersey2-jaxrs:1.5.9') {
             exclude group: 'com.google.guava', module: 'guava'
@@ -600,7 +600,7 @@ project('singlenode') {
         compile project(':service:storage')
         compile project(':service:storage:impl')
 
-        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: '2.7.3'
@@ -644,7 +644,7 @@ project('singlenode') {
 project('systemtests:tests') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
-        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         compile group: 'com.mesosphere', name: 'marathon-client', version: '0.3.0'
         compile project(":clients:streaming")
         compile 'junit:junit:4.12'
