@@ -49,8 +49,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     @GuardedBy("lock")
     private final SegmentSelector selector;
 
-    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, Serializer<Type> serializer,
-            EventWriterConfig config) {
+    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
+            Serializer<Type> serializer, EventWriterConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -107,7 +107,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private void handleLogSealed() {
         List<PendingEvent> toResend = selector.refreshSegmentEventWriters();
         while (!toResend.isEmpty()) {
-            List<PendingEvent> unsent = new ArrayList<>(); 
+            List<PendingEvent> unsent = new ArrayList<>();
             for (PendingEvent event : toResend) {
                 SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey());
                 if (segmentWriter == null) {
@@ -119,7 +119,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         log.info("Segment was sealed while handling seal: {}", segmentWriter.toString());
                         selector.removeWriter(segmentWriter);
                         unsent.addAll(segmentWriter.getUnackedEvents());
-                    } 
+                    }
                 }
             }
             if (!unsent.isEmpty()) {

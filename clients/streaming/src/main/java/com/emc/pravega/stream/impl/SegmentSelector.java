@@ -1,6 +1,6 @@
 /**
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
 package com.emc.pravega.stream.impl;
@@ -26,17 +26,17 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * A class that determines to which segment an event associated with a routing key will go.
- * This is invoked on every writeEvent call to decide how to send a particular segment.
- * It is acceptable for it to cache the current set of segments for a stream, as it will be queried again
- * if a segment has been sealed.
+ * A class that determines to which segment an event associated with a routing key will go. This is
+ * invoked on every writeEvent call to decide how to send a particular segment. It is acceptable for
+ * it to cache the current set of segments for a stream, as it will be queried again if a segment
+ * has been sealed.
  */
 @Slf4j
 @RequiredArgsConstructor
 public class SegmentSelector {
 
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
-    
+
     private final Stream stream;
     private final Controller controller;
     private final SegmentOutputStreamFactory outputStreamFactory;
@@ -46,7 +46,7 @@ public class SegmentSelector {
     private StreamSegments currentSegments;
     @GuardedBy("$lock")
     private final Map<Segment, SegmentOutputStream> writers = new HashMap<>();
-    
+
     /**
      * Selects which segment an event should be written to.
      *
@@ -62,7 +62,7 @@ public class SegmentSelector {
         }
         return writers.get(getSegmentForEvent(routingKey));
     }
-    
+
     @Synchronized
     public Segment getSegmentForEvent(String routingKey) {
         if (currentSegments == null) {
@@ -73,7 +73,7 @@ public class SegmentSelector {
         }
         return currentSegments.getSegmentForKey(HASHER.hashToRange(routingKey));
     }
-    
+
     @Synchronized
     public void removeWriter(SegmentOutputStream outputStream) {
         writers.values().remove(outputStream);
@@ -81,7 +81,9 @@ public class SegmentSelector {
 
     /**
      * Refresh the latest list of segments in the given stream.
-     * @return A list of events that were sent to old segments and never acked. These should be re-sent.
+     * 
+     * @return A list of events that were sent to old segments and never acked. These should be
+     *         re-sent.
      */
     @Synchronized
     public List<PendingEvent> refreshSegmentEventWriters() {
@@ -119,7 +121,7 @@ public class SegmentSelector {
         }
         return new ArrayList<>(currentSegments.getSegments());
     }
-    
+
     @Synchronized
     public List<SegmentOutputStream> getWriters() {
         return new ArrayList<>(writers.values());

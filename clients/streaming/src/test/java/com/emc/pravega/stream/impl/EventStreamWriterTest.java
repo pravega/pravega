@@ -1,6 +1,6 @@
 /**
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
 package com.emc.pravega.stream.impl;
@@ -39,7 +39,7 @@ public class EventStreamWriterTest {
         String scope = "scope";
         String streamName = "stream";
         StreamImpl stream = new StreamImpl(scope, streamName);
-        Segment segment = new Segment(scope, streamName, 0);        
+        Segment segment = new Segment(scope, streamName, 0);
         EventWriterConfig config = EventWriterConfig.builder().build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
@@ -61,7 +61,7 @@ public class EventStreamWriterTest {
             // expected.
         }
     }
-    
+
     private CompletableFuture<StreamSegments> getSegment(Segment segment) {
         NavigableMap<Double, Segment> segments = new TreeMap<>();
         segments.put(1.0, segment);
@@ -73,13 +73,13 @@ public class EventStreamWriterTest {
         String scope = "scope";
         String streamName = "stream";
         StreamImpl stream = new StreamImpl(scope, streamName);
-        Segment segment = new Segment(scope, streamName, 0);        
+        Segment segment = new Segment(scope, streamName, 0);
         EventWriterConfig config = EventWriterConfig.builder().build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegment(segment));
         SegmentOutputStream outputStream = Mockito.mock(SegmentOutputStream.class);
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(outputStream);       
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(outputStream);
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
@@ -104,8 +104,9 @@ public class EventStreamWriterTest {
 
     @NotThreadSafe
     private static final class FakeSegmentOutputStream implements SegmentOutputStream {
-        private final ArrayList<PendingEvent> writes = new ArrayList<>(); 
+        private final ArrayList<PendingEvent> writes = new ArrayList<>();
         private boolean sealed = false;
+
         @Override
         public void write(PendingEvent event) throws SegmentSealedException {
             writes.add(event);
@@ -134,9 +135,9 @@ public class EventStreamWriterTest {
         public List<PendingEvent> getUnackedEvents() {
             return Collections.unmodifiableList(writes);
         }
-        
+
     }
-    
+
     @Test
     public void testEndOfSegment() {
         String scope = "scope";
@@ -150,11 +151,13 @@ public class EventStreamWriterTest {
         Controller controller = Mockito.mock(Controller.class);
         FakeSegmentOutputStream outputStream1 = new FakeSegmentOutputStream();
         FakeSegmentOutputStream outputStream2 = new FakeSegmentOutputStream();
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment1)).thenReturn(outputStream1);       
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment2)).thenReturn(outputStream2);     
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment1)).thenReturn(outputStream1);
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment2)).thenReturn(outputStream2);
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
-        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegment(segment1)).thenReturn(getSegment(segment2));
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+               .thenReturn(getSegment(segment1))
+               .thenReturn(getSegment(segment2));
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
@@ -195,7 +198,7 @@ public class EventStreamWriterTest {
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream();
         Mockito.when(controller.createTransaction(stream, 0, 0, 0)).thenReturn(CompletableFuture.completedFuture(txid));
         Mockito.when(streamFactory.createOutputStreamForTransaction(segment, txid)).thenReturn(outputStream);
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(bad);   
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(bad);
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
@@ -213,7 +216,7 @@ public class EventStreamWriterTest {
         assertTrue(bad.getUnackedEvents().isEmpty());
         assertTrue(outputStream.getUnackedEvents().isEmpty());
     }
-    
+
     @Test
     public void testTxnFailed() {
         String scope = "scope";
@@ -229,7 +232,7 @@ public class EventStreamWriterTest {
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream();
         Mockito.when(controller.createTransaction(stream, 0, 0, 0)).thenReturn(CompletableFuture.completedFuture(txid));
         Mockito.when(streamFactory.createOutputStreamForTransaction(segment, txid)).thenReturn(outputStream);
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(bad);   
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(bad);
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
@@ -262,8 +265,8 @@ public class EventStreamWriterTest {
         Controller controller = Mockito.mock(Controller.class);
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream();
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegment(segment));
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(outputStream);       
-        
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(outputStream);
+
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
@@ -277,7 +280,7 @@ public class EventStreamWriterTest {
         writer.flush();
         assertTrue(outputStream.getUnackedEvents().isEmpty());
     }
-    
+
     @Test
     public void testSegmentSealedInFlush() throws EndOfSegmentException {
         String scope = "scope";
@@ -286,11 +289,13 @@ public class EventStreamWriterTest {
         Segment segment1 = new Segment(scope, streamName, 0);
         Segment segment2 = new Segment(scope, streamName, 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        
+
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream();
-        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegment(segment1)).thenReturn(getSegment(segment2));
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+               .thenReturn(getSegment(segment1))
+               .thenReturn(getSegment(segment2));
         Mockito.when(streamFactory.createOutputStreamForSegment(segment1)).thenReturn(outputStream);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
@@ -303,16 +308,16 @@ public class EventStreamWriterTest {
         Mockito.verify(controller).getCurrentSegments(Mockito.any(), Mockito.any());
         assertTrue(outputStream.getUnackedEvents().size() > 0);
         outputStream.sealed = true;
-        
+
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment2)).thenReturn(outputStream2);     
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment2)).thenReturn(outputStream2);
         writer.flush();
-       
+
         Mockito.verify(controller, Mockito.times(2)).getCurrentSegments(Mockito.any(), Mockito.any());
         assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
-    
+
     @Test
     public void testSegmentSealedInClose() throws EndOfSegmentException {
         String scope = "scope";
@@ -321,11 +326,13 @@ public class EventStreamWriterTest {
         Segment segment1 = new Segment(scope, streamName, 0);
         Segment segment2 = new Segment(scope, streamName, 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        
+
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         FakeSegmentOutputStream outputStream1 = new FakeSegmentOutputStream();
-        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegment(segment1)).thenReturn(getSegment(segment2));
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+               .thenReturn(getSegment(segment1))
+               .thenReturn(getSegment(segment2));
         Mockito.when(streamFactory.createOutputStreamForSegment(segment1)).thenReturn(outputStream1);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
@@ -338,16 +345,15 @@ public class EventStreamWriterTest {
         Mockito.verify(controller).getCurrentSegments(Mockito.any(), Mockito.any());
         assertTrue(outputStream1.getUnackedEvents().size() > 0);
         outputStream1.sealed = true;
-        
+
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment2)).thenReturn(outputStream2);     
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment2)).thenReturn(outputStream2);
         writer.close();
-       
+
         Mockito.verify(controller, Mockito.times(2)).getCurrentSegments(Mockito.any(), Mockito.any());
         assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
-    
 
     @Test
     public void testSegmentSealedInSegmentSealed() {
@@ -359,16 +365,20 @@ public class EventStreamWriterTest {
         Segment segment2 = new Segment(scope, streamName, 1);
         Segment segment3 = new Segment(scope, streamName, 2);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        
+
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         FakeSegmentOutputStream outputStream1 = new FakeSegmentOutputStream();
         FakeSegmentOutputStream outputStream2 = new FakeSegmentOutputStream();
         FakeSegmentOutputStream outputStream3 = new FakeSegmentOutputStream();
-        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegment(segment1)).thenReturn(getSegment(segment2)).thenReturn(getSegment(segment3));;
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment1)).thenReturn(outputStream1);   
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment2)).thenReturn(outputStream2);   
-        Mockito.when(streamFactory.createOutputStreamForSegment(segment3)).thenReturn(outputStream3);   
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+               .thenReturn(getSegment(segment1))
+               .thenReturn(getSegment(segment2))
+               .thenReturn(getSegment(segment3));
+        
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment1)).thenReturn(outputStream1);
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment2)).thenReturn(outputStream2);
+        Mockito.when(streamFactory.createOutputStreamForSegment(segment3)).thenReturn(outputStream3);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
@@ -380,12 +390,12 @@ public class EventStreamWriterTest {
         Mockito.verify(controller).getCurrentSegments(Mockito.any(), Mockito.any());
         assertEquals(1, outputStream1.getUnackedEvents().size());
         assertTrue(outputStream2.getUnackedEvents().isEmpty());
-        
+
         outputStream1.sealed = true;
         outputStream2.sealed = true;
 
         writer.writeEvent(routingKey, "Bar");
-       
+
         Mockito.verify(controller, Mockito.times(3)).getCurrentSegments(Mockito.any(), Mockito.any());
 
         assertEquals(1, outputStream2.getUnackedEvents().size());
