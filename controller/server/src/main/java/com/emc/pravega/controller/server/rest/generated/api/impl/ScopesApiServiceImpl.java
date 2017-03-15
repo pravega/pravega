@@ -4,7 +4,7 @@ import com.emc.pravega.controller.server.rest.generated.api.*;
 import com.emc.pravega.controller.server.rest.generated.model.*;
 
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
-import com.emc.pravega.controller.server.rest.generated.model.InlineResponse201;
+import com.emc.pravega.controller.server.rest.generated.model.ScopeProperty;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
