@@ -18,6 +18,8 @@ import java.nio.ByteBuffer;
 import javax.annotation.concurrent.GuardedBy;
 
 import lombok.Synchronized;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.netty.WireCommandType.EVENT;
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
@@ -28,6 +30,8 @@ import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
  * 
  * @see SegmentInputStream
  */
+@Slf4j
+@ToString
 class SegmentInputStreamImpl implements SegmentInputStream {
     private static final int DEFAULT_READ_LENGTH = 64 * 1024;
     static final int DEFAULT_BUFFER_SIZE = 2 * SegmentInputStreamImpl.DEFAULT_READ_LENGTH;
@@ -73,6 +77,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Override
     @Synchronized
     public void setOffset(long offset) {
+        log.trace("SetOffset {}", offset);
         Preconditions.checkArgument(offset >= 0);
         if (offset != this.offset) {
             this.offset = offset;
@@ -94,6 +99,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Override
     @Synchronized
     public ByteBuffer read(long timeout) throws EndOfSegmentException {
+        log.trace("Read called at offset {}", offset);
         fillBuffer();
         if (buffer.dataAvailable() < TYPE_PLUS_LENGTH_SIZE) {
             if (outstandingRequest.await(timeout)) {
@@ -166,28 +172,34 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @Override
     public long fetchCurrentStreamLength() {
+        log.trace("Fetching current stream length");
         return FutureHelpers.getAndHandleExceptions(asyncInput.getSegmentInfo(), RuntimeException::new).getSegmentLength();
     }
 
     @Override
     @Synchronized
     public void close() {
+        log.trace("Closing {}", this);
         asyncInput.close();
     }
 
     @Override
     @Synchronized
     public void fillBuffer() {
+        log.trace("Filling buffer {}", this);
         issueRequestIfNeeded();
         while (dataWaitingToGoInBuffer()) {
             handleRequest();
         }
     }
     
+    @Override
     @Synchronized
     public boolean canReadWithoutBlocking() {
-        return buffer.dataAvailable() > 0 || (outstandingRequest != null && outstandingRequest.isSuccess()
+        boolean result = buffer.dataAvailable() > 0 || (outstandingRequest != null && outstandingRequest.isSuccess()
                 && asyncInput.getResult(outstandingRequest).getData().hasRemaining());
+        log.trace("canReadWithoutBlocking {}", result);
+        return result;
     }
 
     @Override

@@ -27,12 +27,12 @@ class YammerOpStatsLogger implements OpStatsLogger {
     // OpStatsLogger functions
     @Override
     public void reportFailEvent(Duration duration) {
-        fail.update(duration.toNanos(), TimeUnit.NANOSECONDS);
+        fail.update(duration.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void reportSuccessEvent(Duration duration) {
-        success.update(duration.toNanos(), TimeUnit.NANOSECONDS);
+        success.update(duration.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override

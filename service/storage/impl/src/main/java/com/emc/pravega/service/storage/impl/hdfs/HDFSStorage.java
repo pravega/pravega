@@ -6,7 +6,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.SegmentStoreMetricsNames;
+import com.emc.pravega.common.MetricsNames;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.common.metrics.Counter;
@@ -16,6 +16,7 @@ import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
@@ -172,7 +173,10 @@ class HDFSStorage implements Storage {
 
     //region Helpers
 
-    private SegmentProperties createSync(String streamSegmentName) throws IOException {
+    private SegmentProperties createSync(String streamSegmentName) throws IOException, StreamSegmentExistsException {
+        if (existsSync(streamSegmentName)) {
+            throw new StreamSegmentExistsException(streamSegmentName);
+        }
         String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, ownedFullPath);
         this.fileSystem
@@ -184,6 +188,13 @@ class HDFSStorage implements Storage {
                         this.config.getBlockSize(),
                         null)
                 .close();
+        int numInstances = findAll(streamSegmentName).length;
+        if (numInstances > 1) {
+            log.warn("Segment '{}' has {} instances in Tier2 when the expected was only one.", streamSegmentName,
+                    numInstances);
+            this.fileSystem.delete(new Path(ownedFullPath), true);
+            throw new StreamSegmentExistsException(streamSegmentName);
+        }
 
         LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
         return new StreamSegmentInformation(streamSegmentName,
@@ -524,11 +535,11 @@ class HDFSStorage implements Storage {
     //region Metrics
 
     private static class Metrics {
-        private static final StatsLogger HDFS_LOGGER = MetricsProvider.createStatsLogger("HDFS");
-        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats(SegmentStoreMetricsNames.HDFS_READ_LATENCY);
-        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats(SegmentStoreMetricsNames.HDFS_WRITE_LATENCY);
-        static final Counter READ_BYTES = HDFS_LOGGER.createCounter(SegmentStoreMetricsNames.HDFS_READ_BYTES);
-        static final Counter WRITE_BYTES = HDFS_LOGGER.createCounter(SegmentStoreMetricsNames.HDFS_WRITE_BYTES);
+        private static final StatsLogger HDFS_LOGGER = MetricsProvider.createStatsLogger("hdfs");
+        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats(MetricsNames.HDFS_READ_LATENCY);
+        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats(MetricsNames.HDFS_WRITE_LATENCY);
+        static final Counter READ_BYTES = HDFS_LOGGER.createCounter(MetricsNames.HDFS_READ_BYTES);
+        static final Counter WRITE_BYTES = HDFS_LOGGER.createCounter(MetricsNames.HDFS_WRITE_BYTES);
     }
 
     //endregion

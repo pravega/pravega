@@ -283,7 +283,7 @@ public final class WireCommands {
 
         AppendBlock(UUID connectionId) {
             this.connectionId = connectionId;
-            this.data = null; // Populated on read path
+            this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
         }
 
         AppendBlock(UUID connectionId, ByteBuf data) {
@@ -531,6 +531,7 @@ public final class WireCommands {
     @Data
     public static final class GetStreamSegmentInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
+        final long requestId;
         final String segmentName;
 
         @Override
@@ -540,18 +541,21 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segmentName);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();            
             String segment = in.readUTF();
-            return new GetStreamSegmentInfo(segment);
+            return new GetStreamSegmentInfo(requestId, segment);
         }
     }
 
     @Data
     public static final class StreamSegmentInfo implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.STREAM_SEGMENT_INFO;
+        final long requestId;
         final String segmentName;
         final boolean exists;
         final boolean isSealed;
@@ -566,6 +570,7 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segmentName);
             out.writeBoolean(exists);
             out.writeBoolean(isSealed);
@@ -575,19 +580,21 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segmentName = in.readUTF();
             boolean exists = in.readBoolean();
             boolean isSealed = in.readBoolean();
             boolean isDeleted = in.readBoolean();
             long lastModified = in.readLong();
             long segmentLength = in.readLong();
-            return new StreamSegmentInfo(segmentName, exists, isSealed, isDeleted, lastModified, segmentLength);
+            return new StreamSegmentInfo(requestId, segmentName, exists, isSealed, isDeleted, lastModified, segmentLength);
         }
     }
     
     @Data
     public static final class GetTransactionInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_TRANSACTION_INFO;
+        final long requestId;
         final String segment;
         final UUID txid;
 
@@ -598,21 +605,24 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new GetTransactionInfo(segment, txid);
+            return new GetTransactionInfo(requestId, segment, txid);
         }
     }
 
     @Data
     public static final class TransactionInfo implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TRANSACTION_INFO;
+        final long requestId;
         final String segment;
         final UUID txid;
         final String transactionName;
@@ -629,6 +639,7 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
@@ -640,6 +651,7 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
             String transactionName = in.readUTF();
@@ -647,7 +659,7 @@ public final class WireCommands {
             boolean isSealed = in.readBoolean();
             long lastModified = in.readLong();
             long dataLength = in.readLong();
-            return new TransactionInfo(segment, txid, transactionName, exists, isSealed, lastModified, dataLength);
+            return new TransactionInfo(requestId, segment, txid, transactionName, exists, isSealed, lastModified, dataLength);
         }
     }
 
