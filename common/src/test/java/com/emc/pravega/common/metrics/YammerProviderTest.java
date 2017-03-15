@@ -6,8 +6,10 @@
 package com.emc.pravega.common.metrics;
 
 import com.emc.pravega.common.Timer;
+import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -16,6 +18,16 @@ import static org.junit.Assert.assertEquals;
  * The type Yammer provider test.
  */
 public class YammerProviderTest {
+    static final String ENVKEY;
+    static final int PORT = 9999;
+    static {
+        Properties properties = new Properties();
+
+        ENVKEY = System.getenv().keySet().iterator().next();
+        properties.setProperty("metrics.yammerStatsDHost", "$" + ENVKEY + "$");
+        properties.setProperty("metrics.yammerStatsDPort", Integer.toString(PORT));
+        MetricsProvider.initialize(new MetricsConfig(properties));
+    }
     private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("");
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
 
@@ -95,5 +107,33 @@ public class YammerProviderTest {
             assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("testGauge").getValue());
             assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("DYNAMIC.dynamicGauge.Gauge").getValue());
         }
+    }
+
+    /**
+     * Test that MetricsProvider can't be initialized twice.
+     */
+    @Test
+    public void testDoubleInitialization() {
+        try {
+            MetricsProvider.initialize(new MetricsConfig(new Properties()));
+            Assert.fail("Should have thrown exception");
+        } catch (Exception e) {
+            // Expected
+        }
+    }
+
+    /**
+     * Test that an arbitrary environment variable can be used to set the value of
+     * a config parameter.
+     */
+    @Test
+    public void testConfigArbitraryEnvVar() {
+        String value = System.getenv(ENVKEY);
+        Assert.assertEquals(MetricsProvider.getConfig().getStatsDHost(), value);
+    }
+
+    @Test
+    public void testConfigRegularValue() {
+        Assert.assertEquals(MetricsProvider.getConfig().getStatsDPort(), PORT);
     }
 }

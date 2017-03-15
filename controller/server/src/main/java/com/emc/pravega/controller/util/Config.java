@@ -10,7 +10,9 @@ import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
 
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -77,4 +79,17 @@ public final class Config {
     // Request Stream readerGroup
     public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.internal.scale.readerGroup.name");
     public static final String SCALE_READER_ID = CONFIG.getString("config.controller.server.internal.scale.readerGroup.readerId");
+
+    // Metrics
+    private static final String METRIC_PATH = "config.controller.metric";
+
+    public static Properties getMetricsProperties() {
+        Properties prop = new Properties();
+
+        prop.putAll(CONFIG.entrySet().stream()
+                .filter(x -> x.getKey().startsWith(METRIC_PATH))
+                .collect(Collectors.toMap(x -> x.getKey().replaceFirst(METRIC_PATH, ""), Map.Entry::getValue)));
+
+        return prop;
+    }
 }

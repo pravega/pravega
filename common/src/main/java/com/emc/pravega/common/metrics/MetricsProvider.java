@@ -7,15 +7,15 @@ package com.emc.pravega.common.metrics;
 
 import com.codahale.metrics.MetricRegistry;
 
-import java.io.IOException;
-import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class MetricsProvider {
     public static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
-    private static final MetricsProvider INSTANCE  = new MetricsProvider();
+    private static final AtomicReference<MetricsProvider> INSTANCE  = new AtomicReference<>();
     
     private final StatsProvider nullProvider = new NullStatsProvider();
     private final StatsProvider yammerProvider;
@@ -25,28 +25,48 @@ public class MetricsProvider {
     private final DynamicLogger nullDynamicLogger;
     private MetricsConfig metricsConfig;
 
-    private MetricsProvider() {
-        try {
-            this.metricsConfig = MetricsConfig.getConfigFromFile();
-        } catch (IOException e) {
-            log.warn("Exception while reading configuration properties from file, resorting to defaults", e);
-            this.metricsConfig = new MetricsConfig(new Properties());
-        }
+    private MetricsProvider(MetricsConfig config) {
+        this.metricsConfig = config;
         this.nullDynamicLogger = nullProvider.createDynamicLogger();
         this.yammerProvider = new YammerStatsProvider(metricsConfig);
         this.yammerDynamicLogger = yammerProvider.createDynamicLogger();
     }
 
+    public static void initialize(MetricsConfig metricsConfig) {
+        Preconditions.checkArgument(INSTANCE.get() == null, "MetricsProvider has already been initialized");
+        INSTANCE.set(new MetricsProvider(metricsConfig));
+    }
+
     public static StatsProvider getMetricsProvider() {
-        return INSTANCE.metricsConfig.enableStatistics() ? INSTANCE.yammerProvider : INSTANCE.nullProvider;
+        Preconditions.checkNotNull(INSTANCE.get(), "MetricsProvider not initialized");
+
+        MetricsProvider metricsProvider = INSTANCE.get();
+
+        return metricsProvider.metricsConfig.enableStatistics() ? metricsProvider.yammerProvider
+                : metricsProvider.nullProvider;
     }
 
     public static StatsLogger createStatsLogger(String loggerName) {
-        return INSTANCE.metricsConfig.enableStatistics() ? INSTANCE.yammerProvider.createStatsLogger(loggerName)
-                : INSTANCE.nullProvider.createStatsLogger(loggerName);
+        Preconditions.checkNotNull(INSTANCE.get(), "MetricsProvider not initialized");
+
+        MetricsProvider metricsProvider = INSTANCE.get();
+
+        return metricsProvider.metricsConfig.enableStatistics() ? metricsProvider.yammerProvider.createStatsLogger(loggerName)
+                : metricsProvider.nullProvider.createStatsLogger(loggerName);
     }
 
     public static DynamicLogger getDynamicLogger() {
-        return INSTANCE.metricsConfig.enableStatistics() ? INSTANCE.yammerDynamicLogger : INSTANCE.nullDynamicLogger;
+        Preconditions.checkNotNull(INSTANCE.get(), "MetricsProvider not initialized");
+
+        MetricsProvider metricsProvider = INSTANCE.get();
+
+        return metricsProvider.metricsConfig.enableStatistics() ? metricsProvider.yammerDynamicLogger
+                : metricsProvider.nullDynamicLogger;
+    }
+
+    public static MetricsConfig getConfig() {
+        Preconditions.checkNotNull(INSTANCE.get(), "MetricsProvider not initialized");
+
+        return INSTANCE.get().metricsConfig;
     }
 }
