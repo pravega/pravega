@@ -88,7 +88,7 @@ public final class Config {
 
         prop.putAll(CONFIG.entrySet().stream()
                 .filter(x -> x.getKey().startsWith(METRIC_PATH))
-                .collect(Collectors.toMap(x -> x.getKey().replaceFirst(METRIC_PATH, ""), Map.Entry::getValue)));
+                .collect(Collectors.toMap(x -> x.getKey().replaceFirst(METRIC_PATH, ""), x -> x.getValue().unwrapped())));
 
         return prop;
     }

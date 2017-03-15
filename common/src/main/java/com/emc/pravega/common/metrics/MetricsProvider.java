@@ -33,21 +33,21 @@ public class MetricsProvider {
         this.yammerDynamicLogger = yammerProvider.createDynamicLogger();
     }
 
-    public static void initialize(MetricsConfig metricsConfig) {
-        Preconditions.checkArgument(INSTANCE.get() == null, "MetricsProvider has already been initialized");
+    public static synchronized void initialize(MetricsConfig metricsConfig) {
+        Preconditions.checkArgument(INSTANCE.get() == null, "MetricsProvider is already initialized");
         INSTANCE.set(new MetricsProvider(metricsConfig));
     }
 
-    private static void initializeDefault() {
+    private static MetricsProvider defaultProvider() {
         Properties properties = new Properties();
 
         properties.setProperty("metrics.enableStatistics", "false");
-        INSTANCE.set(new MetricsProvider(new MetricsConfig(properties)));
+        return new MetricsProvider(new MetricsConfig(properties));
     }
 
-    public static StatsProvider getMetricsProvider() {
+    public static synchronized StatsProvider getMetricsProvider() {
         if (INSTANCE.get() == null) {
-            initializeDefault();
+            INSTANCE.set(defaultProvider());
         }
 
         MetricsProvider metricsProvider = INSTANCE.get();
@@ -56,9 +56,9 @@ public class MetricsProvider {
                 : metricsProvider.nullProvider;
     }
 
-    public static StatsLogger createStatsLogger(String loggerName) {
+    public static synchronized StatsLogger createStatsLogger(String loggerName) {
         if (INSTANCE.get() == null) {
-            initializeDefault();
+            INSTANCE.set(defaultProvider());
         }
 
         MetricsProvider metricsProvider = INSTANCE.get();
@@ -67,9 +67,9 @@ public class MetricsProvider {
                 : metricsProvider.nullProvider.createStatsLogger(loggerName);
     }
 
-    public static DynamicLogger getDynamicLogger() {
+    public static synchronized DynamicLogger getDynamicLogger() {
         if (INSTANCE.get() == null) {
-            initializeDefault();
+            INSTANCE.set(defaultProvider());
         }
 
         MetricsProvider metricsProvider = INSTANCE.get();
@@ -78,9 +78,9 @@ public class MetricsProvider {
                 : metricsProvider.nullDynamicLogger;
     }
 
-    public static MetricsConfig getConfig() {
+    public static synchronized MetricsConfig getConfig() {
         if (INSTANCE.get() == null) {
-            initializeDefault();
+            INSTANCE.set(defaultProvider());
         }
 
         return INSTANCE.get().metricsConfig;
