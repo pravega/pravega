@@ -547,8 +547,8 @@ project('connectors:flink') {
     apply plugin: 'com.github.johnrengelman.shadow'
 
     dependencies {
-        compile (project(":clients:streaming"))
-        shadow (project(":clients:streaming"))
+        compile project(":clients:streaming")
+        shadow project(":clients:streaming")
         compile group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
     }
 
