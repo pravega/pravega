@@ -51,7 +51,6 @@ public class ControllerRestApiTest {
 
     public ControllerRestApiTest() {
         ClientConfig clientConfig = new ClientConfig();
-        System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
         client = ClientBuilder.newClient(clientConfig);
@@ -117,15 +116,17 @@ public class ControllerRestApiTest {
 
         restServerURI = "http://" + controllerRESTUri.getHost() + ":" + controllerRESTUri.getPort();
         log.info("REST Server URI: {}", restServerURI);
+
+        // TEST REST server status, ping test
         resourceURl = new StringBuilder(restServerURI).append("/ping").toString();
         webTarget = client.target(resourceURl);
         builder = webTarget.request();
         response = builder.get();
         assertEquals("Ping test", 200, response.getStatus());
+        log.info("REST Server is running. Ping successful.");
 
         final String scope1 = "scope1";
         final String stream1 = "stream1";
-
 
         // TEST CreateScope POST http://controllerURI:Port/v1/scopes
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes").toString();
@@ -134,7 +135,6 @@ public class ControllerRestApiTest {
         createScopeRequest.setScopeName(scope1);
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
         response = builder.post(Entity.json(createScopeRequest));
-        //response = builder.post(Entity.entity(createScopeRequest, MediaType.APPLICATION_JSON_TYPE));
 
         assertEquals("Create scope status", 201, response.getStatus());
         assertEquals("Create scope response", scope1, response.readEntity(ScopeProperty.class).getScopeName());
@@ -160,7 +160,7 @@ public class ControllerRestApiTest {
 
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
         response = builder.post(Entity.json(createStreamRequest));
-        //response = builder.post(Entity.entity(createStreamRequest, MediaType.APPLICATION_JSON_TYPE));
+
         assertEquals("Create stream status", 201, response.getStatus());
         final StreamProperty streamPropertyResponse = response.readEntity(StreamProperty.class);
         assertEquals("Create stream response", scope1, streamPropertyResponse.getScopeName());
@@ -172,12 +172,7 @@ public class ControllerRestApiTest {
         webTarget = client.target(resourceURl);
         builder = webTarget.request();
         response = builder.get();
-        assertEquals("List scopes ", 200, response.getStatus());
-
-        final ScopesList scopesList;
-        scopesList = response.readEntity(ScopesList.class);
-        // verify that size of scopeslist is 3 (system, pravega, scope1)
-        assertEquals("List scopes size", 3, scopesList.getScopes().size());
+        assertEquals("List scopes", 200, response.getStatus());
         log.info("List scopes successful");
 
         // Test listStream GET /v1/scopes/scope1/streams
