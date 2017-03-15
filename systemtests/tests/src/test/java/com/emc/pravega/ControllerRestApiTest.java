@@ -9,7 +9,6 @@ import com.emc.pravega.controller.server.rest.generated.model.CreateStreamReques
 import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
-import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.ScopeProperty;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.framework.Environment;
