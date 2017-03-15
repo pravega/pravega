@@ -61,7 +61,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
             return cf.establishConnection(endpointForSegment, replyProcessor);
         }).thenAccept((ClientConnection connection) -> {
             try {
-                connection.send(new GetTransactionInfo(segment.getScopedName(), txId));
+                connection.send(new GetTransactionInfo(1, segment.getScopedName(), txId));
             } catch (ConnectionFailedException e) {
                 throw new RuntimeException(e);
             } 

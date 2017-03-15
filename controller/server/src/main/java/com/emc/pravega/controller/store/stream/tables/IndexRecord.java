@@ -1,10 +1,9 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream.tables;
 
+import com.emc.pravega.common.util.BitConverter;
 import lombok.Data;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -21,7 +20,7 @@ import java.util.Optional;
  * Row: [eventTime, pointer-into-history-table]
  */
 public class IndexRecord {
-    public static final int INDEX_RECORD_SIZE = (Long.SIZE + Integer.SIZE) / 8;
+    public static final int INDEX_RECORD_SIZE = Long.BYTES + Integer.BYTES;
 
     private final long eventTime;
     private final int historyOffset;
@@ -63,8 +62,8 @@ public class IndexRecord {
     }
 
     private static IndexRecord parse(final byte[] bytes) {
-        final long eventTime = Utilities.toLong(ArrayUtils.subarray(bytes, 0, Long.SIZE / 8));
-        final int offset = Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length));
+        final long eventTime = BitConverter.readLong(bytes, 0);
+        final int offset = BitConverter.readInt(bytes, Long.BYTES);
         return new IndexRecord(eventTime, offset);
     }
 

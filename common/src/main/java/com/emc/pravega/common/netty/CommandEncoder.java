@@ -37,6 +37,7 @@ import io.netty.handler.codec.MessageToByteEncoder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Encodes data so that it can go out onto the wire.
@@ -64,6 +65,7 @@ import lombok.SneakyThrows;
  */
 @NotThreadSafe
 @RequiredArgsConstructor
+@Slf4j
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
@@ -81,6 +83,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
+        log.trace("Encoding message to send over the wire {}", msg);
         if (msg instanceof Append) {
             Append append = (Append) msg;
             Session session = setupSegments.get(append.segment);
