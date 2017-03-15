@@ -66,7 +66,7 @@ public class CommandTask extends MetronomeBasedTask {
         env.put("masterIP", System.getProperty("masterIP"));
 
         Restart restart = new Restart();
-        restart.setActiveDeadlineSeconds(120); // the task is expected to  finish in 2 mins
+        restart.setActiveDeadlineSeconds(120);
         restart.setPolicy("NEVER");
 
         Run run = new Run();
