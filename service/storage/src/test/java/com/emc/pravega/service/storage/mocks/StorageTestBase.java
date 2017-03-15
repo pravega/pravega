@@ -5,6 +5,7 @@ package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
@@ -41,6 +42,20 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     //endregion
 
     //region Tests
+
+    /**
+     * Tests the create() method.
+     */
+    @Test
+    public void testCreate() {
+        String segmentName = "foo_open";
+        try (Storage s = createStorage()) {
+            s.create(segmentName, null).join();
+            assertThrows("create() did not throw for existing StreamSegment.",
+                    s.create(segmentName, null),
+                    ex -> ex instanceof StreamSegmentExistsException);
+        }
+    }
 
     /**
      * Tests the open() method.

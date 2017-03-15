@@ -15,6 +15,7 @@ import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
@@ -164,7 +165,10 @@ class HDFSStorage implements Storage {
 
     //region Helpers
 
-    private SegmentProperties createSync(String streamSegmentName) throws IOException {
+    private SegmentProperties createSync(String streamSegmentName) throws IOException, StreamSegmentExistsException {
+        if (existsSync(streamSegmentName)) {
+            throw new StreamSegmentExistsException(streamSegmentName);
+        }
         String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, ownedFullPath);
         this.fileSystem
@@ -176,6 +180,13 @@ class HDFSStorage implements Storage {
                         this.config.getBlockSize(),
                         null)
                 .close();
+        int numInstances = findAll(streamSegmentName).length;
+        if (numInstances > 1) {
+            log.warn("Segment '{}' has {} instances in Tier2 when the expected was only one.", streamSegmentName,
+                    numInstances);
+            this.fileSystem.delete(new Path(ownedFullPath), true);
+            throw new StreamSegmentExistsException(streamSegmentName);
+        }
 
         LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
         return new StreamSegmentInformation(streamSegmentName,
