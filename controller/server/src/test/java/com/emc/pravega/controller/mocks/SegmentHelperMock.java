@@ -28,6 +28,9 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createSegment(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
+        doReturn(CompletableFuture.completedFuture(true)).when(helper).deleteSegment(
+                anyString(), anyString(), anyInt(), any(), any());
+
         doReturn(CompletableFuture.completedFuture(true)).when(helper).abortTransaction(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 

@@ -63,4 +63,9 @@ public class InMemoryScope implements Scope {
     public void addStreamToScope(String stream) {
         this.streamsInScope.add(stream);
     }
+
+    @Synchronized
+    public void removeStreamFromScope(String stream) {
+        this.streamsInScope.remove(stream);
+    }
 }

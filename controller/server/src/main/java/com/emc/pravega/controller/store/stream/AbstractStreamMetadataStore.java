@@ -132,6 +132,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Void> deleteStream(final String scope,
+                                                final String name,
+                                                final OperationContext context,
+                                                final Executor executor) {
+        return withCompletion(getStream(scope, name, context).delete(), executor);
+    }
+
+    @Override
     public CompletableFuture<Boolean> setState(final String scope, final String name,
                                                final State state, final OperationContext context,
                                                final Executor executor) {
@@ -276,6 +284,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, name, context).getSegment(number), executor);
+    }
+
+    @Override
+    public CompletableFuture<Integer> getSegmentCount(final String scope, final String name, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getSegmentCount(), executor);
     }
 
     @Override
