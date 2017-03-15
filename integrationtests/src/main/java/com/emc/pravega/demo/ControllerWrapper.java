@@ -68,9 +68,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
-        GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder()
-                .port(controllerPort)
-                .build();
+        GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder().port(controllerPort).build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
                 .host(hostId)
