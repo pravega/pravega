@@ -24,16 +24,26 @@ import static com.emc.pravega.framework.TestFrameworkException.Type.InternalErro
 public class CommandTask extends MetronomeBasedTask {
 
     private final String command;
+    private final double cpu;
+    private final double mem;
+    private final int disk;
 
     public CommandTask(final String id, final String command) {
+      this(id, command, 0.5, 64.0, 0);
+    }
+
+    public CommandTask(final String id, final String command, final double cpu, final double mem, final int disk) {
         super(id);
         this.command = command;
+        this.cpu = cpu;
+        this.mem = mem;
+        this.disk = disk;
     }
 
     @Override
     public void start() {
         log.info("Starting execution of Command Task with id : {}", id);
-        Job cmd = createJob(id);
+        Job cmd = createJob(id, cpu, mem, disk);
         try {
             startTaskExecution(cmd).get(5, TimeUnit.MINUTES);
         } catch (InterruptedException | ExecutionException | TimeoutException ex) {
@@ -47,7 +57,7 @@ public class CommandTask extends MetronomeBasedTask {
         throw new NotImplementedException("Stopping a Metronome task is not implemented");
     }
 
-    private Job createJob(final String id) {
+    private Job createJob(final String id, final double cpu, final double mem, final int disk) {
         Map<String, String> labels = new HashMap<>(1);
         labels.put("name", "Command task for SystemTest framework");
 
@@ -63,9 +73,9 @@ public class CommandTask extends MetronomeBasedTask {
         run.setArtifacts(Collections.emptyList());
         run.setCmd("/bin/bash -c " + command.replaceAll(" ", "\\ ")); // enable multiple commands seperated by ;
 
-        run.setCpus(0.5);
-        run.setMem(64.0);
-        run.setDisk(0);
+        run.setCpus(cpu);
+        run.setMem(mem);
+        run.setDisk(disk);
         run.setEnv(env);
         run.setMaxLaunchDelay(3600);
         run.setRestart(restart);
