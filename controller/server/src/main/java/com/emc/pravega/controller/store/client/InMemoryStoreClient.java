@@ -3,12 +3,15 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package com.emc.pravega.controller.store;
+package com.emc.pravega.controller.store.client;
 
 /**
  * In memory store client.
  */
-public class InMemoryStoreClient implements StoreClient {
+class InMemoryStoreClient implements StoreClient {
+
+    InMemoryStoreClient() {
+    }
 
     @Override
     public Object getClient() {

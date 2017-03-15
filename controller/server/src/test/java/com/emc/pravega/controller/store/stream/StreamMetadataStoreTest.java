@@ -35,7 +35,7 @@ public class StreamMetadataStoreTest {
     private final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream2).scalingPolicy(policy2).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-    private final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
+    private final StreamMetadataStore store = StreamStoreFactory.createInMemoryStore(executor);
 
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {

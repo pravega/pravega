@@ -6,8 +6,8 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
-import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;

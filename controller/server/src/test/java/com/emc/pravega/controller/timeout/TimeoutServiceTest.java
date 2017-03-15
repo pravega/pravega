@@ -7,15 +7,15 @@ package com.emc.pravega.controller.timeout;
 
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.ZKStoreClient;
+import com.emc.pravega.controller.store.client.StoreClient;
+import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.stream.VersionedTransactionData;
 import com.emc.pravega.controller.store.stream.WriteConflictException;
-import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
@@ -154,9 +154,9 @@ public class TimeoutServiceTest {
         client.start();
 
         // Create STREAM store, host store, and task metadata store.
-        StoreClient storeClient = new ZKStoreClient(client);
-        streamStore = new ZKStreamMetadataStore(client, executor);
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+        StoreClient storeClient = StoreClientFactory.createZKStoreClient(client);
+        streamStore = StreamStoreFactory.createZKStore(client, executor);
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore();
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
@@ -165,8 +165,8 @@ public class TimeoutServiceTest {
                 hostStore, taskMetadataStore, new SegmentHelper(), executor, hostId);
 
         // Create TimeoutService
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, Config.MAX_LEASE_VALUE,
-                Config.MAX_SCALE_GRACE_PERIOD, new LinkedBlockingQueue<>(5));
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
+                TimeoutServiceConfig.defaultConfig(), new LinkedBlockingQueue<>(5));
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executor);

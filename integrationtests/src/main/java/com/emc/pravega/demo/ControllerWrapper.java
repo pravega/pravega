@@ -3,28 +3,15 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
-import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import com.emc.pravega.controller.server.eventProcessor.LocalController;
+import com.emc.pravega.controller.server.ControllerServiceConfig;
+import com.emc.pravega.controller.server.ControllerServiceStarter;
 import com.emc.pravega.controller.server.ControllerService;
-import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
-import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.ZKStoreClient;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.timeout.TimeoutService;
-import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.controller.store.client.StoreClient;
+import com.emc.pravega.controller.store.client.StoreClientFactory;
+import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.impl.Controller;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -33,23 +20,12 @@ import org.apache.curator.retry.RetryOneTime;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class ControllerWrapper implements AutoCloseable {
 
-    @Getter
-    private final ControllerService controllerService;
-    @Getter
-    private final Controller controller;
-    private final ScheduledExecutorService executor;
-    private final GRPCServer rpcServer;
-    private final ControllerEventProcessors controllerEventProcessors;
-    private final TimeoutService timeoutService;
-    private final StreamMetadataTasks streamMetadataTasks;
-    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private final ControllerServiceStarter controllerServiceStarter;
 
     public ControllerWrapper(final String connectionString) throws Exception {
         this(connectionString, false, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
@@ -74,77 +50,59 @@ public class ControllerWrapper implements AutoCloseable {
             hostId = UUID.randomUUID().toString();
         }
 
-        // initialize the executor service
-        executor = Executors.newScheduledThreadPool(20,
-                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
-
         CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
         client.start();
 
-        StoreClient storeClient = new ZKStoreClient(client);
+        StoreClient storeClient = StoreClientFactory.createZKStoreClient(client);
 
-        ZKStreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
+        ControllerServiceConfig.HostMonitorConfig hostMonitorConfig = ControllerServiceConfig.HostMonitorConfig.builder()
+                .hostMonitorEnabled(false)
+                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
+                .sssHost(serviceHost)
+                .sssPort(servicePort)
+                .containerCount(containerCount)
+                .build();
 
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(serviceHost, servicePort, containerCount);
+        TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
+                .maxLeaseValue(Config.MAX_LEASE_VALUE)
+                .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
+                .build();
 
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
-
-        SegmentHelper segmentHelper = new SegmentHelper();
-
-        //2) start RPC server with v1 implementation. Enable other versions if required.
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, executor, hostId);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, executor, hostId);
-
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
-
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
-
-        if (!disableRequestHandler) {
-            RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
-        }
-
-        //region Setup Event Processors
-        LocalController localController = new LocalController(controllerService);
-
-        if (!disableEventProcessor) {
-            controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
-                    client, streamStore, hostStore, segmentHelper, executor);
-        } else {
-            controllerEventProcessors = null;
-        }
-
-        ControllerEventProcessors.createStreams(localController, executor)
-                .thenAcceptAsync(x -> streamTransactionMetadataTasks.initializeStreamWriters(localController), executor)
-                .thenAcceptAsync(x -> {
-                    if (!disableEventProcessor) {
-                        controllerEventProcessors.startAsync();
-                    }
-                }, executor);
-        //endregion
-
-        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+        GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder()
                 .port(controllerPort)
                 .build();
-        rpcServer = new GRPCServer(controllerService, gRPCServerConfig);
-        rpcServer.startAsync();
 
-        controller = new LocalController(controllerService);
+        ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
+                .host(hostId)
+                .threadPoolSize(6)
+                .storeClient(storeClient)
+                .hostMonitorConfig(hostMonitorConfig)
+                .timeoutServiceConfig(timeoutServiceConfig)
+                .eventProcessorsEnabled(!disableEventProcessor)
+                .requestHandlersEnabled(!disableRequestHandler)
+                .gRPCServerEnabled(true)
+                .grpcServerConfig(grpcServerConfig)
+                .restServerEnabled(false)
+                .build();
+
+        controllerServiceStarter = new ControllerServiceStarter(serviceConfig);
+        controllerServiceStarter.startAsync();
     }
 
     public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
-        return this.streamTransactionMetadataTasks.awaitInitialization(timeout, timeUnit);
+        return this.controllerServiceStarter.awaitTasksModuleInitialization(timeout, timeUnit);
+    }
+
+    public ControllerService getControllerService() {
+        return this.controllerServiceStarter.getControllerService();
+    }
+
+    public Controller getController() {
+        return this.controllerServiceStarter.getController();
     }
 
     @Override
     public void close() throws Exception {
-        rpcServer.stopAsync();
-        if (controllerEventProcessors != null) {
-            controllerEventProcessors.stopAsync();
-        }
-        timeoutService.stopAsync();
-        executor.shutdown();
+        this.controllerServiceStarter.stopAsync();
     }
 }

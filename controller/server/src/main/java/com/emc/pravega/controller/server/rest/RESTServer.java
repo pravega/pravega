@@ -15,12 +15,12 @@ import java.util.Set;
 
 import javax.ws.rs.core.UriBuilder;
 
+import com.google.common.util.concurrent.AbstractService;
+import io.netty.channel.Channel;
+import lombok.Lombok;
 import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
-
-import static com.emc.pravega.controller.util.Config.REST_SERVER_IP;
-import static com.emc.pravega.controller.util.Config.REST_SERVER_PORT;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,28 +28,53 @@ import lombok.extern.slf4j.Slf4j;
  * Netty REST server implementation.
  */
 @Slf4j
-public class RESTServer {
+public class RESTServer extends AbstractService {
 
-    public static final void start(ControllerService controllerService) {
-        final String serverURI = "http://" + REST_SERVER_IP + "/";
-        final URI baseUri = UriBuilder.fromUri(serverURI).port(REST_SERVER_PORT).build();
+    private final RESTServerConfig restServerConfig;
+    private final URI baseUri;
+    private final ResourceConfig resourceConfig;
+    private Channel channel;
+
+    public RESTServer(ControllerService controllerService, RESTServerConfig restServerConfig) {
+        this.restServerConfig = restServerConfig;
+        final String serverURI = "http://" + restServerConfig.getHost() + "/";
+        this.baseUri = UriBuilder.fromUri(serverURI).port(restServerConfig.getPort()).build();
 
         final Set<Object> resourceObjs = new HashSet<Object>();
         resourceObjs.add(new PingImpl());
         resourceObjs.add(new StreamMetadataResourceImpl(controllerService));
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
-        final ResourceConfig resourceConfig = ResourceConfig.forApplication(controllerApplication);
-        resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
+        this.resourceConfig = ResourceConfig.forApplication(controllerApplication);
+        this.resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
 
         // Register the custom JSON parser.
-        resourceConfig.register(new CustomObjectMapperProvider());
+        this.resourceConfig.register(new CustomObjectMapperProvider());
 
+    }
+
+    /**
+     * Start REST service.
+     */
+    @Override
+    protected void doStart() {
         try {
-            NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
+            log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
+            channel = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
+            notifyStarted();
         } catch (Exception e) {
             log.error("Error starting Rest Service {}", e);
+            // Throw the error so that the service is marked as FAILED.
+            throw Lombok.sneakyThrow(e);
         }
     }
 
+    /**
+     * Gracefully stop REST service.
+     */
+    @Override
+    protected void doStop() {
+        log.info("Stopping REST server listening on port: {}", this.restServerConfig.getPort());
+        channel.close();
+    }
 }

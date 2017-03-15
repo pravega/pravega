@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * In-memory stream store.
  */
 @Slf4j
-public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
+class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryStream> streams = new HashMap<>();

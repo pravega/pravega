@@ -7,7 +7,6 @@ import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -17,6 +16,7 @@ import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -43,10 +43,9 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
 
         executorService = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
-        taskMetadataStore = TaskStoreFactory.createStore(
-                StoreClientFactory.createStoreClient(StoreClientFactory.StoreType.InMemory), executorService);
-        hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
-        streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executorService);
+        taskMetadataStore = TaskStoreFactory.createInMemoryStore(executorService);
+        hostStore = HostStoreFactory.createInMemoryStore();
+        streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
@@ -55,7 +54,8 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
 
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 10000);
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
+                TimeoutServiceConfig.defaultConfig());
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
                                       timeoutService, new SegmentHelper(), executorService));

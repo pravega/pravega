@@ -5,6 +5,8 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
+
 /**
  * It acts as the manager and wrapper around EventProcessor groups
  * processing events from Pravega Streams belonging to a specific scope.

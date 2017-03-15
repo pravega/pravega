@@ -6,13 +6,15 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
-import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
+import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
@@ -139,7 +141,7 @@ public class EventProcessorTest {
 
     @Test(timeout = 10000)
     public void testEventProcessorCell() throws CheckpointStoreException, ReinitializationRequiredException {
-        CheckpointStore checkpointStore = new InMemoryCheckpointStore();
+        CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
 
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()
@@ -150,7 +152,7 @@ public class EventProcessorTest {
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
                         .type(CheckpointConfig.Type.Periodic)
-                        .storeType(CheckpointConfig.StoreType.InMemory)
+                        .checkpointStoreClient(StoreClientFactory.createInMemoryStoreClient())
                         .checkpointPeriod(period)
                         .build();
 

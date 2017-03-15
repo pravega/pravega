@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -25,7 +26,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         zkServer.start();
         CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
-        checkpointStore = new ZKCheckpointStore(cli);
+        checkpointStore = CheckpointStoreFactory.createZKStore(cli);
     }
 
     @Override

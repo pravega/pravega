@@ -3,25 +3,18 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package com.emc.pravega.controller.store;
+package com.emc.pravega.controller.store.client;
 
-import com.emc.pravega.controller.util.ZKUtils;
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
  * ZK client.
  */
-public class ZKStoreClient implements StoreClient {
+class ZKStoreClient implements StoreClient {
 
     private final CuratorFramework client;
 
-    public ZKStoreClient() {
-        this.client = ZKUtils.getCuratorClient();
-    }
-
-    @VisibleForTesting
-    public ZKStoreClient(CuratorFramework client) {
+    ZKStoreClient(CuratorFramework client) {
         this.client = client;
     }
 

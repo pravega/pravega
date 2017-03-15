@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.stream.EventStreamWriter;
 
 import java.util.Set;

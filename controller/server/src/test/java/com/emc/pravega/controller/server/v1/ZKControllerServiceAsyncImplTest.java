@@ -7,17 +7,18 @@ import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.ZKStoreClient;
+import com.emc.pravega.controller.store.client.StoreClient;
+import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
+import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.curator.framework.CuratorFramework;
@@ -54,12 +55,12 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        storeClient = new ZKStoreClient(zkClient);
+        storeClient = StoreClientFactory.createZKStoreClient(zkClient);
         executorService = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
         taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
-        hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
-        streamStore = new ZKStreamMetadataStore(zkClient, executorService);
+        hostStore = HostStoreFactory.createInMemoryStore();
+        streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
@@ -67,7 +68,8 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 10000);
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
+                TimeoutServiceConfig.defaultConfig());
 
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,

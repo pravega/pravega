@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
+import com.emc.pravega.controller.store.client.StoreClient;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Data;
@@ -13,16 +14,10 @@ import lombok.Data;
  * Configuration for event processor's position object persistence configuration.
  */
 @Data
-@Builder
 public class CheckpointConfig {
     public enum Type {
         None,
         Periodic
-    }
-
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
     }
 
     @Data
@@ -40,7 +35,17 @@ public class CheckpointConfig {
     }
 
     private final Type type;
-    private final StoreType storeType;
     private final CheckpointPeriod checkpointPeriod;
-    private final Object checkpointStoreClient;
+    private final StoreClient checkpointStoreClient;
+
+    @Builder
+    CheckpointConfig(final Type type, final CheckpointPeriod checkpointPeriod, final StoreClient checkpointStoreClient) {
+        Preconditions.checkNotNull(type);
+        Preconditions.checkNotNull(checkpointPeriod);
+        Preconditions.checkNotNull(checkpointStoreClient);
+
+        this.type = type;
+        this.checkpointPeriod = checkpointPeriod;
+        this.checkpointStoreClient = checkpointStoreClient;
+    }
 }

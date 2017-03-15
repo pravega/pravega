@@ -6,10 +6,11 @@
 package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.controller.util.Config;
-import com.emc.pravega.controller.util.ZKUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
+import org.apache.curator.framework.CuratorFramework;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,18 +25,14 @@ public class HostStoreFactory {
         Zookeeper
     }
 
-    public static HostControllerStore createStore(StoreType type) {
-        switch (type) {
+    public static HostControllerStore createStore(StoreClient storeClient) {
+        switch (storeClient.getType()) {
         case InMemory:
-            log.info("Creating in-memory host store");
-            Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
-            hostContainerMap.put(new Host(Config.SERVICE_HOST, Config.SERVICE_PORT),
-                    IntStream.range(0, Config.HOST_STORE_CONTAINER_COUNT).boxed().collect(Collectors.toSet()));
-            return new InMemoryHostStore(hostContainerMap);
-            
+            return createInMemoryStore();
+
         case Zookeeper:
             log.info("Creating Zookeeper based host store");
-            return new ZKHostStore(ZKUtils.getCuratorClient());
+            return new ZKHostStore((CuratorFramework) storeClient.getClient());
             
         default:
             throw new NotImplementedException();
@@ -47,6 +44,14 @@ public class HostStoreFactory {
         Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
         hostContainerMap.put(new Host(host, port),
                 IntStream.range(0, containerCount).boxed().collect(Collectors.toSet()));
+        return new InMemoryHostStore(hostContainerMap);
+    }
+
+    public static HostControllerStore createInMemoryStore() {
+        log.info("Creating in-memory host store");
+        Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+        hostContainerMap.put(new Host(Config.SERVICE_HOST, Config.SERVICE_PORT),
+                IntStream.range(0, Config.HOST_STORE_CONTAINER_COUNT).boxed().collect(Collectors.toSet()));
         return new InMemoryHostStore(hostContainerMap);
     }
 }

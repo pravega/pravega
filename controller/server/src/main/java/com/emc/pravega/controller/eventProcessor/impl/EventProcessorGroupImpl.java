@@ -6,11 +6,12 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ReaderGroupManager;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
-import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -57,7 +58,8 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                         eventProcessorConfig.getSerializer(),
                         EventWriterConfig.builder().build());
 
-        this.checkpointStore = CheckpointStoreFactory.create(eventProcessorConfig.getConfig().getCheckpointConfig());
+        this.checkpointStore = CheckpointStoreFactory.create(eventProcessorConfig.getConfig()
+                .getCheckpointConfig().getCheckpointStoreClient());
     }
 
     void initialize() throws CheckpointStoreException {

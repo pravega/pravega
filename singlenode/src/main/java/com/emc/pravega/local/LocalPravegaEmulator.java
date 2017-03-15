@@ -5,26 +5,12 @@ package com.emc.pravega.local;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.pravega.controller.fault.SegmentContainerMonitor;
-import com.emc.pravega.controller.fault.UniformContainerBalancer;
-import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
-import com.emc.pravega.controller.server.ControllerService;
-import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.ControllerServiceConfig;
+import com.emc.pravega.controller.server.ControllerServiceStarter;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.StoreClientFactory;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.timeout.TimeoutService;
-import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
-import com.emc.pravega.controller.task.TaskSweeper;
+import com.emc.pravega.controller.store.client.StoreClient;
+import com.emc.pravega.controller.store.client.StoreClientFactory;
+import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.service.server.host.ServiceStarter;
@@ -225,55 +211,36 @@ public class LocalPravegaEmulator implements AutoCloseable {
             hostId = UUID.randomUUID().toString();
         }
 
-        //1. LOAD configuration.
         log.info("Creating store client");
-        StoreClient storeClient = StoreClientFactory.createStoreClient(StoreClientFactory.StoreType.Zookeeper);
+        StoreClient storeClient = StoreClientFactory.createZKStoreClient(ZKUtils.getCuratorClient());
 
-        log.info("Creating the stream store");
-        StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper,
-                controllerExecutor);
-
-        log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
-
-        log.info("Creating the host store");
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.Zookeeper);
-
-        //Start the Segment Container Monitor.
-        log.info("Starting the segment container monitor");
-        SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, ZKUtils.getCuratorClient(),
-                new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
-        monitor.startAsync();
-
-        //2. Start the RPC server.
-        log.info("Starting RPC server");
-        SegmentHelper segmentHelper = new SegmentHelper();
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, controllerExecutor, hostId);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId);
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                Config.MAX_LEASE_VALUE, Config.MAX_SCALE_GRACE_PERIOD);
-
-        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerExecutor);
-        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
-                .port(controllerPort)
+        ControllerServiceConfig.HostMonitorConfig hostMonitorConfig = ControllerServiceConfig.HostMonitorConfig.builder()
+                .hostMonitorEnabled(true)
+                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                 .build();
-        new GRPCServer(controllerService, gRPCServerConfig).startAsync();
 
-        //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
-        // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
-        // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
-        // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
-        // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
-        // are processed and deleted, that failed HostId is removed from FH folder.
-        // Moreover, on controller report startup, it detects any hostIds not in the currently active set of
-        // controllers and starts sweeping tasks orphaned by those hostIds.
-        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
-                streamTransactionMetadataTasks);
+        TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
+                .maxLeaseValue(Config.MAX_LEASE_VALUE)
+                .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
+                .build();
 
-        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
+        GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder().port(controllerPort).build();
+
+        ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
+                .host(hostId)
+                .threadPoolSize(6)
+                .storeClient(storeClient)
+                .hostMonitorConfig(hostMonitorConfig)
+                .timeoutServiceConfig(timeoutServiceConfig)
+                .eventProcessorsEnabled(true)
+                .requestHandlersEnabled(true)
+                .gRPCServerEnabled(true)
+                .grpcServerConfig(grpcServerConfig)
+                .restServerEnabled(false)
+                .build();
+
+        ControllerServiceStarter controllerServiceStarter = new ControllerServiceStarter(serviceConfig);
+        controllerServiceStarter.startAsync();
     }
 
 }

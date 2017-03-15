@@ -67,7 +67,7 @@ public class SegmentContainerMonitorTest {
 
     @Test
     public void testMonitorWithInMemoryStore() throws Exception {
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore();
         testMonitor(hostStore);
     }
 

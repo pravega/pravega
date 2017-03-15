@@ -5,7 +5,6 @@ package com.emc.pravega.controller.task;
 
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
@@ -62,9 +61,9 @@ public class TaskTest {
     private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-    private final StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
+    private final StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
 
-    private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+    private final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore();
 
     private final TaskMetadataStore taskMetadataStore;
 
@@ -79,7 +78,7 @@ public class TaskTest {
 
         CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
-        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(cli), executor);
+        taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
 
