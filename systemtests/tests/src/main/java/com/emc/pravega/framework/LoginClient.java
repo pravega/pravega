@@ -26,6 +26,7 @@ public class LoginClient {
 
     static final String MESOS_MASTER = getMesosMasterIP();
     public static final String MESOS_URL = String.format("https://%s", MESOS_MASTER);
+    static final String LOGIN_URL = MESOS_URL + "/auth/v1";
 
     private static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
 
@@ -70,7 +71,7 @@ public class LoginClient {
     }
 
     public static RequestInterceptor getAuthenticationRequestInterceptor() {
-        return new BasicAuthRequestInterceptor("admin", "password");
+        return new BasicAuthRequestInterceptor(getUsername(), getPassword());
     }
 
     private static String getMesosMasterIP() {

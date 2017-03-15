@@ -615,6 +615,7 @@ project('systemtests:tests') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         compile group: 'com.mesosphere', name: 'marathon-client', version: '0.3.0'
+        compile 'com.squareup.okhttp3:okhttp:3.6.0'
         compile project(":clients:streaming")
         compile 'junit:junit:4.12'
     }
