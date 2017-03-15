@@ -6,7 +6,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Segment;
-
+import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import java.util.Arrays;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
@@ -26,7 +26,8 @@ public class EventRouterTest {
     @Test
     public void testUsesAllSegments() {
         Controller controller = Mockito.mock(Controller.class);
-        EventRouter router = new EventRouter(new StreamImpl(scope, streamName), controller);
+        SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
+        EventRouter router = new EventRouter(new StreamImpl(scope, streamName), controller, factory);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -36,6 +37,7 @@ public class EventRouterTest {
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
+        router.refreshSegmentEventWriters();
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {
@@ -51,7 +53,8 @@ public class EventRouterTest {
     @Test
     public void testNullRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
-        EventRouter router = new EventRouter(new StreamImpl(scope, streamName), controller);
+        SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
+        EventRouter router = new EventRouter(new StreamImpl(scope, streamName), controller, factory);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -61,6 +64,7 @@ public class EventRouterTest {
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
+        router.refreshSegmentEventWriters();
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 100; i++) {
@@ -76,7 +80,8 @@ public class EventRouterTest {
     @Test
     public void testSameRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
-        EventRouter router = new EventRouter(new StreamImpl(scope, streamName), controller);
+        SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
+        EventRouter router = new EventRouter(new StreamImpl(scope, streamName), controller, factory);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -86,6 +91,7 @@ public class EventRouterTest {
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
+        router.refreshSegmentEventWriters();
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {

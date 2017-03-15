@@ -73,12 +73,11 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment)
-            throws SegmentSealedException {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
         SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID());
         try {
             result.getConnection();
-        } catch (RetriesExhaustedException e) {
+        } catch (RetriesExhaustedException | SegmentSealedException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
         return result;

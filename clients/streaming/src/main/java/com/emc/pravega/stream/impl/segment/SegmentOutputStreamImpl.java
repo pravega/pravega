@@ -41,6 +41,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.Exceptions.handleInterrupted;
@@ -54,6 +55,7 @@ import static com.google.common.base.Preconditions.checkState;
  */
 @RequiredArgsConstructor
 @Slf4j
+@ToString(of = {"segmentName", "connectionId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
@@ -69,6 +71,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      * All mutations of data occur inside of this class. All operations are protected by the lock object.
      * No calls to external classes occur. No network calls occur via any methods in this object.
      */
+    @ToString(of = {"closed", "exception", "eventNumber"})
     private static final class State {
         private final Object lock = new Object();
         @GuardedBy("lock")

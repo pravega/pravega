@@ -6,7 +6,6 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -21,20 +20,15 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
-
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.
@@ -51,67 +45,26 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final SegmentOutputStreamFactory outputStreamFactory;
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final EventRouter router;
     private final EventWriterConfig config;
     @GuardedBy("lock")
-    private final Map<Segment, SegmentOutputStream> writers = new HashMap<>();
-    @GuardedBy("lock")
-    private final ArrayDeque<PendingEvent> toResend = new ArrayDeque<>();
+    private final EventRouter router;
 
-    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
+    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, Serializer<Type> serializer,
             EventWriterConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
-        Preconditions.checkNotNull(router);
         Preconditions.checkNotNull(serializer);
         this.stream = stream;
         this.controller = controller;
         this.outputStreamFactory = outputStreamFactory;
-        this.router = router;
+        this.router = new EventRouter(stream, controller, outputStreamFactory);
         this.serializer = serializer;
         this.config = config;
-        synchronized (lock) {
-            setupSegmentEventWriters();
-        }
+        List<PendingEvent> failedEvents = router.refreshSegmentEventWriters();
+        assert failedEvents.isEmpty();
     }
 
-    /**
-     * Populate {@link #writers} by setting up a segmentEventWriter for each segment in the stream.
-     */
-    @GuardedBy("lock")
-    private void setupSegmentEventWriters() {
-        Collection<Segment> segments = Retry.withExpBackoff(1, 10, 5)
-            .retryingOn(SegmentSealedException.class)
-            .throwingOn(RuntimeException.class)
-            .run(() -> {
-                Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
-                                                                                             stream.getStreamName()),
-                                                               RuntimeException::new).getSegments();
-                for (Segment segment : s) {
-                    if (!writers.containsKey(segment)) {
-                        SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
-                        writers.put(segment, out);
-                    }
-                }
-                return s;
-            });
-        Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
-        while (iter.hasNext()) {
-            Entry<Segment, SegmentOutputStream> entry = iter.next();
-            if (!segments.contains(entry.getKey())) {
-                SegmentOutputStream writer = entry.getValue();
-                iter.remove();
-                try {
-                    writer.close();
-                } catch (SegmentSealedException e) {
-                    log.warn("Caught exception closing old writer: ", e);
-                }
-                toResend.addAll(writer.getUnackedEvents());
-            }
-        }
-    }
-    
     @Override
     public AckFuture writeEvent(Type event) {
         return writeEventInternal(null, event);
@@ -129,7 +82,16 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         synchronized (lock) {
-            if (!attemptWrite(new PendingEvent(routingKey, data, result))) {
+            SegmentOutputStream segmentWriter = router.getSegmentOutputStreamForKey(routingKey);
+            while (segmentWriter == null) {
+                log.info("Don't have a writer for segment: {}", router.getSegmentForEvent(routingKey));
+                handleLogSealed();
+                segmentWriter = router.getSegmentOutputStreamForKey(routingKey);
+            }
+            try {
+                segmentWriter.write(new PendingEvent(routingKey, data, result));
+            } catch (SegmentSealedException e) {
+                log.info("Segment was sealed: {}", segmentWriter.toString());
                 handleLogSealed();
             }
         }
@@ -143,31 +105,27 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      */
     @GuardedBy("lock")
     private void handleLogSealed() {
-        setupSegmentEventWriters();
+        List<PendingEvent> toResend = router.refreshSegmentEventWriters();
         while (!toResend.isEmpty()) {
-            PendingEvent event = toResend.poll();
-            if (!attemptWrite(event)) {
-                setupSegmentEventWriters();
+            List<PendingEvent> unsent = new ArrayList<>(); 
+            for (PendingEvent event : toResend) {
+                SegmentOutputStream segmentWriter = router.getSegmentOutputStreamForKey(event.getRoutingKey());
+                if (segmentWriter == null) {
+                    unsent.add(event);
+                } else {
+                    try {
+                        segmentWriter.write(event);
+                    } catch (SegmentSealedException e) {
+                        log.info("Segment was sealed while handling seal: {}", segmentWriter.toString());
+                        router.removeWriter(segmentWriter);
+                        unsent.addAll(segmentWriter.getUnackedEvents());
+                    } 
+                }
             }
-        }
-    }
-
-
-    @GuardedBy("lock")
-    private boolean attemptWrite(PendingEvent event) {
-        Segment segment = router.getSegmentForEvent(event.getRoutingKey());
-        SegmentOutputStream segmentWriter = writers.get(segment);
-        if (segmentWriter == null) {
-            toResend.addLast(event);
-            return false;
-        }
-        try {
-            segmentWriter.write(event);
-            return true;
-        } catch (SegmentSealedException e) {
-            writers.remove(segment);
-            toResend.addAll(segmentWriter.getUnackedEvents());
-            return false;
+            if (!unsent.isEmpty()) {
+                unsent.addAll(router.refreshSegmentEventWriters());
+            }
+            toResend = unsent;
         }
     }
 
@@ -251,14 +209,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     @Override
     public Transaction<Type> beginTxn(long timeout, long maxExecutionTime, long scaleGracePeriod) {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        ArrayList<Segment> segmentIds;
-        synchronized (lock) {
-            segmentIds = new ArrayList<>(writers.keySet());
-        }
         UUID txId = FutureHelpers.getAndHandleExceptions(
                 controller.createTransaction(stream, timeout, maxExecutionTime, scaleGracePeriod),
                 RuntimeException::new);
-        for (Segment s : segmentIds) {
+        for (Segment s : router.getSegments()) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
@@ -269,11 +223,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     @Override
     public Transaction<Type> getTxn(UUID txId) {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        ArrayList<Segment> segmentIds;
-        synchronized (lock) {
-            segmentIds = new ArrayList<>(writers.keySet());
-        }
-        for (Segment s : segmentIds) {
+        for (Segment s : router.getSegments()) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
@@ -288,10 +238,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         while (!success) {
             success = true;
             synchronized (lock) {
-                for (SegmentOutputStream writer : writers.values()) {
+                for (SegmentOutputStream writer : router.getWriters()) {
                     try {
                         writer.flush();
                     } catch (SegmentSealedException e) {
+                        log.info("Segment was sealed during flush: {}", writer.toString());
                         success = false;
                     }
                 }
@@ -311,10 +262,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             boolean success = false;
             while (!success) {
                 success = true;
-                for (SegmentOutputStream writer : writers.values()) {
+                for (SegmentOutputStream writer : router.getWriters()) {
                     try {
                         writer.close();
                     } catch (SegmentSealedException e) {
+                        log.info("Segment was sealed during close: {}", writer.toString());
                         success = false;
                     }
                 }
@@ -322,7 +274,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     handleLogSealed();
                 }
             }
-            writers.clear();
         }
     }
 
