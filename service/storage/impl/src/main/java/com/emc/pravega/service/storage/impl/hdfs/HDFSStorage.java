@@ -32,8 +32,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -50,7 +48,7 @@ import org.apache.hadoop.io.IOUtils;
 /**
  * Storage adapter for a backing HDFS Store which implements fencing using a rename strategy..
  * Each segment is represented by a file with pattern <segment-name>_<owner_host_id>, where <owner_host_id> is optional
- * and means that the segment is owned by the Pravega host of the given id (i.e., it's fenced off).
+ * and means that the segment is owned by the Pravega host of the given id, i.e., it's fenced off.
  * <p>
  * Whenever a Segment Container ownership change happens (that is, when the Segment Container is moved to a different
  * Pravega Node), the HDFSStorage instance on the new node renames the file representing the segment to <segment-name>_<owner_host_id>.
@@ -131,7 +129,7 @@ class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> open(String streamSegmentName) {
-        return runAsync(() -> fence(streamSegmentName), streamSegmentName, "open");
+        return runAsync(() -> openWithFencing(streamSegmentName), streamSegmentName, "open");
     }
 
     @Override
@@ -224,14 +222,15 @@ class HDFSStorage implements Storage {
     /**
      * Gets a FileStatus for a File representing the given StreamSegment if fencing is not desired.
      */
-    private FileStatus findUnfenced(String streamSegmentName) throws IOException {
+    private FileStatus findAny(String streamSegmentName) throws IOException {
         FileStatus[] statuses = findAll(streamSegmentName);
         if (statuses == null || statuses.length != 1) {
+            String message = String.format("%s (Number of files is %s).", streamSegmentName, statuses == null ? 0 : statuses.length);
             if (statuses != null && statuses.length > 1) {
-                log.warn("Segment '{}' not found. Number of files is {}.", streamSegmentName, statuses.length);
+                log.warn("Segment not found: {}", message);
             }
 
-            throw new FileNotFoundException(streamSegmentName);
+            throw new FileNotFoundException(message);
         }
 
         return statuses[0];
@@ -243,7 +242,12 @@ class HDFSStorage implements Storage {
     private FileStatus findFenced(String streamSegmentName) throws IOException {
         FileStatus[] statuses = this.fileSystem.globStatus(new Path(getOwnedSegmentFullPath(streamSegmentName)));
         if (statuses == null || statuses.length != 1) {
-            throw new FileNotFoundException(streamSegmentName);
+            String message = String.format("%s (Number of files is %s).", streamSegmentName, statuses == null ? 0 : statuses.length);
+            if (statuses != null && statuses.length > 1) {
+                log.warn("Segment not found: {}", message);
+            }
+
+            throw new FileNotFoundException(message);
         }
 
         return statuses[0];
@@ -256,10 +260,10 @@ class HDFSStorage implements Storage {
     /**
      * "Fences" off the given segment by renaming it to something based off the segment's name and this HDFSStorage instance's id.
      */
-    private void fence(String streamSegmentName) throws IOException {
+    private void openWithFencing(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "fence", streamSegmentName);
 
-        FileStatus status = findUnfenced(streamSegmentName);
+        FileStatus status = findAny(streamSegmentName);
         if (isSealed(status)) {
             // Nothing to fence when sealed. Bail out.
             LoggerHelpers.traceLeave(log, "fence", traceId, streamSegmentName, streamSegmentName);
@@ -301,23 +305,17 @@ class HDFSStorage implements Storage {
     private void writeSync(String streamSegmentName, long offset, int length, InputStream data) throws BadOffsetException, IOException, StorageNotPrimaryException {
         long traceId = LoggerHelpers.traceEnter(log, "write", streamSegmentName, offset, length);
         Timer timer = new Timer();
-        AtomicLong actualOffset = new AtomicLong();
-        handleFencing(() -> {
-                    try (FSDataOutputStream stream = fileSystem.append(new Path(getOwnedSegmentFullPath(streamSegmentName)))) {
-                        actualOffset.set(stream.getPos());
-                        if (stream.getPos() != offset) {
-                            return;
-                        }
+        try (FSDataOutputStream stream = this.fileSystem.append(new Path(getOwnedSegmentFullPath(streamSegmentName)))) {
+            if (stream.getPos() != offset) {
+                throw new BadOffsetException(streamSegmentName, offset, stream.getPos());
+            }
 
-                        IOUtils.copyBytes(data, stream, length);
-                        stream.flush();
-                    }
-                },
-                streamSegmentName,
-                this::throwSealedException);
-
-        if (actualOffset.get() != offset) {
-            throw new BadOffsetException(streamSegmentName, offset, actualOffset.get());
+            IOUtils.copyBytes(data, stream, length);
+            stream.flush();
+        } catch (FileNotFoundException notFoundEx) {
+            if (!handleFencingError(notFoundEx, streamSegmentName)) {
+                throwSealedException(notFoundEx);
+            }
         }
 
         Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
@@ -332,11 +330,16 @@ class HDFSStorage implements Storage {
         // Seal is reentrant. If a segment is already sealed, nothing is to be done. Because of this, we only require
         // the segment to be fenced off if it hadn't been sealed prior to this call. If already sealed, we are supposed
         // to do nothing.
-        AtomicBoolean mustUnfence = new AtomicBoolean(true);
-        handleFencing(() -> this.fileSystem.setPermission(new Path(ownedFullPath), SEALED_PERMISSION),
-                streamSegmentName,
-                ex -> mustUnfence.set(false));
-        if (mustUnfence.get()) {
+        boolean mustUnfence = true;
+        try {
+            this.fileSystem.setPermission(new Path(ownedFullPath), SEALED_PERMISSION);
+        } catch (FileNotFoundException notFoundEx) {
+            if (!handleFencingError(notFoundEx, streamSegmentName)) {
+                // Segment was already sealed, no need to unfence it again.
+                mustUnfence = false;
+            }
+        }
+        if (mustUnfence) {
             // Only try to unfence if the segment was not sealed to begin with (otherwise errors will crop up).
             unfence(streamSegmentName);
         }
@@ -349,7 +352,7 @@ class HDFSStorage implements Storage {
     @VisibleForTesting
     protected SegmentProperties getStreamSegmentInfoSync(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
-        FileStatus status = findUnfenced(streamSegmentName);
+        FileStatus status = findAny(streamSegmentName);
 
         SegmentProperties result = new StreamSegmentInformation(streamSegmentName,
                 status.getLen(),
@@ -364,20 +367,24 @@ class HDFSStorage implements Storage {
     private void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException,
             BadOffsetException, StreamSegmentSealedException, StorageNotPrimaryException {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetStreamSegmentName, offset, sourceStreamSegmentName);
-        AtomicReference<FileStatus> targetStatus = new AtomicReference<>();
-        handleFencing(() -> targetStatus.set(findFenced(targetStreamSegmentName)),
-                targetStreamSegmentName,
-                this::throwSealedException);
-
-        if (targetStatus.get().getLen() != offset) {
-            throw new BadOffsetException(targetStreamSegmentName, offset, targetStatus.get().getLen());
+        FileStatus targetStatus = null;
+        try {
+            targetStatus = findFenced(targetStreamSegmentName);
+            if (targetStatus.getLen() != offset) {
+                throw new BadOffsetException(targetStreamSegmentName, offset, targetStatus.getLen());
+            }
+        } catch (FileNotFoundException notFoundEx) {
+            if (!handleFencingError(notFoundEx, targetStreamSegmentName)) {
+                throwSealedException(notFoundEx);
+            }
         }
 
-        FileStatus sourceStatus = findUnfenced(sourceStreamSegmentName);
+        assert targetStatus != null : "targetStatus is null, but it shouldn't be";
+        FileStatus sourceStatus = findAny(sourceStreamSegmentName);
         Preconditions.checkState(isSealed(sourceStatus),
                 "Cannot concat segment '%s' into '%s' because it is not sealed.", sourceStreamSegmentName, targetStreamSegmentName);
 
-        this.fileSystem.concat(targetStatus.get().getPath(),
+        this.fileSystem.concat(targetStatus.getPath(),
                 new Path[]{ sourceStatus.getPath() });
         LoggerHelpers.traceLeave(log, "concat", traceId, targetStreamSegmentName, offset, sourceStreamSegmentName);
     }
@@ -385,10 +392,13 @@ class HDFSStorage implements Storage {
     private void deleteSync(String streamSegmentName) throws IOException, StorageNotPrimaryException {
         String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
         long traceId = LoggerHelpers.traceEnter(log, "delete", streamSegmentName, ownedFullPath);
-        handleFencing(
-                () -> tryDelete(ownedFullPath, streamSegmentName),
-                streamSegmentName,
-                ex -> tryDelete(getCommonPartOfName(streamSegmentName), streamSegmentName));
+        try {
+            tryDelete(ownedFullPath, streamSegmentName);
+        } catch (FileNotFoundException notFoundEx) {
+            if (!handleFencingError(notFoundEx, streamSegmentName)) {
+                tryDelete(getCommonPartOfName(streamSegmentName), streamSegmentName);
+            }
+        }
 
         LoggerHelpers.traceLeave(log, "delete", traceId, streamSegmentName);
     }
@@ -412,7 +422,7 @@ class HDFSStorage implements Storage {
 
         long traceId = LoggerHelpers.traceEnter(log, "read", streamSegmentName, offset, length);
         Timer timer = new Timer();
-        FileStatus fs = findUnfenced(streamSegmentName);
+        FileStatus fs = findAny(streamSegmentName);
         FSDataInputStream stream = fileSystem.open(fs.getPath());
         int retVal = stream.read(offset, buffer, bufferOffset, length);
         if (retVal < 0) {
@@ -476,46 +486,41 @@ class HDFSStorage implements Storage {
     }
 
     /**
-     * Executes the given method and converts a FileNotFoundException into a StorageNotPrimaryException, if a fence-out
-     * was detected.
+     * Handles a FileNotFoundException in the context of a modify operation (write, seal, concat, delete).
+     * Converts the FileNotFoundException into a StorageNotPrimaryException and throws that, if a fence-out was detected.
      *
-     * @param method            The IOCall to execute that will attempt to modify the segment.
+     * @param notFoundEx        The original exception that got caught.
      * @param streamSegmentName The name of the Segment that is the target for the executed IOCall.
-     * @param sealedCallback    A Callback that will be invoked if the operation failed with a FileNotFoundException,
-     *                          but there exists a file with this Segment's name that is Sealed (in other words,
-     *                          if the segment was not fenced off but sealed).
+     * @return True if the there exists a file with this Segment's name that is Sealed (in other words, if the segment
+     * was not fenced off but sealed). This method never returns False - in that case an Exception will be thrown instead.
      */
-    private void handleFencing(IOCall method, String streamSegmentName, SegmentSealedCallback sealedCallback) throws IOException, StorageNotPrimaryException {
+    private boolean handleFencingError(FileNotFoundException notFoundEx, String streamSegmentName) throws IOException, StorageNotPrimaryException {
+        // Attempt to figure out the current state of the Segment in HDFS.
+        FileStatus[] all = null;
         try {
-            method.run();
-        } catch (FileNotFoundException notFoundEx) {
-            // Attempt to figure out the current state of the Segment in HDFS.
-            FileStatus[] all = null;
-            try {
-                all = findAll(streamSegmentName);
-            } catch (Throwable findAllEx) {
-                // We couldn't do it. Suppress this exception (if we can), and rethrow the original one.
-                if (ExceptionHelpers.mustRethrow(findAllEx)) {
-                    throw findAllEx;
-                }
-
-                notFoundEx.addSuppressed(findAllEx);
+            all = findAll(streamSegmentName);
+        } catch (IOException findAllEx) {
+            // We couldn't do it. Suppress this exception (if we can), and rethrow the original one.
+            if (ExceptionHelpers.mustRethrow(findAllEx)) {
+                throw findAllEx;
             }
 
-            if (all == null || all.length == 0) {
-                throw notFoundEx;
-            }
+            notFoundEx.addSuppressed(findAllEx);
+        }
 
-            if (isSealed(all[0])) {
-                // We ran into a FileNotFoundException, then found a file that is sealed; the behavior here is dependent
-                // on the method invoking this, hence the need for a configurable callback
-                sealedCallback.accept(notFoundEx);
-            } else {
-                // The segment still exists in HDFS, but under a different name. As such, we have been fenced out.
-                val toThrow = new StorageNotPrimaryException(streamSegmentName);
-                toThrow.addSuppressed(notFoundEx);
-                throw toThrow;
-            }
+        if (all == null || all.length == 0) {
+            throw notFoundEx;
+        }
+
+        if (isSealed(all[0])) {
+            // We ran into a FileNotFoundException, then found a file that is sealed; the behavior here is dependent
+            // on the method invoking this, hence the need for a configurable callback
+            return false;
+        } else {
+            // The segment still exists in HDFS, but under a different name. As such, we have been fenced out.
+            val toThrow = new StorageNotPrimaryException(streamSegmentName);
+            toThrow.addSuppressed(notFoundEx);
+            throw toThrow;
         }
     }
 
@@ -543,14 +548,4 @@ class HDFSStorage implements Storage {
     }
 
     //endregion
-
-    @FunctionalInterface
-    private interface IOCall {
-        void run() throws IOException;
-    }
-
-    @FunctionalInterface
-    private interface SegmentSealedCallback {
-        void accept(Throwable cause) throws IOException;
-    }
 }

@@ -142,12 +142,13 @@ public class HDFSStorageTest extends StorageTestBase {
                 () -> storage.write(segmentName, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT),
                 ex -> ex instanceof StorageNotPrimaryException);
 
+        // Create a second segment and try to concat it into the primary one.
         final String concatName = "concat";
         storage.create(concatName, TIMEOUT).join();
         storage.write(concatName, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
         storage.seal(concatName, TIMEOUT).join();
         AssertExtensions.assertThrows(
-                "",
+                "Concat was not fenced out.",
                 () -> storage.concat(segmentName, si.getLength() + data.length, concatName, TIMEOUT),
                 ex -> ex instanceof StorageNotPrimaryException);
         storage.delete(concatName, TIMEOUT).join();
