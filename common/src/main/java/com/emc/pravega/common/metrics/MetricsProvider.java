@@ -7,8 +7,10 @@ package com.emc.pravega.common.metrics;
 
 import com.codahale.metrics.MetricRegistry;
 
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,6 +37,14 @@ public class MetricsProvider {
     public static void initialize(MetricsConfig metricsConfig) {
         Preconditions.checkArgument(INSTANCE.get() == null, "MetricsProvider has already been initialized");
         INSTANCE.set(new MetricsProvider(metricsConfig));
+    }
+
+    @VisibleForTesting
+    public static void disable() {
+        Properties properties = new Properties();
+
+        properties.setProperty("metrics.enableStatistics", "false");
+        INSTANCE.set(new MetricsProvider(new MetricsConfig(properties)));
     }
 
     public static StatsProvider getMetricsProvider() {
