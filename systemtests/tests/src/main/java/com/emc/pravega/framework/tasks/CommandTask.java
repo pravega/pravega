@@ -33,7 +33,7 @@ public class CommandTask extends MetronomeBasedTask {
     @Override
     public void start() {
         log.info("Starting execution of Command Task with id : {}", id);
-        Job cmd = newJob(id);
+        Job cmd = createJob(id);
         try {
             startTaskExecution(cmd).get(5, TimeUnit.MINUTES);
         } catch (InterruptedException | ExecutionException | TimeoutException ex) {
@@ -47,7 +47,7 @@ public class CommandTask extends MetronomeBasedTask {
         throw new NotImplementedException("Stopping a Metronome task is not implemented");
     }
 
-    private Job newJob(final String id) {
+    private Job createJob(final String id) {
         Map<String, String> labels = new HashMap<>(1);
         labels.put("name", "Command task for SystemTest framework");
 
