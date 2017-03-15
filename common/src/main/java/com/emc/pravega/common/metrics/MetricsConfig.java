@@ -8,11 +8,17 @@ package com.emc.pravega.common.metrics;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Properties;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * General configuration for Metrics.
  */
+@Slf4j
 public class MetricsConfig extends ComponentConfig {
     //region Members
     public static final String COMPONENT_CODE = "metrics";
@@ -124,6 +130,36 @@ public class MetricsConfig extends ComponentConfig {
         this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);
         this.yammerStatsDHost = getProperty(STATSD_HOST, DEFAULT_STATSD_HOST);
         this.yammerStatsDPort = getInt32Property(STATSD_PORT, DEFAULT_STATSD_PORT);
+    }
+
+    /**
+     * Gets a set of configuration values from the default config file.
+     *
+     * @return Service builder config read from the default config file.
+     * @throws IOException If the config file can not be read from.
+     */
+    public static MetricsConfig getConfigFromFile() throws IOException {
+        FileReader reader = null;
+        try {
+            reader = new FileReader("config.properties");
+            return getConfigFromStream(reader);
+        } catch (IOException e) {
+            log.warn("Unable to read configuration because of exception " + e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * Gets a set of configuration values from a given InputStreamReader.
+     *
+     * @param reader the InputStreamReader from which to read the configuration.
+     * @return A ServiceBuilderConfig object.
+     * @throws IOException If an exception occurred during reading of the configuration.
+     */
+    public static MetricsConfig getConfigFromStream(InputStreamReader reader) throws IOException {
+        Properties p = new Properties();
+        p.load(reader);
+        return new MetricsConfig(p);
     }
 
 }

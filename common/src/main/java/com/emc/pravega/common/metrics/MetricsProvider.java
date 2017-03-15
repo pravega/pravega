@@ -7,8 +7,12 @@ package com.emc.pravega.common.metrics;
 
 import com.codahale.metrics.MetricRegistry;
 
+import java.io.IOException;
 import java.util.Properties;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class MetricsProvider {
     public static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
     private static final MetricsProvider INSTANCE  = new MetricsProvider();
@@ -22,7 +26,12 @@ public class MetricsProvider {
     private MetricsConfig metricsConfig;
 
     private MetricsProvider() {
-        this.metricsConfig = new MetricsConfig(new Properties());
+        try {
+            this.metricsConfig = MetricsConfig.getConfigFromFile();
+        } catch (IOException e) {
+            log.warn("Exception while reading configuration properties from file, resorting to defaults", e);
+            this.metricsConfig = new MetricsConfig(new Properties());
+        }
         this.nullDynamicLogger = nullProvider.createDynamicLogger();
         this.yammerProvider = new YammerStatsProvider(metricsConfig);
         this.yammerDynamicLogger = yammerProvider.createDynamicLogger();
