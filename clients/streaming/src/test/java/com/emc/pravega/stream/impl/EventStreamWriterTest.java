@@ -116,7 +116,7 @@ public class EventStreamWriterTest {
                                                                        new JavaSerializer<>(),
                                                                        config);
         Mockito.when(router.getSegmentForEvent(null)).thenReturn(segment1).thenReturn(segment2);
-        Mockito.doThrow(new SegmentSealedException()).when(outputStream1).write(Mockito.any(), Mockito.any());
+        Mockito.doThrow(new SegmentSealedException()).when(outputStream1).write(Mockito.any());
         
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(segment2)).thenReturn(outputStream2);     

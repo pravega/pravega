@@ -20,20 +20,18 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
-
+import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
@@ -41,6 +39,8 @@ import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExcept
 /**
  * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.
  * It deals with segments that are sealed by re-sending the unacked events to the new correct segment.
+ * 
+ * @param <Type> The type of event that is sent
  */
 @Slf4j
 public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
@@ -54,7 +54,9 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final EventRouter router;
     private final EventWriterConfig config;
     @GuardedBy("lock")
-    private final Map<Segment, SegmentEventWriter<Type>> writers = new HashMap<>();
+    private final Map<Segment, SegmentOutputStream> writers = new HashMap<>();
+    @GuardedBy("lock")
+    private final ArrayDeque<PendingEvent> toResend = new ArrayDeque<>();
 
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
             EventWriterConfig config) {
@@ -70,40 +72,35 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.serializer = serializer;
         this.config = config;
         synchronized (lock) {
-            List<PendingEvent<Type>> list = setupSegmentEventWriters();
-            if (!list.isEmpty()) {
-                throw new IllegalStateException("EventStreamWriter initialized with unsent messages?!");
-            }
+            setupSegmentEventWriters();
         }
     }
 
     /**
      * Populate {@link #writers} by setting up a segmentEventWriter for each segment in the stream.
-     * 
-     * @return The events that were sent but never acked to segments that are now sealed, and hence need to be
-     *         retransmitted.
      */
-    private List<PendingEvent<Type>> setupSegmentEventWriters() {
+    @GuardedBy("lock")
+    private void setupSegmentEventWriters() {
         Collection<Segment> segments = Retry.withExpBackoff(1, 10, 5)
             .retryingOn(SegmentSealedException.class)
             .throwingOn(RuntimeException.class)
             .run(() -> {
-                Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new).getSegments();
+                Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
+                                                                                             stream.getStreamName()),
+                                                               RuntimeException::new).getSegments();
                 for (Segment segment : s) {
                     if (!writers.containsKey(segment)) {
                         SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
-                        writers.put(segment, new SegmentEventWriterImpl<>(out, serializer));
+                        writers.put(segment, out);
                     }
                 }
                 return s;
             });
-        List<PendingEvent<Type>> toResend = new ArrayList<>();
-
-        Iterator<Entry<Segment, SegmentEventWriter<Type>>> iter = writers.entrySet().iterator();
+        Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
         while (iter.hasNext()) {
-            Entry<Segment, SegmentEventWriter<Type>> entry = iter.next();
+            Entry<Segment, SegmentOutputStream> entry = iter.next();
             if (!segments.contains(entry.getKey())) {
-                SegmentEventWriter<Type> writer = entry.getValue();
+                SegmentOutputStream writer = entry.getValue();
                 iter.remove();
                 try {
                     writer.close();
@@ -113,7 +110,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 toResend.addAll(writer.getUnackedEvents());
             }
         }
-        return toResend;
     }
     
     @Override
@@ -130,9 +126,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private AckFuture writeEventInternal(String routingKey, Type event) {
         Preconditions.checkNotNull(event);
         Preconditions.checkState(!closed.get());
+        ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         synchronized (lock) {
-            if (!attemptWrite(new PendingEvent<Type>(event, routingKey, result))) {
+            if (!attemptWrite(new PendingEvent(routingKey, data, result))) {
                 handleLogSealed();
             }
         }
@@ -144,38 +141,34 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * message find which new segment it should go to and send it there. This can happen recursively if segments turn
      * over very quickly.
      */
+    @GuardedBy("lock")
     private void handleLogSealed() {
-        List<PendingEvent<Type>> toResend = setupSegmentEventWriters();
+        setupSegmentEventWriters();
         while (!toResend.isEmpty()) {
-            List<PendingEvent<Type>> unsent = new ArrayList<>();
-            for (PendingEvent<Type> event : toResend) {
-                if (!attemptWrite(event)) {
-                    unsent.add(event);
-                }
+            PendingEvent event = toResend.poll();
+            if (!attemptWrite(event)) {
+                setupSegmentEventWriters();
             }
-            if (!unsent.isEmpty()) {
-                unsent.addAll(setupSegmentEventWriters());
-            }
-            toResend = unsent;
         }
     }
 
-    private boolean attemptWrite(PendingEvent<Type> event) {
-        SegmentEventWriter<Type> segmentWriter = getSegmentWriter(event.getRoutingKey());
-        if (segmentWriter == null || segmentWriter.isAlreadySealed()) {
+
+    @GuardedBy("lock")
+    private boolean attemptWrite(PendingEvent event) {
+        Segment segment = router.getSegmentForEvent(event.getRoutingKey());
+        SegmentOutputStream segmentWriter = writers.get(segment);
+        if (segmentWriter == null) {
+            toResend.addLast(event);
             return false;
         }
         try {
             segmentWriter.write(event);
             return true;
         } catch (SegmentSealedException e) {
+            writers.remove(segment);
+            toResend.addAll(segmentWriter.getUnackedEvents());
             return false;
         }
-    }
-
-    private SegmentEventWriter<Type> getSegmentWriter(String routingKey) {
-        Segment log = router.getSegmentForEvent(routingKey);
-        return writers.get(log);
     }
 
     private static class TransactionImpl<Type> implements Transaction<Type> {
@@ -295,9 +288,9 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         while (!success) {
             success = true;
             synchronized (lock) {
-                for (SegmentEventWriter<Type> p : writers.values()) {
+                for (SegmentOutputStream writer : writers.values()) {
                     try {
-                        p.flush();
+                        writer.flush();
                     } catch (SegmentSealedException e) {
                         success = false;
                     }
@@ -318,9 +311,9 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             boolean success = false;
             while (!success) {
                 success = true;
-                for (SegmentEventWriter<Type> p : writers.values()) {
+                for (SegmentOutputStream writer : writers.values()) {
                     try {
-                        p.close();
+                        writer.close();
                     } catch (SegmentSealedException e) {
                         success = false;
                     }
