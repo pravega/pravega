@@ -22,12 +22,13 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import java.util.function.Supplier;
 
 public class MockClientFactory implements ClientFactory, AutoCloseable {
 
     private final ConnectionFactoryImpl connectionFactory;
     private final Controller controller;
-    private final ClientFactory impl;
+    private final ClientFactoryImpl impl;
 
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
         this.connectionFactory = new ConnectionFactoryImpl(false);
@@ -64,6 +65,12 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
         return impl.createReader(readerId, readerGroup, s, config);
     }
 
+    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
+                                                 ReaderConfig config, Supplier<Long> nanoTime,
+                                                 Supplier<Long> milliTime) {
+        return impl.createReader(readerId, readerGroup, s, config, nanoTime, milliTime);
+    }
+    
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config) {

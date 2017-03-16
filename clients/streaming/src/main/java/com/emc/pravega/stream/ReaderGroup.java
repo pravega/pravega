@@ -6,10 +6,9 @@
 package com.emc.pravega.stream;
 
 import com.emc.pravega.ClientFactory;
-
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * A reader group is a collection of readers that collectively read all the events in the
@@ -42,30 +41,28 @@ public interface ReaderGroup {
      * @return Reader group name
      */
     String getGroupName();
-
-    /**
-     * Returns the configuration of the reader group.
-     *
-     * @return Reader group configuration
-     */
-    ReaderGroupConfig getConfig();
     
     /**
-     * Initiate a checkpoint. This causes all readers in the group to receive a special {@link EventRead} that
-     * contains the provided checkpoint name. This can be used to provide an indication to them that they
-     * should persist their state. Once all of the readers have received the notification, a
-     * {@link Checkpoint} object will be returned. This can be used to reset the group to this point in
-     * the stream by calling {@link #resetReadersToCheckpoint(Checkpoint)}
+     * Initiate a checkpoint. This causes all readers in the group to receive a special
+     * {@link EventRead} that contains the provided checkpoint name. This can be used to provide an
+     * indication to them that they should persist their state. Once all of the readers have
+     * received the notification, a {@link Checkpoint} object will be returned. This can be used to
+     * reset the group to this point in the stream by calling
+     * {@link #resetReadersToCheckpoint(Checkpoint)} if the checkpoint fails or the result cannot be
+     * obtained an exception will be set on the future.
      * 
-     * This method can be called and a new checkpoint can be initiated while another is still in progress if
-     * they have different names. If this method is is called again before the checkpoint has completed with
-     * the same name the future returned to the second caller will refer to the same checkpoint object as the
-     * first.
+     * This method can be called and a new checkpoint can be initiated while another is still in
+     * progress if they have different names. If this method is is called again before the
+     * checkpoint has completed with the same name the future returned to the second caller will
+     * refer to the same checkpoint object as the first.
      * 
      * @param checkpointName The name of the checkpoint (For identification purposes)
-     * @return A future Checkpoint object that can be used to restore the reader group to this position.
+     * @param backgroundExecutor A threadPool that can be used to poll for the completion of the
+     *            checkpoint.
+     * @return A future Checkpoint object that can be used to restore the reader group to this
+     *         position.
      */
-    Future<Checkpoint> initiateCheckpoint(String checkpointName);
+    CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor);
     
     /**
      * Given a Checkpoint, restore the reader group to the provided checkpoint. All readers in the
@@ -88,9 +85,8 @@ public interface ReaderGroup {
      * 
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
-     * @return ReaderGroup with updated configuration
      */
-    ReaderGroup alterConfig(ReaderGroupConfig config, List<String> streamNames);
+    void alterConfig(ReaderGroupConfig config, Set<String> streamNames);
     
     /**
      * Invoked when a reader that was added to the group is no longer consuming events. This will

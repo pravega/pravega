@@ -16,6 +16,7 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
@@ -129,6 +130,23 @@ public class StreamMetadataTasks extends TaskBase {
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, null},
                 () -> sealStreamBody(scope, stream, contextOpt));
+    }
+
+    /**
+     * Delete a stream. Precondition for deleting a stream is that the stream sholud be sealed.
+     *
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param contextOpt optional context
+     * @return           delete status.
+     */
+    @Task(name = "deleteStream", version = "1.0", resource = "{scope}/{stream}")
+    public CompletableFuture<DeleteStreamStatus.Status> deleteStream(final String scope, final String stream,
+                                                                     final OperationContext contextOpt) {
+        return execute(
+                new Resource(scope, stream),
+                new Serializable[]{scope, stream, null},
+                () -> deleteStreamBody(scope, stream, contextOpt));
     }
 
     /**
@@ -262,6 +280,31 @@ public class StreamMetadataTasks extends TaskBase {
                 }).exceptionally(this::handleUpdateStreamError);
     }
 
+    CompletableFuture<DeleteStreamStatus.Status> deleteStreamBody(final String scope, final String stream,
+                                                                  final OperationContext contextOpt) {
+        return withRetries(() -> streamMetadataStore.isSealed(scope, stream, contextOpt, executor), executor)
+                .thenComposeAsync(sealed -> {
+                    if (!sealed) {
+                        return CompletableFuture.completedFuture(DeleteStreamStatus.Status.STREAM_NOT_SEALED);
+                    }
+                    return withRetries(
+                            () -> streamMetadataStore.getSegmentCount(scope, stream, contextOpt, executor), executor)
+                            .thenComposeAsync(count ->
+                                    notifyDeleteSegments(scope, stream, count)
+                                            .thenComposeAsync(x -> withRetries(() ->
+                                                            streamMetadataStore.deleteStream(scope, stream, contextOpt,
+                                                                    executor), executor), executor)
+                                            .handleAsync((result, ex) -> {
+                                                if (ex != null) {
+                                                    log.warn("Exception thrown while deleting stream", ex.getMessage());
+                                                    return handleDeleteStreamError(ex);
+                                                } else {
+                                                    return DeleteStreamStatus.Status.SUCCESS;
+                                                }
+                                            }, executor), executor);
+                }, executor).exceptionally(this::handleDeleteStreamError);
+    }
+
     CompletableFuture<ScaleResponse> scaleBody(final String scope, final String stream, final List<Integer> segmentsToSeal,
                                                final List<AbstractMap.SimpleEntry<Double, Double>> newRanges, final long scaleTimestamp,
                                                final OperationContext contextOpt) {
@@ -363,6 +406,18 @@ public class StreamMetadataTasks extends TaskBase {
                 stream, segmentNumber, policy, hostControllerStore, this.connectionFactory), executor));
     }
 
+    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, int count) {
+        return FutureHelpers.allOf(IntStream.range(0, count)
+                .parallel()
+                .mapToObj(segment -> notifyDeleteSegment(scope, stream, segment))
+                .collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, int segmentNumber) {
+        return FutureHelpers.toVoid(withRetries(() -> segmentHelper.deleteSegment(scope,
+                stream, segmentNumber, hostControllerStore, this.connectionFactory), executor));
+    }
+
     private CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
         return FutureHelpers.allOf(
                 sealedSegments
@@ -417,6 +472,17 @@ public class StreamMetadataTasks extends TaskBase {
         } else {
             log.warn("Update stream failed due to ", ex);
             return UpdateStreamStatus.Status.FAILURE;
+        }
+    }
+
+    private DeleteStreamStatus.Status handleDeleteStreamError(Throwable ex) {
+        Throwable cause = ExceptionHelpers.getRealException(ex);
+        if (cause instanceof DataNotFoundException ||
+                (ex instanceof StoreException && ((StoreException) ex).getType() == NODE_NOT_FOUND)) {
+            return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
+        } else {
+            log.warn("Update stream failed.", ex);
+            return DeleteStreamStatus.Status.FAILURE;
         }
     }
 

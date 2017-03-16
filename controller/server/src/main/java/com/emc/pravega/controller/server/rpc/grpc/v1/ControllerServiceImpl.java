@@ -11,6 +11,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatu
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
@@ -52,28 +53,34 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
-        log.debug("createStream called for stream " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream());
+        log.info("createStream called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
         processResult(controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
                       responseObserver);
     }
 
     @Override
     public void alterStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        log.debug("alterStream called for stream " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream());
+        log.info("alterStream called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
         processResult(controllerService.alterStream(ModelHelper.encode(request)), responseObserver);
     }
 
     @Override
     public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        log.debug("sealStream called for stream " + request.getScope() + "/" + request.getStream());
+        log.info("sealStream called for stream {}/{}.", request.getScope(), request.getStream());
         processResult(controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);
     }
 
     @Override
+    public void deleteStream(StreamInfo request, StreamObserver<DeleteStreamStatus> responseObserver) {
+        log.info("deleteStream called for stream {}/{}.", request.getScope(), request.getStream());
+        processResult(controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver);
+    }
+
+    @Override
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
-        log.debug("getCurrentSegments called for stream " + request.getScope() + "/" + request.getStream());
+        log.info("getCurrentSegments called for stream {}/{}.", request.getScope(), request.getStream());
         processResult(controllerService.getCurrentSegments(request.getScope(), request.getStream())
                               .thenApply(segmentRanges -> SegmentRanges.newBuilder()
                                       .addAllSegmentRanges(segmentRanges)
@@ -83,8 +90,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getPositions(GetPositionRequest request, StreamObserver<Positions> responseObserver) {
-        log.debug("getPositions called for stream " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream());
+        log.info("getPositions called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
         processResult(controllerService.getPositions(request.getStreamInfo().getScope(),
                                                      request.getStreamInfo().getStream(),
                                                      request.getTimestamp(),
@@ -96,7 +103,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getSegmentsImmediatlyFollowing(SegmentId segmentId,
             StreamObserver<SuccessorResponse> responseObserver) {
-        log.debug("getSegmentsImmediatlyFollowing called for segment {} ", segmentId);
+        log.info("getSegmentsImmediatlyFollowing called for segment {} ", segmentId);
         processResult(controllerService.getSegmentsImmediatlyFollowing(segmentId)
                               .thenApply(ModelHelper::createSuccessorResponse),
                       responseObserver);
@@ -104,8 +111,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
-        log.debug("scale called for stream " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream());
+        log.info("scale called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
         processResult(controllerService.scale(request.getStreamInfo().getScope(),
                                               request.getStreamInfo().getStream(),
                                               request.getSealedSegmentsList(),
@@ -117,16 +124,16 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
-        log.debug("getURI called for segment " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream() + "/" + request.getSegmentNumber());
+        log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), request.getSegmentNumber());
         processResult(controllerService.getURI(request), responseObserver);
     }
 
     @Override
     public void isSegmentValid(SegmentId request,
             StreamObserver<SegmentValidityResponse> responseObserver) {
-        log.debug("isSegmentValid called for segment " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream() + "/" + request.getSegmentNumber());
+        log.info("isSegmentValid called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), request.getSegmentNumber());
         processResult(controllerService.isSegmentValid(request.getStreamInfo().getScope(),
                                                        request.getStreamInfo().getStream(),
                                                        request.getSegmentNumber())
@@ -136,8 +143,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createTransaction(CreateTxnRequest request, StreamObserver<TxnId> responseObserver) {
-        log.debug("createTransaction called for stream " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream());
+        log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
         processResult(controllerService.createTransaction(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getLease(),
@@ -148,8 +155,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
-        log.debug("commitTransaction called for stream " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream() + " txid=" + request.getTxnId());
+        log.info("commitTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), request.getTxnId());
         processResult(controllerService.commitTransaction(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getTxnId()),
@@ -158,8 +165,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
-        log.debug("dropTransaction called for stream " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream() + " txid=" + request.getTxnId());
+        log.info("abortTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), request.getTxnId());
         processResult(controllerService.abortTransaction(request.getStreamInfo().getScope(),
                                                         request.getStreamInfo().getStream(),
                                                         request.getTxnId()),
@@ -177,8 +184,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
-        log.debug("checkTransactionState called for stream " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream() + " txid=" + request.getTxnId());
+        log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), request.getTxnId());
         processResult(controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                                                                request.getStreamInfo().getStream(),
                                                                request.getTxnId()),
@@ -188,7 +195,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void createScope(ScopeInfo request,
             StreamObserver<CreateScopeStatus> responseObserver) {
-        log.debug("createScope called for scope " + request.getScope());
+        log.info("createScope called for scope {}.", request.getScope());
         processResult(controllerService.createScope(request.getScope()),
                       responseObserver);
     }
@@ -196,7 +203,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void deleteScope(ScopeInfo request,
             StreamObserver<DeleteScopeStatus> responseObserver) {
-        log.debug("deleteScope called for scope " + request.getScope());
+        log.info("deleteScope called for scope {}.", request.getScope());
         processResult(controllerService.deleteScope(request.getScope()),
                       responseObserver);
     }

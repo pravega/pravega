@@ -35,6 +35,7 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.util.function.Supplier;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -111,25 +112,23 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
-            ReaderConfig config) {
+                                                 ReaderConfig config) {
+        return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis);
+    }
+
+    @VisibleForTesting
+    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
+                                          Supplier<Long> nanoTime, Supplier<Long> milliTime) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(readerGroup,
                                                                            new JavaSerializer<>(),
                                                                            new JavaSerializer<>(),
                                                                            synchronizerConfig);
-        ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId,
-                sync,
-                controller,
-                System::nanoTime);
+        ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
         stateManager.initializeReader();
-        return new EventStreamReaderImpl<T>(inFactory,
-                                      s,
-                                      stateManager,
-                                      new Orderer(),
-                                      System::currentTimeMillis,
-                                      config);
+        return new EventStreamReaderImpl<T>(inFactory, s, stateManager, new Orderer(), milliTime, config);
     }
-
+    
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config) {

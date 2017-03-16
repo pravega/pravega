@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.integrationtests.connectors;
 
+import com.emc.pravega.integrationtests.utils.SetupUtils;
 import com.emc.pravega.connectors.flink.FlinkPravegaWriter;
 import com.emc.pravega.connectors.flink.PravegaWriterMode;
 import com.emc.pravega.stream.EventStreamReader;
@@ -97,7 +98,7 @@ public class FlinkPravegaWriterTest {
         EventStreamReader<Integer> consumer = this.setupUtils.getIntegerReader(streamName);
         List<Integer> readElements = new ArrayList<>();
         while (true) {
-            Integer event = consumer.readNextEvent(1).getEvent();
+            Integer event = consumer.readNextEvent(1000).getEvent();
             if (event == null || event == streamEndMarker) {
                 log.info("Reached end of stream: " + streamName);
                 break;

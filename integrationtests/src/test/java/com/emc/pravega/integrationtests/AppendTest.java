@@ -200,7 +200,7 @@ public class AppendTest {
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test(timeout = 20000)
+    @Test(timeout = 40000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -220,6 +220,8 @@ public class AppendTest {
         long nonBlockingTime = timeWrites(testString, 1000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
         System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
+        assertTrue(blockingTime < 15000);
+        assertTrue(nonBlockingTime < 15000);
     }
 
     private long timeWrites(String testString, int number, EventStreamWriter<String> producer, boolean synchronous)
