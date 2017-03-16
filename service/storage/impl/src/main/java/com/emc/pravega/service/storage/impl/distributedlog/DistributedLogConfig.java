@@ -8,6 +8,9 @@ import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.TypedProperties;
 import lombok.Getter;
+import com.emc.pravega.common.util.Retry;
+import java.util.Properties;
+import lombok.Getter;
 
 /**
  * General configuration for DistributedLog Client.
@@ -18,6 +21,7 @@ public class DistributedLogConfig {
     public static final Property<String> HOSTNAME = new Property<>("hostname", "zk1");
     public static final Property<Integer> PORT = new Property<>("port", 2181);
     public static final Property<String> NAMESPACE = new Property<>("namespace", "pravega/segmentstore/containers");
+    public static final Property<Retry.RetryWithBackoff> RETRY_POLICY = new Property<>("retryPolicy", Retry.withExpBackoff(100, 4, 5, 30000));
     private static final String COMPONENT_CODE = "dlog";
 
     //endregion
@@ -42,6 +46,12 @@ public class DistributedLogConfig {
     @Getter
     private final String distributedLogNamespace;
 
+    /**
+     * The Retry Policy base to use for all DistributedLog parameters.
+     */
+    @Getter
+    private Retry.RetryWithBackoff retryPolicy;
+
     //endregion
 
     //region Constructor
@@ -55,6 +65,7 @@ public class DistributedLogConfig {
         this.distributedLogHost = properties.get(HOSTNAME);
         this.distributedLogPort = properties.getInt32(PORT);
         this.distributedLogNamespace = properties.get(NAMESPACE);
+        this.retryPolicy = properties.getRetryWithBackoff(RETRY_POLICY);
     }
 
     /**

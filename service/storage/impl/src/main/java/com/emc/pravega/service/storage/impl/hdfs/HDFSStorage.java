@@ -453,21 +453,17 @@ class HDFSStorage implements Storage {
 
     private CompletableFuture<Void> runAsync(RunnableWithException syncCode, String streamSegmentName, String action) {
         ensureInitializedAndNotClosed();
-        long traceId = LoggerHelpers.traceEnter(log, LOG_ID, action, streamSegmentName);
         return CompletableFuture.runAsync(() -> {
             try {
                 syncCode.run();
             } catch (Exception e) {
                 throw new CompletionException(HDFSExceptionHelpers.translateFromException(streamSegmentName, e));
             }
-
-            LoggerHelpers.traceLeave(log, LOG_ID, traceId);
         }, this.executor);
     }
 
     private <T> CompletableFuture<T> supplyAsync(Callable<T> syncCode, String streamSegmentName, String action) {
         ensureInitializedAndNotClosed();
-        long traceId = LoggerHelpers.traceEnter(log, LOG_ID, action, streamSegmentName);
         return CompletableFuture.supplyAsync(() -> {
             T result;
             try {
@@ -476,7 +472,6 @@ class HDFSStorage implements Storage {
                 throw new CompletionException(HDFSExceptionHelpers.translateFromException(streamSegmentName, e));
             }
 
-            LoggerHelpers.traceLeave(log, LOG_ID, traceId);
             return result;
         }, this.executor);
     }
