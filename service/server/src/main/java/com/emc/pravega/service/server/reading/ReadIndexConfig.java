@@ -5,6 +5,7 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.TypedProperties;
 import java.time.Duration;
 import lombok.Getter;
@@ -14,18 +15,12 @@ import lombok.Getter;
  */
 public class ReadIndexConfig {
     //region Config Names
-    public static final String PROPERTY_STORAGE_READ_ALIGNMENT = "storageReadAlignment";
-    public static final String PROPERTY_MEMORY_READ_MIN_LENGTH = "memoryReadMinLength";
-    public static final String PROPERTY_CACHE_POLICY_MAX_SIZE = "cacheMaxSize";
-    public static final String PROPERTY_CACHE_POLICY_MAX_TIME = "cacheMaxTimeMillis";
-    public static final String PROPERTY_CACHE_POLICY_GENERATION_TIME = "cacheGenerationTimeMillis";
+    public static final Property<Integer> STORAGE_READ_ALIGNMENT = new Property<>("storageReadAlignment", 1024 * 1024);
+    public static final Property<Integer> MEMORY_READ_MIN_LENGTH = new Property<>("memoryReadMinLength", 4 * 1024);
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = new Property<>("cacheMaxSize", 4L * 1024 * 1024 * 1024);
+    public static final Property<Integer> CACHE_POLICY_MAX_TIME = new Property<>("cacheMaxTimeMillis", 30 * 60 * 1000);
+    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = new Property<>("cacheGenerationTimeMillis", 5 * 1000);
     private static final String COMPONENT_CODE = "readindex";
-
-    private final static int DEFAULT_STORAGE_READ_ALIGNMENT = 1024 * 1024;
-    private final static int DEFAULT_MEMORY_READ_MIN_LENGTH = 4 * 1024;
-    private final static long DEFAULT_CACHE_POLICY_MAX_SIZE = 4L * 1024 * 1024 * 1024; // 4GB
-    private final static int DEFAULT_CACHE_POLICY_MAX_TIME = 30 * 60 * 1000; // 30 mins
-    private final static int DEFAULT_CACHE_POLICY_GENERATION_TIME = 5 * 1000; // 5 seconds
 
     //endregion
 
@@ -68,11 +63,11 @@ public class ReadIndexConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private ReadIndexConfig(TypedProperties properties) throws ConfigurationException {
-        this.storageReadAlignment = properties.getInt32(PROPERTY_STORAGE_READ_ALIGNMENT, DEFAULT_STORAGE_READ_ALIGNMENT);
-        this.memoryReadMinLength = properties.getInt32(PROPERTY_MEMORY_READ_MIN_LENGTH, DEFAULT_MEMORY_READ_MIN_LENGTH);
-        long cachePolicyMaxSize = properties.getInt64(PROPERTY_CACHE_POLICY_MAX_SIZE, DEFAULT_CACHE_POLICY_MAX_SIZE);
-        int cachePolicyMaxTime = properties.getInt32(PROPERTY_CACHE_POLICY_MAX_TIME, DEFAULT_CACHE_POLICY_MAX_TIME);
-        int cachePolicyGenerationTime = properties.getInt32(PROPERTY_CACHE_POLICY_GENERATION_TIME, DEFAULT_CACHE_POLICY_GENERATION_TIME);
+        this.storageReadAlignment = properties.getInt32(STORAGE_READ_ALIGNMENT);
+        this.memoryReadMinLength = properties.getInt32(MEMORY_READ_MIN_LENGTH);
+        long cachePolicyMaxSize = properties.getInt64(CACHE_POLICY_MAX_SIZE);
+        int cachePolicyMaxTime = properties.getInt32(CACHE_POLICY_MAX_TIME);
+        int cachePolicyGenerationTime = properties.getInt32(CACHE_POLICY_GENERATION_TIME);
         this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofMillis(cachePolicyMaxTime), Duration.ofMillis(cachePolicyGenerationTime));
     }
 

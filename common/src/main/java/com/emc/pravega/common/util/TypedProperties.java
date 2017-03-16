@@ -56,12 +56,114 @@ public class TypedProperties {
      * 1. Env variable  - if a property is defined in the env variable, it is given the highest precedence.
      * 2. Config file   - if the value is defined in a config file, it will be returned.
      *
-     * @param name The name of the property (no component code prefix).
+     * @param property The Property to get.
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws MissingPropertyException When the given property name does not exist within the current component.
      */
-    public String get(String name) throws MissingPropertyException {
-        String value = get(name, null);
+    public String get(Property<String> property) throws MissingPropertyException {
+        if (property.hasDefaultValue()) {
+            return getInternal(property.getName(), property.getDefaultValue());
+        } else {
+            return getInternal(property.getName());
+        }
+    }
+
+    /**
+     * Gets the value of an Int32 property.
+     *
+     * @param property The Property to get.
+     * @return The property value or default value, if no such is defined in the base Properties.
+     * @throws MissingPropertyException      When the given property name does not exist within the current component
+     *                                       and the property does not have a default value set.
+     * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
+     */
+    public int getInt32(Property<Integer> property) throws MissingPropertyException, InvalidPropertyValueException {
+        String value;
+        if (property.hasDefaultValue()) {
+            value = getInternal(property.getName(), null);
+            if (value == null) {
+                return property.getDefaultValue();
+            }
+        } else {
+            value = getInternal(property.getName());
+        }
+
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ex) {
+            throw new InvalidPropertyValueException(getKey(property.getName()), value, ex);
+        }
+    }
+
+    /**
+     * Gets the value of an Int64 property.
+     *
+     * @param property The Property to get.
+     * @return The property value or default value, if no such is defined in the base Properties.
+     * @throws MissingPropertyException      When the given property name does not exist within the current component
+     *                                       and the property does not have a default value set.
+     * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
+     */
+    public long getInt64(Property<Long> property) throws MissingPropertyException, InvalidPropertyValueException {
+        String value;
+        if (property.hasDefaultValue()) {
+            value = getInternal(property.getName(), null);
+            if (value == null) {
+                return property.getDefaultValue();
+            }
+        } else {
+            value = getInternal(property.getName());
+        }
+
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException ex) {
+            throw new InvalidPropertyValueException(getKey(property.getName()), value, ex);
+        }
+    }
+
+    /**
+     * Gets the value of a boolean property.
+     * Notes:
+     * <ul>
+     * <li> "true", "yes" and "1" (case insensitive) map to boolean "true".
+     * <li> "false", "no" and "0" (case insensitive) map to boolean "false".
+     * </ul>
+     *
+     * @param property The Property to get.
+     * @return The property value or default value, if no such is defined in the base Properties.
+     * @throws MissingPropertyException      When the given property name does not exist within the current component
+     *                                       and the property does not have a default value set.
+     * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
+     */
+    public boolean getBoolean(Property<Boolean> property) throws MissingPropertyException, InvalidPropertyValueException {
+        String value;
+        if (property.hasDefaultValue()) {
+            value = getInternal(property.getName(), null);
+            if (value == null) {
+                return property.getDefaultValue();
+            }
+        } else {
+            value = getInternal(property.getName());
+        }
+
+        value = value.trim();
+        if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("1")) {
+            return true;
+        } else if (value.equalsIgnoreCase("false") || value.equalsIgnoreCase("no") || value.equalsIgnoreCase("0")) {
+            return false;
+        } else {
+            throw new InvalidPropertyValueException(getKey(property.getName()), value);
+        }
+    }
+
+    private String getKey(String name) {
+        Exceptions.checkNotNullOrEmpty(name, "name");
+        return this.keyPrefix + name;
+    }
+
+    private String getInternal(String name) throws MissingPropertyException {
+        String value = getInternal(name, null);
         if (value == null) {
             throw new MissingPropertyException(getKey(name));
         }
@@ -69,21 +171,7 @@ public class TypedProperties {
         return value;
     }
 
-    /**
-     * Gets the value of a String property. The order priority in descending order is as follows:
-     * 1. Env variable  - if a property is defined in the env variable, it is given the highest precedence.
-     * 2. Config file   - if the value is defined in a config file, it is given precedence over the default value.
-     * 3. Default value - if the value is not defined in env as well as config file, default value is used.
-     * <p>
-     * This arrangement is to ensure that values are passed easily to docker containers. Docker container deployment
-     * engines (e.g. marathon) can define these variables and the Pravega Service docker container will pick it up
-     * with out any changes to the container.
-     *
-     * @param name         The name of the property (no component code prefix).
-     * @param defaultValue The default value for the property.
-     * @return The property value or default value, if no such is defined in the base Properties.
-     */
-    public String get(String name, String defaultValue) {
+    private String getInternal(String name, String defaultValue) {
         String fullKeyName = getKey(name);
 
         String value;
@@ -96,143 +184,6 @@ public class TypedProperties {
             value = extractEnvironmentVariable(value, defaultValue);
         }
         return value;
-    }
-
-    /**
-     * Gets the value of an Int32 property.
-     *
-     * @param name The name of the property (no component code prefix).
-     * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws MissingPropertyException      When the given property name does not exist within the current component.
-     * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
-     */
-    public int getInt32(String name) throws MissingPropertyException, InvalidPropertyValueException {
-        String value = get(name).trim();
-
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getKey(name), value, ex);
-        }
-    }
-
-    /**
-     * Gets the value of an Int32 property.
-     *
-     * @param name         The name of the property (no component code prefix).
-     * @param defaultValue The default value for the property.
-     * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
-     */
-    public int getInt32(String name, int defaultValue) throws InvalidPropertyValueException {
-        String value = get(name, null);
-        if (value == null) {
-            return defaultValue;
-        }
-
-        try {
-            return Integer.parseInt(value.trim());
-        } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getKey(name), value, ex);
-        }
-    }
-
-    /**
-     * Gets the value of an Int64 property.
-     *
-     * @param name The name of the property (no component code prefix).
-     * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws MissingPropertyException      When the given property name does not exist within the current component.
-     * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
-     */
-    public long getInt64(String name) throws MissingPropertyException, InvalidPropertyValueException {
-        String value = get(name).trim();
-
-        try {
-            return Long.parseLong(value);
-        } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getKey(name), value, ex);
-        }
-    }
-
-    /**
-     * Gets the value of an Int64 property.
-     *
-     * @param name         The name of the property (no component code prefix).
-     * @param defaultValue The default value for the property.
-     * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
-     */
-    public long getInt64(String name, long defaultValue) throws InvalidPropertyValueException {
-        String value = get(name, null);
-        if (value == null) {
-            return defaultValue;
-        }
-
-        try {
-            return Long.parseLong(value.trim());
-        } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getKey(name), value, ex);
-        }
-    }
-
-    /**
-     * Gets the value of a boolean property.
-     * Notes:
-     * <ul>
-     * <li> "true", "yes" and "1" (case insensitive) map to boolean "true".
-     * <li> "false", "no" and "0" (case insensitive) map to boolean "false".
-     * </ul>
-     *
-     * @param name The name of the property (no component code prefix).
-     * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws MissingPropertyException      When the given property name does not exist within the current component.
-     * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
-     */
-    public boolean getBoolean(String name) throws MissingPropertyException, InvalidPropertyValueException {
-        String value = get(name).trim();
-
-        if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("1")) {
-            return true;
-        } else if (value.equalsIgnoreCase("false") || value.equalsIgnoreCase("no") || value.equalsIgnoreCase("0")) {
-            return false;
-        } else {
-            throw new InvalidPropertyValueException(getKey(name), value);
-        }
-    }
-
-    /**
-     * Gets the value of a boolean property.
-     * Notes:
-     * <ul>
-     * <li> "true", "yes" and "1" (case insensitive) map to boolean "true".
-     * <li> "false", "no" and "0" (case insensitive) map to boolean "false".
-     * </ul>
-     *
-     * @param name         The name of the property (no component code prefix).
-     * @param defaultValue The default value for the property.
-     * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
-     */
-    public boolean getBoolean(String name, boolean defaultValue) throws InvalidPropertyValueException {
-        String value = get(name, null);
-        if (value == null) {
-            return defaultValue;
-        }
-
-        value = value.trim();
-        if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("1")) {
-            return true;
-        } else if (value.equalsIgnoreCase("false") || value.equalsIgnoreCase("no") || value.equalsIgnoreCase("0")) {
-            return false;
-        } else {
-            throw new InvalidPropertyValueException(getKey(name), value);
-        }
-    }
-
-    private String getKey(String name) {
-        Exceptions.checkNotNullOrEmpty(name, "name");
-        return this.keyPrefix + name;
     }
 
     private String extractEnvironmentVariable(String value, String defaultValue) {

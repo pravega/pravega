@@ -5,6 +5,7 @@ package com.emc.pravega.common.metrics;
 
 import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
@@ -13,24 +14,15 @@ import lombok.Getter;
  */
 public class MetricsConfig {
     //region Config Names
-    public final static String ENABLE_STATISTICS = "enableStatistics";
-    public final static String DYNAMIC_CACHE_SIZE = "dynamicCacheSize";
-    public final static String DYNAMIC_TTL_SECONDS = "dynamicTTLSeconds";
-    public final static String OUTPUT_FREQUENCY = "yammerStatsOutputFrequencySeconds";
-    public final static String METRICS_PREFIX = "yammerMetricsPrefix";
-    public final static String CSV_ENDPOINT = "yammerCSVEndpoint";
-    public final static String STATSD_HOST = "yammerStatsDHost";
-    public final static String STATSD_PORT = "yammerStatsDPort";
+    public final static Property<Boolean> ENABLE_STATISTICS = new Property<>("enableStatistics", true);
+    public final static Property<Long> DYNAMIC_CACHE_SIZE = new Property<>("dynamicCacheSize", 1000000L);
+    public final static Property<Long> DYNAMIC_TTL_SECONDS = new Property<>("dynamicTTLSeconds", 120L);
+    public final static Property<Integer> OUTPUT_FREQUENCY = new Property<>("yammerStatsOutputFrequencySeconds", 60);
+    public final static Property<String> METRICS_PREFIX = new Property<>("yammerMetricsPrefix", "pravega");
+    public final static Property<String> CSV_ENDPOINT = new Property<>("yammerCSVEndpoint", "/tmp/csv");
+    public final static Property<String> STATSD_HOST = new Property<>("yammerStatsDHost", "localhost");
+    public final static Property<Integer> STATSD_PORT = new Property<>("yammerStatsDPort", 8125);
     private static final String COMPONENT_CODE = "metrics";
-
-    private final static boolean DEFAULT_ENABLE_STATISTICS = true;
-    private final static long DEFAULT_DYNAMIC_CACHE_SIZE = 1000000L;
-    private final static long DEFAULT_DYNAMIC_TTL_SECONDS = 120L;
-    private final static int DEFAULT_OUTPUT_FREQUENCY = 60;
-    private final static String DEFAULT_METRICS_PREFIX = "pravega";
-    private final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
-    private final static String DEFAULT_STATSD_HOST = "localhost";
-    private final static int DEFAULT_STATSD_PORT = 8125;
 
     //endregion
 
@@ -94,14 +86,14 @@ public class MetricsConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private MetricsConfig(TypedProperties properties) throws ConfigurationException {
-        this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
-        this.dynamicCacheSize = properties.getInt64(DYNAMIC_CACHE_SIZE, DEFAULT_DYNAMIC_CACHE_SIZE);
-        this.dynamicTTLSeconds = properties.getInt64(DYNAMIC_TTL_SECONDS, DEFAULT_DYNAMIC_TTL_SECONDS);
-        this.statsOutputFrequencySeconds = properties.getInt32(OUTPUT_FREQUENCY, DEFAULT_OUTPUT_FREQUENCY);
-        this.metricsPrefix = properties.get(METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
-        this.csvEndpoint = properties.get(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);
-        this.statsDHost = properties.get(STATSD_HOST, DEFAULT_STATSD_HOST);
-        this.statsDPort = properties.getInt32(STATSD_PORT, DEFAULT_STATSD_PORT);
+        this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS);
+        this.dynamicCacheSize = properties.getInt64(DYNAMIC_CACHE_SIZE);
+        this.dynamicTTLSeconds = properties.getInt64(DYNAMIC_TTL_SECONDS);
+        this.statsOutputFrequencySeconds = properties.getInt32(OUTPUT_FREQUENCY);
+        this.metricsPrefix = properties.get(METRICS_PREFIX);
+        this.csvEndpoint = properties.get(CSV_ENDPOINT);
+        this.statsDHost = properties.get(STATSD_HOST);
+        this.statsDPort = properties.getInt32(STATSD_PORT);
     }
 
     /**

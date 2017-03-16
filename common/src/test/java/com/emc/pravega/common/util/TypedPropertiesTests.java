@@ -98,14 +98,18 @@ public class TypedPropertiesTests {
 
         TypedProperties config = new TypedProperties(props, componentCode, env::get);
         for (String p : correctProperties) {
-            Assert.assertEquals("Unexpected value from valid env var reference.", "correct", config.get(p));
-            Assert.assertEquals("Unexpected value from valid env var reference.", "correct", config.get(p, "incorrect"));
+            Property<String> property = new Property<>(p);
+            Assert.assertEquals("Unexpected value from valid env var reference.", "correct", config.get(property));
+            property = new Property<>(p, "incorrect");
+            Assert.assertEquals("Unexpected value from valid env var reference (with default).", "correct", config.get(property));
         }
 
         for (String p : incorrectProperties) {
             String expectedValue = (String) props.get(getFullyQualifiedPropertyName(componentCode, p));
-            Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.get(p));
-            Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.get(p, "correct"));
+            Property<String> property = new Property<>(p);
+            Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.get(property));
+            property = new Property<>(p, "correct");
+            Assert.assertEquals("Unexpected value from invalid env var reference (with default).", expectedValue, config.get(property));
         }
     }
 
@@ -116,24 +120,26 @@ public class TypedPropertiesTests {
             for (String fullyQualifiedPropertyName : props.stringPropertyNames()) {
                 int propertyId = getPropertyId(fullyQualifiedPropertyName);
                 String propName = getPropertyName(propertyId);
+                Property<T> property = new Property<>(propName);
+                Property<String> stringProperty = new Property<>(propName);
                 String expectedValue = props.getProperty(fullyQualifiedPropertyName);
                 if (fullyQualifiedPropertyName.startsWith(componentCode)) {
                     // This property belongs to this component. Check it out.
-                    if (valueValidator.test(config.get(propName))) {
+                    if (valueValidator.test(config.get(stringProperty))) {
                         // This is a value that should exist and be returned by methodToTest.
-                        String actualValue = methodToTest.apply(config, propName).toString();
+                        String actualValue = methodToTest.apply(config, property).toString();
                         Assert.assertEquals("Unexpected value returned by extractor.", expectedValue, actualValue);
                     } else {
                         AssertExtensions.assertThrows(
                                 String.format("TypedProperties returned property and interpreted it with the wrong type. PropertyName: %s, Value: %s.", fullyQualifiedPropertyName, expectedValue),
-                                () -> methodToTest.apply(config, propName),
+                                () -> methodToTest.apply(config, property),
                                 ex -> !(ex instanceof MissingPropertyException));
                     }
                 } else {
                     // This is a different component. Make sure it is not included here.
                     AssertExtensions.assertThrows(
                             String.format("TypedProperties returned property that was for a different component. PropertyName: %s, Value: %s.", fullyQualifiedPropertyName, expectedValue),
-                            () -> methodToTest.apply(config, propName),
+                            () -> methodToTest.apply(config, property),
                             ex -> ex instanceof MissingPropertyException);
                 }
             }
@@ -209,6 +215,6 @@ public class TypedPropertiesTests {
     }
 
     private interface ExtractorFunction<R> {
-        R apply(TypedProperties config, String propName);
+        R apply(TypedProperties config, Property<R> property);
     }
 }
