@@ -8,7 +8,6 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
@@ -61,7 +60,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
                                                      groupName,
-                                                     streams,
                                                      synchronizerConfig,
                                                      new JavaSerializer<>(),
                                                      new JavaSerializer<>(),
@@ -74,19 +72,13 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(groupName,
-                                                                                         new JavaSerializer<>(),
-                                                                                         new JavaSerializer<>(),
-                                                                                         synchronizerConfig);
-        Set<String> streamNames = sync.getState().getStreamNames();
         return new ReaderGroupImpl(scope,
-                groupName,
-                streamNames,
-                synchronizerConfig,
-                new JavaSerializer<>(),
-                new JavaSerializer<>(),
-                clientFactory,
-                controller);
+                                   groupName,
+                                   synchronizerConfig,
+                                   new JavaSerializer<>(),
+                                   new JavaSerializer<>(),
+                                   clientFactory,
+                                   controller);
     }
 
     @Override
