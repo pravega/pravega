@@ -1,12 +1,9 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -42,6 +39,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <ul>
      * <li> BadOffsetException: When the given offset does not match the actual length of the segment in storage.
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
      * </ul>
      */
     CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout);
@@ -56,6 +54,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
      * </ul>
      */
     CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout);
@@ -77,6 +76,8 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <ul>
      * <li> BadOffsetException: When the given offset does not match the actual length of the target segment in storage.
      * <li> StreamSegmentNotExistsException: When the either the source Segment or the target Segment do not exist in Storage.
+     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for either the target Segment
+     * or the source Segment (it was fenced out).
      * </ul>
      */
     CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout);
@@ -90,6 +91,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
      * </ul>
      */
     CompletableFuture<Void> delete(String streamSegmentName, Duration timeout);

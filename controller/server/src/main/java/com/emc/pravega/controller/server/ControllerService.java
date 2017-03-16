@@ -13,6 +13,7 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
@@ -82,6 +83,13 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return streamMetadataTasks.sealStream(scope, stream, null)
                 .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
+    }
+
+    public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String stream) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        return streamMetadataTasks.deleteStream(scope, stream, null)
+                .thenApplyAsync(status -> DeleteStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {

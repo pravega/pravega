@@ -129,6 +129,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }
                 oldConnection = connection;
                 connection = null;
+                if (!closed) {
+                    log.warn("Connection failed due to: {}", e.getMessage());
+                }
             }
             connectionSetupComplete();
             if (oldConnection != null) {

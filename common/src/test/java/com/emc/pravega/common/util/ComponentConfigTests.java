@@ -26,9 +26,20 @@ public class ComponentConfigTests {
 
     static {
         GENERATOR_FUNCTIONS.add(ComponentConfigTests::getStringValue);
-        GENERATOR_FUNCTIONS.add(propertyId -> Integer.toString(ComponentConfigTests.getInt32Value(propertyId)));
-        GENERATOR_FUNCTIONS.add(propertyId -> Long.toString(ComponentConfigTests.getInt64Value(propertyId)));
-        GENERATOR_FUNCTIONS.add(propertyId -> Boolean.toString(ComponentConfigTests.getBooleanValue(propertyId)));
+        GENERATOR_FUNCTIONS.add(propertyId -> toString(ComponentConfigTests.getInt32Value(propertyId)));
+        GENERATOR_FUNCTIONS.add(propertyId -> toString(ComponentConfigTests.getInt64Value(propertyId)));
+        GENERATOR_FUNCTIONS.add(propertyId -> toString(ComponentConfigTests.getBooleanValue(propertyId)));
+        GENERATOR_FUNCTIONS.add(propertyId -> toString(ComponentConfigTests.getRetryWithBackoffValue(propertyId)));
+    }
+
+    private static String toString(Object o) {
+        if (o instanceof Retry.RetryWithBackoff) {
+            val value = (Retry.RetryWithBackoff) o;
+            return String.format("initialMillis=%s,multiplier=%s,attempts=%s,maxDelay=%s",
+                    value.getInitialMillis(), value.getMultiplier(), value.getAttempts(), value.getMaxDelay());
+        } else {
+            return o.toString();
+        }
     }
 
     /**
@@ -38,6 +49,8 @@ public class ComponentConfigTests {
     public void testGetStringProperty() throws Exception {
         Properties props = new Properties();
         populateData(props);
+
+        // Any type can be interpreted as String.
         testData(props, ComponentConfig::getProperty, value -> true);
     }
 
@@ -68,7 +81,17 @@ public class ComponentConfigTests {
     public void testGetBooleanProperty() throws Exception {
         Properties props = new Properties();
         populateData(props);
-        testData(props, ComponentConfig::getBooleanProperty, value -> value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false"));
+        testData(props, ComponentConfig::getBooleanProperty, ComponentConfigTests::isBoolean);
+    }
+
+    /**
+     * Tests the ability to get a property that converts to Retry.RetryWithBackoff.
+     */
+    @Test
+    public void testGetRetryWithBackoffProperty() throws Exception {
+        Properties props = new Properties();
+        populateData(props);
+        testData(props, ComponentConfig::getRetryWithBackoffProperty, ComponentConfigTests::isRetry);
     }
 
     /**
@@ -121,7 +144,7 @@ public class ComponentConfigTests {
                     // This property belongs to this component. Check it out.
                     if (valueValidator.test(config.getProperty(propName))) {
                         // This is a value that should exist and be returned by methodToTest.
-                        String actualValue = methodToTest.apply(config, propName).toString();
+                        String actualValue = toString(methodToTest.apply(config, propName));
                         Assert.assertEquals("Unexpected value returned by extractor.", expectedValue, actualValue);
                     } else {
                         AssertExtensions.assertThrows(
@@ -199,6 +222,10 @@ public class ComponentConfigTests {
         return "String_" + Integer.toHexString(propertyId);
     }
 
+    private static Retry.RetryWithBackoff getRetryWithBackoffValue(int propertyId) {
+        return Retry.withExpBackoff(propertyId, propertyId + 1, propertyId + 2, propertyId + 3);
+    }
+
     private static boolean isInt32(String propertyValue) {
         return isInt64(propertyValue) && propertyValue.charAt(0) == '-'; // only getInt32Value generates negative numbers.
     }
@@ -206,6 +233,14 @@ public class ComponentConfigTests {
     private static boolean isInt64(String propertyValue) {
         char firstChar = propertyValue.charAt(0);
         return Character.isDigit(firstChar) || firstChar == '-'; // this will accept both Int32 and Int64.
+    }
+
+    private static boolean isBoolean(String propertyValue) {
+        return propertyValue.equalsIgnoreCase("true") || propertyValue.equalsIgnoreCase("false");
+    }
+
+    private static boolean isRetry(String propertyValue) {
+        return propertyValue.contains(",") && propertyValue.contains("=");
     }
 
     private static class TestConfig extends ComponentConfig {

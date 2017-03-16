@@ -80,9 +80,11 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         int i = 0;
         for (Update<StateT> update : updates) {
             StateT state = getState();
-            RevisionImpl newRevision = new RevisionImpl(segment, readRevision.asImpl().getOffsetInSegment(), i++);
-            if (newRevision.compareTo(state.getRevision()) > 0) {
-                updateCurrentState(update.applyTo(state, newRevision));
+            synchronized (state) {
+                RevisionImpl newRevision = new RevisionImpl(segment, readRevision.asImpl().getOffsetInSegment(), i++);
+                if (newRevision.compareTo(state.getRevision()) > 0) {
+                    updateCurrentState(update.applyTo(state, newRevision));
+                }
             }
         }
     }

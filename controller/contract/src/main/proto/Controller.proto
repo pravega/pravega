@@ -15,6 +15,7 @@ service ControllerService {
     rpc createStream(StreamConfig) returns (CreateStreamStatus);
     rpc alterStream(StreamConfig) returns (UpdateStreamStatus);
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
+    rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
@@ -47,6 +48,16 @@ message UpdateStreamStatus {
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
         SCOPE_NOT_FOUND = 3;
+    }
+    Status status = 1;
+}
+
+message DeleteStreamStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_NOT_FOUND = 2;
+        STREAM_NOT_SEALED = 3;
     }
     Status status = 1;
 }

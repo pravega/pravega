@@ -44,6 +44,13 @@ interface Stream {
     CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
 
     /**
+     * Deletes an already SEALED stream.
+     *
+     * @return boolean indicating success.
+     */
+    CompletableFuture<Void> delete();
+
+    /**
      * Updates the configuration of an existing stream.
      *
      * @param configuration new stream configuration.
@@ -79,6 +86,13 @@ interface Stream {
      * @return segment at given number.
      */
     CompletableFuture<Segment> getSegment(final int number);
+
+    /**
+     * Returns the total number segments in the stream.
+     *
+     * @return total number of segments in the stream.
+     */
+    CompletableFuture<Integer> getSegmentCount();
 
     /**
      * @param number segment number.

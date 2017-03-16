@@ -94,6 +94,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(x -> true);
     }
 
+    @Override
+    public CompletableFuture<Void> delete() {
+        return deleteStream();
+    }
+
     /**
      * Update configuration at configurationPath.
      *
@@ -138,6 +143,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Segment> getSegment(final int number) {
         return verifyLegalState(getSegmentRow(number));
+    }
+
+    @Override
+    public CompletableFuture<Integer> getSegmentCount() {
+        return verifyLegalState(getHistoryTable().thenApply(x -> TableHelper.getSegmentCount(x.getData())));
     }
 
     /**
@@ -664,6 +674,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return getSegmentTableChunk(latestChunkNumber)
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
     }
+
+    abstract CompletableFuture<Void> deleteStream();
 
     abstract CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException;
 

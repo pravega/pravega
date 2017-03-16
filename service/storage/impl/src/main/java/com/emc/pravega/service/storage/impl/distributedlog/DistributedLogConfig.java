@@ -1,14 +1,13 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
-
+import com.emc.pravega.common.util.Retry;
 import java.util.Properties;
+import lombok.Getter;
 
 /**
  * General configuration for DistributedLog Client.
@@ -20,14 +19,36 @@ public class DistributedLogConfig extends ComponentConfig {
     public static final String PROPERTY_HOSTNAME = "hostname";
     public static final String PROPERTY_PORT = "port";
     public static final String PROPERTY_NAMESPACE = "namespace";
+    public static final String PROPERTY_RETRY_POLICY = "retryPolicy";
 
     private static final String DEFAULT_HOSTNAME = "zk1";
     private static final int DEFAULT_PORT = 2181;
     private static final String DEFAULT_NAMESPACE = "pravega/segmentstore/containers";
+    private static final Retry.RetryWithBackoff DEFAULT_RETRY_POLICY = Retry.withExpBackoff(100, 4, 5, 30000);
 
+    /**
+     * The host name (no port) where DistributedLog is listening.
+     */
+    @Getter
     private String distributedLogHost;
+
+    /**
+     * The port where DistributedLog is listening.
+     */
+    @Getter
     private int distributedLogPort;
+
+    /**
+     * The DistributedLog Namespace to use.
+     */
+    @Getter
     private String distributedLogNamespace;
+
+    /**
+     * The Retry Policy base to use for all DistributedLog parameters.
+     */
+    @Getter
+    private Retry.RetryWithBackoff retryPolicy;
 
     //endregion
 
@@ -49,31 +70,6 @@ public class DistributedLogConfig extends ComponentConfig {
 
     //endregion
 
-    //region Properties
-
-    /**
-     * Gets a value indicating the host name (no port) where DistributedLog is listening.
-     */
-    public String getDistributedLogHost() {
-        return this.distributedLogHost;
-    }
-
-    /**
-     * Gets a value indicating the port where DistributedLog is listening.
-     */
-    public int getDistributedLogPort() {
-        return this.distributedLogPort;
-    }
-
-    /**
-     * Gets a value indicating the DistributedLog Namespace to use.
-     */
-    public String getDistributedLogNamespace() {
-        return this.distributedLogNamespace;
-    }
-
-    //endregion
-
     //region ComponentConfig Implementation
 
     @Override
@@ -81,6 +77,7 @@ public class DistributedLogConfig extends ComponentConfig {
         this.distributedLogHost = getProperty(PROPERTY_HOSTNAME, DEFAULT_HOSTNAME);
         this.distributedLogPort = getInt32Property(PROPERTY_PORT, DEFAULT_PORT);
         this.distributedLogNamespace = getProperty(PROPERTY_NAMESPACE, DEFAULT_NAMESPACE);
+        this.retryPolicy = getRetryWithBackoffProperty(PROPERTY_RETRY_POLICY, DEFAULT_RETRY_POLICY);
     }
 
     //endregion

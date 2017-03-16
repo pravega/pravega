@@ -9,6 +9,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
@@ -69,6 +70,15 @@ public interface Controller {
      * @return Status of update stream operation.
      */
     CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName);
+
+    /**
+     * API to delete stream. Only a sealed stream can be deleted.
+     *
+     * @param scope      Scope name.
+     * @param streamName Stream name.
+     * @return           Status of delete stream operation.
+     */
+    CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String streamName);
 
     /**
      * API to merge or split stream segments.
