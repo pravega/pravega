@@ -60,22 +60,14 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                               .build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
-                groupName,
-                streams,
-                synchronizerConfig,
-                new JavaSerializer<>(),
-                new JavaSerializer<>(),
-                clientFactory);
-        List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streams.size());
-        for (String stream : streams) {
-            futures.add(controller.getSegmentsAtTime(new StreamImpl(scope, stream), 0L));
-        }
-        Map<Segment, Long> segments = getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
-            return listOfMaps.stream()
-                             .flatMap(map -> map.entrySet().stream())
-                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-        }), InvalidStreamException::new);
-        result.initializeGroup(segments);
+                                                     groupName,
+                                                     streams,
+                                                     synchronizerConfig,
+                                                     new JavaSerializer<>(),
+                                                     new JavaSerializer<>(),
+                                                     clientFactory,
+                                                     controller);
+        result.initializeGroup(config, streams);
         return result;
     }
     

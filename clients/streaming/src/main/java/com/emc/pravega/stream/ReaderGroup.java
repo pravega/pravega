@@ -29,13 +29,6 @@ public interface ReaderGroup {
     String getScope();
 
     /**
-     * Returns the names of the streams the group is associated with.
-     *
-     * @return List of stream names
-     */
-    Set<String> getStreamNames();
-
-    /**
      * Returns the name of the group.
      *
      * @return Reader group name

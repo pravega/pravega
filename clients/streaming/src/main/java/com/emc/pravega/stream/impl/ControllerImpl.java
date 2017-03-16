@@ -14,17 +14,18 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStat
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Positions;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
@@ -37,6 +38,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxnFailedException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.grpc.ManagedChannelBuilder;
@@ -98,7 +100,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Controller.DeleteScopeStatus> deleteScope(String scopeName) {
+    public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
         long traceId = LoggerHelpers.traceEnter(log, "deleteScope", scopeName);
         log.trace("Invoke AdminService.Client.deleteScope() with name: {}", scopeName);
 
@@ -307,17 +309,16 @@ public class ControllerImpl implements Controller {
         log.trace("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
         RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>();
         client.commitTransaction(TxnRequest.newBuilder()
-                                         .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                                                     stream.getStreamName()))
-                                         .setTxnId(ModelHelper.decode(txId))
-                                         .build(),
+                                           .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                                                                       stream.getStreamName()))
+                                           .setTxnId(ModelHelper.decode(txId))
+                                           .build(),
                                  callback);
 
-        return FutureHelpers.toVoidExpecting(
-                callback.getFuture(),
-                Controller.TxnStatus.newBuilder().setStatus(Controller.TxnStatus.Status.SUCCESS).build(),
-                TxnFailedException::new)
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "commitTransaction", traceId));
+        return FutureHelpers.toVoidExpecting(callback.getFuture(),
+                                             TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(),
+                                             TxnFailedException::new)
+                            .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "commitTransaction", traceId));
     }
 
     @Override
@@ -326,18 +327,17 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
         log.trace("Invoke AdminService.Client.abortTransaction() with stream: {}, txUd: {}", stream, txId);
-        RPCAsyncCallback<Controller.TxnStatus> callback = new RPCAsyncCallback<>();
+        RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>();
         client.abortTransaction(TxnRequest.newBuilder()
-                                       .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                                                   stream.getStreamName()))
-                                       .setTxnId(ModelHelper.decode(txId))
-                                       .build(),
+                                          .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                                                                      stream.getStreamName()))
+                                          .setTxnId(ModelHelper.decode(txId))
+                                          .build(),
                                 callback);
         return FutureHelpers.toVoidExpecting(callback.getFuture(),
-                Controller.TxnStatus.newBuilder().setStatus(
-                        Controller.TxnStatus.Status.SUCCESS).build(),
-                TxnFailedException::new)
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "abortTransaction", traceId));
+                                             TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(),
+                                             TxnFailedException::new)
+                            .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "abortTransaction", traceId));
     }
 
     @Override
@@ -348,14 +348,14 @@ public class ControllerImpl implements Controller {
 
         RPCAsyncCallback<TxnState> callback = new RPCAsyncCallback<>();
         client.checkTransactionState(TxnRequest.newBuilder()
-                                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                                                         stream.getStreamName()))
-                                             .setTxnId(ModelHelper.decode(txId))
-                                             .build(),
+                                               .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                                                                           stream.getStreamName()))
+                                               .setTxnId(ModelHelper.decode(txId))
+                                               .build(),
                                      callback);
         return callback.getFuture()
-                .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId))
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId));
+                       .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId))
+                       .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId));
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
