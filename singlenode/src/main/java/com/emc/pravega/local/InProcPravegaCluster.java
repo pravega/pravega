@@ -36,6 +36,7 @@ import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.bookkeeper.util.IOUtils;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -43,6 +44,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.retry.RetryOneTime;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
@@ -54,12 +56,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
+import static org.apache.bookkeeper.util.LocalBookKeeper.runZookeeper;
 
 @Slf4j
 public class InProcPravegaCluster implements AutoCloseable {
 
     private static final String THREADPOOL_SIZE = "20";
     private static final String CONTAINER_COUNT = "2";
+    private final boolean isInMemStorage;
 
     /*Controller related variables*/
     private boolean isInprocController;
@@ -105,15 +109,21 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String zkUrl;
 
     @Builder
-    public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort,
+    public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
                 boolean isInProcHDFS, boolean isInProcDL, int initialBookiePort,
                 boolean isInprocController, int controllerCount,
                 boolean isInprocHost, int hostCount, String containerCount) {
+        this.isInMemStorage = isInMemStorage;
+        if ( isInMemStorage ) {
+            this.isInProcHDFS = false;
+            this.isInProcDL = false;
+        } else {
+            this.isInProcHDFS = isInProcHDFS;
+            this.isInProcDL = isInProcDL;
+        }
         this.isInProcZK = isInProcZK;
         this.zkUrl = zkUrl;
         this.zkPort = zkPort;
-        this.isInProcHDFS = isInProcHDFS;
-        this.isInProcDL = isInProcDL;
         this.initialBookiePort = initialBookiePort;
         this.isInprocController = isInprocController;
         this.controllerCount = controllerCount;
@@ -139,6 +149,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         /*Start the ZK*/
         if (isInProcZK) {
             zkUrl = "localhost:" + zkPort;
+            startLocalZK();
         } else {
             assert zkUrl != null;
             zkHost = new URI("temp://" + zkUrl).getHost();
@@ -148,17 +159,13 @@ public class InProcPravegaCluster implements AutoCloseable {
         if (isInProcHDFS) {
             startLocalHDFS();
             hdfsUrl = String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort());
-        } else {
-            assert hdfsUrl != null;
         }
-        
+
         cleanUpZK();
 
         if (isInProcDL) {
-            throw new IllegalStateException("In proc DL is not supported because of issues with DL.");
-            //startLocalDL();
+            startLocalDL();
         }
-
         configureDLBinding(this.zkUrl);
 
         if (isInprocController) {
@@ -174,6 +181,12 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
 
     }
+
+    private void startLocalZK() throws IOException {
+        File zkTmpDir = IOUtils.createTempDir("zookeeper", "test");
+        runZookeeper(1000, zkPort, zkTmpDir);
+    }
+
 
     private void cleanUpZK() {
         String[] pathsTobeCleaned = {"/pravega", "/hostIndex", "/store", "/taskIndex"};
@@ -211,13 +224,8 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private synchronized void startLocalDL() throws Exception {
-        if (isInProcZK) {
-            localDlm = LocalDLMEmulator.newBuilder().shouldStartZK(true).
+        localDlm = LocalDLMEmulator.newBuilder().shouldStartZK(false).zkHost(zkHost).
                     zkPort(zkPort).numBookies(this.bookieCount).build();
-        } else {
-            localDlm = LocalDLMEmulator.newBuilder().shouldStartZK(false).zkHost(zkHost).
-                    zkPort(zkPort).numBookies(this.bookieCount).build();
-        }
         localDlm.start();
     }
 
@@ -248,8 +256,15 @@ public class InProcPravegaCluster implements AutoCloseable {
         try {
             Properties p = new Properties();
             ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
-            ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
-                    String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
+
+            if( !isInMemStorage) {
+                ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
+                        String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
+                ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
+                        "localhost");
+                ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
+                        Integer.toString(zkPort));
+            }
 
             // Change Number of containers and Thread Pool Size for each test.
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT,
@@ -276,14 +291,9 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTROLLER_URI,
                     "tcp://localhost:" + controllerPorts[0]);
 
-            ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
-                    "localhost");
-            ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
-                    Integer.toString(zkPort));
-
             props = new ServiceBuilderConfig(p);
 
-            nodeServiceStarter[hostId] = new ServiceStarter(props);
+            nodeServiceStarter[hostId] = new ServiceStarter(props, isInMemStorage);
         } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -373,8 +383,8 @@ public class InProcPravegaCluster implements AutoCloseable {
 
             RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
             // 4. Start the REST server.
-            //log.info("Starting Pravega REST Service");
-            //RESTServer.start(controllerService);
+            log.info("Starting Pravega REST Service");
+         //   RESTServer.start(controllerService);
         }
     }
 

@@ -49,12 +49,18 @@ public final class ServiceStarter {
 
     //region Constructor
 
-    public ServiceStarter(ServiceBuilderConfig config) {
+    public ServiceStarter(ServiceBuilderConfig config, boolean isSingleNode) {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
         Options opt = new Options();
-        opt.distributedLog = true;
-        opt.hdfs = true;
+        if( !isSingleNode ) {
+            opt.distributedLog = true;
+            opt.hdfs = true;
+        } else {
+            opt.distributedLog = false;
+            opt.hdfs = false;
+
+        }
         opt.rocksDb = true;
         opt.zkSegmentManager = true;
         this.serviceBuilder = createServiceBuilder(opt);
@@ -193,7 +199,7 @@ public final class ServiceStarter {
     public static void main(String[] args) {
         AtomicReference<ServiceStarter> serviceStarter = new AtomicReference<>();
         try {
-            serviceStarter.set(new ServiceStarter(ServiceBuilderConfig.getConfigFromFile()));
+            serviceStarter.set(new ServiceStarter(ServiceBuilderConfig.getConfigFromFile(), false));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
