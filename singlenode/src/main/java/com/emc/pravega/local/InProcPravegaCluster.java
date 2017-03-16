@@ -257,7 +257,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             Properties p = new Properties();
             ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
 
-            if( !isInMemStorage) {
+            if ( !isInMemStorage ) {
                 ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
                         String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
                 ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
