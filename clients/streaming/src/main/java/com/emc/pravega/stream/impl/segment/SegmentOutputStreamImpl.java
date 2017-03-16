@@ -33,7 +33,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -190,9 +189,15 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
 
-        private Map<Long, PendingEvent> getAllInflight() {
+        private List<Map.Entry<Long, PendingEvent>> getAllInflight() {
             synchronized (lock) {
-                return new TreeMap<>(inflight);
+                return new ArrayList<>(inflight.entrySet());
+            }
+        }
+        
+        private List<PendingEvent> getAllInflightEvents() {
+            synchronized (lock) {
+                return new ArrayList<>(inflight.values());
             }
         }
 
@@ -270,7 +275,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         private void retransmitInflight() throws ConnectionFailedException {
-            for (Entry<Long, PendingEvent> entry : state.getAllInflight().entrySet()) {
+            for (Entry<Long, PendingEvent> entry : state.getAllInflight()) {
                 state.connection.send(new Append(segmentName,
                                                  connectionId,
                                                  entry.getKey(),
@@ -362,7 +367,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     @Override
     public Collection<PendingEvent> getUnackedEvents() {
-        return Collections.unmodifiableCollection(state.getAllInflight().values());
+        return Collections.unmodifiableCollection(state.getAllInflightEvents());
     }
 
 }

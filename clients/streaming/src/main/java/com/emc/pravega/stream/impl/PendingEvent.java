@@ -41,6 +41,8 @@ public class PendingEvent {
     }
     
     public PendingEvent(String routingKey, ByteBuffer data, CompletableFuture<Boolean> ackFuture, Long expectedOffset) {
+        Preconditions.checkNotNull(data);
+        Preconditions.checkNotNull(ackFuture);
         Preconditions.checkArgument(data.remaining() <= MAX_WRITE_SIZE, "Write size too large: %s", data.remaining());
         this.routingKey = routingKey;
         this.data = data;

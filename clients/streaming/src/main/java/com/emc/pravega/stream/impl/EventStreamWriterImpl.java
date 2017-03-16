@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
@@ -28,6 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -37,6 +39,7 @@ import lombok.extern.slf4j.Slf4j;
  * @param <Type> The type of event that is sent
  */
 @Slf4j
+@ToString(of = { "stream", "closed" })
 public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     private final Object lock = new Object();
@@ -62,7 +65,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.serializer = serializer;
         this.config = config;
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters();
-        assert failedEvents.isEmpty();
+        assert failedEvents.isEmpty() : "There should not be any events to have failed";
     }
 
     @Override
@@ -78,7 +81,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     
     private AckFuture writeEventInternal(String routingKey, Type event) {
         Preconditions.checkNotNull(event);
-        Preconditions.checkState(!closed.get());
+        Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         synchronized (lock) {
@@ -91,7 +94,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             try {
                 segmentWriter.write(new PendingEvent(routingKey, data, result));
             } catch (SegmentSealedException e) {
-                log.info("Segment was sealed: {}", segmentWriter.toString());
+                log.info("Segment was sealed: {}", segmentWriter);
                 handleLogSealed();
             }
         }
@@ -116,7 +119,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     try {
                         segmentWriter.write(event);
                     } catch (SegmentSealedException e) {
-                        log.info("Segment was sealed while handling seal: {}", segmentWriter.toString());
+                        log.info("Segment was sealed while handling seal: {}", segmentWriter);
                         selector.removeWriter(segmentWriter);
                         unsent.addAll(segmentWriter.getUnackedEvents());
                     }
@@ -242,7 +245,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     try {
                         writer.flush();
                     } catch (SegmentSealedException e) {
-                        log.info("Segment was sealed during flush: {}", writer.toString());
+                        log.info("Segment was sealed during flush: {}", writer);
                         success = false;
                     }
                 }
@@ -266,7 +269,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     try {
                         writer.close();
                     } catch (SegmentSealedException e) {
-                        log.info("Segment was sealed during close: {}", writer.toString());
+                        log.info("Segment was sealed during close: {}", writer);
                         success = false;
                     }
                 }
