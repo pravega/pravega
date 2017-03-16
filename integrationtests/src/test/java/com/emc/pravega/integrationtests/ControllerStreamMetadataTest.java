@@ -60,12 +60,10 @@ public class ControllerStreamMetadataTest {
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-            //@Cleanup
             this.server = new PravegaConnectionListener(false, servicePort, store);
             this.server.startListening();
 
             // 3. Start controller
-            //@Cleanup
             this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
                     controllerPort, serviceHost, servicePort, containerCount);
             this.controller = controllerWrapper.getController();
@@ -102,7 +100,6 @@ public class ControllerStreamMetadataTest {
 
     @Test(timeout = 2000000)
     public void streamMetadataTest() throws Exception {
-        log.info("### I'm here");
         // Create test scope. This operation should succeed.
         CreateScopeStatus scopeStatus = controller.createScope(SCOPE).join();
         Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());

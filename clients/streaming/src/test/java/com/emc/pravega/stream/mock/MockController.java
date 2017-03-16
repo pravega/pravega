@@ -75,6 +75,7 @@ public class MockController implements Controller {
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
     
     @Override
+    @Synchronized
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (createdScopes.get(scopeName) != null) {
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder()
@@ -86,6 +87,7 @@ public class MockController implements Controller {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
         if (createdScopes.get(scopeName) != null) {
             return CompletableFuture.completedFuture(DeleteScopeStatus.newBuilder()
