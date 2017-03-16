@@ -39,7 +39,11 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
+
+
+@Slf4j
 public class StateSynchronizerTest {
 
     private Level originalLevel;
@@ -176,15 +180,20 @@ public class StateSynchronizerTest {
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
         SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
 
+
+        log.info("### Adding foo");
         setA.add("foo");
         assertEquals(1, setA.getCurrentSize());
         assertTrue(setA.getCurrentValues().contains("foo"));
+        log.info("### Updating B");
         setB.update();
         assertEquals(1, setB.getCurrentSize());
         assertTrue(setB.getCurrentValues().contains("foo"));
+        log.info("### Adding bar");
         setA.add("bar");
         assertEquals(1, setB.getCurrentSize());
         assertTrue(setB.getCurrentValues().contains("foo"));
+        log.info("### Updating B");
         setB.update();
         assertEquals(2, setB.getCurrentSize());
         assertTrue(setB.getCurrentValues().contains("bar"));

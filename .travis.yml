@@ -10,6 +10,8 @@ sudo: required
 services:
   - docker
 
+script:  ./gradlew -Dtest.single=StateSynchronizerTest integrationtests:test
+
 cache:
   directories:
   - .gradle
