@@ -489,8 +489,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Turn off any MetadataCheckpointing. In these tests, we are doing that manually.
         DurableLogConfig dlConfig = DurableLogConfig
                 .builder()
-                .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, Integer.MAX_VALUE)
-                .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, Long.MAX_VALUE)
+                .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, Integer.MAX_VALUE)
+                .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, Long.MAX_VALUE)
                 .build();
 
         return new MetadataCheckpointPolicy(
@@ -513,7 +513,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.storage = new InMemoryStorage(executorService());
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             ReadIndexConfig readIndexConfig = ConfigHelpers
-                    .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024))
+                    .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
                     .build();
 
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());

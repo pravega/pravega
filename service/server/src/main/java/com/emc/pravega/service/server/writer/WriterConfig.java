@@ -1,12 +1,11 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.TypedProperties;
 import java.time.Duration;
 import lombok.Getter;
@@ -17,28 +16,17 @@ import lombok.Getter;
 public class WriterConfig {
     //region Config Names
 
-    public static final String PROPERTY_FLUSH_THRESHOLD_BYTES = "flushThresholdBytes";
-    public static final String PROPERTY_FLUSH_THRESHOLD_MILLIS = "flushThresholdMillis";
-    public static final String PROPERTY_MAX_FLUSH_SIZE_BYTES = "maxFlushSizeBytes";
-    public static final String PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE = "maxItemsToReadAtOnce";
-    public static final String PROPERTY_MIN_READ_TIMEOUT_MILLIS = "minReadTimeoutMillis";
-    public static final String PROPERTY_MAX_READ_TIMEOUT_MILLIS = "maxReadTimeoutMillis";
-    public static final String PROPERTY_ERROR_SLEEP_MILLIS = "errorSleepMillis";
-    public static final String PROPERTY_FLUSH_TIMEOUT_MILLIS = "flushTimeoutMillis";
-    public static final String PROPERTY_ACK_TIMEOUT_MILLIS = "ackTimeoutMillis";
-    public static final String PROPERTY_SHUTDOWN_TIMEOUT_MILLIS = "shutdownTimeoutMillis";
+    public static final Property<Integer> FLUSH_THRESHOLD_BYTES = new Property<>("flushThresholdBytes", 4 * 1024 * 1024);
+    public static final Property<Long> FLUSH_THRESHOLD_MILLIS = new Property<>("flushThresholdMillis", 30 * 1000L);
+    public static final Property<Integer> MAX_FLUSH_SIZE_BYTES = new Property<>("maxFlushSizeBytes", FLUSH_THRESHOLD_BYTES.getDefaultValue());
+    public static final Property<Integer> MAX_ITEMS_TO_READ_AT_ONCE = new Property<>("maxItemsToReadAtOnce", 1000);
+    public static final Property<Long> MIN_READ_TIMEOUT_MILLIS = new Property<>("minReadTimeoutMillis", 2 * 1000L);
+    public static final Property<Long> MAX_READ_TIMEOUT_MILLIS = new Property<>("maxReadTimeoutMillis", 30 * 60 * 1000L);
+    public static final Property<Long> ERROR_SLEEP_MILLIS = new Property<>("errorSleepMillis", 1000L);
+    public static final Property<Long> FLUSH_TIMEOUT_MILLIS = new Property<>("flushTimeoutMillis", 60 * 1000L);
+    public static final Property<Long> ACK_TIMEOUT_MILLIS = new Property<>("ackTimeoutMillis", 15 * 1000L);
+    public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = new Property<>("shutdownTimeoutMillis", 10 * 1000L);
     private static final String COMPONENT_CODE = "writer";
-
-    private static final int DEFAULT_FLUSH_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4MB
-    private static final int DEFAULT_FLUSH_THRESHOLD_MILLIS = 30 * 1000; // 30s
-    private static final int DEFAULT_MAX_FLUSH_SIZE_BYTES = DEFAULT_FLUSH_THRESHOLD_BYTES;
-    private static final int DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE = 1000;
-    private static final int DEFAULT_MIN_READ_TIMEOUT_MILLIS = 2 * 1000; // 2s
-    private static final int DEFAULT_MAX_READ_TIMEOUT_MILLIS = 30 * 60 * 1000; // 30 min
-    private static final int DEFAULT_ERROR_SLEEP_MILLIS = 1000; // 1 s
-    private static final int DEFAULT_FLUSH_TIMEOUT_MILLIS = 60 * 1000; // 60s
-    private static final int DEFAULT_ACK_TIMEOUT_MILLIS = 15 * 1000; // 15s
-    private static final int DEFAULT_SHUTDOWN_TIMEOUT_MILLIS = 10 * 1000; // 10s
 
     //endregion
 
@@ -114,44 +102,34 @@ public class WriterConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private WriterConfig(TypedProperties properties) throws ConfigurationException {
-        this.flushThresholdBytes = properties.getInt32(PROPERTY_FLUSH_THRESHOLD_BYTES, DEFAULT_FLUSH_THRESHOLD_BYTES);
+        this.flushThresholdBytes = properties.getInt32(FLUSH_THRESHOLD_BYTES);
         if (this.flushThresholdBytes < 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", PROPERTY_FLUSH_THRESHOLD_BYTES));
+            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", FLUSH_THRESHOLD_BYTES));
         }
 
-        long flushThresholdMillis = properties.getInt64(PROPERTY_FLUSH_THRESHOLD_MILLIS, DEFAULT_FLUSH_THRESHOLD_MILLIS);
-        this.flushThresholdTime = Duration.ofMillis(flushThresholdMillis);
-
-        this.maxFlushSizeBytes = properties.getInt32(PROPERTY_MAX_FLUSH_SIZE_BYTES, DEFAULT_MAX_FLUSH_SIZE_BYTES);
-
-        this.maxItemsToReadAtOnce = properties.getInt32(PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE);
+        this.flushThresholdTime = Duration.ofMillis(properties.getInt64(FLUSH_THRESHOLD_MILLIS));
+        this.maxFlushSizeBytes = properties.getInt32(MAX_FLUSH_SIZE_BYTES);
+        this.maxItemsToReadAtOnce = properties.getInt32(MAX_ITEMS_TO_READ_AT_ONCE);
         if (this.maxItemsToReadAtOnce <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE));
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_ITEMS_TO_READ_AT_ONCE));
         }
 
-        long minReadTimeoutMillis = properties.getInt64(PROPERTY_MIN_READ_TIMEOUT_MILLIS, DEFAULT_MIN_READ_TIMEOUT_MILLIS);
-        long maxReadTimeoutMillis = properties.getInt64(PROPERTY_MAX_READ_TIMEOUT_MILLIS, DEFAULT_MAX_READ_TIMEOUT_MILLIS);
+        long minReadTimeoutMillis = properties.getInt64(MIN_READ_TIMEOUT_MILLIS);
+        long maxReadTimeoutMillis = properties.getInt64(MAX_READ_TIMEOUT_MILLIS);
         if (minReadTimeoutMillis < 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MIN_READ_TIMEOUT_MILLIS));
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MIN_READ_TIMEOUT_MILLIS));
         }
 
         if (minReadTimeoutMillis > maxReadTimeoutMillis) {
-            throw new ConfigurationException(String.format("Property '%s' must be smaller than or equal to '%s'.", PROPERTY_MIN_READ_TIMEOUT_MILLIS, PROPERTY_MAX_READ_TIMEOUT_MILLIS));
+            throw new ConfigurationException(String.format("Property '%s' must be smaller than or equal to '%s'.", MIN_READ_TIMEOUT_MILLIS, MAX_READ_TIMEOUT_MILLIS));
         }
 
         this.minReadTimeout = Duration.ofMillis(minReadTimeoutMillis);
         this.maxReadTimeout = Duration.ofMillis(maxReadTimeoutMillis);
-        long errorSleepMillis = properties.getInt64(PROPERTY_ERROR_SLEEP_MILLIS, DEFAULT_ERROR_SLEEP_MILLIS);
-        this.errorSleepDuration = Duration.ofMillis(errorSleepMillis);
-
-        long flushTimeoutMillis = properties.getInt64(PROPERTY_FLUSH_TIMEOUT_MILLIS, DEFAULT_FLUSH_TIMEOUT_MILLIS);
-        this.flushTimeout = Duration.ofMillis(flushTimeoutMillis);
-
-        long ackTimeoutMillis = properties.getInt64(PROPERTY_ACK_TIMEOUT_MILLIS, DEFAULT_ACK_TIMEOUT_MILLIS);
-        this.ackTimeout = Duration.ofMillis(ackTimeoutMillis);
-
-        long shutdownTimeoutMillis = properties.getInt64(PROPERTY_SHUTDOWN_TIMEOUT_MILLIS, DEFAULT_SHUTDOWN_TIMEOUT_MILLIS);
-        this.shutdownTimeout = Duration.ofMillis(shutdownTimeoutMillis);
+        this.errorSleepDuration = Duration.ofMillis(properties.getInt64(ERROR_SLEEP_MILLIS));
+        this.flushTimeout = Duration.ofMillis(properties.getInt64(FLUSH_TIMEOUT_MILLIS));
+        this.ackTimeout = Duration.ofMillis(properties.getInt64(ACK_TIMEOUT_MILLIS));
+        this.shutdownTimeout = Duration.ofMillis(properties.getInt64(SHUTDOWN_TIMEOUT_MILLIS));
     }
 
     /**

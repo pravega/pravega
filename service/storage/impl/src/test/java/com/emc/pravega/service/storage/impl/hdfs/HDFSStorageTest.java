@@ -62,7 +62,7 @@ public class HDFSStorageTest extends StorageTestBase {
         // Create a config object, using all defaults, except for the HDFS URL.
         HDFSStorageConfig config = HDFSStorageConfig
                 .builder()
-                .with(HDFSStorageConfig.PROPERTY_HDFS_URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
+                .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
                 .build();
         val storage = new HDFSStorage(config, executorService());
         storage.initialize();

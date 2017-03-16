@@ -5,6 +5,7 @@ package com.emc.pravega.service.storage.impl.rocksdb;
 
 import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
@@ -14,10 +15,8 @@ import lombok.Getter;
 public class RocksDBConfig {
     //region Config Names
 
-    public static final String PROPERTY_DATABASE_DIR = "dbDir";
+    public static final Property<String> DATABASE_DIR = new Property<>("dbDir", "/tmp/pravega/cache");
     private static final String COMPONENT_CODE = "rocksdb";
-
-    private static final String DEFAULT_DATABASE_DIR = "/tmp/pravega/cache";
 
     //endregion
 
@@ -39,7 +38,7 @@ public class RocksDBConfig {
      * @param properties    The TypedProperties object to read Properties from.
      */
     private RocksDBConfig(TypedProperties properties) throws ConfigurationException {
-        this.databaseDir = properties.get(PROPERTY_DATABASE_DIR, DEFAULT_DATABASE_DIR);
+        this.databaseDir = properties.get(DATABASE_DIR);
     }
 
     /**

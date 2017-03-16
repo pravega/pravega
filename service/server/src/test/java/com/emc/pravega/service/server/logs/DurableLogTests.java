@@ -79,7 +79,7 @@ public class DurableLogTests extends OperationLogTestBase {
     private static final int METADATA_CHECKPOINT_EVERY = 100;
     private static final int NO_METADATA_CHECKPOINT = 0;
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
-            .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024))
+            .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
             .build();
 
     //region Adding operations
@@ -1151,8 +1151,8 @@ public class DurableLogTests extends OperationLogTestBase {
 
             return DurableLogConfig
                     .builder()
-                    .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, checkpointMinCommitCount)
-                    .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, checkpointMinTotalCommitLength)
+                    .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, checkpointMinCommitCount)
+                    .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, checkpointMinTotalCommitLength)
                     .build();
         }
     }

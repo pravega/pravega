@@ -68,7 +68,7 @@ public class ServiceBuilderConfig {
     public static ServiceBuilderConfig getDefaultConfig() {
         // All component configs should have defaults built-in, so no need to override them here.
         return new Builder()
-                .with(ServiceConfig.builder().with(ServiceConfig.PROPERTY_CONTAINER_COUNT, 1))
+                .with(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
                 .build();
     }
 

@@ -17,8 +17,8 @@ public class ConfigHelpers {
      */
     public static ConfigBuilder<ReadIndexConfig> withInfiniteCachePolicy(ConfigBuilder<ReadIndexConfig> builder) {
         return builder
-                .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.MAX_VALUE)
-                .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.MAX_VALUE)
-                .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_GENERATION_TIME, Integer.MAX_VALUE);
+                .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, Long.MAX_VALUE)
+                .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, Integer.MAX_VALUE)
+                .with(ReadIndexConfig.CACHE_POLICY_GENERATION_TIME, Integer.MAX_VALUE);
     }
 }

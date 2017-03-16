@@ -59,8 +59,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers
             .withInfiniteCachePolicy(ReadIndexConfig.builder()
-                                                    .with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
-                                                    .with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024))
+                                                    .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
+                                                    .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
             .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
@@ -106,7 +106,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         rnd.nextBytes(segmentData);
 
         final ReadIndexConfig config = ConfigHelpers
-                .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, minReadLength))
+                .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, minReadLength))
                 .build();
 
         @Cleanup
@@ -655,7 +655,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // To properly test this, we want predictable storage reads.
         ReadIndexConfig config = ConfigHelpers
-                .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, appendSize))
+                .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, appendSize))
                 .build();
 
         ArrayList<CacheKey> removedKeys = new ArrayList<>();

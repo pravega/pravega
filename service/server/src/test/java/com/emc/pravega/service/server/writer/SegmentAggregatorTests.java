@@ -65,10 +65,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final WriterConfig DEFAULT_CONFIG = WriterConfig
             .builder()
-            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 100)
-            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-            .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 150)
-            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+            .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 100)
+            .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 1000L)
+            .with(WriterConfig.MAX_FLUSH_SIZE_BYTES, 150)
+            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
             .build();
 
     @Override
@@ -572,10 +572,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final int appendCount = 1000;
         final WriterConfig config = WriterConfig
                 .builder()
-                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
-                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
-                .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 1000L)
+                .with(WriterConfig.MAX_FLUSH_SIZE_BYTES, 10000)
+                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                 .build();
 
         // We use this currentTime to simulate time passage - trigger based on time thresholds.
@@ -670,10 +670,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final int appendCount = 1000;
         final WriterConfig config = WriterConfig
                 .builder()
-                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
-                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
-                .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 1000L)
+                .with(WriterConfig.MAX_FLUSH_SIZE_BYTES, 10000)
+                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                 .build();
 
         // We use this currentTime to simulate time passage - trigger based on time thresholds.
@@ -763,10 +763,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final int appendCount = 100; // This is number of appends per Segment/Transaction - there will be a lot of appends here.
         final WriterConfig config = WriterConfig
                 .builder()
-                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
-                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
-                .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 1000L)
+                .with(WriterConfig.MAX_FLUSH_SIZE_BYTES, 10000)
+                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                 .build();
 
         // We use this currentTime to simulate time passage - trigger based on time thresholds.
@@ -884,10 +884,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final int failAsyncEvery = 3;
         final WriterConfig config = WriterConfig
                 .builder()
-                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
-                .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
-                .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 1000L)
+                .with(WriterConfig.MAX_FLUSH_SIZE_BYTES, 10000)
+                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                 .build();
 
         // We use this currentTime to simulate time passage - trigger based on time thresholds.

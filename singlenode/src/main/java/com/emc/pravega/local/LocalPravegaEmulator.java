@@ -57,8 +57,8 @@ import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 public class LocalPravegaEmulator implements AutoCloseable {
 
     private static final int NUM_BOOKIES = 5;
-    private static final String CONTAINER_COUNT = "2";
-    private static final String THREADPOOL_SIZE = "20";
+    private static final int CONTAINER_COUNT = 2;
+    private static final int THREADPOOL_SIZE = 20;
 
     private final AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
 
@@ -174,22 +174,22 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .builder()
                     .fromFile("config.properties")
                     .with(HDFSStorageConfig.builder()
-                                           .with(HDFSStorageConfig.PROPERTY_HDFS_URL, String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort())))
+                                           .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort())))
                     .with(ServiceConfig.builder()
-                                       .with(ServiceConfig.PROPERTY_CONTAINER_COUNT, CONTAINER_COUNT)
-                                       .with(ServiceConfig.PROPERTY_THREAD_POOL_SIZE, THREADPOOL_SIZE)
-                                       .with(ServiceConfig.PROPERTY_ZK_URL, "localhost:" + zkPort)
-                                       .with(ServiceConfig.PROPERTY_LISTENING_PORT, hostPort))
+                                       .with(ServiceConfig.CONTAINER_COUNT, CONTAINER_COUNT)
+                                       .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
+                                       .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
+                                       .with(ServiceConfig.LISTENING_PORT, hostPort))
                     .with(DurableLogConfig.builder()
-                                          .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
-                                          .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 100)
-                                          .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024))
+                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+                                          .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
+                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                     .with(ReadIndexConfig.builder()
-                                         .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, 60 * 1000)
-                                         .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024))
+                                         .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
+                                         .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
                     .with(DistributedLogConfig.builder()
-                                              .with(DistributedLogConfig.PROPERTY_HOSTNAME, "localhost")
-                                              .with(DistributedLogConfig.PROPERTY_PORT, zkPort))
+                                              .with(DistributedLogConfig.HOSTNAME, "localhost")
+                                              .with(DistributedLogConfig.PORT, zkPort))
                     .build();
 
             nodeServiceStarter.set(new ServiceStarter(config));

@@ -5,6 +5,7 @@ package com.emc.pravega.service.storage.impl.distributedlog;
 
 import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
@@ -14,14 +15,10 @@ import lombok.Getter;
 public class DistributedLogConfig {
     //region Config Names
 
-    public static final String PROPERTY_HOSTNAME = "hostname";
-    public static final String PROPERTY_PORT = "port";
-    public static final String PROPERTY_NAMESPACE = "namespace";
+    public static final Property<String> HOSTNAME = new Property<>("hostname", "zk1");
+    public static final Property<Integer> PORT = new Property<>("port", 2181);
+    public static final Property<String> NAMESPACE = new Property<>("namespace", "pravega/segmentstore/containers");
     private static final String COMPONENT_CODE = "dlog";
-
-    private static final String DEFAULT_HOSTNAME = "zk1";
-    private static final int DEFAULT_PORT = 2181;
-    private static final String DEFAULT_NAMESPACE = "pravega/segmentstore/containers";
 
     //endregion
 
@@ -55,9 +52,9 @@ public class DistributedLogConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private DistributedLogConfig(TypedProperties properties) throws ConfigurationException {
-        this.distributedLogHost = properties.get(PROPERTY_HOSTNAME, DEFAULT_HOSTNAME);
-        this.distributedLogPort = properties.getInt32(PROPERTY_PORT, DEFAULT_PORT);
-        this.distributedLogNamespace = properties.get(PROPERTY_NAMESPACE, DEFAULT_NAMESPACE);
+        this.distributedLogHost = properties.get(HOSTNAME);
+        this.distributedLogPort = properties.getInt32(PORT);
+        this.distributedLogNamespace = properties.get(NAMESPACE);
     }
 
     /**

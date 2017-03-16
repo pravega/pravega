@@ -79,21 +79,21 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
     private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()
-            .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 10)
-            .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
-            .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024)
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
             .build();
 
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
-            .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024))
+            .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
             .build();
 
     private static final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig
             .builder()
-            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1)
-            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 25)
-            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
-            .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
+            .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
+            .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
+            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
+            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
             .build();
 
     @Override

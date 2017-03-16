@@ -62,12 +62,13 @@ public class ConfigBuilder<T> {
     /**
      * Includes the given property and its value in the builder.
      *
-     * @param propertyName The name of the property.
-     * @param value        The value of the property.
+     * @param property The property to set.
+     * @param value    The value of the property.
+     * @param <V>      Type of the property.
      * @return This instance.
      */
-    public ConfigBuilder<T> with(String propertyName, Object value) {
-        String key = String.format("%s.%s", this.namespace, propertyName);
+    public <V> ConfigBuilder<T> with(Property<V> property, V value) {
+        String key = String.format("%s.%s", this.namespace, property.getName());
         this.properties.setProperty(key, value.toString());
         return this;
     }

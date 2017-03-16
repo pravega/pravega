@@ -6,6 +6,7 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.InvalidPropertyValueException;
+import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
@@ -14,14 +15,14 @@ import lombok.Getter;
  */
 public class DurableLogConfig {
     //region Config Names
-    public static final String PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT = "checkpointMinCommitCount";
-    public static final String PROPERTY_CHECKPOINT_COMMIT_COUNT = "checkpointCommitCountThreshold";
-    public static final String PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH = "checkpointTotalCommitLengthThreshold";
+    public static final Property<Integer> CHECKPOINT_MIN_COMMIT_COUNT = new Property<>("checkpointMinCommitCount", 10);
+    public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = new Property<>("checkpointCommitCountThreshold", Integer.MAX_VALUE);
+    public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = new Property<>("checkpointTotalCommitLengthThreshold", Long.MAX_VALUE);
     private static final String COMPONENT_CODE = "durablelog";
 
-    private final static int DEFAULT_MIN_COMMIT_COUNT = 10;
-    private final static int DEFAULT_COMMIT_COUNT = Integer.MAX_VALUE;
-    private final static long DEFAULT_TOTAL_COMMIT_LENGTH = Long.MAX_VALUE;
+    //endregion
+
+    //region Members
 
     /**
      * The minimum number of commits that need to be accumulated in order to trigger a Checkpoint.
@@ -51,15 +52,15 @@ public class DurableLogConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private DurableLogConfig(TypedProperties properties) throws ConfigurationException {
-        this.checkpointMinCommitCount = properties.getInt32(PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, DEFAULT_MIN_COMMIT_COUNT);
-        this.checkpointCommitCountThreshold = properties.getInt32(PROPERTY_CHECKPOINT_COMMIT_COUNT, DEFAULT_COMMIT_COUNT);
+        this.checkpointMinCommitCount = properties.getInt32(CHECKPOINT_MIN_COMMIT_COUNT);
+        this.checkpointCommitCountThreshold = properties.getInt32(CHECKPOINT_COMMIT_COUNT);
         if (this.checkpointMinCommitCount > this.checkpointCommitCountThreshold) {
             throw new InvalidPropertyValueException(String.format("Property '%s' (%d) cannot be larger than Property '%s' (%d).",
-                    PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, this.checkpointMinCommitCount,
-                    PROPERTY_CHECKPOINT_COMMIT_COUNT, this.checkpointCommitCountThreshold));
+                    CHECKPOINT_MIN_COMMIT_COUNT, this.checkpointMinCommitCount,
+                    CHECKPOINT_COMMIT_COUNT, this.checkpointCommitCountThreshold));
         }
 
-        this.checkpointTotalCommitLengthThreshold = properties.getInt64(PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, DEFAULT_TOTAL_COMMIT_LENGTH);
+        this.checkpointTotalCommitLengthThreshold = properties.getInt64(CHECKPOINT_TOTAL_COMMIT_LENGTH);
     }
 
     /**

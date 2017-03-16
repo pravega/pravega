@@ -23,10 +23,10 @@ public class MetadataCheckpointPolicyTests extends ThreadPooledTestSuite {
 
         //1. MinCommit Count: Triggering is delayed until min number of recordings happen.
         DurableLogConfig config = DurableLogConfig.builder()
-                                                  .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 10)
-                                                  .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, recordCount + 1)
+                                                  .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
+                                                  .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, recordCount + 1)
                                                   // If no minCount, this would trigger every time (due to length).
-                                                  .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 1)
+                                                  .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1L)
                                                   .build();
         AtomicInteger callbackCount = new AtomicInteger();
         MetadataCheckpointPolicy p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executorService());
@@ -38,9 +38,9 @@ public class MetadataCheckpointPolicyTests extends ThreadPooledTestSuite {
 
         //2. Triggered by count threshold.
         config = DurableLogConfig.builder()
-                                 .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 1)
-                                 .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 10)
-                                 .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, Integer.MAX_VALUE)
+                                 .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
+                                 .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
+                                 .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, (long) Integer.MAX_VALUE)
                                  .build();
 
         callbackCount.set(0);
@@ -54,9 +54,9 @@ public class MetadataCheckpointPolicyTests extends ThreadPooledTestSuite {
 
         //3. Triggered by length threshold.
         config = DurableLogConfig.builder()
-                                 .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 1)
-                                 .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, Integer.MAX_VALUE)
-                                 .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, recordLength * 10)
+                                 .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
+                                 .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, Integer.MAX_VALUE)
+                                 .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, recordLength * 10L)
                                  .build();
 
         callbackCount.set(0);

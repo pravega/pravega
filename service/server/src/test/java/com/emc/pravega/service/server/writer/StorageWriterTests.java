@@ -58,12 +58,12 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
     private static final WriterConfig DEFAULT_CONFIG = WriterConfig
             .builder()
-            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
-            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
-            .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
-            .with(WriterConfig.PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, 100)
-            .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0)
+            .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1000)
+            .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 1000L)
+            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
+            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+            .with(WriterConfig.MAX_ITEMS_TO_READ_AT_ONCE, 100)
+            .with(WriterConfig.ERROR_SLEEP_MILLIS, 0L)
             .build();
 
     private static final Duration TIMEOUT = Duration.ofSeconds(20);

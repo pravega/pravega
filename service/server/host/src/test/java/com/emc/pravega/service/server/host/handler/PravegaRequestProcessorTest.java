@@ -197,8 +197,8 @@ public class PravegaRequestProcessorTest {
         return ServiceBuilderConfig
                 .builder()
                 .with(ServiceConfig.builder()
-                                   .with(ServiceConfig.PROPERTY_CONTAINER_COUNT, 1)
-                                   .with(ServiceConfig.PROPERTY_THREAD_POOL_SIZE, 3))
+                                   .with(ServiceConfig.CONTAINER_COUNT, 1)
+                                   .with(ServiceConfig.THREAD_POOL_SIZE, 3))
                 .build();
     }
 

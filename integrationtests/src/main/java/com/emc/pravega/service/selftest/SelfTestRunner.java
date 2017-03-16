@@ -46,17 +46,17 @@ public class SelfTestRunner {
         return ServiceBuilderConfig
                 .builder()
                 .with(ServiceConfig.builder()
-                                   .with(ServiceConfig.PROPERTY_CONTAINER_COUNT, 2)
-                                   .with(ServiceConfig.PROPERTY_THREAD_POOL_SIZE, 20))
+                                   .with(ServiceConfig.CONTAINER_COUNT, 2)
+                                   .with(ServiceConfig.THREAD_POOL_SIZE, 20))
                 .with(DurableLogConfig.builder()
                                       // TODO: consider setting the following as defaults in the DurableLogConfig class.
-                                      .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
-                                      .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 100)
-                                      .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024))
+                                      .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+                                      .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
+                                      .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .with(ReadIndexConfig.builder()
-                                     .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, 60 * 1000)
-                                     .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024)
-                                     .with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, 128 * 1024))
+                                     .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
+                                     .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
+                                     .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
                 .build();
     }
 
@@ -68,29 +68,29 @@ public class SelfTestRunner {
         return TestConfig
                 .builder()
                 // Test params.
-                .with(TestConfig.PROPERTY_OPERATION_COUNT, 2000000)
-                .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
-                .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
-                .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 100)
+                .with(TestConfig.OPERATION_COUNT, 2000000)
+                .with(TestConfig.SEGMENT_COUNT, 1)
+                .with(TestConfig.MIN_APPEND_SIZE, 100)
+                .with(TestConfig.MAX_APPEND_SIZE, 100)
 
                 // Transaction setup.
-                .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
-                .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
+                .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
+                .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
 
                 // Test setup.
-                .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50 + testThreadPoolAddition)
-                .with(TestConfig.PROPERTY_DATA_LOG_APPEND_DELAY, 0)
-                .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)
-                .with(TestConfig.PROPERTY_VERBOSE_LOGGING, false)
+                .with(TestConfig.THREAD_POOL_SIZE, 50 + testThreadPoolAddition)
+                .with(TestConfig.DATA_LOG_APPEND_DELAY, 0)
+                .with(TestConfig.TIMEOUT_MILLIS, 3000)
+                .with(TestConfig.VERBOSE_LOGGING, false)
 
                 // Client-specific settings.
-                .with(TestConfig.PROPERTY_CLIENT_AUTO_FLUSH, false)
-                .with(TestConfig.PROPERTY_CLIENT_PORT, 9876)
+                .with(TestConfig.CLIENT_AUTO_FLUSH, false)
+                .with(TestConfig.CLIENT_PORT, 9876)
 
                 // Settings set via variables (see above).
-                .with(TestConfig.PROPERTY_PRODUCER_COUNT, producers)
-                .with(TestConfig.PROPERTY_USE_CLIENT, useClient)
-                .with(TestConfig.PROPERTY_CLIENT_WRITER_COUNT, producers)
+                .with(TestConfig.PRODUCER_COUNT, producers)
+                .with(TestConfig.USE_CLIENT, useClient)
+                .with(TestConfig.CLIENT_WRITER_COUNT, producers)
                 .build();
     }
 
