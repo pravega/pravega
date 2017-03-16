@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
+import com.emc.pravega.controller.store.client.StoreClient;
 
 /**
  * It acts as the manager and wrapper around EventProcessor groups
@@ -41,6 +42,7 @@ public interface EventProcessorSystem {
      * @return EventProcessorGroup reference.
      * @throws CheckpointStoreException on error accessing or updating checkpoint store.
      */
-    <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(EventProcessorConfig<T> eventProcessorConfig)
+    <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(
+            final EventProcessorConfig<T> eventProcessorConfig, final StoreClient storeClient)
             throws CheckpointStoreException;
 }

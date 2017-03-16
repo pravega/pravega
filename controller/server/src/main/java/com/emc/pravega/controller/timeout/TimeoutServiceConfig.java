@@ -17,8 +17,8 @@ public class TimeoutServiceConfig {
 
     @Builder
     TimeoutServiceConfig(final long maxLeaseValue, final long maxScaleGracePeriod) {
-        Preconditions.checkArgument(maxLeaseValue > 0);
-        Preconditions.checkArgument(maxScaleGracePeriod > 0);
+        Preconditions.checkArgument(maxLeaseValue > 0, "maxLeaseValue should be positive integer");
+        Preconditions.checkArgument(maxScaleGracePeriod > 0, "maxScaleGracePeriod should be positive integer");
 
         this.maxLeaseValue = maxLeaseValue;
         this.maxScaleGracePeriod = maxScaleGracePeriod;

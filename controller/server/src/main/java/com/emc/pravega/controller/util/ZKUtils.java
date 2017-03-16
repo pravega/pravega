@@ -39,10 +39,6 @@ public final class ZKUtils {
             zkClient.start();
         }
     }
-    
-    public static CuratorFramework getCuratorClient() {
-        return CuratorSingleton.CURATOR_INSTANCE.zkClient;
-    }
 
     /**
      * Creates the znode if is doesn't already exist in zookeeper.

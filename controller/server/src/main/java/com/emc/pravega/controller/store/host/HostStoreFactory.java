@@ -7,9 +7,10 @@ package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.store.client.StoreClient;
-import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.controller.store.client.StoreType;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.HashMap;
@@ -20,38 +21,31 @@ import java.util.stream.IntStream;
 
 @Slf4j
 public class HostStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper
-    }
 
-    public static HostControllerStore createStore(StoreClient storeClient) {
-        switch (storeClient.getType()) {
-        case InMemory:
-            return createInMemoryStore();
+    public static HostControllerStore createStore(final HostMonitorConfig hostMonitorConfig,
+                                                  final StoreClient storeClient) {
 
-        case Zookeeper:
+        Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
+        Preconditions.checkNotNull(storeClient, "storeClient");
+
+        if (hostMonitorConfig.isHostMonitorEnabled()) {
+            Preconditions.checkArgument(storeClient.getType() == StoreType.Zookeeper,
+                    "If host monitor is enabled then the store type should be Zookeeper");
             log.info("Creating Zookeeper based host store");
             return new ZKHostStore((CuratorFramework) storeClient.getClient());
-            
-        default:
-            throw new NotImplementedException();
+        } else {
+            // We create an in-memory host store using the configuration passed in hostMonitorConfig.
+            log.info("Creating in-memory host store");
+            return createInMemoryStore(hostMonitorConfig);
         }
     }
 
-    public static HostControllerStore createInMemoryStore(String host, int port, int containerCount) {
+    @VisibleForTesting
+    public static HostControllerStore createInMemoryStore(HostMonitorConfig hostMonitorConfig) {
         log.info("Creating in-memory host store");
         Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
-        hostContainerMap.put(new Host(host, port),
-                IntStream.range(0, containerCount).boxed().collect(Collectors.toSet()));
-        return new InMemoryHostStore(hostContainerMap);
-    }
-
-    public static HostControllerStore createInMemoryStore() {
-        log.info("Creating in-memory host store");
-        Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
-        hostContainerMap.put(new Host(Config.SERVICE_HOST, Config.SERVICE_PORT),
-                IntStream.range(0, Config.HOST_STORE_CONTAINER_COUNT).boxed().collect(Collectors.toSet()));
+        hostContainerMap.put(new Host(hostMonitorConfig.getSssHost(), hostMonitorConfig.getSssPort()),
+                IntStream.range(0, hostMonitorConfig.getContainerCount()).boxed().collect(Collectors.toSet()));
         return new InMemoryHostStore(hostContainerMap);
     }
 }

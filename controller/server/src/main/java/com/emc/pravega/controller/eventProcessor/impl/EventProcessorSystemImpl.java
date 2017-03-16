@@ -12,6 +12,7 @@ import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
@@ -55,11 +56,12 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
     }
 
     public <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(
-            final EventProcessorConfig<T> eventProcessorConfig) throws CheckpointStoreException {
+            final EventProcessorConfig<T> eventProcessorConfig,
+            final StoreClient storeClient) throws CheckpointStoreException {
         EventProcessorGroupImpl<T> actorGroup;
 
         // Create event processor group.
-        actorGroup = new EventProcessorGroupImpl<>(this, eventProcessorConfig);
+        actorGroup = new EventProcessorGroupImpl<>(this, eventProcessorConfig, storeClient);
 
         // Initialize it.
         actorGroup.initialize();

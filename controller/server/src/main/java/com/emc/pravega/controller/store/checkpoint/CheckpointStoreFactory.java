@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.store.checkpoint;
 
 import com.emc.pravega.controller.store.client.StoreClient;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
@@ -24,10 +25,12 @@ public class CheckpointStoreFactory {
         }
     }
 
+    @VisibleForTesting
     public static CheckpointStore createZKStore(final CuratorFramework client) {
         return new ZKCheckpointStore(client);
     }
 
+    @VisibleForTesting
     public static CheckpointStore createInMemoryStore() {
         return new InMemoryCheckpointStore();
     }

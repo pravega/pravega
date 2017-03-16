@@ -10,6 +10,7 @@ import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
@@ -59,7 +60,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         executorService = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
         taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
-        hostStore = HostStoreFactory.createInMemoryStore();
+        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfig.defaultConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 

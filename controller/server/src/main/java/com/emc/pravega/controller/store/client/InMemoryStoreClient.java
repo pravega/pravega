@@ -19,7 +19,7 @@ class InMemoryStoreClient implements StoreClient {
     }
 
     @Override
-    public StoreClientFactory.StoreType getType() {
-        return StoreClientFactory.StoreType.InMemory;
+    public StoreType getType() {
+        return StoreType.InMemory;
     }
 }

@@ -149,7 +149,6 @@ public class EventProcessorTest {
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
                         .type(CheckpointConfig.Type.Periodic)
-                        .checkpointStoreClient(StoreClientFactory.createInMemoryStoreClient())
                         .checkpointPeriod(period)
                         .build();
 
@@ -168,7 +167,8 @@ public class EventProcessorTest {
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(eventProcessorGroupConfig)
                 .build();
-        EventProcessorGroup<TestEvent> eventEventProcessorGroup = system.createEventProcessorGroup(eventProcessorConfig);
+        EventProcessorGroup<TestEvent> eventEventProcessorGroup =
+                system.createEventProcessorGroup(eventProcessorConfig, StoreClientFactory.createInMemoryStoreClient());
 
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());

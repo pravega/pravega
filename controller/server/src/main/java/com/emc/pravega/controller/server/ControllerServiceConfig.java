@@ -4,13 +4,17 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import com.emc.pravega.controller.store.client.StoreClient;
+import com.emc.pravega.controller.store.client.StoreClientConfig;
+import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Getter;
+
+import java.util.Optional;
 
 /**
  * Controller Service Configuration.
@@ -18,83 +22,68 @@ import lombok.Getter;
 @Getter
 public class ControllerServiceConfig {
 
-    @Getter
-    public static class HostMonitorConfig {
-        private final boolean hostMonitorEnabled;
-        private final int hostMonitorMinRebalanceInterval;
-        private final String sssHost;
-        private final int sssPort;
-        private final int containerCount;
-
-        @Builder
-        public HostMonitorConfig(final boolean hostMonitorEnabled,
-                                 final int hostMonitorMinRebalanceInterval,
-                                 final String sssHost,
-                                 final int sssPort,
-                                 final int containerCount) {
-            Exceptions.checkArgument(hostMonitorMinRebalanceInterval > 0, "hostMonitorMinRebalanceInterval",
-                    "Should be positive integer");
-            if (!hostMonitorEnabled) {
-                Exceptions.checkNotNullOrEmpty(sssHost, "ssshost");
-                Exceptions.checkArgument(sssPort > 0, "sssPort", "Should be positive integer");
-                Exceptions.checkArgument(containerCount > 0, "containerCount", "Should be positive integer");
-            }
-            this.hostMonitorEnabled = hostMonitorEnabled;
-            this.hostMonitorMinRebalanceInterval = hostMonitorMinRebalanceInterval;
-            this.sssHost = sssHost;
-            this.sssPort = sssPort;
-            this.containerCount = containerCount;
-        }
-    }
 
     private final String host;
-    private final int threadPoolSize;
-    private final StoreClient storeClient;
+    private final int serviceThreadPoolSize;
+    private final int taskThreadPoolSize;
+    private final int storeThreadPoolSize;
+    private final int eventProcThreadPoolSize;
+    private final int requestHandlerThreadPoolSize;
+    private final StoreClientConfig storeClientConfig;
     private final HostMonitorConfig hostMonitorConfig;
     private final TimeoutServiceConfig timeoutServiceConfig;
 
-    private final boolean eventProcessorsEnabled;
+    private final Optional<ControllerEventProcessorConfig> eventProcessorConfig;
     private final boolean requestHandlersEnabled;
 
-    private final boolean gRPCServerEnabled;
-    private final GRPCServerConfig gRPCServerConfig;
+    private final Optional<GRPCServerConfig> gRPCServerConfig;
 
-    private final boolean restServerEnabled;
-    private final RESTServerConfig restServerConfig;
+    private final Optional<RESTServerConfig> restServerConfig;
 
     @Builder
     ControllerServiceConfig(final String host,
-                            final int threadPoolSize,
-                            final StoreClient storeClient,
+                            final int serviceThreadPoolSize,
+                            final int taskThreadPoolSize,
+                            final int storeThreadPoolSize,
+                            final int eventProcThreadPoolSize,
+                            final int requestHandlerThreadPoolSize,
+                            final StoreClientConfig storeClientConfig,
                             final HostMonitorConfig hostMonitorConfig,
                             final TimeoutServiceConfig timeoutServiceConfig,
-                            final boolean eventProcessorsEnabled,
+                            final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
                             final boolean requestHandlersEnabled,
-                            final boolean gRPCServerEnabled,
-                            final GRPCServerConfig grpcServerConfig,
-                            final boolean restServerEnabled,
-                            final RESTServerConfig restServerConfig) {
+                            final Optional<GRPCServerConfig> grpcServerConfig,
+                            final Optional<RESTServerConfig> restServerConfig) {
         Exceptions.checkNotNullOrEmpty(host, "host");
-        Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
-        Preconditions.checkNotNull(storeClient, "storeClient");
+        Exceptions.checkArgument(serviceThreadPoolSize > 0, "serviceThreadPoolSize", "Should be positive integer");
+        Exceptions.checkArgument(taskThreadPoolSize > 0, "taskThreadPoolSize", "Should be positive integer");
+        Exceptions.checkArgument(storeThreadPoolSize > 0, "storeThreadPoolSize", "Should be positive integer");
+        Exceptions.checkArgument(eventProcThreadPoolSize > 0, "eventProcThreadPoolSize", "Should be positive integer");
+        Exceptions.checkArgument(requestHandlerThreadPoolSize > 0, "requestHandlerThreadPoolSize", "Should be positive integer");
+        Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
+        Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
+        Preconditions.checkNotNull(timeoutServiceConfig, "timeoutServiceConfig");
+        Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
 
-        if (gRPCServerEnabled) {
-            Preconditions.checkNotNull(grpcServerConfig);
+        if (grpcServerConfig.isPresent()) {
+            Preconditions.checkNotNull(grpcServerConfig.get());
         }
-        if (restServerEnabled) {
-            Preconditions.checkNotNull(restServerConfig);
+        if (restServerConfig.isPresent()) {
+            Preconditions.checkNotNull(restServerConfig.get());
         }
         this.host = host;
-        this.threadPoolSize = threadPoolSize;
-        this.storeClient = storeClient;
+        this.serviceThreadPoolSize = serviceThreadPoolSize;
+        this.taskThreadPoolSize = taskThreadPoolSize;
+        this.storeThreadPoolSize = storeThreadPoolSize;
+        this.eventProcThreadPoolSize = eventProcThreadPoolSize;
+        this.requestHandlerThreadPoolSize = requestHandlerThreadPoolSize;
+        this.storeClientConfig = storeClientConfig;
         this.hostMonitorConfig = hostMonitorConfig;
         this.timeoutServiceConfig = timeoutServiceConfig;
-        this.eventProcessorsEnabled = eventProcessorsEnabled;
+        this.eventProcessorConfig = eventProcessorConfig;
         this.requestHandlersEnabled = requestHandlersEnabled;
-        this.gRPCServerEnabled = gRPCServerEnabled;
         this.gRPCServerConfig = grpcServerConfig;
-        this.restServerEnabled = restServerEnabled;
         this.restServerConfig = restServerConfig;
     }
 }

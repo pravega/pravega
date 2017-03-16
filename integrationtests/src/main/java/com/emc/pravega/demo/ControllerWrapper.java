@@ -3,22 +3,25 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.ControllerServiceConfig;
 import com.emc.pravega.controller.server.ControllerServiceStarter;
 import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
+import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import com.emc.pravega.controller.store.client.StoreClient;
-import com.emc.pravega.controller.store.client.StoreClientFactory;
+import com.emc.pravega.controller.store.client.StoreClientConfig;
+import com.emc.pravega.controller.store.client.ZKClientConfig;
+import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.Controller;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -50,12 +53,14 @@ public class ControllerWrapper implements AutoCloseable {
             hostId = UUID.randomUUID().toString();
         }
 
-        CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
-        client.start();
+        ZKClientConfig zkClientConfig = ZKClientConfig.builder().connectionString(connectionString)
+                .initialSleepInterval(2000)
+                .maxRetries(1)
+                .namespace("pravega/" + UUID.randomUUID())
+                .build();
+        StoreClientConfig storeClientConfig = StoreClientConfig.withZKClient(zkClientConfig);
 
-        StoreClient storeClient = StoreClientFactory.createZKStoreClient(client);
-
-        ControllerServiceConfig.HostMonitorConfig hostMonitorConfig = ControllerServiceConfig.HostMonitorConfig.builder()
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfig.builder()
                 .hostMonitorEnabled(false)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                 .sssHost(serviceHost)
@@ -68,19 +73,41 @@ public class ControllerWrapper implements AutoCloseable {
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
+        Optional<ControllerEventProcessorConfig> eventProcessorConfig;
+        if (!disableEventProcessor) {
+            eventProcessorConfig = Optional.of(ControllerEventProcessorConfig.builder()
+                    .scopeName("system")
+                    .commitStreamName("commitStream")
+                    .abortStreamName("abortStream")
+                    .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
+                    .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
+                    .commitReaderGroupName("commitStreamReaders")
+                    .commitReaderGroupSize(1)
+                    .abortReaderGrouopName("abortStreamReaders")
+                    .abortReaderGroupSize(1)
+                    .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
+                    .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
+                    .build());
+        } else {
+            eventProcessorConfig = Optional.empty();
+        }
+
         GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder().port(controllerPort).build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
                 .host(hostId)
-                .threadPoolSize(6)
-                .storeClient(storeClient)
+                .serviceThreadPoolSize(3)
+                .taskThreadPoolSize(3)
+                .storeThreadPoolSize(3)
+                .eventProcThreadPoolSize(3)
+                .requestHandlerThreadPoolSize(3)
+                .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
                 .timeoutServiceConfig(timeoutServiceConfig)
-                .eventProcessorsEnabled(!disableEventProcessor)
+                .eventProcessorConfig(eventProcessorConfig)
                 .requestHandlersEnabled(!disableRequestHandler)
-                .gRPCServerEnabled(true)
-                .grpcServerConfig(grpcServerConfig)
-                .restServerEnabled(false)
+                .grpcServerConfig(Optional.of(grpcServerConfig))
+                .restServerConfig(Optional.<RESTServerConfig>empty())
                 .build();
 
         controllerServiceStarter = new ControllerServiceStarter(serviceConfig);

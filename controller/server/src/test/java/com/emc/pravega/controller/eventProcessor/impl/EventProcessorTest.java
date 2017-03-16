@@ -14,7 +14,6 @@ import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
-import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
@@ -152,7 +151,6 @@ public class EventProcessorTest {
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
                         .type(CheckpointConfig.Type.Periodic)
-                        .checkpointStoreClient(StoreClientFactory.createInMemoryStoreClient())
                         .checkpointPeriod(period)
                         .build();
 

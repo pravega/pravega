@@ -10,6 +10,8 @@ import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessor
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.store.client.StoreClient;
+import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -21,11 +23,11 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
-import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,71 +40,72 @@ import java.util.concurrent.TimeUnit;
 public class ControllerServiceStarter extends AbstractService {
     private final ControllerServiceConfig serviceConfig;
 
-    private final ScheduledExecutorService controllerServiceExecutor;
-    private final ScheduledExecutorService taskExecutor;
-    private final ScheduledExecutorService storeExecutor;
-    private final ScheduledExecutorService requestExecutor;
-    private final ScheduledExecutorService eventProcExecutor;
+    private ScheduledExecutorService controllerServiceExecutor;
+    private ScheduledExecutorService taskExecutor;
+    private ScheduledExecutorService storeExecutor;
+    private ScheduledExecutorService requestExecutor;
+    private ScheduledExecutorService eventProcExecutor;
 
-    private final StreamMetadataStore streamStore;
-    private final TaskMetadataStore taskMetadataStore;
-    private final HostControllerStore hostStore;
+    private StreamMetadataStore streamStore;
+    private TaskMetadataStore taskMetadataStore;
+    private HostControllerStore hostStore;
 
-    private final StreamMetadataTasks streamMetadataTasks;
-    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private final SegmentContainerMonitor monitor;
+    private StreamMetadataTasks streamMetadataTasks;
+    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private SegmentContainerMonitor monitor;
 
-    private final TimeoutService timeoutService;
-    private final ControllerService controllerService;
+    private TimeoutService timeoutService;
+    private ControllerService controllerService;
 
-    private final LocalController localController;
-    private final ControllerEventProcessors controllerEventProcessors;
+    private LocalController localController;
+    private ControllerEventProcessors controllerEventProcessors;
 
-    private final GRPCServer grpcServer;
-    private final RESTServer restServer;
+    private GRPCServer grpcServer;
+    private RESTServer restServer;
 
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig) {
         this.serviceConfig = serviceConfig;
+    }
+
+    @Override
+    protected void doStart() {
+        log.info("Initiating controller services startup");
 
         //Initialize the executor service.
-        controllerServiceExecutor = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
+        controllerServiceExecutor = Executors.newScheduledThreadPool(serviceConfig.getServiceThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("servicepool-%d").build());
 
-        taskExecutor = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
+        taskExecutor = Executors.newScheduledThreadPool(serviceConfig.getTaskThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
-        storeExecutor = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
+        storeExecutor = Executors.newScheduledThreadPool(serviceConfig.getStoreThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("storepool-%d").build());
 
-        requestExecutor = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize() / 2,
+        requestExecutor = Executors.newScheduledThreadPool(serviceConfig.getRequestHandlerThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("requestpool-%d").build());
 
-        eventProcExecutor = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize() / 2,
+        eventProcExecutor = Executors.newScheduledThreadPool(serviceConfig.getEventProcThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("eventprocpool-%d").build());
 
+        log.info("Creating store client");
+        StoreClient storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
+
         log.info("Creating the stream store");
-        streamStore = StreamStoreFactory.createStore(serviceConfig.getStoreClient(), storeExecutor);
+        streamStore = StreamStoreFactory.createStore(storeClient, storeExecutor);
 
         log.info("Creating the task store");
-        taskMetadataStore = TaskStoreFactory.createStore(serviceConfig.getStoreClient(), taskExecutor);
+        taskMetadataStore = TaskStoreFactory.createStore(storeClient, taskExecutor);
+
+        log.info("Creating the host store");
+        hostStore = HostStoreFactory.createStore(serviceConfig.getHostMonitorConfig(), storeClient);
 
         if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
-            //Host monitor is not required for a single node local setup.
-
-            log.info("Creating the host store");
-            hostStore = HostStoreFactory.createStore(serviceConfig.getStoreClient());
-
             //Start the Segment Container Monitor.
-            monitor = new SegmentContainerMonitor(hostStore, ZKUtils.getCuratorClient(), new UniformContainerBalancer(),
+            monitor = new SegmentContainerMonitor(hostStore, (CuratorFramework) storeClient.getClient(),
+                    new UniformContainerBalancer(),
                     serviceConfig.getHostMonitorConfig().getHostMonitorMinRebalanceInterval());
+            log.info("Starting segment container monitor");
             monitor.startAsync();
-        } else {
-            log.info("Creating in-memory host store");
-            hostStore = HostStoreFactory.createInMemoryStore(
-                    serviceConfig.getHostMonitorConfig().getSssHost(),
-                    serviceConfig.getHostMonitorConfig().getSssPort(),
-                    serviceConfig.getHostMonitorConfig().getContainerCount());
-            monitor = null;
         }
 
         SegmentHelper segmentHelper = new SegmentHelper();
@@ -118,25 +121,45 @@ public class ControllerServiceStarter extends AbstractService {
         // Setup event processors.
         localController = new LocalController(controllerService);
 
-        if (serviceConfig.isEventProcessorsEnabled()) {
-            controllerEventProcessors = new ControllerEventProcessors(serviceConfig.getHost(), localController,
-                    serviceConfig.getStoreClient(), streamStore, hostStore, segmentHelper, eventProcExecutor);
-        } else {
-            controllerEventProcessors = null;
+        if (serviceConfig.getEventProcessorConfig().isPresent()) {
+            // Create ControllerEventProcessor object.
+            controllerEventProcessors = new ControllerEventProcessors(serviceConfig.getHost(),
+                    serviceConfig.getEventProcessorConfig().get(), localController, storeClient, streamStore,
+                    hostStore, segmentHelper, eventProcExecutor);
+
+            // Bootstrap and start it asynchronously.
+            ControllerEventProcessors.bootstrap(localController, serviceConfig.getEventProcessorConfig().get(),
+                    streamTransactionMetadataTasks, eventProcExecutor)
+                    .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
         }
 
-        // Setup RPC server.
-        if (serviceConfig.isGRPCServerEnabled()) {
-            grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig());
-        } else {
-            grpcServer = null;
+        // Start request handlers
+        if (serviceConfig.isRequestHandlersEnabled()) {
+            RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
         }
 
-        // Setup REST server.
-        if (serviceConfig.isRestServerEnabled()) {
-            restServer = new RESTServer(controllerService, serviceConfig.getRestServerConfig());
-        } else {
-            restServer = null;
+        // Start RPC server.
+        if (serviceConfig.getGRPCServerConfig().isPresent()) {
+            grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get());
+            grpcServer.startAsync();
+            // After completion of startAsync method, server is expected to be in RUNNING state.
+            // If it is not in running state, we return.
+            if (!grpcServer.isRunning()) {
+                log.error("RPC server failed to start, state = {} ", grpcServer.state());
+                throw new RuntimeException("Error starting gRPC server");
+            }
+        }
+
+        // Start REST server.
+        if (serviceConfig.getRestServerConfig().isPresent()) {
+            restServer = new RESTServer(controllerService, serviceConfig.getRestServerConfig().get());
+            restServer.startAsync();
+            // After completion of startAsync method, server is expected to be in RUNNING state.
+            // If it is not in running state, we return.
+            if (!restServer.isRunning()) {
+                log.error("REST server failed to start, state = {} ", restServer.state());
+                throw new RuntimeException("Error starting REST server");
+            }
         }
 
         // Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
@@ -149,40 +172,7 @@ public class ControllerServiceStarter extends AbstractService {
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, serviceConfig.getHost(), streamMetadataTasks,
                 streamTransactionMetadataTasks);
-    }
 
-    @Override
-    protected void doStart() {
-        log.info("Initiating controller services startup");
-        if (monitor != null) {
-            log.info("Starting the segment container monitor");
-            monitor.startAsync();
-        }
-        if (controllerEventProcessors != null) {
-            ControllerEventProcessors.bootstrap(localController, streamTransactionMetadataTasks, eventProcExecutor)
-                    .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
-        }
-        if (serviceConfig.isRequestHandlersEnabled()) {
-            RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
-        }
-        if (grpcServer != null) {
-            grpcServer.startAsync();
-            // After completion of startAsync method, server is expected to be in RUNNING state.
-            // If it is not in running state, we return.
-            if (!grpcServer.isRunning()) {
-                log.error("RPC server failed to start, state = {} ", grpcServer.state());
-                throw new RuntimeException("Error starting gRPC server");
-            }
-        }
-        if (restServer != null) {
-            restServer.startAsync();
-            // After completion of startAsync method, server is expected to be in RUNNING state.
-            // If it is not in running state, we return.
-            if (!restServer.isRunning()) {
-                log.error("REST server failed to start, state = {} ", restServer.state());
-                throw new RuntimeException("Error starting REST server");
-            }
-        }
         notifyStarted();
     }
 

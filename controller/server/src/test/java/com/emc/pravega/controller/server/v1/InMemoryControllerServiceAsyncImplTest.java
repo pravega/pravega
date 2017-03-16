@@ -8,6 +8,7 @@ import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
@@ -44,7 +45,7 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
         executorService = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
         taskMetadataStore = TaskStoreFactory.createInMemoryStore(executorService);
-        hostStore = HostStoreFactory.createInMemoryStore();
+        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfig.defaultConfig());
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 

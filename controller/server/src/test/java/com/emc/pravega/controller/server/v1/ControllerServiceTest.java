@@ -7,6 +7,7 @@ import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
@@ -63,7 +64,7 @@ public class ControllerServiceTest {
         zkClient.start();
 
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
-        final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore();
+        final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfig.defaultConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,

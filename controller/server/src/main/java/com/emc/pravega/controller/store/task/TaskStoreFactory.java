@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.store.task;
 
 import com.emc.pravega.controller.store.client.StoreClient;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -30,11 +31,13 @@ public class TaskStoreFactory {
         }
     }
 
+    @VisibleForTesting
     public static TaskMetadataStore createZKStore(final CuratorFramework client,
                                                   final ScheduledExecutorService executor) {
         return new ZKTaskMetadataStore(client, executor);
     }
 
+    @VisibleForTesting
     public static TaskMetadataStore createInMemoryStore(final ScheduledExecutorService executor) {
         return new InMemoryTaskMetadataStore(executor);
     }

@@ -5,14 +5,17 @@ package com.emc.pravega.local;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.ControllerServiceConfig;
 import com.emc.pravega.controller.server.ControllerServiceStarter;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
+import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import com.emc.pravega.controller.store.client.StoreClient;
-import com.emc.pravega.controller.store.client.StoreClientFactory;
+import com.emc.pravega.controller.store.client.StoreClientConfig;
+import com.emc.pravega.controller.store.client.ZKClientConfig;
+import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
-import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.service.server.host.ServiceStarter;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
@@ -20,6 +23,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
+import com.emc.pravega.stream.ScalingPolicy;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
@@ -32,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -211,10 +216,16 @@ public class LocalPravegaEmulator implements AutoCloseable {
             hostId = UUID.randomUUID().toString();
         }
 
-        log.info("Creating store client");
-        StoreClient storeClient = StoreClientFactory.createZKStoreClient(ZKUtils.getCuratorClient());
+        ZKClientConfig zkClientConfig = ZKClientConfig.builder()
+                .connectionString(Config.ZK_URL)
+                .namespace("pravega/" + Config.CLUSTER_NAME)
+                .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
+                .maxRetries(Config.ZK_MAX_RETRIES)
+                .build();
 
-        ControllerServiceConfig.HostMonitorConfig hostMonitorConfig = ControllerServiceConfig.HostMonitorConfig.builder()
+        StoreClientConfig storeClientConfig = StoreClientConfig.withZKClient(zkClientConfig);
+
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfig.builder()
                 .hostMonitorEnabled(true)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                 .build();
@@ -224,19 +235,36 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
+        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfig.builder()
+                .scopeName("system")
+                .commitStreamName("commitStream")
+                .abortStreamName("abortStream")
+                .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
+                .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
+                .commitReaderGroupName("commitStreamReaders")
+                .commitReaderGroupSize(1)
+                .abortReaderGrouopName("abortStreamReaders")
+                .abortReaderGroupSize(1)
+                .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
+                .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
+                .build();
+
         GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder().port(controllerPort).build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
                 .host(hostId)
-                .threadPoolSize(6)
-                .storeClient(storeClient)
+                .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
+                .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
+                .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
+                .eventProcThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
                 .timeoutServiceConfig(timeoutServiceConfig)
-                .eventProcessorsEnabled(true)
+                .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .requestHandlersEnabled(true)
-                .gRPCServerEnabled(true)
-                .grpcServerConfig(grpcServerConfig)
-                .restServerEnabled(false)
+                .grpcServerConfig(Optional.of(grpcServerConfig))
+                .restServerConfig(Optional.<RESTServerConfig>empty())
                 .build();
 
         ControllerServiceStarter controllerServiceStarter = new ControllerServiceStarter(serviceConfig);

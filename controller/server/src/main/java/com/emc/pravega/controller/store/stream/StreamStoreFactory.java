@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.client.StoreClient;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -26,11 +27,13 @@ public class StreamStoreFactory {
         }
     }
 
+    @VisibleForTesting
     public static StreamMetadataStore createZKStore(final CuratorFramework client,
                                                     final ScheduledExecutorService executor) {
         return new ZKStreamMetadataStore(client, executor);
     }
 
+    @VisibleForTesting
     public static StreamMetadataStore createInMemoryStore(final ScheduledExecutorService executor) {
         return new InMemoryStreamMetadataStore(executor);
     }

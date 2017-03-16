@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
-import com.emc.pravega.controller.store.client.StoreClient;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Data;
@@ -36,16 +35,17 @@ public class CheckpointConfig {
 
     private final Type type;
     private final CheckpointPeriod checkpointPeriod;
-    private final StoreClient checkpointStoreClient;
 
     @Builder
-    CheckpointConfig(final Type type, final CheckpointPeriod checkpointPeriod, final StoreClient checkpointStoreClient) {
+    CheckpointConfig(final Type type, final CheckpointPeriod checkpointPeriod) {
         Preconditions.checkNotNull(type);
         Preconditions.checkNotNull(checkpointPeriod);
-        Preconditions.checkNotNull(checkpointStoreClient);
 
         this.type = type;
         this.checkpointPeriod = checkpointPeriod;
-        this.checkpointStoreClient = checkpointStoreClient;
+    }
+
+    public static CheckpointConfig periodic(final int numEvents, final int numSeconds) {
+        return new CheckpointConfig(Type.Periodic, new CheckpointPeriod(numEvents, numSeconds));
     }
 }

@@ -12,5 +12,5 @@ public interface StoreClient {
 
     Object getClient();
 
-    StoreClientFactory.StoreType getType();
+    StoreType getType();
 }

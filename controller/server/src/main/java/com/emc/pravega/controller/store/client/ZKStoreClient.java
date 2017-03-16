@@ -24,7 +24,7 @@ class ZKStoreClient implements StoreClient {
     }
 
     @Override
-    public StoreClientFactory.StoreType getType() {
-        return StoreClientFactory.StoreType.Zookeeper;
+    public StoreType getType() {
+        return StoreType.Zookeeper;
     }
 }
