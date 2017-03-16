@@ -29,7 +29,7 @@ public class TypedPropertiesTests {
         GENERATOR_FUNCTIONS.add(propertyId -> toString(TypedPropertiesTests.getInt32Value(propertyId)));
         GENERATOR_FUNCTIONS.add(propertyId -> toString(TypedPropertiesTests.getInt64Value(propertyId)));
         GENERATOR_FUNCTIONS.add(propertyId -> toString(TypedPropertiesTests.getBooleanValue(propertyId)));
-        GENERATOR_FUNCTIONS.add(propertyId -> toString(ComponentConfigTests.getRetryWithBackoffValue(propertyId)));
+        GENERATOR_FUNCTIONS.add(propertyId -> toString(TypedPropertiesTests.getRetryWithBackoffValue(propertyId)));
     }
 
     /**
@@ -71,7 +71,7 @@ public class TypedPropertiesTests {
     public void testGetBoolean() throws Exception {
         Properties props = new Properties();
         populateData(props);
-        testData(props, TypedProperties::getBoolean, ComponentConfigTests::isBoolean);
+        testData(props, TypedProperties::getBoolean, TypedPropertiesTests::isBoolean);
     }
 
     /**
@@ -81,7 +81,7 @@ public class TypedPropertiesTests {
     public void testGetRetryWithBackoffProperty() throws Exception {
         Properties props = new Properties();
         populateData(props);
-        testData(props, TypedProperties::getRetryWithBackoff, ComponentConfigTests::isRetry);
+        testData(props, TypedProperties::getRetryWithBackoff, TypedPropertiesTests::isRetry);
     }
 
     /**
@@ -230,12 +230,23 @@ public class TypedPropertiesTests {
         char firstChar = propertyValue.charAt(0);
         return Character.isDigit(firstChar) || firstChar == '-'; // this will accept both Int32 and Int64.
     }
+
     private static boolean isBoolean(String propertyValue) {
         return propertyValue.equalsIgnoreCase("true") || propertyValue.equalsIgnoreCase("false");
     }
 
     private static boolean isRetry(String propertyValue) {
         return propertyValue.contains(",") && propertyValue.contains("=");
+    }
+
+    private static String toString(Object o) {
+        if (o instanceof Retry.RetryWithBackoff) {
+            val value = (Retry.RetryWithBackoff) o;
+            return String.format("initialMillis=%s,multiplier=%s,attempts=%s,maxDelay=%s",
+                    +value.getInitialMillis(), value.getMultiplier(), value.getAttempts(), value.getMaxDelay());
+        } else {
+            return o.toString();
+        }
     }
 
     private interface ExtractorFunction<R> {

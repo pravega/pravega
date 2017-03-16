@@ -7,6 +7,8 @@ package com.emc.pravega.common.util;
 import com.emc.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
@@ -157,6 +159,32 @@ public class TypedProperties {
         }
     }
 
+    /**
+     * Gets the value of a RetryWithExponentialBackoff property, serialized in the form: "{key}={value},{key}={value}...",
+     * where {key} is one of: "initialMillis", "multiplier", "attempts", "maxDelay", all of which correspond to constructor
+     * arguments to Retry.RetryWithBackoff.
+     *
+     * @param property The Property to get.
+     * @return The deserialized property value of default value, if no such property is defined in the base Properties.
+     * @throws MissingPropertyException      When the given property name does not exist within the current component
+     *                                       and the property does not have a default value set.
+     * @throws InvalidPropertyValueException When the property cannot be parsed.
+     */
+    public Retry.RetryWithBackoff getRetryWithBackoff(Property<Retry.RetryWithBackoff> property)
+            throws MissingPropertyException, InvalidPropertyValueException {
+        String value;
+        if (property.hasDefaultValue()) {
+            value = getInternal(property.getName(), null);
+            if (value == null) {
+                return property.getDefaultValue();
+            }
+        } else {
+            value = getInternal(property.getName());
+        }
+
+        return parseRetryWithBackoff(property.getName(), value);
+    }
+
     private String getKey(String name) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         return this.keyPrefix + name;
@@ -195,6 +223,26 @@ public class TypedProperties {
         }
 
         return value != null ? value : defaultValue;
+    }
+
+    private Retry.RetryWithBackoff parseRetryWithBackoff(String name, String value) {
+        AtomicLong initialMillis = new AtomicLong();
+        AtomicInteger multiplier = new AtomicInteger();
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicLong maxDelay = new AtomicLong();
+        try {
+            StringUtils.parse(
+                    value,
+                    ",",
+                    "=",
+                    new StringUtils.Int64Extractor("initialMillis", initialMillis::set),
+                    new StringUtils.Int32Extractor("multiplier", multiplier::set),
+                    new StringUtils.Int32Extractor("attempts", attempts::set),
+                    new StringUtils.Int64Extractor("maxDelay", maxDelay::set));
+            return Retry.withExpBackoff(initialMillis.get(), multiplier.get(), attempts.get(), maxDelay.get());
+        } catch (Exception ex) {
+            throw new InvalidPropertyValueException(getKey(name), value, ex);
+        }
     }
 
     //endregion

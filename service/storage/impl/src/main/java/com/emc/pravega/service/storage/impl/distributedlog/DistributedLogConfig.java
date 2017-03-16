@@ -6,10 +6,8 @@ package com.emc.pravega.service.storage.impl.distributedlog;
 import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.Property;
-import com.emc.pravega.common.util.TypedProperties;
-import lombok.Getter;
 import com.emc.pravega.common.util.Retry;
-import java.util.Properties;
+import com.emc.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
 /**

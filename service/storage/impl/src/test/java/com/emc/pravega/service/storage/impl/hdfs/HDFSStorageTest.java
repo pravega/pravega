@@ -7,11 +7,10 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.FileHelpers;
-import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
-import com.emc.pravega.service.storage.StorageTestBase;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
+import com.emc.pravega.service.storage.StorageTestBase;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -190,9 +189,10 @@ public class HDFSStorageTest extends StorageTestBase {
         // Create a config object, using all defaults, except for the HDFS URL.
         HDFSStorageConfig config = HDFSStorageConfig
                 .builder()
+                .with(HDFSStorageConfig.PRAVEGA_ID, pravegaId)
                 .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
                 .build();
-        val storage = new HDFSStorage(config, executorService());
+        val storage = new MiniClusterPermFixer(config, executorService());
         storage.initialize();
         return storage;
     }
@@ -235,35 +235,6 @@ public class HDFSStorageTest extends StorageTestBase {
             } catch (IOException ex) {
                 return false;
             }
-        }
-    }
-
-    private static class TestConfig extends HDFSStorageConfig {
-        private String hdfsHostURL;
-        private int pravegaId;
-
-        TestConfig() throws ConfigurationException {
-            super(PropertyBag.create());
-        }
-
-        @Override
-        public String getHDFSHostURL() {
-            return this.hdfsHostURL;
-        }
-
-        @Override
-        public int getPravegaID() {
-            return this.pravegaId;
-        }
-
-        TestConfig withHdfsHostURL(String value) {
-            this.hdfsHostURL = value;
-            return this;
-        }
-
-        TestConfig withPravegaId(int value) {
-            this.pravegaId = value;
-            return this;
         }
     }
 }
