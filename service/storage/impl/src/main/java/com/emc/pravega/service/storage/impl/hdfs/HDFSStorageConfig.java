@@ -74,12 +74,12 @@ public class HDFSStorageConfig {
         this.hdfsRoot = properties.get(ROOT);
         this.pravegaId = readPravegaID(properties);
 
-        this.replication = (short) properties.getInt32(REPLICATION);
-        this.blockSize = properties.getInt32(BLOCK_SIZE);
+        this.replication = (short) properties.getInt(REPLICATION);
+        this.blockSize = properties.getInt(BLOCK_SIZE);
     }
 
     /**
-     * Creates a Builder that can be used to programmatically create instances of this class.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
      *
      * @return A new Builder for this class.
      */
@@ -88,7 +88,7 @@ public class HDFSStorageConfig {
     }
 
     private int readPravegaID(TypedProperties properties) {
-        int id = properties.getInt32(PRAVEGA_ID);
+        int id = properties.getInt(PRAVEGA_ID);
 
         //Generate the pravega id from the IP address. This has to be dynamic and can not be default.
         if (id == PRAVEGA_ID.getDefaultValue()) {

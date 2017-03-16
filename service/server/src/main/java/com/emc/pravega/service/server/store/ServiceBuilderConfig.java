@@ -68,7 +68,7 @@ public class ServiceBuilderConfig {
     public static ServiceBuilderConfig getDefaultConfig() {
         // All component configs should have defaults built-in, so no need to override them here.
         return new Builder()
-                .with(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
+                .include(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
                 .build();
     }
 
@@ -113,7 +113,7 @@ public class ServiceBuilderConfig {
          * @param <T>     Type of the Configuration to include.
          * @return This instance.
          */
-        public <T> Builder with(ConfigBuilder<T> builder) {
+        public <T> Builder include(ConfigBuilder<T> builder) {
             builder.copyTo(this.properties);
             return this;
         }

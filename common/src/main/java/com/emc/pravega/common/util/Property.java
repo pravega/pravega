@@ -4,6 +4,7 @@
 
 package com.emc.pravega.common.util;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
  * Represents a Property that can be used for configuration.
  */
 @RequiredArgsConstructor
+@EqualsAndHashCode
 public class Property<T> {
     @Getter
     private final String name;

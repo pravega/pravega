@@ -4,10 +4,10 @@
 package com.emc.pravega.common.util;
 
 import com.emc.pravega.testcommon.AssertExtensions;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -22,15 +22,12 @@ public class TypedPropertiesTests {
     private static final int COMPONENT_COUNT = 5;
     private static final int PROPERTY_OF_TYPE_PER_COMPONENT_COUNT = 5;
     private static final String PROPERTY_PREFIX = "Property_";
-    private static final ArrayList<Function<Integer, String>> GENERATOR_FUNCTIONS = new ArrayList<>();
-
-    static {
-        GENERATOR_FUNCTIONS.add(TypedPropertiesTests::getStringValue);
-        GENERATOR_FUNCTIONS.add(propertyId -> toString(TypedPropertiesTests.getInt32Value(propertyId)));
-        GENERATOR_FUNCTIONS.add(propertyId -> toString(TypedPropertiesTests.getInt64Value(propertyId)));
-        GENERATOR_FUNCTIONS.add(propertyId -> toString(TypedPropertiesTests.getBooleanValue(propertyId)));
-        GENERATOR_FUNCTIONS.add(propertyId -> toString(TypedPropertiesTests.getRetryWithBackoffValue(propertyId)));
-    }
+    private static final List<Function<Integer, String>> GENERATOR_FUNCTIONS = Arrays.asList(
+            TypedPropertiesTests::getStringValue,
+            propertyId -> toString(TypedPropertiesTests.getInt32Value(propertyId)),
+            propertyId -> toString(TypedPropertiesTests.getInt64Value(propertyId)),
+            propertyId -> toString(TypedPropertiesTests.getBooleanValue(propertyId)),
+            propertyId -> toString(TypedPropertiesTests.getRetryWithBackoffValue(propertyId)));
 
     /**
      * Tests the ability to get a property as a String.
@@ -45,23 +42,23 @@ public class TypedPropertiesTests {
     }
 
     /**
-     * Tests the ability to get a property as an Int32.
+     * Tests the ability to get a property as an Integer.
      */
     @Test
-    public void testGetInt32() throws Exception {
+    public void testGetInt() throws Exception {
         Properties props = new Properties();
         populateData(props);
-        testData(props, TypedProperties::getInt32, TypedPropertiesTests::isInt32);
+        testData(props, TypedProperties::getInt, TypedPropertiesTests::isInt32);
     }
 
     /**
-     * Tests the ability to get a property as an Int64.
+     * Tests the ability to get a property as a Long.
      */
     @Test
-    public void testGetInt64() throws Exception {
+    public void testGetLong() throws Exception {
         Properties props = new Properties();
         populateData(props);
-        testData(props, TypedProperties::getInt64, TypedPropertiesTests::isInt64);
+        testData(props, TypedProperties::getLong, TypedPropertiesTests::isInt64);
     }
 
     /**

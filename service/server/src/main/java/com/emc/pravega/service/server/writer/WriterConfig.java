@@ -102,20 +102,20 @@ public class WriterConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private WriterConfig(TypedProperties properties) throws ConfigurationException {
-        this.flushThresholdBytes = properties.getInt32(FLUSH_THRESHOLD_BYTES);
+        this.flushThresholdBytes = properties.getInt(FLUSH_THRESHOLD_BYTES);
         if (this.flushThresholdBytes < 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", FLUSH_THRESHOLD_BYTES));
         }
 
-        this.flushThresholdTime = Duration.ofMillis(properties.getInt64(FLUSH_THRESHOLD_MILLIS));
-        this.maxFlushSizeBytes = properties.getInt32(MAX_FLUSH_SIZE_BYTES);
-        this.maxItemsToReadAtOnce = properties.getInt32(MAX_ITEMS_TO_READ_AT_ONCE);
+        this.flushThresholdTime = Duration.ofMillis(properties.getLong(FLUSH_THRESHOLD_MILLIS));
+        this.maxFlushSizeBytes = properties.getInt(MAX_FLUSH_SIZE_BYTES);
+        this.maxItemsToReadAtOnce = properties.getInt(MAX_ITEMS_TO_READ_AT_ONCE);
         if (this.maxItemsToReadAtOnce <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_ITEMS_TO_READ_AT_ONCE));
         }
 
-        long minReadTimeoutMillis = properties.getInt64(MIN_READ_TIMEOUT_MILLIS);
-        long maxReadTimeoutMillis = properties.getInt64(MAX_READ_TIMEOUT_MILLIS);
+        long minReadTimeoutMillis = properties.getLong(MIN_READ_TIMEOUT_MILLIS);
+        long maxReadTimeoutMillis = properties.getLong(MAX_READ_TIMEOUT_MILLIS);
         if (minReadTimeoutMillis < 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MIN_READ_TIMEOUT_MILLIS));
         }
@@ -126,14 +126,14 @@ public class WriterConfig {
 
         this.minReadTimeout = Duration.ofMillis(minReadTimeoutMillis);
         this.maxReadTimeout = Duration.ofMillis(maxReadTimeoutMillis);
-        this.errorSleepDuration = Duration.ofMillis(properties.getInt64(ERROR_SLEEP_MILLIS));
-        this.flushTimeout = Duration.ofMillis(properties.getInt64(FLUSH_TIMEOUT_MILLIS));
-        this.ackTimeout = Duration.ofMillis(properties.getInt64(ACK_TIMEOUT_MILLIS));
-        this.shutdownTimeout = Duration.ofMillis(properties.getInt64(SHUTDOWN_TIMEOUT_MILLIS));
+        this.errorSleepDuration = Duration.ofMillis(properties.getLong(ERROR_SLEEP_MILLIS));
+        this.flushTimeout = Duration.ofMillis(properties.getLong(FLUSH_TIMEOUT_MILLIS));
+        this.ackTimeout = Duration.ofMillis(properties.getLong(ACK_TIMEOUT_MILLIS));
+        this.shutdownTimeout = Duration.ofMillis(properties.getLong(SHUTDOWN_TIMEOUT_MILLIS));
     }
 
     /**
-     * Creates a Builder that can be used to programmatically create instances of this class.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
      *
      * @return A new Builder for this class.
      */

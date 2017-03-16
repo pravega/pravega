@@ -31,7 +31,7 @@ public class ConfigBuilderTests {
         TestConfig c = builder.build();
         for (int i = 0; i < propertyCount; i++) {
             val p = new Property<Integer>(Integer.toString(i));
-            val actual = c.getProperties().getInt32(p);
+            val actual = c.getProperties().getInt(p);
             Assert.assertEquals("Unexpected value in result.", i, actual);
         }
     }
@@ -66,8 +66,8 @@ public class ConfigBuilderTests {
         TestConfig c2 = builder2.build();
         for (int i = 0; i < propertyCount; i++) {
             val p = new Property<Integer>(Integer.toString(i));
-            val actual1 = c1.getProperties().getInt32(p);
-            val actual2 = c2.getProperties().getInt32(p);
+            val actual1 = c1.getProperties().getInt(p);
+            val actual2 = c2.getProperties().getInt(p);
             val actualProp2 = p2.getProperty(namespace + "." + Integer.toString(i));
             Assert.assertEquals("Rebased instance modified the original builder.", i, actual1);
             Assert.assertEquals("Rebased instance did not produce a correct result.", i * 10, actual2);

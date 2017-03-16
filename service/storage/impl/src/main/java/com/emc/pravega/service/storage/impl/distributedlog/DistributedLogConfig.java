@@ -61,13 +61,13 @@ public class DistributedLogConfig {
      */
     private DistributedLogConfig(TypedProperties properties) throws ConfigurationException {
         this.distributedLogHost = properties.get(HOSTNAME);
-        this.distributedLogPort = properties.getInt32(PORT);
+        this.distributedLogPort = properties.getInt(PORT);
         this.distributedLogNamespace = properties.get(NAMESPACE);
         this.retryPolicy = properties.getRetryWithBackoff(RETRY_POLICY);
     }
 
     /**
-     * Creates a Builder that can be used to programmatically create instances of this class.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
      *
      * @return A new Builder for this class.
      */

@@ -87,17 +87,17 @@ public class MetricsConfig {
      */
     private MetricsConfig(TypedProperties properties) throws ConfigurationException {
         this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS);
-        this.dynamicCacheSize = properties.getInt64(DYNAMIC_CACHE_SIZE);
-        this.dynamicTTLSeconds = properties.getInt64(DYNAMIC_TTL_SECONDS);
-        this.statsOutputFrequencySeconds = properties.getInt32(OUTPUT_FREQUENCY);
+        this.dynamicCacheSize = properties.getLong(DYNAMIC_CACHE_SIZE);
+        this.dynamicTTLSeconds = properties.getLong(DYNAMIC_TTL_SECONDS);
+        this.statsOutputFrequencySeconds = properties.getInt(OUTPUT_FREQUENCY);
         this.metricsPrefix = properties.get(METRICS_PREFIX);
         this.csvEndpoint = properties.get(CSV_ENDPOINT);
         this.statsDHost = properties.get(STATSD_HOST);
-        this.statsDPort = properties.getInt32(STATSD_PORT);
+        this.statsDPort = properties.getInt(STATSD_PORT);
     }
 
     /**
-     * Creates a Builder that can be used to programmatically create instances of this class.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
      *
      * @return A new Builder for this class.
      */

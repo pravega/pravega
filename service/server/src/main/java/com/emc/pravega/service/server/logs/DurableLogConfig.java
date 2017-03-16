@@ -52,19 +52,19 @@ public class DurableLogConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private DurableLogConfig(TypedProperties properties) throws ConfigurationException {
-        this.checkpointMinCommitCount = properties.getInt32(CHECKPOINT_MIN_COMMIT_COUNT);
-        this.checkpointCommitCountThreshold = properties.getInt32(CHECKPOINT_COMMIT_COUNT);
+        this.checkpointMinCommitCount = properties.getInt(CHECKPOINT_MIN_COMMIT_COUNT);
+        this.checkpointCommitCountThreshold = properties.getInt(CHECKPOINT_COMMIT_COUNT);
         if (this.checkpointMinCommitCount > this.checkpointCommitCountThreshold) {
             throw new InvalidPropertyValueException(String.format("Property '%s' (%d) cannot be larger than Property '%s' (%d).",
                     CHECKPOINT_MIN_COMMIT_COUNT, this.checkpointMinCommitCount,
                     CHECKPOINT_COMMIT_COUNT, this.checkpointCommitCountThreshold));
         }
 
-        this.checkpointTotalCommitLengthThreshold = properties.getInt64(CHECKPOINT_TOTAL_COMMIT_LENGTH);
+        this.checkpointTotalCommitLengthThreshold = properties.getLong(CHECKPOINT_TOTAL_COMMIT_LENGTH);
     }
 
     /**
-     * Creates a Builder that can be used to programmatically create instances of this class.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
      *
      * @return A new Builder for this class.
      */

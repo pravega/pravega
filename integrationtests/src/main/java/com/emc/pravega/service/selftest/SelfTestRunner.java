@@ -45,18 +45,18 @@ public class SelfTestRunner {
     private static ServiceBuilderConfig getBuilderConfig() {
         return ServiceBuilderConfig
                 .builder()
-                .with(ServiceConfig.builder()
-                                   .with(ServiceConfig.CONTAINER_COUNT, 2)
-                                   .with(ServiceConfig.THREAD_POOL_SIZE, 20))
-                .with(DurableLogConfig.builder()
-                                      // TODO: consider setting the following as defaults in the DurableLogConfig class.
-                                      .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
-                                      .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
-                                      .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
-                .with(ReadIndexConfig.builder()
-                                     .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
-                                     .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
-                                     .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
+                .include(ServiceConfig.builder()
+                                      .with(ServiceConfig.CONTAINER_COUNT, 2)
+                                      .with(ServiceConfig.THREAD_POOL_SIZE, 20))
+                .include(DurableLogConfig.builder()
+                                         // TODO: consider setting the following as defaults in the DurableLogConfig class.
+                                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+                                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
+                                         .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
+                .include(ReadIndexConfig.builder()
+                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
+                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
+                                        .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
                 .build();
     }
 

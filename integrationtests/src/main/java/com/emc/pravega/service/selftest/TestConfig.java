@@ -78,25 +78,25 @@ class TestConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private TestConfig(TypedProperties properties) throws ConfigurationException {
-        this.operationCount = properties.getInt32(OPERATION_COUNT);
-        this.segmentCount = properties.getInt32(SEGMENT_COUNT);
-        this.transactionFrequency = properties.getInt32(TRANSACTION_FREQUENCY);
-        this.maxTransactionAppendCount = properties.getInt32(MAX_TRANSACTION_SIZE);
-        this.producerCount = properties.getInt32(PRODUCER_COUNT);
-        this.minAppendSize = properties.getInt32(MIN_APPEND_SIZE);
-        this.maxAppendSize = properties.getInt32(MAX_APPEND_SIZE);
-        this.threadPoolSize = properties.getInt32(THREAD_POOL_SIZE);
-        this.timeout = Duration.ofMillis(properties.getInt32(TIMEOUT_MILLIS));
+        this.operationCount = properties.getInt(OPERATION_COUNT);
+        this.segmentCount = properties.getInt(SEGMENT_COUNT);
+        this.transactionFrequency = properties.getInt(TRANSACTION_FREQUENCY);
+        this.maxTransactionAppendCount = properties.getInt(MAX_TRANSACTION_SIZE);
+        this.producerCount = properties.getInt(PRODUCER_COUNT);
+        this.minAppendSize = properties.getInt(MIN_APPEND_SIZE);
+        this.maxAppendSize = properties.getInt(MAX_APPEND_SIZE);
+        this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
+        this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
         this.verboseLoggingEnabled = properties.getBoolean(VERBOSE_LOGGING);
-        this.dataLogAppendDelay = Duration.ofMillis(properties.getInt32(DATA_LOG_APPEND_DELAY));
+        this.dataLogAppendDelay = Duration.ofMillis(properties.getInt(DATA_LOG_APPEND_DELAY));
         this.useClient = properties.getBoolean(USE_CLIENT);
-        this.clientPort = properties.getInt32(CLIENT_PORT);
+        this.clientPort = properties.getInt(CLIENT_PORT);
         this.clientAutoFlush = properties.getBoolean(CLIENT_AUTO_FLUSH);
-        this.clientWriterCount = properties.getInt32(CLIENT_WRITER_COUNT);
+        this.clientWriterCount = properties.getInt(CLIENT_WRITER_COUNT);
     }
 
     /**
-     * Creates a Builder that can be used to programmatically create instances of this class.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
      *
      * @return A new Builder for this class.
      */

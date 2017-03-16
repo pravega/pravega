@@ -4,7 +4,6 @@
 
 package com.emc.pravega.common.util;
 
-import com.emc.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,10 +37,23 @@ public class TypedProperties {
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the TypedProperties class.
+     *
+     * @param properties The java.util.Properties to wrap.
+     * @param namespace  The namespace of this instance.
+     */
     TypedProperties(Properties properties, String namespace) {
         this(properties, namespace, System::getenv);
     }
 
+    /**
+     * Creates a new instance of the TypedProperties class.
+     *
+     * @param properties The java.util.Properties to wrap.
+     * @param namespace  The namespace of this instance.
+     * @param getEnv     A Function that can be used to extract environment variables.
+     */
     @VisibleForTesting
     TypedProperties(Properties properties, String namespace, Function<String, String> getEnv) {
         this.properties = properties;
@@ -60,68 +72,35 @@ public class TypedProperties {
      *
      * @param property The Property to get.
      * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws MissingPropertyException When the given property name does not exist within the current component.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set.
      */
-    public String get(Property<String> property) throws MissingPropertyException {
-        if (property.hasDefaultValue()) {
-            return getInternal(property.getName(), property.getDefaultValue());
-        } else {
-            return getInternal(property.getName());
-        }
+    public String get(Property<String> property) throws ConfigurationException {
+        return tryGet(property, s -> s);
     }
 
     /**
-     * Gets the value of an Int32 property.
+     * Gets the value of an Integer property.
      *
      * @param property The Property to get.
      * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws MissingPropertyException      When the given property name does not exist within the current component
-     *                                       and the property does not have a default value set.
-     * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set, or when the property cannot be parsed as an Integer.
      */
-    public int getInt32(Property<Integer> property) throws MissingPropertyException, InvalidPropertyValueException {
-        String value;
-        if (property.hasDefaultValue()) {
-            value = getInternal(property.getName(), null);
-            if (value == null) {
-                return property.getDefaultValue();
-            }
-        } else {
-            value = getInternal(property.getName());
-        }
-
-        try {
-            return Integer.parseInt(value.trim());
-        } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getKey(property.getName()), value, ex);
-        }
+    public int getInt(Property<Integer> property) throws ConfigurationException {
+        return tryGet(property, Integer::parseInt);
     }
 
     /**
-     * Gets the value of an Int64 property.
+     * Gets the value of a Long property.
      *
      * @param property The Property to get.
      * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws MissingPropertyException      When the given property name does not exist within the current component
-     *                                       and the property does not have a default value set.
-     * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set, or when the property cannot be parsed as a Long.
      */
-    public long getInt64(Property<Long> property) throws MissingPropertyException, InvalidPropertyValueException {
-        String value;
-        if (property.hasDefaultValue()) {
-            value = getInternal(property.getName(), null);
-            if (value == null) {
-                return property.getDefaultValue();
-            }
-        } else {
-            value = getInternal(property.getName());
-        }
-
-        try {
-            return Long.parseLong(value.trim());
-        } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getKey(property.getName()), value, ex);
-        }
+    public long getLong(Property<Long> property) throws ConfigurationException {
+        return tryGet(property, Long::parseLong);
     }
 
     /**
@@ -134,29 +113,11 @@ public class TypedProperties {
      *
      * @param property The Property to get.
      * @return The property value or default value, if no such is defined in the base Properties.
-     * @throws MissingPropertyException      When the given property name does not exist within the current component
-     *                                       and the property does not have a default value set.
-     * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set, or when the property cannot be parsed as a Boolean.
      */
-    public boolean getBoolean(Property<Boolean> property) throws MissingPropertyException, InvalidPropertyValueException {
-        String value;
-        if (property.hasDefaultValue()) {
-            value = getInternal(property.getName(), null);
-            if (value == null) {
-                return property.getDefaultValue();
-            }
-        } else {
-            value = getInternal(property.getName());
-        }
-
-        value = value.trim();
-        if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("1")) {
-            return true;
-        } else if (value.equalsIgnoreCase("false") || value.equalsIgnoreCase("no") || value.equalsIgnoreCase("0")) {
-            return false;
-        } else {
-            throw new InvalidPropertyValueException(getKey(property.getName()), value);
-        }
+    public boolean getBoolean(Property<Boolean> property) throws ConfigurationException {
+        return tryGet(property, this::parseBoolean);
     }
 
     /**
@@ -166,55 +127,43 @@ public class TypedProperties {
      *
      * @param property The Property to get.
      * @return The deserialized property value of default value, if no such property is defined in the base Properties.
-     * @throws MissingPropertyException      When the given property name does not exist within the current component
-     *                                       and the property does not have a default value set.
-     * @throws InvalidPropertyValueException When the property cannot be parsed.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set, or when the property cannot be parsed.
      */
-    public Retry.RetryWithBackoff getRetryWithBackoff(Property<Retry.RetryWithBackoff> property)
-            throws MissingPropertyException, InvalidPropertyValueException {
-        String value;
-        if (property.hasDefaultValue()) {
-            value = getInternal(property.getName(), null);
-            if (value == null) {
+    public Retry.RetryWithBackoff getRetryWithBackoff(Property<Retry.RetryWithBackoff> property) throws ConfigurationException {
+        return tryGet(property, this::parseRetryWithBackoff);
+    }
+
+    private <T> T tryGet(Property<T> property, Function<String, T> converter) {
+        String fullKeyName = this.keyPrefix + property.getName();
+
+        // 1. Try to get value from Environment based on Property name.
+        String value = this.getEnv.apply(fullKeyName.replace('.', '_'));
+        if (value == null) {
+            // 2. Nothing for the property in the environment; get value from config.
+            value = this.properties.getProperty(fullKeyName, null);
+
+            // 3. Attempt to interpret its value as an environment variable.
+            value = extractEnvironmentVariable(value);
+        }
+
+        if (value == null) {
+            // 4. Nothing in the environment or in the configuration for this Property.
+            if (property.hasDefaultValue()) {
                 return property.getDefaultValue();
+            } else {
+                throw new MissingPropertyException(fullKeyName);
             }
-        } else {
-            value = getInternal(property.getName());
         }
 
-        return parseRetryWithBackoff(property.getName(), value);
-    }
-
-    private String getKey(String name) {
-        Exceptions.checkNotNullOrEmpty(name, "name");
-        return this.keyPrefix + name;
-    }
-
-    private String getInternal(String name) throws MissingPropertyException {
-        String value = getInternal(name, null);
-        if (value == null) {
-            throw new MissingPropertyException(getKey(name));
+        try {
+            return converter.apply(value.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidPropertyValueException(fullKeyName, value, ex);
         }
-
-        return value;
     }
 
-    private String getInternal(String name, String defaultValue) {
-        String fullKeyName = getKey(name);
-
-        String value;
-        value = this.getEnv.apply(fullKeyName.replace('.', '_'));
-        if (value == null) {
-            // Get value from config.
-            value = this.properties.getProperty(fullKeyName, defaultValue);
-
-            // See if it can be interpreted as an environment variable.
-            value = extractEnvironmentVariable(value, defaultValue);
-        }
-        return value;
-    }
-
-    private String extractEnvironmentVariable(String value, String defaultValue) {
+    private String extractEnvironmentVariable(String value) {
         if (value != null
                 && value.length() > ENV_VARIABLE_TOKEN.length() * 2
                 && value.startsWith(ENV_VARIABLE_TOKEN)
@@ -222,10 +171,20 @@ public class TypedProperties {
             value = this.getEnv.apply(value.substring(ENV_VARIABLE_TOKEN.length(), value.length() - ENV_VARIABLE_TOKEN.length()));
         }
 
-        return value != null ? value : defaultValue;
+        return value;
     }
 
-    private Retry.RetryWithBackoff parseRetryWithBackoff(String name, String value) {
+    private boolean parseBoolean(String value) {
+        if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("1")) {
+            return true;
+        } else if (value.equalsIgnoreCase("false") || value.equalsIgnoreCase("no") || value.equalsIgnoreCase("0")) {
+            return false;
+        } else {
+            throw new IllegalArgumentException(String.format("String '%s' cannot be interpreted as a valid Boolean.", value));
+        }
+    }
+
+    private Retry.RetryWithBackoff parseRetryWithBackoff(String value) {
         AtomicLong initialMillis = new AtomicLong();
         AtomicInteger multiplier = new AtomicInteger();
         AtomicInteger attempts = new AtomicInteger();
@@ -241,7 +200,7 @@ public class TypedProperties {
                     new StringUtils.Int64Extractor("maxDelay", maxDelay::set));
             return Retry.withExpBackoff(initialMillis.get(), multiplier.get(), attempts.get(), maxDelay.get());
         } catch (Exception ex) {
-            throw new InvalidPropertyValueException(getKey(name), value, ex);
+            throw new IllegalArgumentException(String.format("String '%s' cannot be interpreted as a valid Retry.RetryWithBackoff.", value), ex);
         }
     }
 

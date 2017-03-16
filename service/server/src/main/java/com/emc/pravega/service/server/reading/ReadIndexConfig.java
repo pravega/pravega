@@ -63,16 +63,16 @@ public class ReadIndexConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private ReadIndexConfig(TypedProperties properties) throws ConfigurationException {
-        this.storageReadAlignment = properties.getInt32(STORAGE_READ_ALIGNMENT);
-        this.memoryReadMinLength = properties.getInt32(MEMORY_READ_MIN_LENGTH);
-        long cachePolicyMaxSize = properties.getInt64(CACHE_POLICY_MAX_SIZE);
-        int cachePolicyMaxTime = properties.getInt32(CACHE_POLICY_MAX_TIME);
-        int cachePolicyGenerationTime = properties.getInt32(CACHE_POLICY_GENERATION_TIME);
+        this.storageReadAlignment = properties.getInt(STORAGE_READ_ALIGNMENT);
+        this.memoryReadMinLength = properties.getInt(MEMORY_READ_MIN_LENGTH);
+        long cachePolicyMaxSize = properties.getLong(CACHE_POLICY_MAX_SIZE);
+        int cachePolicyMaxTime = properties.getInt(CACHE_POLICY_MAX_TIME);
+        int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);
         this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofMillis(cachePolicyMaxTime), Duration.ofMillis(cachePolicyGenerationTime));
     }
 
     /**
-     * Creates a Builder that can be used to programmatically create instances of this class.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
      *
      * @return A new Builder for this class.
      */

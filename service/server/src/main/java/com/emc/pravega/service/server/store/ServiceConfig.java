@@ -99,9 +99,9 @@ public class ServiceConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private ServiceConfig(TypedProperties properties) throws ConfigurationException {
-        this.containerCount = properties.getInt32(CONTAINER_COUNT);
-        this.threadPoolSize = properties.getInt32(THREAD_POOL_SIZE);
-        this.listeningPort = properties.getInt32(LISTENING_PORT);
+        this.containerCount = properties.getInt(CONTAINER_COUNT);
+        this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
+        this.listeningPort = properties.getInt(LISTENING_PORT);
         String ipAddress = properties.get(LISTENING_IP_ADDRESS);
         if (ipAddress == null || ipAddress.equals(LISTENING_IP_ADDRESS.getDefaultValue())) {
             // Can't put this in the 'defaultValue' above because that would cause getHostAddress to be evaluated every time.
@@ -110,8 +110,8 @@ public class ServiceConfig {
 
         this.listeningIPAddress = ipAddress;
         this.zkURL = properties.get(ZK_URL);
-        this.zkRetrySleepMs = properties.getInt32(ZK_RETRY_SLEEP_MS);
-        this.zkRetryCount = properties.getInt32(ZK_RETRY_COUNT);
+        this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
+        this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
         this.clusterName = properties.get(CLUSTER_NAME);
         this.controllerUri = properties.get(CONTROLLER_URI);
         this.internalScope = properties.get(INTERNAL_SCOPE);
@@ -119,7 +119,7 @@ public class ServiceConfig {
     }
 
     /**
-     * Creates a Builder that can be used to programmatically create instances of this class.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
      *
      * @return A new Builder for this class.
      */
