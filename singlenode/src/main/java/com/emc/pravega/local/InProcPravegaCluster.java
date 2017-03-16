@@ -384,7 +384,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
             // 4. Start the REST server.
             log.info("Starting Pravega REST Service");
-         //   RESTServer.start(controllerService);
+            RESTServer.start(controllerService);
         }
     }
 
