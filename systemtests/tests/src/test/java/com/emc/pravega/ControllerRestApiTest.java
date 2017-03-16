@@ -38,6 +38,8 @@ import java.net.URISyntaxException;
 import java.util.List;
 
 import static com.emc.pravega.controller.server.rest.generated.model.ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS;
+import static javax.ws.rs.core.Response.Status.CREATED;
+import static javax.ws.rs.core.Response.Status.OK;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -102,7 +104,6 @@ public class ControllerRestApiTest {
 
         List<URI> segUris = segService.getServiceDetails();
         log.debug("pravega host service details: {}", segUris);
-        URI segUri = segUris.get(0);
     }
 
     @Test
@@ -122,7 +123,7 @@ public class ControllerRestApiTest {
         webTarget = client.target(resourceURl);
         builder = webTarget.request();
         response = builder.get();
-        assertEquals("Ping test", 200, response.getStatus());
+        assertEquals("Ping test", OK.getStatusCode(), response.getStatus());
         log.info("REST Server is running. Ping successful.");
 
         final String scope1 = RandomStringUtils.randomAlphanumeric(10);
@@ -136,7 +137,7 @@ public class ControllerRestApiTest {
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
         response = builder.post(Entity.json(createScopeRequest));
 
-        assertEquals("Create scope status", 201, response.getStatus());
+        assertEquals("Create scope status", CREATED.getStatusCode(), response.getStatus());
         assertEquals("Create scope response", scope1, response.readEntity(ScopeProperty.class).getScopeName());
         log.info("Create scope: {} successful ", scope1);
 
@@ -152,7 +153,7 @@ public class ControllerRestApiTest {
         scalingConfig.minSegments(2);
 
         RetentionConfig retentionConfig = new RetentionConfig();
-        retentionConfig.setRetentionTimeMillis(200L);
+        retentionConfig.setRetentionTimeMillis(0L);
 
         createStreamRequest.setStreamName(stream1);
         createStreamRequest.setScalingPolicy(scalingConfig);
@@ -161,10 +162,10 @@ public class ControllerRestApiTest {
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
         response = builder.post(Entity.json(createStreamRequest));
 
-        assertEquals("Create stream status", 201, response.getStatus());
+        assertEquals("Create stream status", CREATED.getStatusCode(), response.getStatus());
         final StreamProperty streamPropertyResponse = response.readEntity(StreamProperty.class);
-        assertEquals("Create stream response", scope1, streamPropertyResponse.getScopeName());
-        assertEquals("Create stream response", stream1, streamPropertyResponse.getStreamName());
+        assertEquals("Scope name in response", scope1, streamPropertyResponse.getScopeName());
+        assertEquals("Stream name in response", stream1, streamPropertyResponse.getStreamName());
         log.info("Create stream: {} successful", stream1);
 
         // Test listScopes  GET http://controllerURI:Port/v1/scopes/{scopeName}/streams
@@ -172,7 +173,7 @@ public class ControllerRestApiTest {
         webTarget = client.target(resourceURl);
         builder = webTarget.request();
         response = builder.get();
-        assertEquals("List scopes", 200, response.getStatus());
+        assertEquals("List scopes", OK.getStatusCode(), response.getStatus());
         log.info("List scopes successful");
 
         // Test listStream GET /v1/scopes/scope1/streams
@@ -180,7 +181,7 @@ public class ControllerRestApiTest {
         webTarget = client.target(resourceURl);
         builder = webTarget.request();
         response = builder.get();
-        assertEquals("List streams", 200, response.getStatus());
+        assertEquals("List streams", OK.getStatusCode(), response.getStatus());
         assertEquals("List streams size", 1, response.readEntity(StreamsList.class).getStreams().size());
         log.info("List streams successful");
     }
