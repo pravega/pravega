@@ -1,6 +1,6 @@
 ignore:
   - "benchmark"
-  - "controller/contract/src/generated"
+  - "generated"
   - "integrationtests"
   - "singlenode"
   - "testcommon"
