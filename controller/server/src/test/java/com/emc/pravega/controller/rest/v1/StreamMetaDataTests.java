@@ -276,6 +276,11 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Get Stream Config Status", 404, response.get().getStatus());
     }
 
+    /**
+     * Test for deleteStream REST API
+     *
+     * @throws Exception
+     */
     @Test
     public void testDeleteStream() throws Exception {
         final String resourceURI = "v1/scopes/scope1/streams/stream1";
@@ -370,6 +375,12 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Delete Scope response code", 500, response.get().getStatus());
     }
 
+    /**
+     * Test to retrieve a scope.
+     *
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
     @Test
     public void testGetScope() throws ExecutionException, InterruptedException {
         final String resourceURI = "v1/scopes/scope1";
