@@ -12,6 +12,7 @@ import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
+import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
@@ -484,6 +485,42 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture);
         response = target(resourceURI).request().async().get();
         assertEquals("List Streams response code", 500, response.get().getStatus());
+    }
+
+    /**
+     * Test for updateStreamState REST API.
+     */
+    @Test
+    public void testUpdateStreamState() throws Exception {
+        final String resourceURI = "v1/scopes/scope1/streams/stream1/state";
+
+        // Test to seal a stream.
+        when(mockControllerService.sealStream("scope1", "stream1")).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SUCCESS).build()));
+        StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 200, response.get().getStatus());
+
+        // Test to seal a non existent scope.
+        when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build()));
+        streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 404, response.get().getStatus());
+
+        // Test to seal a non existent stream.
+        when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND).build()));
+        streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 404, response.get().getStatus());
+
+        // Test to check failure.
+        when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build()));
+        streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 500, response.get().getStatus());
     }
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
