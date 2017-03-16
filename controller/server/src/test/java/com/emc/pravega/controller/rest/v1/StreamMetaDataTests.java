@@ -22,6 +22,7 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -272,6 +273,35 @@ public class StreamMetaDataTests extends JerseyTest {
         response = target(resourceURI2).request().async().get();
         streamResponseActual = response.get().readEntity(StreamProperty.class);
         assertEquals("Get Stream Config Status", 404, response.get().getStatus());
+    }
+
+    @Test
+    public void testDeleteStream() throws Exception {
+        final String resourceURI = "v1/scopes/scope1/streams/stream1";
+
+        // Test to delete a sealed stream
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.SUCCESS).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 204, response.get().getStatus());
+
+        // Test to delete a unsealed stream
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.STREAM_NOT_SEALED).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 412, response.get().getStatus());
+
+        // Test to delete a non existent stream
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.STREAM_NOT_FOUND).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 404, response.get().getStatus());
+
+        // Test to delete a stream giving an internal server error
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.FAILURE).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 500, response.get().getStatus());
     }
 
     /**

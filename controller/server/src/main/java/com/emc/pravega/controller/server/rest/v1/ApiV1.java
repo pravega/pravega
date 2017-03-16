@@ -111,9 +111,19 @@ public final class ApiV1 {
 
         @DELETE
         @Path("/{scopeName}/streams/{streamName}")
-        @io.swagger.annotations.ApiOperation(value = "", notes = "", response = void.class, tags = {  })
+        @io.swagger.annotations.ApiOperation(value = "", notes = "Delete a stream", response = void.class, tags = {  })
         @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(code = 501, message = "Not Implemented", response = void.class) })
+                @io.swagger.annotations.ApiResponse(
+                        code = 204, message = "Successfully deleted the stream", response = void.class),
+
+                @io.swagger.annotations.ApiResponse(
+                        code = 404, message = "Stream not found", response = void.class),
+
+                @io.swagger.annotations.ApiResponse(
+                        code = 412, message = "Cannot delete stream since it is not sealed", response = void.class),
+
+                @io.swagger.annotations.ApiResponse(
+                        code = 500, message = "Server error", response = void.class) })
         void deleteStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
