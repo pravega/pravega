@@ -20,7 +20,7 @@ public class MetricsProvider {
         Properties properties = new Properties();
 
         properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "false");
-        YAMMERMETRICS = new AtomicReference<>(new MetricRegistry());
+        YAMMERMETRICS = new AtomicReference<>();
         INSTANCE = new AtomicReference<>(new MetricsProvider(new MetricsConfig(properties)));
     }
 

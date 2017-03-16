@@ -34,8 +34,6 @@ public class YammerStatsProvider implements StatsProvider {
     void init() {
         if (metrics == null) {
             metrics = MetricsProvider.YAMMERMETRICS.get();
-            log.info("Going to register");
-            new Exception().printStackTrace();
             metrics.registerAll(new MemoryUsageGaugeSet());
             metrics.registerAll(new GarbageCollectorMetricSet());
         }
