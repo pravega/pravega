@@ -3,17 +3,17 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.TypedProperties;
 import java.time.Duration;
-import java.util.Properties;
 import lombok.Getter;
 
 /**
  * Configuration for Read Index.
  */
-public class ReadIndexConfig extends ComponentConfig {
-    //region Members
+public class ReadIndexConfig {
+    //region Config Names
     public static final String PROPERTY_STORAGE_READ_ALIGNMENT = "storageReadAlignment";
     public static final String PROPERTY_MEMORY_READ_MIN_LENGTH = "memoryReadMinLength";
     public static final String PROPERTY_CACHE_POLICY_MAX_SIZE = "cacheMaxSize";
@@ -27,12 +27,16 @@ public class ReadIndexConfig extends ComponentConfig {
     private final static int DEFAULT_CACHE_POLICY_MAX_TIME = 30 * 60 * 1000; // 30 mins
     private final static int DEFAULT_CACHE_POLICY_GENERATION_TIME = 5 * 1000; // 5 seconds
 
+    //endregion
+
+    //region Members
+
     /**
      * A value to align all Storage Reads to. When a Storage Read is issued, the read length is adjusted (if possible)
      * to end on a multiple of this value.
      */
     @Getter
-    private int storageReadAlignment;
+    private final int storageReadAlignment;
 
     /**
      * The minimum number of bytes to serve from memory during reads. The ReadIndex will try to coalesce data from multiple
@@ -46,13 +50,13 @@ public class ReadIndexConfig extends ComponentConfig {
      * Setting this to 0 will effectively disable this feature.
      */
     @Getter
-    private int memoryReadMinLength;
+    private final int memoryReadMinLength;
 
     /**
      * The CachePolicy, as defined in this configuration.
      */
     @Getter
-    private CachePolicy cachePolicy;
+    private final CachePolicy cachePolicy;
 
     //endregion
 
@@ -61,15 +65,15 @@ public class ReadIndexConfig extends ComponentConfig {
     /**
      * Creates a new instance of the DurableLogConfig class.
      *
-     * @param properties The java.util.Properties object to read Properties from.
-     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
-     * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
+     * @param properties The TypedProperties object to read Properties from.
      */
-    public ReadIndexConfig(Properties properties) throws ConfigurationException {
-        super(properties, COMPONENT_CODE);
+    private ReadIndexConfig(TypedProperties properties) throws ConfigurationException {
+        this.storageReadAlignment = properties.getInt32(PROPERTY_STORAGE_READ_ALIGNMENT, DEFAULT_STORAGE_READ_ALIGNMENT);
+        this.memoryReadMinLength = properties.getInt32(PROPERTY_MEMORY_READ_MIN_LENGTH, DEFAULT_MEMORY_READ_MIN_LENGTH);
+        long cachePolicyMaxSize = properties.getInt64(PROPERTY_CACHE_POLICY_MAX_SIZE, DEFAULT_CACHE_POLICY_MAX_SIZE);
+        int cachePolicyMaxTime = properties.getInt32(PROPERTY_CACHE_POLICY_MAX_TIME, DEFAULT_CACHE_POLICY_MAX_TIME);
+        int cachePolicyGenerationTime = properties.getInt32(PROPERTY_CACHE_POLICY_GENERATION_TIME, DEFAULT_CACHE_POLICY_GENERATION_TIME);
+        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofMillis(cachePolicyMaxTime), Duration.ofMillis(cachePolicyGenerationTime));
     }
 
     /**
@@ -77,19 +81,9 @@ public class ReadIndexConfig extends ComponentConfig {
      *
      * @return A new Builder for this class.
      */
-    public static Builder<ReadIndexConfig> builder() {
-        return ComponentConfig.builder(ReadIndexConfig.class, COMPONENT_CODE);
+    public static ConfigBuilder<ReadIndexConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, ReadIndexConfig::new);
     }
 
     //endregion
-
-    @Override
-    protected void refresh() throws ConfigurationException {
-        this.storageReadAlignment = getInt32Property(PROPERTY_STORAGE_READ_ALIGNMENT, DEFAULT_STORAGE_READ_ALIGNMENT);
-        this.memoryReadMinLength = getInt32Property(PROPERTY_MEMORY_READ_MIN_LENGTH, DEFAULT_MEMORY_READ_MIN_LENGTH);
-        long cachePolicyMaxSize = getInt64Property(PROPERTY_CACHE_POLICY_MAX_SIZE, DEFAULT_CACHE_POLICY_MAX_SIZE);
-        int cachePolicyMaxTime = getInt32Property(PROPERTY_CACHE_POLICY_MAX_TIME, DEFAULT_CACHE_POLICY_MAX_TIME);
-        int cachePolicyGenerationTime = getInt32Property(PROPERTY_CACHE_POLICY_GENERATION_TIME, DEFAULT_CACHE_POLICY_GENERATION_TIME);
-        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofMillis(cachePolicyMaxTime), Duration.ofMillis(cachePolicyGenerationTime));
-    }
 }

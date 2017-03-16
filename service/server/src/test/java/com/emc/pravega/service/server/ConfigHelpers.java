@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 
 /**
@@ -15,7 +15,7 @@ public class ConfigHelpers {
      *
      * @param builder The properties to include.
      */
-    public static ComponentConfig.Builder<ReadIndexConfig> withInfiniteCachePolicy(ComponentConfig.Builder<ReadIndexConfig> builder) {
+    public static ConfigBuilder<ReadIndexConfig> withInfiniteCachePolicy(ConfigBuilder<ReadIndexConfig> builder) {
         return builder
                 .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.MAX_VALUE)
                 .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.MAX_VALUE)

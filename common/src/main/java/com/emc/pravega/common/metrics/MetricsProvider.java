@@ -27,15 +27,15 @@ public class MetricsProvider {
     }
 
     public static StatsProvider getMetricsProvider() {
-        return INSTANCE.metricsConfig.enableStatistics() ? INSTANCE.yammerProvider : INSTANCE.nullProvider;
+        return INSTANCE.metricsConfig.isEnableStatistics() ? INSTANCE.yammerProvider : INSTANCE.nullProvider;
     }
 
     public static StatsLogger createStatsLogger(String loggerName) {
-        return INSTANCE.metricsConfig.enableStatistics() ? INSTANCE.yammerProvider.createStatsLogger(loggerName)
+        return INSTANCE.metricsConfig.isEnableStatistics() ? INSTANCE.yammerProvider.createStatsLogger(loggerName)
                 : INSTANCE.nullProvider.createStatsLogger(loggerName);
     }
 
     public static DynamicLogger getDynamicLogger() {
-        return INSTANCE.metricsConfig.enableStatistics() ? INSTANCE.yammerDynamicLogger : INSTANCE.nullDynamicLogger;
+        return INSTANCE.metricsConfig.isEnableStatistics() ? INSTANCE.yammerDynamicLogger : INSTANCE.nullDynamicLogger;
     }
 }

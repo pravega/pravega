@@ -1,20 +1,18 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.metrics;
 
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
-
-import java.util.Properties;
+import com.emc.pravega.common.util.TypedProperties;
+import lombok.Getter;
 
 /**
  * General configuration for Metrics.
  */
-public class MetricsConfig extends ComponentConfig {
-    //region Members
+public class MetricsConfig {
+    //region Config Names
     public final static String ENABLE_STATISTICS = "enableStatistics";
     public final static String DYNAMIC_CACHE_SIZE = "dynamicCacheSize";
     public final static String DYNAMIC_TTL_SECONDS = "dynamicTTLSeconds";
@@ -34,27 +32,76 @@ public class MetricsConfig extends ComponentConfig {
     private final static String DEFAULT_STATSD_HOST = "localhost";
     private final static int DEFAULT_STATSD_PORT = 8125;
 
-    private boolean enableStatistics = true;
-    private long dynamicCacheSize = 1000000L;
-    private long dynamicTTLSeconds = 120L;
-    private int yammerStatsOutputFrequencySeconds;
-    private String yammerMetricsPrefix;
-    private String yammerCSVEndpoint;
-    private String yammerStatsDHost;
-    private int yammerStatsDPort;
+    //endregion
+
+    //region Members
+
+    /**
+     * The status of enable statistics.
+     */
+    @Getter
+    private final boolean enableStatistics;
+
+    /**
+     * Cache size for dynamic metrics.
+     */
+    @Getter
+    private final long dynamicCacheSize;
+
+    /**
+     * Cache TTL for dynamic metrics.
+     */
+    @Getter
+    private final long dynamicTTLSeconds;
+
+    /**
+     * Gets a value indicating output frequency in seconds.
+     */
+    @Getter
+    private final int statsOutputFrequencySeconds;
+
+    /**
+     * The metrics prefix.
+     */
+    @Getter
+    private final String metricsPrefix;
+
+    /**
+     * The metrics csv endpoint.
+     */
+    @Getter
+    private final String csvEndpoint;
+
+    /**
+     * The host name (no port) where StatsD is listening.
+     */
+    @Getter
+    private final String statsDHost;
+
+    /**
+     * The port where StatsD is listening.
+     */
+    @Getter
+    private final int statsDPort;
+
+    //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the MetricsConfig class.
      *
-     * @param properties The java.util.Properties object to read Properties from.
-     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
-     * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
+     * @param properties The TypedProperties object to read Properties from.
      */
-    public MetricsConfig(Properties properties) throws ConfigurationException {
-        super(properties, COMPONENT_CODE);
+    private MetricsConfig(TypedProperties properties) throws ConfigurationException {
+        this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
+        this.dynamicCacheSize = properties.getInt64(DYNAMIC_CACHE_SIZE, DEFAULT_DYNAMIC_CACHE_SIZE);
+        this.dynamicTTLSeconds = properties.getInt64(DYNAMIC_TTL_SECONDS, DEFAULT_DYNAMIC_TTL_SECONDS);
+        this.statsOutputFrequencySeconds = properties.getInt32(OUTPUT_FREQUENCY, DEFAULT_OUTPUT_FREQUENCY);
+        this.metricsPrefix = properties.get(METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
+        this.csvEndpoint = properties.get(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);
+        this.statsDHost = properties.get(STATSD_HOST, DEFAULT_STATSD_HOST);
+        this.statsDPort = properties.getInt32(STATSD_PORT, DEFAULT_STATSD_PORT);
     }
 
     /**
@@ -62,77 +109,9 @@ public class MetricsConfig extends ComponentConfig {
      *
      * @return A new Builder for this class.
      */
-    public static Builder<MetricsConfig> builder() {
-        return ComponentConfig.builder(MetricsConfig.class, COMPONENT_CODE);
+    public static ConfigBuilder<MetricsConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, MetricsConfig::new);
     }
 
-    /**
-     * Gets a value indicating the status of enable statistics.
-     */
-    public boolean enableStatistics() {
-        return enableStatistics;
-    }
-
-    /**
-     * Gets cache size for dynamic metrics.
-     */
-    public long getDynamicCacheSize() {
-        return dynamicCacheSize;
-    }
-
-    /**
-     * Gets cache TTL for dynamic metrics.
-     */
-    public long getDynamicTTLSeconds() {
-        return dynamicTTLSeconds;
-    }
-
-    /**
-     * Gets a value indicating output frequency in seconds.
-     */
-    public int getStatsOutputFrequency() {
-        return this.yammerStatsOutputFrequencySeconds;
-    }
-
-    /**
-     * Gets a value indicating the metrics prefix.
-     */
-    public String getMetricsPrefix() {
-        return this.yammerMetricsPrefix;
-    }
-
-    /**
-     * Gets a value indicating the metrics csv endpoint.
-     */
-    public String getCSVEndpoint() {
-        return this.yammerCSVEndpoint;
-    }
-
-    /**
-     * Gets a value indicating the host name (no port) where StatsD is listening.
-     */
-    public String getStatsDHost() {
-        return this.yammerStatsDHost;
-    }
-
-    /**
-     * Gets a value indicating the port where StatsD is listening.
-     */
-    public int getStatsDPort() {
-        return this.yammerStatsDPort;
-    }
-
-
-    @Override
-    public void refresh() throws ConfigurationException {
-        this.enableStatistics = getBooleanProperty(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
-        this.dynamicCacheSize = getInt64Property(DYNAMIC_CACHE_SIZE, DEFAULT_DYNAMIC_CACHE_SIZE);
-        this.dynamicTTLSeconds = getInt64Property(DYNAMIC_TTL_SECONDS, DEFAULT_DYNAMIC_TTL_SECONDS);
-        this.yammerStatsOutputFrequencySeconds = getInt32Property(OUTPUT_FREQUENCY, DEFAULT_OUTPUT_FREQUENCY);
-        this.yammerMetricsPrefix = getProperty(METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
-        this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);
-        this.yammerStatsDHost = getProperty(STATSD_HOST, DEFAULT_STATSD_HOST);
-        this.yammerStatsDPort = getInt32Property(STATSD_PORT, DEFAULT_STATSD_PORT);
-    }
-
+    //endregion
 }

@@ -51,7 +51,7 @@ public final class ServiceStarter {
 
     public ServiceStarter(ServiceBuilderConfig config) {
         this.builderConfig = config;
-        this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
+        this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::builder);
         Options opt = new Options();
         opt.distributedLog = true;
         opt.hdfs = true;
@@ -138,7 +138,7 @@ public final class ServiceStarter {
     private void attachDistributedLog(ServiceBuilder builder) {
         builder.withDataLogFactory(setup -> {
             try {
-                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
+                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::builder);
                 String clientId = String.format("%s-%s", this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort());
                 DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory(clientId, dlConfig);
                 factory.initialize();
@@ -150,13 +150,13 @@ public final class ServiceStarter {
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)));
+        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
     }
 
     private void attachHDFS(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::new);
+                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
                 HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
                 factory.initialize();
                 return factory;

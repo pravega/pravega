@@ -88,7 +88,7 @@ class HDFSStorage implements Storage {
         Preconditions.checkState(this.fileSystem == null, "HDFSStorage has already been initialized.");
         Exceptions.checkNotClosed(this.closed.get(), this);
         Configuration conf = new Configuration();
-        conf.set("fs.default.name", config.getHDFSHostURL());
+        conf.set("fs.default.name", config.getHdfsHostURL());
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
         this.fileSystem = FileSystem.get(conf);
         log.info("{}: Initialized.", LOG_ID);
@@ -201,7 +201,7 @@ class HDFSStorage implements Storage {
      * Pravega host.
      */
     private String getOwnedSegmentFullPath(String streamSegmentName) {
-        return getCommonPartOfName(streamSegmentName) + "_" + this.config.getPravegaID();
+        return getCommonPartOfName(streamSegmentName) + "_" + this.config.getPravegaId();
     }
 
     /**

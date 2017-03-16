@@ -1,20 +1,18 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
+
 package com.emc.pravega.common.util;
 
 import com.emc.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import java.util.Map;
 import java.util.Properties;
 import java.util.function.Function;
-import lombok.SneakyThrows;
 
 /**
- * Base Configuration for an application Component. Allows sharing a single .properties file (loaded up as a
- * java.util.Properties object), and section it based on a component code. Each property in the file will be prefixed by
- * a component code which identifies which component it belongs to.
+ * *
+ * Wrapper for a java.util.Properties object, that sections it based on a namespace. Each property in the wrapped object
+ * will be prefixed by a namespace.
  * <p>
  * Example:
  * <ul>
@@ -23,13 +21,13 @@ import lombok.SneakyThrows;
  * <li>bar.key1=value3
  * <li>bar.key3=value4
  * </ul>
- * Indicate that component "foo" has Key-Values (key1=value1, key2=value2), and component "bar" has (key1=value3, key3=value4).
+ * Indicate that namespace "foo" has Key-Values (key1=value1, key2=value2), and namespace "bar" has (key1=value3, key3=value4).
  */
-public abstract class ComponentConfig {
-    // region Members
-
+public class TypedProperties {
+    //region Members
     private static final String SEPARATOR = ".";
     private static final String ENV_VARIABLE_TOKEN = "$";
+
     private final String keyPrefix;
     private final Properties properties;
     private final Function<String, String> getEnv;
@@ -38,49 +36,20 @@ public abstract class ComponentConfig {
 
     //region Constructor
 
-    /**
-     * Creates a new instance of the ComponentConfig class.
-     *
-     * @param properties    The java.util.Properties object to read Properties from.
-     * @param componentCode The configuration code for the component.
-     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
-     * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
-     */
-    public ComponentConfig(Properties properties, String componentCode) throws ConfigurationException {
-        this(properties, componentCode, System::getenv);
+    TypedProperties(Properties properties, String namespace) {
+        this(properties, namespace, System::getenv);
     }
 
-    /**
-     * Creates a new instance of the ComponentConfig class.
-     *
-     * @param properties    The java.util.Properties object to read Properties from.
-     * @param componentCode The configuration code for the component.
-     * @param getEnv        A Function that gets (or simulates getting) an environment variable.
-     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
-     * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
-     */
     @VisibleForTesting
-    ComponentConfig(Properties properties, String componentCode, Function<String, String> getEnv) throws ConfigurationException {
-        Preconditions.checkNotNull(properties, "properties");
-        Exceptions.checkNotNullOrEmpty(componentCode, "componentCode");
-        Preconditions.checkNotNull(getEnv, "getEnv");
-
+    TypedProperties(Properties properties, String namespace, Function<String, String> getEnv) {
         this.properties = properties;
-        this.keyPrefix = componentCode + SEPARATOR;
+        this.keyPrefix = namespace + SEPARATOR;
         this.getEnv = getEnv;
-
-        refresh();
     }
 
     //endregion
 
-    //region Property Retrieval
+    //region Getters
 
     /**
      * Gets the value of a String property. The order priority in descending order is as follows:
@@ -91,8 +60,8 @@ public abstract class ComponentConfig {
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws MissingPropertyException When the given property name does not exist within the current component.
      */
-    protected String getProperty(String name) throws MissingPropertyException {
-        String value = getProperty(name, null);
+    public String get(String name) throws MissingPropertyException {
+        String value = get(name, null);
         if (value == null) {
             throw new MissingPropertyException(getKey(name));
         }
@@ -114,7 +83,7 @@ public abstract class ComponentConfig {
      * @param defaultValue The default value for the property.
      * @return The property value or default value, if no such is defined in the base Properties.
      */
-    protected String getProperty(String name, String defaultValue) {
+    public String get(String name, String defaultValue) {
         String fullKeyName = getKey(name);
 
         String value;
@@ -137,8 +106,8 @@ public abstract class ComponentConfig {
      * @throws MissingPropertyException      When the given property name does not exist within the current component.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
      */
-    protected int getInt32Property(String name) throws MissingPropertyException, InvalidPropertyValueException {
-        String value = getProperty(name).trim();
+    public int getInt32(String name) throws MissingPropertyException, InvalidPropertyValueException {
+        String value = get(name).trim();
 
         try {
             return Integer.parseInt(value);
@@ -155,8 +124,8 @@ public abstract class ComponentConfig {
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
      */
-    protected int getInt32Property(String name, int defaultValue) throws InvalidPropertyValueException {
-        String value = getProperty(name, null);
+    public int getInt32(String name, int defaultValue) throws InvalidPropertyValueException {
+        String value = get(name, null);
         if (value == null) {
             return defaultValue;
         }
@@ -176,8 +145,8 @@ public abstract class ComponentConfig {
      * @throws MissingPropertyException      When the given property name does not exist within the current component.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
      */
-    protected long getInt64Property(String name) throws MissingPropertyException, InvalidPropertyValueException {
-        String value = getProperty(name).trim();
+    public long getInt64(String name) throws MissingPropertyException, InvalidPropertyValueException {
+        String value = get(name).trim();
 
         try {
             return Long.parseLong(value);
@@ -194,8 +163,8 @@ public abstract class ComponentConfig {
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
      */
-    protected long getInt64Property(String name, long defaultValue) throws InvalidPropertyValueException {
-        String value = getProperty(name, null);
+    public long getInt64(String name, long defaultValue) throws InvalidPropertyValueException {
+        String value = get(name, null);
         if (value == null) {
             return defaultValue;
         }
@@ -220,8 +189,8 @@ public abstract class ComponentConfig {
      * @throws MissingPropertyException      When the given property name does not exist within the current component.
      * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
      */
-    protected boolean getBooleanProperty(String name) throws MissingPropertyException, InvalidPropertyValueException {
-        String value = getProperty(name).trim();
+    public boolean getBoolean(String name) throws MissingPropertyException, InvalidPropertyValueException {
+        String value = get(name).trim();
 
         if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("1")) {
             return true;
@@ -245,8 +214,8 @@ public abstract class ComponentConfig {
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
      */
-    protected boolean getBooleanProperty(String name, boolean defaultValue) throws InvalidPropertyValueException {
-        String value = getProperty(name, null);
+    public boolean getBoolean(String name, boolean defaultValue) throws InvalidPropertyValueException {
+        String value = get(name, null);
         if (value == null) {
             return defaultValue;
         }
@@ -261,7 +230,7 @@ public abstract class ComponentConfig {
         }
     }
 
-    protected String getKey(String name) {
+    private String getKey(String name) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         return this.keyPrefix + name;
     }
@@ -278,71 +247,4 @@ public abstract class ComponentConfig {
     }
 
     //endregion
-
-    //region Configuration Refresh
-
-    /**
-     * Refreshes the configuration based on the latest Property values.
-     *
-     * @throws ConfigurationException When a configuration issue has been detected.
-     */
-    protected abstract void refresh() throws ConfigurationException;
-
-    //endregion
-
-    protected static <T extends ComponentConfig> Builder<T> builder(Class<T> classType, String componentCode) {
-        return new Builder<>(classType, componentCode);
-    }
-
-    /**
-     * A builder for a generic ComponentConfig.
-     *
-     * @param <T> Type of the ComponentConfig.
-     */
-    public static class Builder<T extends ComponentConfig> {
-        private final Properties properties;
-        private final String componentCode;
-        private final Class<T> classType;
-
-        private Builder(Class<T> classType, String componentCode) {
-            Preconditions.checkNotNull(classType, "classType");
-            Exceptions.checkNotNullOrEmpty(componentCode, "componentName");
-            this.properties = new Properties();
-            this.componentCode = componentCode;
-            this.classType = classType;
-        }
-
-        /**
-         * Includes the given property and its value in the builder.
-         *
-         * @param propertyName The name of the property.
-         * @param value        The value of the property.
-         * @return This instance.
-         */
-        public Builder<T> with(String propertyName, Object value) {
-            String key = String.format("%s.%s", this.componentCode, propertyName);
-            this.properties.setProperty(key, value.toString());
-            return this;
-        }
-
-        /**
-         * Copies the contents of this builder to the given target.
-         *
-         * @param target A Map to copy to.
-         */
-        public void copyTo(Map<Object, Object> target) {
-            target.putAll(this.properties);
-        }
-
-        /**
-         * Creates a new instance of the ComponentConfig class as defined by this builder with the information
-         * contained herein.
-         *
-         * @return The newly created instance.
-         */
-        @SneakyThrows(Exception.class)
-        public T build() {
-            return this.classType.getConstructor(Properties.class).newInstance(this.properties);
-        }
-    }
 }

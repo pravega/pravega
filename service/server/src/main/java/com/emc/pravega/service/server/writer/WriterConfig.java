@@ -5,16 +5,17 @@
  */
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.TypedProperties;
 import java.time.Duration;
-import java.util.Properties;
+import lombok.Getter;
 
 /**
  * Writer Configuration.
  */
-public class WriterConfig extends ComponentConfig {
-    //region Members
+public class WriterConfig {
+    //region Config Names
 
     public static final String PROPERTY_FLUSH_THRESHOLD_BYTES = "flushThresholdBytes";
     public static final String PROPERTY_FLUSH_THRESHOLD_MILLIS = "flushThresholdMillis";
@@ -39,16 +40,69 @@ public class WriterConfig extends ComponentConfig {
     private static final int DEFAULT_ACK_TIMEOUT_MILLIS = 15 * 1000; // 15s
     private static final int DEFAULT_SHUTDOWN_TIMEOUT_MILLIS = 10 * 1000; // 10s
 
-    private int flushThresholdBytes;
-    private Duration flushThresholdTime;
-    private int maxFlushSizeBytes;
-    private int maxItemsToReadAtOnce;
-    private Duration minReadTimeout;
-    private Duration maxReadTimeout;
-    private Duration errorSleepDuration;
-    private Duration flushTimeout;
-    private Duration ackTimeout;
-    private Duration shutdownTimeout;
+    //endregion
+
+    //region Members
+
+    /**
+     * The minimum number of bytes to wait for before flushing aggregated data for a Segment to Storage.
+     */
+    @Getter
+    private final int flushThresholdBytes;
+
+    /**
+     * The minimum amount of time to wait for before flushing aggregated data for a Segment to Storage.
+     */
+    @Getter
+    private final Duration flushThresholdTime;
+
+    /**
+     * The maximum number of bytes that can be flushed with a single write operation.
+     */
+    @Getter
+    private final int maxFlushSizeBytes;
+
+    /**
+     * The maximum number of items to read every time a read is issued to the OperationLog.
+     */
+    @Getter
+    private final int maxItemsToReadAtOnce;
+
+    /**
+     * The minimum timeout to supply to the WriterDataSource.read() method.
+     */
+    @Getter
+    private final Duration minReadTimeout;
+
+    /**
+     * The maximum timeout to supply to the WriterDataSource.read() method.
+     */
+    @Getter
+    private final Duration maxReadTimeout;
+
+    /**
+     * The amount of time to sleep if an iteration error was detected.
+     */
+    @Getter
+    private final Duration errorSleepDuration;
+
+    /**
+     * The timeout for the Flush Stage.
+     */
+    @Getter
+    private final Duration flushTimeout;
+
+    /**
+     * Gets a value indicating the timeout for the Ack Stage.
+     */
+    @Getter
+    private final Duration ackTimeout;
+
+    /**
+     * The timeout for the Shutdown operation (how much to wait for the current iteration to end before giving up).
+     */
+    @Getter
+    private final Duration shutdownTimeout;
 
     //endregion
 
@@ -57,124 +111,26 @@ public class WriterConfig extends ComponentConfig {
     /**
      * Creates a new instance of the WriterConfig class.
      *
-     * @param properties The java.util.Properties object to read Properties from.
-     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
-     * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
+     * @param properties The TypedProperties object to read Properties from.
      */
-    public WriterConfig(Properties properties) throws ConfigurationException {
-        super(properties, COMPONENT_CODE);
-    }
-
-    /**
-     * Creates a Builder that can be used to programmatically create instances of this class.
-     *
-     * @return A new Builder for this class.
-     */
-    public static Builder<WriterConfig> builder() {
-        return ComponentConfig.builder(WriterConfig.class, COMPONENT_CODE);
-    }
-
-    //endregion
-
-    //region Properties
-
-    /**
-     * Gets a value indicating the minimum number of bytes to wait for before flushing aggregated data for a Segment to Storage.
-     */
-    public int getFlushThresholdBytes() {
-        return this.flushThresholdBytes;
-    }
-
-    /**
-     * Gets a value indicating the minimum amount of time to wait for before flushing aggregated data for a Segment to Storage.
-     */
-    public Duration getFlushThresholdTime() {
-        return this.flushThresholdTime;
-    }
-
-    /**
-     * Gets a value indicating the maximum number of bytes that can be flushed with a single write operation.
-     */
-    public int getMaxFlushSizeBytes() {
-        return this.maxFlushSizeBytes;
-    }
-
-    /**
-     * Gets a value indicating the maximum number of items to read every time a read is issued to the OperationLog.
-     */
-    public int getMaxItemsToReadAtOnce() {
-        return this.maxItemsToReadAtOnce;
-    }
-
-    /**
-     * Gets a value indicating the minimum timeout to supply to the WriterDataSource.read() method.
-     */
-    public Duration getMinReadTimeout() {
-        return this.minReadTimeout;
-    }
-
-    /**
-     * Gets a value indicating the maximum timeout to supply to the WriterDataSource.read() method.
-     */
-    public Duration getMaxReadTimeout() {
-        return this.maxReadTimeout;
-    }
-
-    /**
-     * Gets a value indicating the amount of time to sleep if an iteration error was detected.
-     */
-    public Duration getErrorSleepDuration() {
-        return this.errorSleepDuration;
-    }
-
-    /**
-     * Gets a value indicating the timeout for the Flush Stage.
-     */
-    public Duration getFlushTimeout() {
-        return this.flushTimeout;
-    }
-
-    /**
-     * Gets a value indicating the timeout for the Shutdown operation (how much to wait for the current iteration to end
-     * before giving up).
-     */
-    public Duration getShutdownTimeout() {
-        return this.shutdownTimeout;
-    }
-
-    /**
-     * Gets a value indicating the timeout for the Ack Stage.
-     */
-    public Duration getAckTimeout() {
-        return this.ackTimeout;
-    }
-
-    //endregion
-
-    //region ComponentConfig Implementation
-
-    @Override
-    protected void refresh() throws ConfigurationException {
-        this.flushThresholdBytes = getInt32Property(PROPERTY_FLUSH_THRESHOLD_BYTES, DEFAULT_FLUSH_THRESHOLD_BYTES);
+    private WriterConfig(TypedProperties properties) throws ConfigurationException {
+        this.flushThresholdBytes = properties.getInt32(PROPERTY_FLUSH_THRESHOLD_BYTES, DEFAULT_FLUSH_THRESHOLD_BYTES);
         if (this.flushThresholdBytes < 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", PROPERTY_FLUSH_THRESHOLD_BYTES));
         }
 
-        long flushThresholdMillis = getInt64Property(PROPERTY_FLUSH_THRESHOLD_MILLIS, DEFAULT_FLUSH_THRESHOLD_MILLIS);
+        long flushThresholdMillis = properties.getInt64(PROPERTY_FLUSH_THRESHOLD_MILLIS, DEFAULT_FLUSH_THRESHOLD_MILLIS);
         this.flushThresholdTime = Duration.ofMillis(flushThresholdMillis);
 
-        this.maxFlushSizeBytes = getInt32Property(PROPERTY_MAX_FLUSH_SIZE_BYTES, DEFAULT_MAX_FLUSH_SIZE_BYTES);
+        this.maxFlushSizeBytes = properties.getInt32(PROPERTY_MAX_FLUSH_SIZE_BYTES, DEFAULT_MAX_FLUSH_SIZE_BYTES);
 
-        this.maxItemsToReadAtOnce = getInt32Property(PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE);
+        this.maxItemsToReadAtOnce = properties.getInt32(PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE);
         if (this.maxItemsToReadAtOnce <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE));
         }
 
-        long minReadTimeoutMillis = getInt64Property(PROPERTY_MIN_READ_TIMEOUT_MILLIS, DEFAULT_MIN_READ_TIMEOUT_MILLIS);
-        long maxReadTimeoutMillis = getInt64Property(PROPERTY_MAX_READ_TIMEOUT_MILLIS, DEFAULT_MAX_READ_TIMEOUT_MILLIS);
+        long minReadTimeoutMillis = properties.getInt64(PROPERTY_MIN_READ_TIMEOUT_MILLIS, DEFAULT_MIN_READ_TIMEOUT_MILLIS);
+        long maxReadTimeoutMillis = properties.getInt64(PROPERTY_MAX_READ_TIMEOUT_MILLIS, DEFAULT_MAX_READ_TIMEOUT_MILLIS);
         if (minReadTimeoutMillis < 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MIN_READ_TIMEOUT_MILLIS));
         }
@@ -185,17 +141,26 @@ public class WriterConfig extends ComponentConfig {
 
         this.minReadTimeout = Duration.ofMillis(minReadTimeoutMillis);
         this.maxReadTimeout = Duration.ofMillis(maxReadTimeoutMillis);
-        long errorSleepMillis = getInt64Property(PROPERTY_ERROR_SLEEP_MILLIS, DEFAULT_ERROR_SLEEP_MILLIS);
+        long errorSleepMillis = properties.getInt64(PROPERTY_ERROR_SLEEP_MILLIS, DEFAULT_ERROR_SLEEP_MILLIS);
         this.errorSleepDuration = Duration.ofMillis(errorSleepMillis);
 
-        long flushTimeoutMillis = getInt64Property(PROPERTY_FLUSH_TIMEOUT_MILLIS, DEFAULT_FLUSH_TIMEOUT_MILLIS);
+        long flushTimeoutMillis = properties.getInt64(PROPERTY_FLUSH_TIMEOUT_MILLIS, DEFAULT_FLUSH_TIMEOUT_MILLIS);
         this.flushTimeout = Duration.ofMillis(flushTimeoutMillis);
 
-        long ackTimeoutMillis = getInt64Property(PROPERTY_ACK_TIMEOUT_MILLIS, DEFAULT_ACK_TIMEOUT_MILLIS);
+        long ackTimeoutMillis = properties.getInt64(PROPERTY_ACK_TIMEOUT_MILLIS, DEFAULT_ACK_TIMEOUT_MILLIS);
         this.ackTimeout = Duration.ofMillis(ackTimeoutMillis);
 
-        long shutdownTimeoutMillis = getInt64Property(PROPERTY_SHUTDOWN_TIMEOUT_MILLIS, DEFAULT_SHUTDOWN_TIMEOUT_MILLIS);
+        long shutdownTimeoutMillis = properties.getInt64(PROPERTY_SHUTDOWN_TIMEOUT_MILLIS, DEFAULT_SHUTDOWN_TIMEOUT_MILLIS);
         this.shutdownTimeout = Duration.ofMillis(shutdownTimeoutMillis);
+    }
+
+    /**
+     * Creates a Builder that can be used to programmatically create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static ConfigBuilder<WriterConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, WriterConfig::new);
     }
 
     //endregion

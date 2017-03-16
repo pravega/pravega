@@ -3,13 +3,13 @@
  */
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.google.common.base.Preconditions;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Properties;
-import java.util.function.Function;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -47,13 +47,15 @@ public class ServiceBuilderConfig {
     //endregion
 
     /**
-     * Gets a new instance of a ComponentConfig for this builder.
+     * Gets a new instance of a Configuration for this builder.
      *
-     * @param constructor The constructor for the new instance.
-     * @param <T>         The type of the ComponentConfig to instantiate.
+     * @param constructor A Supplier for a ConfigBuilder for the given Configuration.
+     * @param <T>         The type of the Configuration to instantiate.
      */
-    public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
-        return constructor.apply(this.properties);
+    public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> constructor) {
+        return constructor.get()
+                          .rebase(this.properties)
+                          .build();
     }
 
     //region Default Configuration
@@ -108,10 +110,10 @@ public class ServiceBuilderConfig {
          * Includes the given Builder into this Builder.
          *
          * @param builder The Builder to include.
-         * @param <T>                    Type of the ComponentConfig.
+         * @param <T>     Type of the Configuration to include.
          * @return This instance.
          */
-        public <T extends ComponentConfig> Builder with(ComponentConfig.Builder<T> builder) {
+        public <T> Builder with(ConfigBuilder<T> builder) {
             builder.copyTo(this.properties);
             return this;
         }
