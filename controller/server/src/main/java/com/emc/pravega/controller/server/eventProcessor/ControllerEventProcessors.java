@@ -97,7 +97,7 @@ public class ControllerEventProcessors extends AbstractService {
     }
 
     private static CompletableFuture<Void> createStreams(final Controller controller,
-                                                        final ScheduledExecutorService executor) {
+                                                         final ScheduledExecutorService executor) {
         StreamConfiguration commitStreamConfig =
                 StreamConfiguration.builder()
                         .scope(CONTROLLER_SCOPE)
@@ -142,7 +142,8 @@ public class ControllerEventProcessors extends AbstractService {
                 .runAsync(() -> controller.createStream(streamConfig)
                         .thenApply(result -> {
                             if (CreateStreamStatus.Status.FAILURE == result.getStatus()) {
-                                throw new RuntimeException("Error creating commitStream");
+                                throw new RuntimeException("Error creating stream " +
+                                        streamConfig.getScope() + "/" + streamConfig.getStreamName());
                             } else {
                                 return null;
                             }
