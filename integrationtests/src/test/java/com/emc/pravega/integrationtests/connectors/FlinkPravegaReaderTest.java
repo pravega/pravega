@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.integrationtests.connectors;
 
+import com.emc.pravega.integrationtests.utils.SetupUtils;
 import com.emc.pravega.connectors.flink.FlinkPravegaReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.google.common.collect.Lists;

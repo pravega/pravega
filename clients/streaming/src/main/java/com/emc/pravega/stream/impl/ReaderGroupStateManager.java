@@ -281,10 +281,9 @@ public class ReaderGroupStateManager {
         int numSegments = state.getNumberOfSegments();
         int segmentsOwned = state.getSegments(readerId).size();
         int numReaders = state.getNumberOfReaders();
-        return Math.max(Math.max(
-                                 1,
-                                 Math.round(numSegments / (float) numReaders) - segmentsOwned),
-                                 unassignedSegments / numReaders);
+        int equallyDistributed = unassignedSegments / numReaders;
+        int fairlyDistributed = Math.min(unassignedSegments, Math.round(numSegments / (float) numReaders) - segmentsOwned);
+        return Math.max(Math.max(equallyDistributed, fairlyDistributed), 1);
     }
 
     private Duration calculateAcquireTime(ReaderGroupState state) {

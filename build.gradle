@@ -355,12 +355,12 @@ project('integrationtests') {
         compile project(':service:server:host')
         compile project(':controller:server')
         compile project(':connectors:flink')
+        compile project(':testcommon')
         compile 'junit:junit:4.12'
         compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
         testCompile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
         testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
         testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: '1.2.0'
-        testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
