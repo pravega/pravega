@@ -10,79 +10,63 @@ import com.codahale.metrics.MetricRegistry;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class MetricsProvider {
-    public static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
-    private static final AtomicReference<MetricsProvider> INSTANCE  = new AtomicReference<>();
-    
-    private final StatsProvider nullProvider = new NullStatsProvider();
-    private final StatsProvider yammerProvider;
+    public static final AtomicReference<MetricRegistry> YAMMERMETRICS;
+    private static final AtomicReference<MetricsProvider> INSTANCE;
+    static {
+        Properties properties = new Properties();
+
+        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "false");
+        YAMMERMETRICS = new AtomicReference<>(new MetricRegistry());
+        INSTANCE = new AtomicReference<>(new MetricsProvider(new MetricsConfig(properties)));
+    }
 
     // Dynamic logger
-    private final DynamicLogger yammerDynamicLogger;
-    private final DynamicLogger nullDynamicLogger;
+    private final StatsProvider statsProvider;
+    private final DynamicLogger dynamicLogger;
     private MetricsConfig metricsConfig;
 
     private MetricsProvider(MetricsConfig config) {
         this.metricsConfig = config;
-        this.nullDynamicLogger = nullProvider.createDynamicLogger();
-        this.yammerProvider = new YammerStatsProvider(metricsConfig);
-        this.yammerDynamicLogger = yammerProvider.createDynamicLogger();
+
+        if (config.enableStatistics()) {
+            log.info("Enabling Yammer provider");
+            YAMMERMETRICS.set(new MetricRegistry());
+            this.statsProvider = new YammerStatsProvider(metricsConfig);
+        } else {
+            log.info("Enabling null provider");
+            this.statsProvider = new NullStatsProvider();
+        }
+        this.dynamicLogger = this.statsProvider.createDynamicLogger();
     }
 
     public static synchronized void initialize(MetricsConfig metricsConfig) {
-        Preconditions.checkArgument(INSTANCE.get() == null, "MetricsProvider is already initialized");
+        INSTANCE.get().statsProvider.close();
         INSTANCE.set(new MetricsProvider(metricsConfig));
     }
 
-    private static MetricsProvider defaultProvider() {
-        Properties properties = new Properties();
-
-        properties.setProperty("metrics.enableStatistics", "false");
-        return new MetricsProvider(new MetricsConfig(properties));
-    }
-
-    public static synchronized StatsProvider getMetricsProvider() {
-        if (INSTANCE.get() == null) {
-            INSTANCE.set(defaultProvider());
-        }
-
+    public static StatsProvider getStatsProvider() {
         MetricsProvider metricsProvider = INSTANCE.get();
 
-        return metricsProvider.metricsConfig.enableStatistics() ? metricsProvider.yammerProvider
-                : metricsProvider.nullProvider;
+        return metricsProvider.statsProvider;
     }
 
     public static synchronized StatsLogger createStatsLogger(String loggerName) {
-        if (INSTANCE.get() == null) {
-            INSTANCE.set(defaultProvider());
-        }
-
         MetricsProvider metricsProvider = INSTANCE.get();
 
-        return metricsProvider.metricsConfig.enableStatistics() ? metricsProvider.yammerProvider.createStatsLogger(loggerName)
-                : metricsProvider.nullProvider.createStatsLogger(loggerName);
+        return metricsProvider.statsProvider.createStatsLogger(loggerName);
     }
 
-    public static synchronized DynamicLogger getDynamicLogger() {
-        if (INSTANCE.get() == null) {
-            INSTANCE.set(defaultProvider());
-        }
-
+    public static DynamicLogger getDynamicLogger() {
         MetricsProvider metricsProvider = INSTANCE.get();
 
-        return metricsProvider.metricsConfig.enableStatistics() ? metricsProvider.yammerDynamicLogger
-                : metricsProvider.nullDynamicLogger;
+        return  metricsProvider.dynamicLogger;
     }
 
-    public static synchronized MetricsConfig getConfig() {
-        if (INSTANCE.get() == null) {
-            INSTANCE.set(defaultProvider());
-        }
-
+    public static MetricsConfig getConfig() {
         return INSTANCE.get().metricsConfig;
     }
 }

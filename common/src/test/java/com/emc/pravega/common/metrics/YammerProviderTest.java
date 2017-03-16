@@ -68,7 +68,7 @@ public class YammerProviderTest {
         for (int i = 1; i < 10; i++) {
             sum += i;
             dynamicLogger.incCounterValue("dynamicCounter", i);
-            assertEquals(sum, MetricsProvider.YAMMERMETRICS.getCounters().get("DYNAMIC.dynamicCounter.Counter").getCount());
+            assertEquals(sum, MetricsProvider.YAMMERMETRICS.get().getCounters().get("DYNAMIC.dynamicCounter.Counter").getCount());
         }
     }
 
@@ -89,7 +89,7 @@ public class YammerProviderTest {
         for (int i = 1; i < 10; i++) {
             sum += i;
             dynamicLogger.recordMeterEvents("dynamicMeter", i);
-            assertEquals(sum, MetricsProvider.YAMMERMETRICS.getMeters().get("DYNAMIC.dynamicMeter.Meter").getCount());
+            assertEquals(sum, MetricsProvider.YAMMERMETRICS.get().getMeters().get("DYNAMIC.dynamicMeter.Meter").getCount());
         }
     }
 
@@ -104,21 +104,8 @@ public class YammerProviderTest {
         for (int i = 1; i < 10; i++) {
             value.set(i);
             dynamicLogger.reportGaugeValue("dynamicGauge", i);
-            assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("testGauge").getValue());
-            assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("DYNAMIC.dynamicGauge.Gauge").getValue());
-        }
-    }
-
-    /**
-     * Test that MetricsProvider can't be initialized twice.
-     */
-    @Test
-    public void testDoubleInitialization() {
-        try {
-            MetricsProvider.initialize(new MetricsConfig(new Properties()));
-            Assert.fail("Should have thrown exception");
-        } catch (Exception e) {
-            // Expected
+            assertEquals(i, MetricsProvider.YAMMERMETRICS.get().getGauges().get("testGauge").getValue());
+            assertEquals(i, MetricsProvider.YAMMERMETRICS.get().getGauges().get("DYNAMIC.dynamicGauge.Gauge").getValue());
         }
     }
 
