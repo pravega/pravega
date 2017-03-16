@@ -2,20 +2,19 @@
  *
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
+ *
  */
-package com.emc.pravega.service.storage.mocks;
+package com.emc.pravega.service.storage;
 
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.storage.TruncateableStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import org.junit.Assert;
+import org.junit.Test;
 
 import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
 
