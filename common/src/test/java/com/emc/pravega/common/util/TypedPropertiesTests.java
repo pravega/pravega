@@ -5,8 +5,6 @@ package com.emc.pravega.common.util;
 
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 import java.util.function.Function;
@@ -79,48 +77,6 @@ public class TypedPropertiesTests {
         Properties props = new Properties();
         populateData(props);
         testData(props, TypedProperties::getRetryWithBackoff, TypedPropertiesTests::isRetry);
-    }
-
-    /**
-     * Tests extracting and interpreting values as environment variables.
-     */
-    @Test
-    public void testGetEnvironmentVariable() throws Exception {
-        final String componentCode = "envvar";
-        int index = 1;
-        final String validEnvProp = getPropertyName(index++);
-        final String invalidEnvProp1 = getPropertyName(index++);
-        final String invalidEnvProp2 = getPropertyName(index++);
-        final String invalidEnvProp3 = getPropertyName(index++);
-        final String rawProp = getPropertyName(index++);
-        val correctProperties = Collections.singleton(validEnvProp);
-        val incorrectProperties = Arrays.asList(invalidEnvProp1, invalidEnvProp2, invalidEnvProp3, rawProp);
-        Properties props = new Properties();
-        props.setProperty(getFullyQualifiedPropertyName(componentCode, validEnvProp), "$env1$");
-        props.setProperty(getFullyQualifiedPropertyName(componentCode, invalidEnvProp1), "env1$");
-        props.setProperty(getFullyQualifiedPropertyName(componentCode, invalidEnvProp2), "$env1");
-        props.setProperty(getFullyQualifiedPropertyName(componentCode, invalidEnvProp3), "a$env1$");
-        props.setProperty(getFullyQualifiedPropertyName(componentCode, rawProp), "env1");
-
-        val env = new HashMap<String, String>();
-        props.forEach((key, value) -> env.put((String) value, "incorrect"));
-        env.put("env1", "correct");
-
-        TypedProperties config = new TypedProperties(props, componentCode, env::get);
-        for (String p : correctProperties) {
-            Property<String> property = Property.named(p);
-            Assert.assertEquals("Unexpected value from valid env var reference.", "correct", config.get(property));
-            property = Property.named(p, "incorrect");
-            Assert.assertEquals("Unexpected value from valid env var reference (with default).", "correct", config.get(property));
-        }
-
-        for (String p : incorrectProperties) {
-            String expectedValue = (String) props.get(getFullyQualifiedPropertyName(componentCode, p));
-            Property<String> property = Property.named(p);
-            Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.get(property));
-            property = Property.named(p, "correct");
-            Assert.assertEquals("Unexpected value from invalid env var reference (with default).", expectedValue, config.get(property));
-        }
     }
 
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {

@@ -4,7 +4,6 @@
 
 package com.emc.pravega.common.util;
 
-import com.google.common.annotations.VisibleForTesting;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -27,11 +26,9 @@ import java.util.function.Function;
 public class TypedProperties {
     //region Members
     private static final String SEPARATOR = ".";
-    private static final String ENV_VARIABLE_TOKEN = "$";
 
     private final String keyPrefix;
     private final Properties properties;
-    private final Function<String, String> getEnv;
 
     //endregion
 
@@ -44,21 +41,8 @@ public class TypedProperties {
      * @param namespace  The namespace of this instance.
      */
     TypedProperties(Properties properties, String namespace) {
-        this(properties, namespace, System::getenv);
-    }
-
-    /**
-     * Creates a new instance of the TypedProperties class.
-     *
-     * @param properties The java.util.Properties to wrap.
-     * @param namespace  The namespace of this instance.
-     * @param getEnv     A Function that can be used to extract environment variables.
-     */
-    @VisibleForTesting
-    TypedProperties(Properties properties, String namespace, Function<String, String> getEnv) {
         this.properties = properties;
         this.keyPrefix = namespace + SEPARATOR;
-        this.getEnv = getEnv;
     }
 
     //endregion
@@ -66,9 +50,7 @@ public class TypedProperties {
     //region Getters
 
     /**
-     * Gets the value of a String property. The order priority in descending order is as follows:
-     * 1. Env variable  - if a property is defined in the env variable, it is given the highest precedence.
-     * 2. Config file   - if the value is defined in a config file, it will be returned.
+     * Gets the value of a String property.
      *
      * @param property The Property to get.
      * @return The property value or default value, if no such is defined in the base Properties.
@@ -137,18 +119,11 @@ public class TypedProperties {
     private <T> T tryGet(Property<T> property, Function<String, T> converter) {
         String fullKeyName = this.keyPrefix + property.getName();
 
-        // 1. Try to get value from Environment based on Property name.
-        String value = this.getEnv.apply(fullKeyName.replace('.', '_'));
-        if (value == null) {
-            // 2. Nothing for the property in the environment; get value from config.
-            value = this.properties.getProperty(fullKeyName, null);
-
-            // 3. Attempt to interpret its value as an environment variable.
-            value = extractEnvironmentVariable(value);
-        }
+        // Get value from config.
+        String value = this.properties.getProperty(fullKeyName, null);
 
         if (value == null) {
-            // 4. Nothing in the environment or in the configuration for this Property.
+            // 2. Nothing in the configuration for this Property.
             if (property.hasDefaultValue()) {
                 return property.getDefaultValue();
             } else {
@@ -161,17 +136,6 @@ public class TypedProperties {
         } catch (IllegalArgumentException ex) {
             throw new InvalidPropertyValueException(fullKeyName, value, ex);
         }
-    }
-
-    private String extractEnvironmentVariable(String value) {
-        if (value != null
-                && value.length() > ENV_VARIABLE_TOKEN.length() * 2
-                && value.startsWith(ENV_VARIABLE_TOKEN)
-                && value.endsWith(ENV_VARIABLE_TOKEN)) {
-            value = this.getEnv.apply(value.substring(ENV_VARIABLE_TOKEN.length(), value.length() - ENV_VARIABLE_TOKEN.length()));
-        }
-
-        return value;
     }
 
     private boolean parseBoolean(String value) {

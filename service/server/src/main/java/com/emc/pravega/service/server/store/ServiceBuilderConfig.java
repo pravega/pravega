@@ -7,7 +7,6 @@ import com.emc.pravega.common.util.ConfigBuilder;
 import com.google.common.base.Preconditions;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.Properties;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
@@ -74,23 +73,16 @@ public class ServiceBuilderConfig {
 
     //endregion
 
+    //region Builder
+
+    /**
+     * Represents a Builder for the ServiceBuilderConfig.
+     */
     public static class Builder {
         private final Properties properties;
 
         private Builder() {
             this.properties = new Properties();
-        }
-
-        /**
-         * Loads configuration values from a given InputStreamReader.
-         *
-         * @param reader the InputStreamReader from which to read the configuration.
-         * @return This instance.
-         * @throws IOException If an exception occurred during reading of the configuration.
-         */
-        public Builder fromStream(InputStreamReader reader) throws IOException {
-            this.properties.load(reader);
-            return this;
         }
 
         /**
@@ -102,8 +94,10 @@ public class ServiceBuilderConfig {
          */
         public Builder fromFile(String filePath) throws IOException {
             try (FileReader reader = new FileReader(filePath)) {
-                return fromStream(reader);
+                this.properties.load(reader);
             }
+
+            return this;
         }
 
         /**
@@ -119,6 +113,17 @@ public class ServiceBuilderConfig {
         }
 
         /**
+         * Includes the given Properties into this Builder.
+         *
+         * @param p The properties to include.
+         * @return This instance.
+         */
+        public Builder include(Properties p) {
+            this.properties.putAll(p);
+            return this;
+        }
+
+        /**
          * Creates a new instance of the ServiceBuilderConfig class with the information contained in this builder.
          *
          * @return The newly created ServiceBuilderConfig.
@@ -127,4 +132,6 @@ public class ServiceBuilderConfig {
             return new ServiceBuilderConfig(this.properties);
         }
     }
+
+    //endregion
 }
