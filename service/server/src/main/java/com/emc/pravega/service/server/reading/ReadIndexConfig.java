@@ -15,11 +15,11 @@ import lombok.Getter;
  */
 public class ReadIndexConfig {
     //region Config Names
-    public static final Property<Integer> STORAGE_READ_ALIGNMENT = new Property<>("storageReadAlignment", 1024 * 1024);
-    public static final Property<Integer> MEMORY_READ_MIN_LENGTH = new Property<>("memoryReadMinLength", 4 * 1024);
-    public static final Property<Long> CACHE_POLICY_MAX_SIZE = new Property<>("cacheMaxSize", 4L * 1024 * 1024 * 1024);
-    public static final Property<Integer> CACHE_POLICY_MAX_TIME = new Property<>("cacheMaxTimeMillis", 30 * 60 * 1000);
-    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = new Property<>("cacheGenerationTimeMillis", 5 * 1000);
+    public static final Property<Integer> STORAGE_READ_ALIGNMENT = Property.named("storageReadAlignment", 1024 * 1024);
+    public static final Property<Integer> MEMORY_READ_MIN_LENGTH = Property.named("memoryReadMinLength", 4 * 1024);
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 4L * 1024 * 1024 * 1024);
+    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeMillis", 30 * 60 * 1000);
+    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeMillis", 5 * 1000);
     private static final String COMPONENT_CODE = "readindex";
 
     //endregion

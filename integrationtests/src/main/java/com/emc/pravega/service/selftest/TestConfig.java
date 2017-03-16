@@ -16,21 +16,21 @@ import lombok.Getter;
 class TestConfig {
     //region Config Names
 
-    static final Property<Integer> OPERATION_COUNT = new Property<>("operationCount", 100 * 1000);
-    static final Property<Integer> SEGMENT_COUNT = new Property<>("segmentCount", 100);
-    static final Property<Integer> TRANSACTION_FREQUENCY = new Property<>("transactionFrequency", 100);
-    static final Property<Integer> MAX_TRANSACTION_SIZE = new Property<>("maxTransactionSize", 10);
-    static final Property<Integer> PRODUCER_COUNT = new Property<>("producerCount", 1);
-    static final Property<Integer> MIN_APPEND_SIZE = new Property<>("minAppendSize", 100);
-    static final Property<Integer> MAX_APPEND_SIZE = new Property<>("maxAppendSize", 100);
-    static final Property<Integer> THREAD_POOL_SIZE = new Property<>("threadPoolSize", 100);
-    static final Property<Integer> TIMEOUT_MILLIS = new Property<>("timeoutMillis", 10 * 1000);
-    static final Property<Boolean> VERBOSE_LOGGING = new Property<>("verboseLogging", false);
-    static final Property<Integer> DATA_LOG_APPEND_DELAY = new Property<>("dataLogAppendDelayMillis", 0);
-    static final Property<Boolean> USE_CLIENT = new Property<>("useClient", false);
-    static final Property<Integer> CLIENT_PORT = new Property<>("clientPort", 9876);
-    static final Property<Boolean> CLIENT_AUTO_FLUSH = new Property<>("clientAutoFlush", true);
-    static final Property<Integer> CLIENT_WRITER_COUNT = new Property<>("clientWriterCount", 1);
+    static final Property<Integer> OPERATION_COUNT = Property.named("operationCount", 100 * 1000);
+    static final Property<Integer> SEGMENT_COUNT = Property.named("segmentCount", 100);
+    static final Property<Integer> TRANSACTION_FREQUENCY = Property.named("transactionFrequency", 100);
+    static final Property<Integer> MAX_TRANSACTION_SIZE = Property.named("maxTransactionSize", 10);
+    static final Property<Integer> PRODUCER_COUNT = Property.named("producerCount", 1);
+    static final Property<Integer> MIN_APPEND_SIZE = Property.named("minAppendSize", 100);
+    static final Property<Integer> MAX_APPEND_SIZE = Property.named("maxAppendSize", 100);
+    static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 100);
+    static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
+    static final Property<Boolean> VERBOSE_LOGGING = Property.named("verboseLogging", false);
+    static final Property<Integer> DATA_LOG_APPEND_DELAY = Property.named("dataLogAppendDelayMillis", 0);
+    static final Property<Boolean> USE_CLIENT = Property.named("useClient", false);
+    static final Property<Integer> CLIENT_PORT = Property.named("clientPort", 9876);
+    static final Property<Boolean> CLIENT_AUTO_FLUSH = Property.named("clientAutoFlush", true);
+    static final Property<Integer> CLIENT_WRITER_COUNT = Property.named("clientWriterCount", 1);
     private static final String COMPONENT_CODE = "selftest";
 
     //endregion

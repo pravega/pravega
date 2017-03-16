@@ -108,17 +108,17 @@ public class TypedPropertiesTests {
 
         TypedProperties config = new TypedProperties(props, componentCode, env::get);
         for (String p : correctProperties) {
-            Property<String> property = new Property<>(p);
+            Property<String> property = Property.named(p);
             Assert.assertEquals("Unexpected value from valid env var reference.", "correct", config.get(property));
-            property = new Property<>(p, "incorrect");
+            property = Property.named(p, "incorrect");
             Assert.assertEquals("Unexpected value from valid env var reference (with default).", "correct", config.get(property));
         }
 
         for (String p : incorrectProperties) {
             String expectedValue = (String) props.get(getFullyQualifiedPropertyName(componentCode, p));
-            Property<String> property = new Property<>(p);
+            Property<String> property = Property.named(p);
             Assert.assertEquals("Unexpected value from invalid env var reference.", expectedValue, config.get(property));
-            property = new Property<>(p, "correct");
+            property = Property.named(p, "correct");
             Assert.assertEquals("Unexpected value from invalid env var reference (with default).", expectedValue, config.get(property));
         }
     }
@@ -130,8 +130,8 @@ public class TypedPropertiesTests {
             for (String fullyQualifiedPropertyName : props.stringPropertyNames()) {
                 int propertyId = getPropertyId(fullyQualifiedPropertyName);
                 String propName = getPropertyName(propertyId);
-                Property<T> property = new Property<>(propName);
-                Property<String> stringProperty = new Property<>(propName);
+                Property<T> property = Property.named(propName);
+                Property<String> stringProperty = Property.named(propName);
                 String expectedValue = props.getProperty(fullyQualifiedPropertyName);
                 if (fullyQualifiedPropertyName.startsWith(componentCode)) {
                     // This property belongs to this component. Check it out.

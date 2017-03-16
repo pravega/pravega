@@ -190,14 +190,12 @@ public class TypedProperties {
         AtomicInteger attempts = new AtomicInteger();
         AtomicLong maxDelay = new AtomicLong();
         try {
-            StringUtils.parse(
-                    value,
-                    ",",
-                    "=",
-                    new StringUtils.Int64Extractor("initialMillis", initialMillis::set),
-                    new StringUtils.Int32Extractor("multiplier", multiplier::set),
-                    new StringUtils.Int32Extractor("attempts", attempts::set),
-                    new StringUtils.Int64Extractor("maxDelay", maxDelay::set));
+            DelimitedStringParser.parser(",", "=")
+                                 .extractLong("initialMillis", initialMillis::set)
+                                 .extractInteger("multiplier", multiplier::set)
+                                 .extractInteger("attempts", attempts::set)
+                                 .extractLong("maxDelay", maxDelay::set)
+                                 .parse(value);
             return Retry.withExpBackoff(initialMillis.get(), multiplier.get(), attempts.get(), maxDelay.get());
         } catch (Exception ex) {
             throw new IllegalArgumentException(String.format("String '%s' cannot be interpreted as a valid Retry.RetryWithBackoff.", value), ex);

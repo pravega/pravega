@@ -15,7 +15,7 @@ import lombok.Getter;
 public class RocksDBConfig {
     //region Config Names
 
-    public static final Property<String> DATABASE_DIR = new Property<>("dbDir", "/tmp/pravega/cache");
+    public static final Property<String> DATABASE_DIR = Property.named("dbDir", "/tmp/pravega/cache");
     private static final String COMPONENT_CODE = "rocksdb";
 
     //endregion

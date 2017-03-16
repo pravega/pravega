@@ -16,10 +16,10 @@ import lombok.Getter;
 public class DistributedLogConfig {
     //region Config Names
 
-    public static final Property<String> HOSTNAME = new Property<>("hostname", "zk1");
-    public static final Property<Integer> PORT = new Property<>("port", 2181);
-    public static final Property<String> NAMESPACE = new Property<>("namespace", "pravega/segmentstore/containers");
-    public static final Property<Retry.RetryWithBackoff> RETRY_POLICY = new Property<>("retryPolicy", Retry.withExpBackoff(100, 4, 5, 30000));
+    public static final Property<String> HOSTNAME = Property.named("hostname", "zk1");
+    public static final Property<Integer> PORT = Property.named("port", 2181);
+    public static final Property<String> NAMESPACE = Property.named("namespace", "pravega/segmentstore/containers");
+    public static final Property<Retry.RetryWithBackoff> RETRY_POLICY = Property.named("retryPolicy", Retry.withExpBackoff(100, 4, 5, 30000));
     private static final String COMPONENT_CODE = "dlog";
 
     //endregion

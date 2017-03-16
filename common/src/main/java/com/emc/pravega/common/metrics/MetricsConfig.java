@@ -14,14 +14,14 @@ import lombok.Getter;
  */
 public class MetricsConfig {
     //region Config Names
-    public final static Property<Boolean> ENABLE_STATISTICS = new Property<>("enableStatistics", true);
-    public final static Property<Long> DYNAMIC_CACHE_SIZE = new Property<>("dynamicCacheSize", 1000000L);
-    public final static Property<Long> DYNAMIC_TTL_SECONDS = new Property<>("dynamicTTLSeconds", 120L);
-    public final static Property<Integer> OUTPUT_FREQUENCY = new Property<>("yammerStatsOutputFrequencySeconds", 60);
-    public final static Property<String> METRICS_PREFIX = new Property<>("yammerMetricsPrefix", "pravega");
-    public final static Property<String> CSV_ENDPOINT = new Property<>("yammerCSVEndpoint", "/tmp/csv");
-    public final static Property<String> STATSD_HOST = new Property<>("yammerStatsDHost", "localhost");
-    public final static Property<Integer> STATSD_PORT = new Property<>("yammerStatsDPort", 8125);
+    public final static Property<Boolean> ENABLE_STATISTICS = Property.named("enableStatistics", true);
+    public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 1000000L);
+    public final static Property<Long> DYNAMIC_TTL_SECONDS = Property.named("dynamicTTLSeconds", 120L);
+    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("yammerStatsOutputFrequencySeconds", 60);
+    public final static Property<String> METRICS_PREFIX = Property.named("yammerMetricsPrefix", "pravega");
+    public final static Property<String> CSV_ENDPOINT = Property.named("yammerCSVEndpoint", "/tmp/csv");
+    public final static Property<String> STATSD_HOST = Property.named("yammerStatsDHost", "localhost");
+    public final static Property<Integer> STATSD_PORT = Property.named("yammerStatsDPort", 8125);
     private static final String COMPONENT_CODE = "metrics";
 
     //endregion

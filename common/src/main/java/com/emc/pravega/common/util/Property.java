@@ -4,6 +4,7 @@
 
 package com.emc.pravega.common.util;
 
+import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -11,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Represents a Property that can be used for configuration.
  */
-@RequiredArgsConstructor
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @EqualsAndHashCode
 public class Property<T> {
     @Getter
@@ -21,10 +22,23 @@ public class Property<T> {
 
     /**
      * Creates a new instance of the Property class with no default value.
+     *
      * @param name The name of the property.
+     * @param <T>  The type of the property values.
      */
-    public Property(String name) {
-        this(name, null);
+    public static <T> Property<T> named(String name) {
+        return new Property<>(name, null);
+    }
+
+    /**
+     * Creates a new instance of the Property class with the given default value.
+     *
+     * @param name         The name of the property.
+     * @param defaultValue The default value of the property.
+     * @param <T>          The type of the property values.
+     */
+    public static <T> Property<T> named(String name, T defaultValue) {
+        return new Property<>(name, defaultValue);
     }
 
     /**

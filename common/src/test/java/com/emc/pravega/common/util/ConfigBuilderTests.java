@@ -24,13 +24,13 @@ public class ConfigBuilderTests {
         final int propertyCount = 10;
         val builder = new ConfigBuilder<TestConfig>(namespace, TestConfig::new);
         for (int i = 0; i < propertyCount; i++) {
-            val result = builder.with(new Property<>(Integer.toString(i)), i);
+            val result = builder.with(Property.named(Integer.toString(i)), i);
             Assert.assertEquals("with() did not return this instance.", builder, result);
         }
 
         TestConfig c = builder.build();
         for (int i = 0; i < propertyCount; i++) {
-            val p = new Property<Integer>(Integer.toString(i));
+            val p = Property.<Integer>named(Integer.toString(i));
             val actual = c.getProperties().getInt(p);
             Assert.assertEquals("Unexpected value in result.", i, actual);
         }
@@ -45,7 +45,7 @@ public class ConfigBuilderTests {
         final int propertyCount = 10;
         val builder1 = new ConfigBuilder<TestConfig>(namespace, TestConfig::new);
         for (int i = 0; i < propertyCount; i++) {
-            builder1.with(new Property<>(Integer.toString(i)), i);
+            builder1.with(Property.named(Integer.toString(i)), i);
         }
 
         // Create a second builder and update that one too, but with different values.
@@ -56,7 +56,7 @@ public class ConfigBuilderTests {
         Assert.assertEquals("rebase() touched the target Properties object.", 1, p2.size());
 
         for (int i = 0; i < propertyCount; i++) {
-            builder2.with(new Property<>(Integer.toString(i)), i * 10);
+            builder2.with(Property.named(Integer.toString(i)), i * 10);
         }
 
         Assert.assertEquals("Unexpected number of properties copied.", propertyCount, p2.size());
@@ -65,7 +65,7 @@ public class ConfigBuilderTests {
         TestConfig c1 = builder1.build();
         TestConfig c2 = builder2.build();
         for (int i = 0; i < propertyCount; i++) {
-            val p = new Property<Integer>(Integer.toString(i));
+            val p = Property.<Integer>named(Integer.toString(i));
             val actual1 = c1.getProperties().getInt(p);
             val actual2 = c2.getProperties().getInt(p);
             val actualProp2 = p2.getProperty(namespace + "." + Integer.toString(i));
@@ -84,7 +84,7 @@ public class ConfigBuilderTests {
         final int propertyCount = 10;
         val builder = new ConfigBuilder<TestConfig>(namespace, TestConfig::new);
         for (int i = 0; i < propertyCount; i++) {
-            builder.with(new Property<>(Integer.toString(i)), i);
+            builder.with(Property.named(Integer.toString(i)), i);
         }
 
         Properties p2 = new Properties();

@@ -18,17 +18,17 @@ import lombok.SneakyThrows;
 public class ServiceConfig {
     //region Config Names
 
-    public static final Property<Integer> CONTAINER_COUNT = new Property<>("containerCount");
-    public static final Property<Integer> THREAD_POOL_SIZE = new Property<>("threadPoolSize", 50);
-    public static final Property<Integer> LISTENING_PORT = new Property<>("listeningPort", 12345);
-    public static final Property<String> LISTENING_IP_ADDRESS = new Property<>("listeningIPAddress", "");
-    public static final Property<String> ZK_URL = new Property<>("zkURL", "localhost:2181");
-    public static final Property<Integer> ZK_RETRY_SLEEP_MS = new Property<>("zkRetrySleepMs", 5000);
-    public static final Property<Integer> ZK_RETRY_COUNT = new Property<>("zkRetryCount", 5);
-    public static final Property<String> CLUSTER_NAME = new Property<>("clusterName", "pravega-cluster");
-    public static final Property<String> CONTROLLER_URI = new Property<>("controllerUri", "tcp://localhost:9090");
-    public static final Property<String> REQUEST_STREAM  = new Property<>("internalRequestStream", "pravega");
-    public static final Property<String> INTERNAL_SCOPE = new Property<>("internalScope", "requeststream");
+    public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 50);
+    public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
+    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
+    public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
+    public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
+    public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
+    public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
+    public static final Property<String> CONTROLLER_URI = Property.named("controllerUri", "tcp://localhost:9090");
+    public static final Property<String> REQUEST_STREAM  = Property.named("internalRequestStream", "pravega");
+    public static final Property<String> INTERNAL_SCOPE = Property.named("internalScope", "requeststream");
     private static final String COMPONENT_CODE = "pravegaservice";
 
     //endregion

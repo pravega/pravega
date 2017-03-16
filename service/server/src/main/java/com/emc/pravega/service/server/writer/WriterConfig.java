@@ -16,16 +16,16 @@ import lombok.Getter;
 public class WriterConfig {
     //region Config Names
 
-    public static final Property<Integer> FLUSH_THRESHOLD_BYTES = new Property<>("flushThresholdBytes", 4 * 1024 * 1024);
-    public static final Property<Long> FLUSH_THRESHOLD_MILLIS = new Property<>("flushThresholdMillis", 30 * 1000L);
-    public static final Property<Integer> MAX_FLUSH_SIZE_BYTES = new Property<>("maxFlushSizeBytes", FLUSH_THRESHOLD_BYTES.getDefaultValue());
-    public static final Property<Integer> MAX_ITEMS_TO_READ_AT_ONCE = new Property<>("maxItemsToReadAtOnce", 1000);
-    public static final Property<Long> MIN_READ_TIMEOUT_MILLIS = new Property<>("minReadTimeoutMillis", 2 * 1000L);
-    public static final Property<Long> MAX_READ_TIMEOUT_MILLIS = new Property<>("maxReadTimeoutMillis", 30 * 60 * 1000L);
-    public static final Property<Long> ERROR_SLEEP_MILLIS = new Property<>("errorSleepMillis", 1000L);
-    public static final Property<Long> FLUSH_TIMEOUT_MILLIS = new Property<>("flushTimeoutMillis", 60 * 1000L);
-    public static final Property<Long> ACK_TIMEOUT_MILLIS = new Property<>("ackTimeoutMillis", 15 * 1000L);
-    public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = new Property<>("shutdownTimeoutMillis", 10 * 1000L);
+    public static final Property<Integer> FLUSH_THRESHOLD_BYTES = Property.named("flushThresholdBytes", 4 * 1024 * 1024);
+    public static final Property<Long> FLUSH_THRESHOLD_MILLIS = Property.named("flushThresholdMillis", 30 * 1000L);
+    public static final Property<Integer> MAX_FLUSH_SIZE_BYTES = Property.named("maxFlushSizeBytes", FLUSH_THRESHOLD_BYTES.getDefaultValue());
+    public static final Property<Integer> MAX_ITEMS_TO_READ_AT_ONCE = Property.named("maxItemsToReadAtOnce", 1000);
+    public static final Property<Long> MIN_READ_TIMEOUT_MILLIS = Property.named("minReadTimeoutMillis", 2 * 1000L);
+    public static final Property<Long> MAX_READ_TIMEOUT_MILLIS = Property.named("maxReadTimeoutMillis", 30 * 60 * 1000L);
+    public static final Property<Long> ERROR_SLEEP_MILLIS = Property.named("errorSleepMillis", 1000L);
+    public static final Property<Long> FLUSH_TIMEOUT_MILLIS = Property.named("flushTimeoutMillis", 60 * 1000L);
+    public static final Property<Long> ACK_TIMEOUT_MILLIS = Property.named("ackTimeoutMillis", 15 * 1000L);
+    public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = Property.named("shutdownTimeoutMillis", 10 * 1000L);
     private static final String COMPONENT_CODE = "writer";
 
     //endregion
