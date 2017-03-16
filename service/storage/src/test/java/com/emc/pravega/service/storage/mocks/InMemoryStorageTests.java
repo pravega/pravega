@@ -8,6 +8,7 @@ package com.emc.pravega.service.storage.mocks;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.emc.pravega.service.storage.TruncateableStorage;
+import com.emc.pravega.service.storage.TruncateableStorageTestBase;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.Cleanup;
 import lombok.val;
