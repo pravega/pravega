@@ -294,6 +294,15 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Verifies that the Storage implementation enforces fencing: if a segment owner changes, no operation is allowed
+     * on a segment until open() is called on it.
+     *
+     * @throws Exception If one got thrown.
+     */
+    @Test
+    public abstract void testFencing() throws Exception;
+
     private String getSegmentName(int id, String context) {
         return String.format("%s_%s", context, id);
     }

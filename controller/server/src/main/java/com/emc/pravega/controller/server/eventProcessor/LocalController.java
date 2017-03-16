@@ -11,6 +11,7 @@ import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
@@ -65,6 +66,11 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
         return this.controller.sealStream(scope, streamName);
+    }
+
+    @Override
+    public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String streamName) {
+        return this.controller.deleteStream(scope, streamName);
     }
 
     @Override
