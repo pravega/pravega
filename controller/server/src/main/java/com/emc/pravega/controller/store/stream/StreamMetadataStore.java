@@ -54,6 +54,11 @@ public interface StreamMetadataStore {
                                             final OperationContext context,
                                             final Executor executor);
 
+    CompletableFuture<Void> deleteStream(final String scopeName,
+                                            final String streamName,
+                                            final OperationContext context,
+                                            final Executor executor);
+
     CompletableFuture<Boolean> setState(String scope, String name,
                                         State state, OperationContext context,
                                         Executor executor);
@@ -157,6 +162,17 @@ public interface StreamMetadataStore {
      * @return segment at given number.
      */
     CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor);
+
+    /**
+     * Returns the total number of segments in the stream.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return total number of segments in the stream.
+     */
+    CompletableFuture<Integer> getSegmentCount(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
      * Get active segments.

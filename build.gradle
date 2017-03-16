@@ -489,7 +489,7 @@ project('controller:server') {
 
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.controller.server.Main"
-    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-Xmx512m", "-XX:+HeapDumpOnOutOfMemoryError",
+    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
                                  "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
 
@@ -627,8 +627,12 @@ project('systemtests:tests') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         compile group: 'com.mesosphere', name: 'marathon-client', version: '0.3.0'
+        compile project(':controller:server')
         compile project(":clients:streaming")
         compile 'junit:junit:4.12'
+        compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: '2.0.1'
+        compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: '2.25'
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
     }
     //disable the default test task.
     test {
@@ -704,4 +708,17 @@ task publishAllJars() {
     dependsOn ':connectors:flink:publish'
     dependsOn ':singlenode:publish'
     dependsOn ':systemtests:tests:publish'
+}
+
+task sourceCopy(type: Copy) {
+    from rootDir
+    into 'source'
+}
+
+task sourceTar(type: Tar) {
+    dependsOn 'sourceCopy'
+    from  'source'
+    destinationDir = file('sourceArtifacts')
+    extension = 'tgz'
+    compression = Compression.GZIP
 }

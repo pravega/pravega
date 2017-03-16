@@ -5,6 +5,7 @@ package com.emc.pravega.service.storage;
 
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -40,6 +41,20 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     //endregion
 
     //region Tests
+
+    /**
+     * Tests the create() method.
+     */
+    @Test
+    public void testCreate() {
+        String segmentName = "foo_open";
+        try (Storage s = createStorage()) {
+            s.create(segmentName, null).join();
+            assertThrows("create() did not throw for existing StreamSegment.",
+                    s.create(segmentName, null),
+                    ex -> ex instanceof StreamSegmentExistsException);
+        }
+    }
 
     /**
      * Tests the open() method.
@@ -277,6 +292,15 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             Assert.assertEquals("Concat included more bytes than expected.", offset, readBuffer.length);
         }
     }
+
+    /**
+     * Verifies that the Storage implementation enforces fencing: if a segment owner changes, no operation is allowed
+     * on a segment until open() is called on it.
+     *
+     * @throws Exception If one got thrown.
+     */
+    @Test
+    public abstract void testFencing() throws Exception;
 
     private String getSegmentName(int id, String context) {
         return String.format("%s_%s", context, id);

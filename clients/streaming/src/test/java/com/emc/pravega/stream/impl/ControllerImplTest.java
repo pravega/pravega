@@ -11,6 +11,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatu
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
@@ -183,6 +184,34 @@ public class ControllerImplTest {
                     responseObserver.onNext(UpdateStreamStatus.newBuilder()
                                                     .setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND)
                                                     .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void deleteStream(StreamInfo request,
+                                     StreamObserver<DeleteStreamStatus> responseObserver) {
+                if (request.getStream().equals("stream1")) {
+                    responseObserver.onNext(DeleteStreamStatus.newBuilder()
+                            .setStatus(DeleteStreamStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream2")) {
+                    responseObserver.onNext(DeleteStreamStatus.newBuilder()
+                            .setStatus(DeleteStreamStatus.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream3")) {
+                    responseObserver.onNext(DeleteStreamStatus.newBuilder()
+                            .setStatus(DeleteStreamStatus.Status.STREAM_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream4")) {
+                    responseObserver.onNext(DeleteStreamStatus.newBuilder()
+                            .setStatus(DeleteStreamStatus.Status.STREAM_NOT_SEALED)
+                            .build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -637,6 +666,25 @@ public class ControllerImplTest {
 
         updateStreamStatus = controllerClient.sealStream("scope1", "stream5");
         AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
+    }
+
+    @Test
+    public void testDeleteStream() {
+        CompletableFuture<DeleteStreamStatus> deleteStreamStatus;
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream1");
+        assertEquals(DeleteStreamStatus.Status.SUCCESS, deleteStreamStatus.join().getStatus());
+
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream2");
+        assertEquals(DeleteStreamStatus.Status.FAILURE, deleteStreamStatus.join().getStatus());
+
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream3");
+        assertEquals(DeleteStreamStatus.Status.STREAM_NOT_FOUND, deleteStreamStatus.join().getStatus());
+
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream4");
+        assertEquals(DeleteStreamStatus.Status.STREAM_NOT_SEALED, deleteStreamStatus.join().getStatus());
+
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream5");
+        AssertExtensions.assertThrows("Should throw Exception", deleteStreamStatus, throwable -> true);
     }
 
     @Test

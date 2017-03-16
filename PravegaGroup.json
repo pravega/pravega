@@ -110,6 +110,12 @@
               "docker": {
                   "image": "arvindkandhare/pravega_host",
                   "network": "HOST",
+                  "parameters": [
+                  {
+                    "key": "env",
+                    "value": "JAVA_OPTS=-Xmx900m"
+                  }
+                  ],
 		  "forcePullImage": true
               }
           },
@@ -158,7 +164,9 @@
                   "network": "HOST",
 		   "parameters": [
         				{ "key": "env",
-        				  "value": "SERVER_OPTS=\"-DZK_URL=master.mesos:2181\"" }
+        				  "value": "SERVER_OPTS=\"-DZK_URL=master.mesos:2181\"" },
+                        { "key": "env",
+                          "value": "JAVA_OPTS=-Xmx512m" }
 		    ],
 		  "forcePullImage": true
               }

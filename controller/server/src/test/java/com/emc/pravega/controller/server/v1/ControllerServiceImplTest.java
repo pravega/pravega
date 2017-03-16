@@ -10,6 +10,8 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
@@ -185,6 +187,62 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.createStream(ModelHelper.decode(configuration4), result5);
         status = result5.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.INVALID_STREAM_NAME);
+    }
+
+    @Test
+    public void deleteStreamTests() {
+        CreateScopeStatus createScopeStatus;
+        CreateStreamStatus createStreamStatus;
+        DeleteStreamStatus deleteStreamStatus;
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1).scalingPolicy(ScalingPolicy.fixed(4))
+                        .build();
+
+        // Create a test scope.
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), result1);
+        createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Try deleting a non-existent stream.
+        ResultObserver<DeleteStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.deleteStream(ModelHelper.createStreamInfo(SCOPE3, "dummyStream"), result2);
+        deleteStreamStatus = result2.get();
+        assertEquals("Delete Non-existent stream",
+                DeleteStreamStatus.Status.STREAM_NOT_FOUND, deleteStreamStatus.getStatus());
+
+        // Try deleting a non-existent stream.
+        ResultObserver<DeleteStreamStatus> result3 = new ResultObserver<>();
+        this.controllerService.deleteStream(ModelHelper.createStreamInfo("dummyScope", "dummyStream"), result3);
+        deleteStreamStatus = result3.get();
+        assertEquals("Delete Non-existent stream",
+                DeleteStreamStatus.Status.STREAM_NOT_FOUND, deleteStreamStatus.getStatus());
+
+        // Create a test stream.
+        ResultObserver<CreateStreamStatus> result4 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(configuration1), result4);
+        createStreamStatus = result4.get();
+        Assert.assertEquals("Create stream",
+                CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+
+        // Try deleting the test stream without sealing it first.
+        ResultObserver<DeleteStreamStatus> result5 = new ResultObserver<>();
+        this.controllerService.deleteStream(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result5);
+        deleteStreamStatus = result5.get();
+        assertEquals("Delete non-sealed stream",
+                DeleteStreamStatus.Status.STREAM_NOT_SEALED, deleteStreamStatus.getStatus());
+
+        // Seal the test stream.
+        ResultObserver<UpdateStreamStatus> result6 = new ResultObserver<>();
+        this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result6);
+        UpdateStreamStatus updateStreamStatus = result6.get();
+        assertEquals("Seal stream", UpdateStreamStatus.Status.SUCCESS, updateStreamStatus.getStatus());
+
+        // Delete the sealed stream.
+        ResultObserver<DeleteStreamStatus> result7 = new ResultObserver<>();
+        this.controllerService.deleteStream(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result7);
+        deleteStreamStatus = result7.get();
+        assertEquals("Delete sealed stream", DeleteStreamStatus.Status.SUCCESS, deleteStreamStatus.getStatus());
     }
 
     private static class ResultObserver<T> implements StreamObserver<T> {

@@ -116,10 +116,8 @@ public class ZKStoreHelper {
                                     deleteNode.completeExceptionally(e);
                                 }
                             }), executor).forPath(path);
-        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-            deleteNode.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            deleteNode.completeExceptionally(e);
+            deleteNode.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
         }
 
         deleteNode.whenComplete((res, ex) -> {
@@ -139,15 +137,32 @@ public class ZKStoreHelper {
                                             result.completeExceptionally(e);
                                         }
                                     }), executor).forPath(container);
-                } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                    result.completeExceptionally(new StoreConnectionException(e));
                 } catch (Exception e) {
-                    result.completeExceptionally(e);
+                    result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
                 }
             } else {
                 result.complete(null);
             }
         });
+
+        return result;
+    }
+
+    public CompletableFuture<Void> deleteTree(final String path) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            client.delete().deletingChildrenIfNeeded().inBackground(
+                    callback(event -> result.complete(null),
+                            e -> {
+                                if (e instanceof DataNotFoundException) {
+                                    result.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_FOUND));
+                                } else {
+                                    result.completeExceptionally(e);
+                                }
+                            }), executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+        }
 
         return result;
     }
@@ -164,10 +179,8 @@ public class ZKStoreHelper {
                             client.getData().inBackground(
                                     callback(event -> result.complete(new Data<>(event.getData(), event.getStat().getVersion())),
                                             result::completeExceptionally), executor).forPath(path);
-                        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                            result.completeExceptionally(new StoreConnectionException(e));
                         } catch (Exception e) {
-                            result.completeExceptionally(e);
+                            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
                         }
                     } else {
                         result.completeExceptionally(new DataNotFoundException(path));
@@ -208,10 +221,8 @@ public class ZKStoreHelper {
                                     result.completeExceptionally(e);
                                 }
                             }), executor).forPath(path);
-        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-            result.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            result.completeExceptionally(e);
+            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
         }
 
         return result;
@@ -261,10 +272,8 @@ public class ZKStoreHelper {
                                     result.completeExceptionally(e);
                                 }
                             }), executor).forPath(path, data);
-        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-            result.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            result.completeExceptionally(e);
+            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
         }
 
         return result;
@@ -283,10 +292,8 @@ public class ZKStoreHelper {
                                     result.completeExceptionally(e);
                                 }
                             }), executor).forPath(path);
-        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-            result.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            result.completeExceptionally(e);
+            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
         }
 
         return result;
@@ -306,10 +313,8 @@ public class ZKStoreHelper {
                                 }
                             }), executor).forPath(path);
 
-        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-            result.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            result.completeExceptionally(e);
+            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
         }
 
         return result;
