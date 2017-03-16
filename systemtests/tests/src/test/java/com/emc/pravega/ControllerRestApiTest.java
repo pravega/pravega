@@ -20,6 +20,7 @@ import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
+import org.apache.commons.lang.RandomStringUtils;
 import org.glassfish.jersey.client.ClientConfig;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -124,8 +125,8 @@ public class ControllerRestApiTest {
         assertEquals("Ping test", 200, response.getStatus());
         log.info("REST Server is running. Ping successful.");
 
-        final String scope1 = "scope1";
-        final String stream1 = "stream1";
+        final String scope1 = RandomStringUtils.randomAlphanumeric(10);
+        final String stream1 = RandomStringUtils.randomAlphanumeric(10);
 
         // TEST CreateScope POST http://controllerURI:Port/v1/scopes
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes").toString();
