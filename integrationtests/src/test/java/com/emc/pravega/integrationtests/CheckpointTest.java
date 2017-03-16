@@ -102,35 +102,35 @@ public class CheckpointTest {
                                                                       clock::get,
                                                                       clock::get);
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        EventRead<String> read = reader.readNextEvent(0);
+        EventRead<String> read = reader.readNextEvent(60000);
         assertEquals(testString, read.getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        read = reader.readNextEvent(0);
+        read = reader.readNextEvent(60000);
         assertEquals(testString, read.getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("Checkpoint", new InlineExecutor());
         assertFalse(checkpoint.isDone());
-        read = reader.readNextEvent(0);
+        read = reader.readNextEvent(60000);
         assertTrue(read.isCheckpoint());
         assertEquals("Checkpoint", read.getCheckpointName());
         assertNull(read.getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        read = reader.readNextEvent(0);
+        read = reader.readNextEvent(60000);
         assertEquals(testString, read.getEvent());
         Checkpoint cpResult = checkpoint.get(5, TimeUnit.SECONDS);
         assertTrue(checkpoint.isDone());
         assertEquals("Checkpoint", cpResult.getName());
-        read = reader.readNextEvent(0);
+        read = reader.readNextEvent(100);
         assertNull(read.getEvent());
         assertFalse(read.isCheckpoint());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         readerGroup.resetReadersToCheckpoint(cpResult);
         try {
-            reader.readNextEvent(0);
+            reader.readNextEvent(60000);
             fail();
         } catch (ReinitializationRequiredException e) {
             //Expected
@@ -139,11 +139,11 @@ public class CheckpointTest {
         reader = clientFactory.createReader(readerName, readerGroupName, serializer, ReaderConfig.builder().build());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        read = reader.readNextEvent(0);
+        read = reader.readNextEvent(60000);
         assertEquals(testString, read.getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        read = reader.readNextEvent(0);
+        read = reader.readNextEvent(100);
         assertNull(read.getEvent());
         assertFalse(read.isCheckpoint());
     }
