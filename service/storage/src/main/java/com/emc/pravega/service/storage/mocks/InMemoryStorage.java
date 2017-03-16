@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.mocks;
 
@@ -14,9 +12,9 @@ import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.emc.pravega.service.storage.TruncateableStorage;
 import com.google.common.base.Preconditions;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,11 +27,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-
 import javax.annotation.concurrent.GuardedBy;
-
-import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.ToString;
 
 /**
@@ -505,6 +502,7 @@ public class InMemoryStorage implements TruncateableStorage {
             }
         }
 
+        @GuardedBy("lock")
         private void ensureAllocated(long startOffset, int length) {
             long endOffset = startOffset + length;
             int desiredSize = getOffsetLocation(endOffset).bufferSequence + 1;
@@ -513,12 +511,14 @@ public class InMemoryStorage implements TruncateableStorage {
             }
         }
 
+        @GuardedBy("lock")
         private OffsetLocation getOffsetLocation(long offset) {
             // Adjust for truncation offset and first buffer offset.
             offset += this.firstBufferOffset - this.truncateOffset;
             return new OffsetLocation((int) (offset / BUFFER_SIZE), (int) (offset % BUFFER_SIZE));
         }
 
+        @GuardedBy("lock")
         private void writeInternal(long startOffset, InputStream data, int length) {
             Exceptions.checkArgument(length >= 0, "length", "bad length");
             if (startOffset != this.length) {
@@ -551,8 +551,12 @@ public class InMemoryStorage implements TruncateableStorage {
             }
         }
 
+        @GuardedBy("lock")
+        @SneakyThrows(StorageNotPrimaryException.class)
         private void checkOpened() {
-            Preconditions.checkState(this.currentOwnerId == this.context.getCurrentOwnerId.get(), "StreamSegment '%s' is not open by the current owner.", this.name);
+            if (this.currentOwnerId != this.context.getCurrentOwnerId.get()) {
+                throw new StorageNotPrimaryException(this.name);
+            }
         }
 
         @Override
@@ -560,7 +564,7 @@ public class InMemoryStorage implements TruncateableStorage {
             return String.format("%s: Length = %d, Sealed = %s", this.name, this.length, this.sealed);
         }
 
-        @AllArgsConstructor
+        @RequiredArgsConstructor
         @ToString
         private static class OffsetLocation {
             final int bufferSequence;
