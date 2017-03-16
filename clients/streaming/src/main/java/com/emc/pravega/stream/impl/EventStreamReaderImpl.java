@@ -65,6 +65,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     public EventRead<Type> readNextEvent(long timeout) {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
+            long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
             Timer timer = new Timer();
             Segment segment = null;
             long offset = -1;
@@ -75,13 +76,13 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 rebalance |= acquireSegmentsIfNeeded();
                 SegmentInputStream segmentReader = orderer.nextSegment(readers);
                 if (segmentReader == null) {
-                    Exceptions.handleInterrupted(() -> Thread.sleep(Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis())));
+                    Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
                     buffer = null;
                 } else {
                     segment = segmentReader.getSegmentId();
                     offset = segmentReader.getOffset();
                     try {
-                        buffer = segmentReader.read(ReaderGroupStateManager.TIME_UNIT.toMillis());
+                        buffer = segmentReader.read(waitTime);
                     } catch (EndOfSegmentException e) {
                         handleEndOfSegment(segmentReader);
                         buffer = null;
