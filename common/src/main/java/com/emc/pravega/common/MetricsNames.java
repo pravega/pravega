@@ -36,9 +36,9 @@ public final class MetricsNames {
     public static final String OPEN_TRANSACTIONS = "transactions_opened";     // Dynamic Gauge
 
     // Stream segment counts (Dynamic)
-    //public static final String SEGMENTS_COUNT = "segments_count";   // Dynamic Counter
-    //public static final String SEGMENTS_SPLITS = "segments_splits"; // Dynamic Guage
-    //public static final String SEGMENTS_MERGES = "segments_merges"; // Dynamic Guage
+    public static final String SEGMENTS_COUNT = "segments_count";   // Dynamic Counter
+    public static final String SEGMENTS_SPLITS = "segments_splits"; // Dynamic Guage
+    public static final String SEGMENTS_MERGES = "segments_merges"; // Dynamic Guage
 
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");

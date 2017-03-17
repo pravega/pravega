@@ -168,6 +168,7 @@ public class AppendTest {
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
+        controller.createScope(scope);
         controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
 
         SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
@@ -193,13 +194,14 @@ public class AppendTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
+        streamManager.createScope();
         streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test(timeout = 20000)
+    @Test(timeout = 40000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -213,12 +215,15 @@ public class AppendTest {
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
         @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
+        streamManager.createScope();
         streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         long blockingTime = timeWrites(testString, 200, producer, true);
         long nonBlockingTime = timeWrites(testString, 1000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
         System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
+        assertTrue(blockingTime < 15000);
+        assertTrue(nonBlockingTime < 15000);
     }
 
     private long timeWrites(String testString, int number, EventStreamWriter<String> producer, boolean synchronous)

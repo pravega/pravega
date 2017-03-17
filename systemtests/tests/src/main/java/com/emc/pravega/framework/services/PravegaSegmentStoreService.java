@@ -10,6 +10,7 @@ import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
 import java.net.URI;
 import java.util.ArrayList;
@@ -22,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
 @Slf4j
 public class PravegaSegmentStoreService extends MarathonBasedService {
@@ -35,13 +37,15 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private final URI conUri;
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/host" : id);
         this.zkUri = zkUri;
         this.conUri = conUri;
     }
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri, int instances, double cpu, double mem) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/host" : id);
         this.zkUri = zkUri;
         this.instances = instances;
         this.cpu = cpu;
@@ -105,6 +109,10 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega-host:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
+        List<Parameter> parameterList = new ArrayList<>();
+        Parameter element1 = new Parameter("env", "JAVA_OPTS=-Xmx900m");
+        parameterList.add(element1);
+        app.getContainer().getDocker().setParameters(parameterList);
         //set port
         app.setPorts(Arrays.asList(SEGMENTSTORE_PORT));
         app.setRequirePorts(true);

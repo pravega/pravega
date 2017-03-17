@@ -1,30 +1,43 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
+import com.google.common.base.Preconditions;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Represents a DurableDataLogFactory that creates and manages instances of DistributedLogDataLog instances.
  */
 public class DistributedLogDataLogFactory implements DurableDataLogFactory {
+
     private final LogClient client;
+    private final ScheduledExecutorService executor;
+    private final DistributedLogConfig config;
+    private final Retry.RetryAndThrowBase<DurableDataLogException> retryPolicy;
 
     /**
      * Creates a new instance of the DistributedLogDataLogFactory class.
      *
      * @param clientId The Id of the client to set for the DistributedLog client.
      * @param config   DistributedLog configuration.
+     * @param executor An Executor to use for async operations.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the clientId is invalid.
      */
-    public DistributedLogDataLogFactory(String clientId, DistributedLogConfig config) {
+    public DistributedLogDataLogFactory(String clientId, DistributedLogConfig config, ScheduledExecutorService executor) {
+        Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(executor, "executor");
+        this.executor = executor;
+        this.config = config;
         this.client = new LogClient(clientId, config);
+        this.retryPolicy = config.getRetryPolicy()
+                                 .retryWhen(DistributedLogDataLog::isRetryable)
+                                 .throwingOn(DurableDataLogException.class);
     }
 
     /**
@@ -36,7 +49,10 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
      *                                 the failure reason.
      */
     public void initialize() throws DurableDataLogException {
-        this.client.initialize();
+        this.retryPolicy.run(() -> {
+            this.client.initialize();
+            return null;
+        });
     }
 
     //region DurableDataLogFactory Implementation
@@ -44,7 +60,7 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
     @Override
     public DurableDataLog createDurableDataLog(int containerId) {
         String logName = ContainerToLogNameConverter.getLogName(containerId);
-        return new DistributedLogDataLog(logName, this.client);
+        return new DistributedLogDataLog(logName, this.config, this.client, this.executor);
     }
 
     @Override

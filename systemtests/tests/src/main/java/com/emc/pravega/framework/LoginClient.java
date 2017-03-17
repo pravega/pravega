@@ -16,6 +16,7 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import java.util.Collection;
 
+import static com.emc.pravega.framework.Utils.getConfig;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 /**
@@ -82,11 +83,6 @@ public class LoginClient {
 
     private static String getPassword() {
         return getConfig("password", "password");
-    }
-
-    //Get configuration from environment or system property.
-    private static String getConfig(final String key, final String defaultValue) {
-        return System.getenv().getOrDefault(key, System.getProperty(key, defaultValue));
     }
 
     private interface Login {

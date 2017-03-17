@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
 /**
  * Controller Service.
@@ -38,12 +39,14 @@ public class PravegaControllerService extends MarathonBasedService {
     private double mem = 700;
 
     public PravegaControllerService(final String id, final URI zkUri) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
         this.zkUri = zkUri;
     }
 
     public PravegaControllerService(final String id, final URI zkUri, int instances, double cpu, double mem) {
-        super(id);
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
         this.zkUri = zkUri;
         this.instances = instances;
         this.cpu = cpu;
@@ -119,7 +122,9 @@ public class PravegaControllerService extends MarathonBasedService {
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<Parameter> parameterList = new ArrayList<>();
         Parameter element1 = new Parameter("env", "SERVER_OPTS=\"-DZK_URL=" + zk + "\"");
+        Parameter element2 = new Parameter("env", "JAVA_OPTS=-Xmx512m");
         parameterList.add(element1);
+        parameterList.add(element2);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
         app.setPorts(Arrays.asList(CONTROLLER_PORT, REST_PORT));
