@@ -83,6 +83,49 @@ public class SegmentHelper {
         return result;
     }
 
+    public CompletableFuture<Boolean> deleteSegment(final String scope,
+                                                    final String stream,
+                                                    final int segmentNumber,
+                                                    final HostControllerStore hostControllerStore,
+                                                    final ConnectionFactory clientCF) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+
+        final WireCommandType type = WireCommandType.DELETE_SEGMENT;
+
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                result.complete(true);
+            }
+
+            @Override
+            public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
+                result.complete(true);
+            }
+        };
+
+        whenComplete(sendRequestOverNewConnection(
+                new WireCommands.DeleteSegment(Segment.getScopedName(scope, stream, segmentNumber)),
+                replyProcessor,
+                clientCF,
+                ModelHelper.encode(uri)), result);
+
+        return result;
+    }
+
     /**
      * This method sends segment sealed message for the specified segment.
      * It owns up the responsibility of retrying the operation on failures until success.

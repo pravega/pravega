@@ -140,7 +140,7 @@ public final class ServiceStarter {
             try {
                 DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
                 String clientId = String.format("%s-%s", this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort());
-                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory(clientId, dlConfig);
+                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory(clientId, dlConfig, setup.getExecutor());
                 factory.initialize();
                 return factory;
             } catch (Exception ex) {

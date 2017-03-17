@@ -11,6 +11,7 @@ import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.RevisionedStreamClient;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.impl.PendingEvent;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
@@ -27,8 +28,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
+@Slf4j
 public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> {
 
     private final Segment segment;
@@ -46,15 +49,19 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         ByteBuffer serialized = serializer.serialize(value);
         int size = serialized.remaining();
         try {
+            PendingEvent event = new PendingEvent(null, serialized, wasWritten, offset);
             synchronized (lock) {
-                out.conditionalWrite(offset, serialized, wasWritten);
+                out.write(event);
             }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
         if (FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new)) {
-            return new RevisionImpl(segment, getNewOffset(offset, size), 0);
+            long newOffset = getNewOffset(offset, size);
+            log.trace("Wrote from {} to {}", offset, newOffset);
+            return new RevisionImpl(segment, newOffset, 0);
         } else {
+            log.trace("Write failed at offset {}", offset);
             return null;
         }
     }
@@ -68,8 +75,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
         try {
+            PendingEvent event = new PendingEvent(null, serialized, wasWritten);
+            log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
-                out.write(serialized, wasWritten);
+                out.write(event);
             }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
@@ -82,6 +91,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
             long endOffset = in.fetchCurrentStreamLength();
+            log.trace("Creating iterator from {} until {}", startOffset, endOffset);
             return new StreamIterator(startOffset, endOffset);
         }
     }
@@ -116,6 +126,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 if (!hasNext()) {
                     throw new NoSuchElementException();
                 }
+                log.trace("Iterater reading entry at", offset.get());
                 in.setOffset(offset.get());
                 try {
                     data = in.read();

@@ -5,6 +5,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
@@ -94,6 +95,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(x -> true);
     }
 
+    @Override
+    public CompletableFuture<Void> delete() {
+        return deleteStream();
+    }
+
     /**
      * Update configuration at configurationPath.
      *
@@ -138,6 +144,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Segment> getSegment(final int number) {
         return verifyLegalState(getSegmentRow(number));
+    }
+
+    @Override
+    public CompletableFuture<Integer> getSegmentCount() {
+        return verifyLegalState(getHistoryTable().thenApply(x -> TableHelper.getSegmentCount(x.getData())));
     }
 
     /**
@@ -491,7 +502,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Long> getColdMarker(int segmentNumber) {
         return verifyLegalState(getMarkerData(segmentNumber)
-                .thenApply(x -> (x != null) ? Utilities.toLong(x.getData()) : 0L));
+                .thenApply(x -> (x != null) ? BitConverter.readLong(x.getData(), 0) : 0L));
     }
 
     @Override
@@ -664,6 +675,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return getSegmentTableChunk(latestChunkNumber)
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
     }
+
+    abstract CompletableFuture<Void> deleteStream();
 
     abstract CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException;
 

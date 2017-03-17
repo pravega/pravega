@@ -65,21 +65,21 @@ public abstract class TaskBase {
 
     protected final TaskMetadataStore taskMetadataStore;
 
-    private volatile boolean initialized;
-    private final CountDownLatch latch;
+    private volatile boolean ready;
+    private final CountDownLatch readyLatch;
 
     public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
-                    final String hostId, final boolean initialized) {
-        this(taskMetadataStore, executor, new Context(hostId), initialized);
+                    final String hostId) {
+        this(taskMetadataStore, executor, new Context(hostId));
     }
 
     protected TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
-                       final Context context, final boolean initialized) {
+                       final Context context) {
         this.taskMetadataStore = taskMetadataStore;
         this.executor = executor;
         this.context = context;
-        this.initialized = initialized;
-        latch = initialized ? new CountDownLatch(0) : new CountDownLatch(1);
+        this.ready = false;
+        readyLatch = new CountDownLatch(1);
     }
     
     public abstract TaskBase copyWithContext(Context context);
@@ -98,8 +98,8 @@ public abstract class TaskBase {
      * @return return value of task execution.
      */
     public <T> CompletableFuture<T> execute(final Resource resource, final Serializable[] parameters, final FutureOperation<T> operation) {
-        if (!initialized) {
-            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet initialized"));
+        if (!ready) {
+            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }
         final String tag = UUID.randomUUID().toString();
         final TaskData taskData = getTaskData(parameters);
@@ -131,14 +131,14 @@ public abstract class TaskBase {
         return result;
     }
 
-    protected void setInitialized() {
-        initialized = true;
-        latch.countDown();
+    protected void setReady() {
+        ready = true;
+        readyLatch.countDown();
     }
 
     @VisibleForTesting
     public boolean awaitInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
-        return latch.await(timeout, timeUnit);
+        return readyLatch.await(timeout, timeUnit);
     }
 
     private <T> CompletableFuture<T> executeTask(final Resource resource,

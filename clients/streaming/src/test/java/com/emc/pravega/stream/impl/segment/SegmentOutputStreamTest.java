@@ -27,6 +27,7 @@ import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.emc.pravega.stream.impl.PendingEvent;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
@@ -91,12 +92,12 @@ public class SegmentOutputStreamTest {
         
         output.setupConnection();
         cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));
-        output.write(getBuffer("test1"), new CompletableFuture<>());
-        output.write(getBuffer("test2"), new CompletableFuture<>());
+        output.write(new PendingEvent(null, getBuffer("test1"), new CompletableFuture<>()));
+        output.write(new PendingEvent(null, getBuffer("test2"), new CompletableFuture<>()));
         cf.getProcessor(uri).connectionDropped();
-        Async.testBlocking(() -> output.write(getBuffer("test3"), new CompletableFuture<>()),
+        Async.testBlocking(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
                            () -> cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0)));
-        output.write(getBuffer("test4"), new CompletableFuture<>());
+        output.write(new PendingEvent(null, getBuffer("test4"), new CompletableFuture<>()));
         
         inOrder.verify(connection).send(new SetupAppend(cid, SEGMENT));
         inOrder.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null));
@@ -114,11 +115,7 @@ public class SegmentOutputStreamTest {
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
             ByteBuffer data, int num, Long expectedLength) throws SegmentSealedException, ConnectionFailedException {
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
-        if (expectedLength == null) {
-            output.write(data, acked);
-        } else {
-            output.conditionalWrite(expectedLength, data, acked);
-        }
+        output.write(new PendingEvent(null, data, acked, expectedLength));
         verify(connection).send(new Append(SEGMENT, cid, num, Unpooled.wrappedBuffer(data), expectedLength));
         assertEquals(false, acked.isDone());
     }
@@ -139,7 +136,7 @@ public class SegmentOutputStreamTest {
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
-        output.write(data, acked);
+        output.write(new PendingEvent(null, data, acked));
         verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked.isDone());
         Async.testBlocking(() -> output.close(), () -> cf.getProcessor(uri).dataAppended(new DataAppended(cid, 1)));
@@ -194,10 +191,10 @@ public class SegmentOutputStreamTest {
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));
 
-        ByteBuffer data = ByteBuffer.allocate(SegmentOutputStream.MAX_WRITE_SIZE + 1);
+        ByteBuffer data = ByteBuffer.allocate(PendingEvent.MAX_WRITE_SIZE + 1);
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
         try {
-            output.write(data, acked);
+            output.write(new PendingEvent("routingKey", data, acked));
             fail("Did not throw");
         } catch (IllegalArgumentException e) {
             // expected

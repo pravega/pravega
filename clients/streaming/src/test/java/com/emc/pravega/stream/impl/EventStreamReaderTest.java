@@ -7,6 +7,7 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
@@ -29,7 +30,7 @@ import static org.junit.Assert.*;
 public class EventStreamReaderTest {
 
     @Test(timeout = 10000)
-    public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException {
+    public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -58,7 +59,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testRead() throws SegmentSealedException {
+    public void testRead() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -83,7 +84,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testReleaseSegment() throws SegmentSealedException {
+    public void testReleaseSegment() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -109,7 +110,9 @@ public class EventStreamReaderTest {
         assertEquals(segment1, readers.get(0).getSegmentId());
         assertEquals(segment2, readers.get(1).getSegmentId());
 
+        Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint");
         Mockito.when(groupState.findSegmentToReleaseIfRequired()).thenReturn(segment2);
+        reader.readNextEvent(0);
         reader.readNextEvent(0);
         Mockito.verify(groupState).releaseSegment(Mockito.eq(segment2), Mockito.anyLong(), Mockito.anyLong());
         readers = reader.getReaders();
@@ -121,12 +124,12 @@ public class EventStreamReaderTest {
     private ByteBuffer writeInt(SegmentOutputStream stream, int value) throws SegmentSealedException {
         ByteBuffer buffer = ByteBuffer.allocate(4).putInt(value);
         buffer.flip();
-        stream.write(buffer, new CompletableFuture<Boolean>());
+        stream.write(new PendingEvent(null, buffer, new CompletableFuture<Boolean>()));
         return buffer;
     }
 
     @Test(timeout = 10000)
-    public void testAcquireSegment() throws SegmentSealedException {
+    public void testAcquireSegment() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -163,7 +166,7 @@ public class EventStreamReaderTest {
     }
     
     @Test
-    public void testEventPointer() throws SegmentSealedException, NoSuchEventException {
+    public void testEventPointer() throws SegmentSealedException, NoSuchEventException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -193,4 +196,57 @@ public class EventStreamReaderTest {
         reader.close();
     }
 
+    @Test(timeout = 10000)
+    public void testCheckpoint() throws SegmentSealedException, ReinitializationRequiredException {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<byte[]>(segmentStreamFactory,
+                new ByteArraySerializer(),
+                groupState,
+                orderer,
+                clock::get,
+                ReaderConfig.builder().build());
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment);
+        ByteBuffer buffer = writeInt(stream, 1);
+        Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
+        EventRead<byte[]> eventRead = reader.readNextEvent(0);
+        assertTrue(eventRead.isCheckpoint());
+        assertNull(eventRead.getEvent());
+        assertEquals("Foo", eventRead.getCheckpointName());
+        assertEquals(buffer, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
+        assertNull(reader.readNextEvent(0).getEvent());
+        reader.close();
+    }
+    
+    @Test(timeout = 10000)
+    public void testRestore() throws SegmentSealedException, ReinitializationRequiredException {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<byte[]>(segmentStreamFactory,
+                new ByteArraySerializer(),
+                groupState,
+                orderer,
+                clock::get,
+                ReaderConfig.builder().build());
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment);
+        ByteBuffer buffer = writeInt(stream, 1);
+        Mockito.when(groupState.getCheckpoint()).thenThrow(new ReinitializationRequiredException());
+        try {
+            reader.readNextEvent(0);
+            fail();
+        } catch (ReinitializationRequiredException e) {
+            // expected
+        }
+        assertTrue(reader.getReaders().isEmpty());
+        reader.close();
+    }
+    
 }
