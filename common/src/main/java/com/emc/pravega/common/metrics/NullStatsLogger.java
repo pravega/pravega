@@ -5,13 +5,11 @@
  */
 package com.emc.pravega.common.metrics;
 
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.function.Supplier;
 
-@Slf4j
 public class NullStatsLogger implements StatsLogger {
 
     public static final NullStatsLogger INSTANCE = new NullStatsLogger();
