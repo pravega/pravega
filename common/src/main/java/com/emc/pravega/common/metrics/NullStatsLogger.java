@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.common.metrics;
 
-
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.function.Supplier;
