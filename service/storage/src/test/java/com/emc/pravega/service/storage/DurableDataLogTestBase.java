@@ -109,8 +109,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
             // Test truncating after each sequence number that we got back.
             for (LogAddress address : addresses) {
-                boolean truncated = log.truncate(address, TIMEOUT).join();
-                Assert.assertTrue("No truncation happened.", truncated);
+                log.truncate(address, TIMEOUT).join();
                 writeData.headMap(address, true).clear();
                 verifyReads(log, createLogAddress(-1), writeData);
             }
@@ -171,8 +170,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             if (previousAddress != null) {
                 try (DurableDataLog log = createDurableDataLog(context)) {
                     log.initialize(TIMEOUT);
-                    boolean truncated = log.truncate(previousAddress, TIMEOUT).join();
-                    Assert.assertTrue("No truncation happened.", truncated);
+                    log.truncate(previousAddress, TIMEOUT).join();
                     writtenData.headMap(previousAddress, true).clear();
                 }
             }
