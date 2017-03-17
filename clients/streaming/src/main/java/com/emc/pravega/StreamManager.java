@@ -62,6 +62,19 @@ public interface StreamManager extends AutoCloseable {
      * @param toDelete The name of the stream to be deleted.
      */
     void deleteStream(String toDelete);
+
+    /**
+     * Creates a new scope.
+     *
+     */
+    void createScope();
+
+    /**
+     * Deletes an existing scope. The scope must contain no
+     * stream.
+     *
+     */
+    void deleteScope();
     
     /**
      * See @see java.lang.AutoCloseable#close() .

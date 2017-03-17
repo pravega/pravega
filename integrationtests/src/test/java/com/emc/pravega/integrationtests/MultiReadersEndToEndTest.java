@@ -98,6 +98,7 @@ public class MultiReadersEndToEndTest {
             throws Exception {
         @Cleanup
         StreamManager streamManager = StreamManager.withScope(SETUP_UTILS.getScope(), SETUP_UTILS.getControllerUri());
+        streamManager.createScope();
         streamNames.stream().forEach(stream -> {
             streamManager.createStream(stream,
                                        StreamConfiguration.builder()
@@ -185,6 +186,7 @@ public class MultiReadersEndToEndTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", "localhost", port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
+        streamManager.createScope();
         streamNames.stream().forEach(stream -> {
             streamManager.createStream(stream,
                                        StreamConfiguration.builder()
