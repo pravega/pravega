@@ -5,9 +5,9 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
-import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -25,15 +25,14 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.google.common.util.concurrent.AbstractService;
-import lombok.Lombok;
+import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
-public class ControllerEventProcessors extends AbstractService {
+public class ControllerEventProcessors extends AbstractIdleService {
 
     public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
     public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
@@ -43,6 +42,7 @@ public class ControllerEventProcessors extends AbstractService {
     private static final int MULTIPLIER = 10;
     private static final long MAX_DELAY = 10000;
 
+    private final String objectId;
     private final ControllerEventProcessorConfig config;
     private final CheckpointStore checkpointStore;
     private final StreamMetadataStore streamMetadataStore;
@@ -62,6 +62,7 @@ public class ControllerEventProcessors extends AbstractService {
                                      final HostControllerStore hostControllerStore,
                                      final SegmentHelper segmentHelper,
                                      final ScheduledExecutorService executor) {
+        this.objectId  = "ControllerEventProcessors";
         this.config = config;
         this.checkpointStore = checkpointStore;
         this.streamMetadataStore = streamMetadataStore;
@@ -72,25 +73,24 @@ public class ControllerEventProcessors extends AbstractService {
     }
 
     @Override
-    protected void doStart() {
+    protected void startUp() throws Exception {
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
         try {
-            log.info("Starting controller event processors.");
+            log.info("Starting controller event processors");
             initialize();
-            notifyStarted();
-        } catch (Exception e) {
-            log.error("Error starting controller event processors.", e);
-            // Throwing this error will mark the service as FAILED.
-            throw Lombok.sneakyThrow(e);
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
     }
 
     @Override
-    protected void doStop() {
+    protected void shutDown() {
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "shutDown");
         try {
             log.info("Stopping controller event processors.");
             stopEventProcessors();
-        } catch (CheckpointStoreException e) {
-            log.error("Error stopping controller event processors.", e);
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
     }
 
@@ -178,6 +178,7 @@ public class ControllerEventProcessors extends AbstractService {
                         .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper))
                         .build();
 
+        log.info("Creating commit event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
@@ -205,6 +206,7 @@ public class ControllerEventProcessors extends AbstractService {
                         .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper))
                         .build();
 
+        log.info("Creating abort event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
@@ -213,14 +215,29 @@ public class ControllerEventProcessors extends AbstractService {
                 });
 
         // endregion
+
+        log.info("Awaiting start of commit event processors");
+        commitEventEventProcessors.awaitRunning();
+        log.info("Awaiting start of abort event processors");
+        abortEventEventProcessors.awaitRunning();
     }
 
-    private void stopEventProcessors() throws CheckpointStoreException {
+    private void stopEventProcessors() {
         if (commitEventEventProcessors != null) {
-            commitEventEventProcessors.stopAll();
+            log.info("Stopping commit event processors");
+            commitEventEventProcessors.stopAsync();
         }
         if (abortEventEventProcessors != null) {
-            abortEventEventProcessors.stopAll();
+            log.info("Stopping abort event processors");
+            abortEventEventProcessors.stopAsync();
+        }
+        if (commitEventEventProcessors != null) {
+            log.info("Awaiting termination of commit event processors");
+            commitEventEventProcessors.awaitTerminated();
+        }
+        if (abortEventEventProcessors != null) {
+            log.info("Awaiting termination of abort event processors");
+            abortEventEventProcessors.awaitTerminated();
         }
     }
 }

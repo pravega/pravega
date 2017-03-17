@@ -221,12 +221,12 @@ public class EventProcessorTest {
                                     final CheckpointStore checkpointStore,
                                     final int expectedSum) throws CheckpointStoreException {
         checkpointStore.addReader(PROCESS, READER_GROUP, readerId);
-        EventProcessorCell<TestEvent> cell =
-                new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(), readerId, checkpointStore);
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(),
+                readerId, 0, checkpointStore);
 
         cell.startAsync();
 
-        cell.awaitStopped();
+        cell.awaitTerminated();
 
         TestEventProcessor actor = (TestEventProcessor) cell.getActor();
         assertEquals(expectedSum, actor.sum);

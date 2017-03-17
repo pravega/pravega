@@ -111,8 +111,16 @@ public class ControllerWrapper implements AutoCloseable {
         return this.controllerServiceStarter.getControllerService();
     }
 
-    public Controller getController() {
+    public Controller getController() throws InterruptedException {
         return this.controllerServiceStarter.getController();
+    }
+
+    public void awaitRunning() {
+        this.controllerServiceStarter.awaitRunning();
+    }
+
+    public void awaitTerminated() {
+        this.controllerServiceStarter.awaitTerminated();
     }
 
     @Override

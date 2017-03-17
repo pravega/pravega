@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.server.rest;
 
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import com.emc.pravega.controller.server.ControllerService;
@@ -15,9 +16,8 @@ import java.util.Set;
 
 import javax.ws.rs.core.UriBuilder;
 
-import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.AbstractIdleService;
 import io.netty.channel.Channel;
-import lombok.Lombok;
 import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
@@ -28,19 +28,21 @@ import lombok.extern.slf4j.Slf4j;
  * Netty REST server implementation.
  */
 @Slf4j
-public class RESTServer extends AbstractService {
+public class RESTServer extends AbstractIdleService {
 
+    private final String objectId;
     private final RESTServerConfig restServerConfig;
     private final URI baseUri;
     private final ResourceConfig resourceConfig;
     private Channel channel;
 
     public RESTServer(ControllerService controllerService, RESTServerConfig restServerConfig) {
+        this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
         final String serverURI = "http://" + restServerConfig.getHost() + "/";
         this.baseUri = UriBuilder.fromUri(serverURI).port(restServerConfig.getPort()).build();
 
-        final Set<Object> resourceObjs = new HashSet<Object>();
+        final Set<Object> resourceObjs = new HashSet<>();
         resourceObjs.add(new PingImpl());
         resourceObjs.add(new StreamMetadataResourceImpl(controllerService));
 
@@ -57,15 +59,13 @@ public class RESTServer extends AbstractService {
      * Start REST service.
      */
     @Override
-    protected void doStart() {
+    protected void startUp() {
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
         try {
             log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
             channel = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
-            notifyStarted();
-        } catch (Exception e) {
-            log.error("Error starting Rest Service {}", e);
-            // Throw the error so that the service is marked as FAILED.
-            throw Lombok.sneakyThrow(e);
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
     }
 
@@ -73,8 +73,15 @@ public class RESTServer extends AbstractService {
      * Gracefully stop REST service.
      */
     @Override
-    protected void doStop() {
-        log.info("Stopping REST server listening on port: {}", this.restServerConfig.getPort());
-        channel.close();
+    protected void shutDown() throws Exception {
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "shutDown");
+        try {
+            log.info("Stopping REST server listening on port: {}", this.restServerConfig.getPort());
+            channel.close();
+            log.info("Awaiting termination of REST server");
+            channel.closeFuture().await();
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
+        }
     }
 }

@@ -175,7 +175,7 @@ public class EventProcessorTest {
         log.info("SUCCESS: received expected sum = " + expectedSum);
 
         producer.close();
-        eventEventProcessorGroup.stopAll();
+        eventEventProcessorGroup.close();
         server.close();
         zkTestServer.close();
 

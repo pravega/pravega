@@ -5,22 +5,21 @@
  */
 package com.emc.pravega.controller.server.rpc.grpc;
 
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.AbstractIdleService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
-
-import java.io.IOException;
 
 /**
  * gRPC based RPC Server for the Controller.
  */
 @Slf4j
-public class GRPCServer extends AbstractService {
+public class GRPCServer extends AbstractIdleService {
 
+    private final String objectId;
     private final Server server;
     private final GRPCServerConfig config;
 
@@ -31,6 +30,7 @@ public class GRPCServer extends AbstractService {
      * @param serverConfig      The RPC Server config.
      */
     public GRPCServer(ControllerService controllerService, GRPCServerConfig serverConfig) {
+        this.objectId = "gRPCServer";
         this.config = serverConfig;
         this.server = ServerBuilder
                 .forPort(serverConfig.getPort())
@@ -42,15 +42,13 @@ public class GRPCServer extends AbstractService {
      * Start gRPC server.
      */
     @Override
-    protected void doStart() {
+    protected void startUp() throws Exception {
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
         try {
             log.info("Starting gRPC server listening on port: {}", this.config.getPort());
             this.server.start();
-            notifyStarted();
-        } catch (IOException e) {
-            log.error("Failed to start gRPC server on port: {}. Error: {}", this.config.getPort(), e);
-            // Throwing this error will mark the service as FAILED.
-            throw Lombok.sneakyThrow(e);
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
     }
 
@@ -58,8 +56,15 @@ public class GRPCServer extends AbstractService {
      * Gracefully stop gRPC server.
      */
     @Override
-    protected void doStop() {
-        log.info("Stopping gRPC server listening on port: {}", this.config.getPort());
-        this.server.shutdown();
+    protected void shutDown() throws Exception {
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "shutDown");
+        try {
+            log.info("Stopping gRPC server listening on port: {}", this.config.getPort());
+            this.server.shutdown();
+            log.info("Awaiting termination of gRPC server");
+            this.server.awaitTermination();
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
+        }
     }
 }

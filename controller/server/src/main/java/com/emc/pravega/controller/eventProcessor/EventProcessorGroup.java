@@ -7,6 +7,7 @@ package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.stream.EventStreamWriter;
+import com.google.common.util.concurrent.Service;
 
 import java.util.Set;
 
@@ -15,7 +16,7 @@ import java.util.Set;
  * processors processing events from a Pravega Stream by participating in
  * the same ReaderGroup.
  */
-public interface EventProcessorGroup<T extends ControllerEvent> {
+public interface EventProcessorGroup<T extends ControllerEvent> extends Service, AutoCloseable {
 
     /**
      * Notifies Pravega ReaderGroup about failure of a process
@@ -36,11 +37,4 @@ public interface EventProcessorGroup<T extends ControllerEvent> {
      * @return list of processes participating in the Logical EventProcessorGroup.
      */
     Set<String> getProcesses();
-
-    /**
-     * Initiates stop on all event processors in this group and waits for
-     * their termination.
-     * @throws CheckpointStoreException on error accessing or updating checkpoint store.
-     */
-    void stopAll() throws CheckpointStoreException;
 }
