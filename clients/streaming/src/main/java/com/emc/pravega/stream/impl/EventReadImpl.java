@@ -18,7 +18,6 @@ public class EventReadImpl<T> implements EventRead<T> {
     private final T event;
     private final Position position;
     private final EventPointer eventPointer;
-    private final boolean routingRebalance;
     private final String checkpointName;
     
     @Override
