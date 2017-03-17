@@ -11,8 +11,6 @@ import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
-import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
-import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -51,7 +49,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem,
                             final EventProcessorConfig<T> eventProcessorConfig,
-                            final StoreClient storeClient) {
+                            final CheckpointStore checkpointStore) {
         this.actorSystem = actorSystem;
         this.eventProcessorConfig = eventProcessorConfig;
         this.eventProcessorMap = new ConcurrentHashMap<>();
@@ -60,8 +58,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 .createEventWriter(eventProcessorConfig.getConfig().getStreamName(),
                         eventProcessorConfig.getSerializer(),
                         EventWriterConfig.builder().build());
-
-        this.checkpointStore = CheckpointStoreFactory.create(storeClient);
+        this.checkpointStore = checkpointStore;
     }
 
     void initialize() throws CheckpointStoreException {

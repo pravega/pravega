@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -15,7 +16,6 @@ import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigI
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -44,7 +44,7 @@ public class ControllerEventProcessors extends AbstractService {
     private static final long MAX_DELAY = 10000;
 
     private final ControllerEventProcessorConfig config;
-    private final StoreClient storeClient;
+    private final CheckpointStore checkpointStore;
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
@@ -57,13 +57,13 @@ public class ControllerEventProcessors extends AbstractService {
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
                                      final Controller controller,
-                                     final StoreClient storeClient,
+                                     final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
                                      final HostControllerStore hostControllerStore,
                                      final SegmentHelper segmentHelper,
                                      final ScheduledExecutorService executor) {
         this.config = config;
-        this.storeClient = storeClient;
+        this.checkpointStore = checkpointStore;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
@@ -181,7 +181,7 @@ public class ControllerEventProcessors extends AbstractService {
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    commitEventEventProcessors = system.createEventProcessorGroup(commitConfig, storeClient);
+                    commitEventEventProcessors = system.createEventProcessorGroup(commitConfig, checkpointStore);
                     return null;
                 });
 
@@ -208,7 +208,7 @@ public class ControllerEventProcessors extends AbstractService {
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    abortEventEventProcessors = system.createEventProcessorGroup(abortConfig, storeClient);
+                    abortEventEventProcessors = system.createEventProcessorGroup(abortConfig, checkpointStore);
                     return null;
                 });
 

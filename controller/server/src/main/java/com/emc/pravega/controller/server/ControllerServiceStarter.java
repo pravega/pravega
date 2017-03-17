@@ -10,6 +10,8 @@ import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessor
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -49,6 +51,7 @@ public class ControllerServiceStarter extends AbstractService {
     private StreamMetadataStore streamStore;
     private TaskMetadataStore taskMetadataStore;
     private HostControllerStore hostStore;
+    private CheckpointStore checkpointStore;
 
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
@@ -99,6 +102,9 @@ public class ControllerServiceStarter extends AbstractService {
         log.info("Creating the host store");
         hostStore = HostStoreFactory.createStore(serviceConfig.getHostMonitorConfig(), storeClient);
 
+        log.info("Creating the checkpoint store");
+        checkpointStore = CheckpointStoreFactory.create(storeClient);
+
         if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
             //Start the Segment Container Monitor.
             monitor = new SegmentContainerMonitor(hostStore, (CuratorFramework) storeClient.getClient(),
@@ -124,7 +130,7 @@ public class ControllerServiceStarter extends AbstractService {
         if (serviceConfig.getEventProcessorConfig().isPresent()) {
             // Create ControllerEventProcessor object.
             controllerEventProcessors = new ControllerEventProcessors(serviceConfig.getHost(),
-                    serviceConfig.getEventProcessorConfig().get(), localController, storeClient, streamStore,
+                    serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
                     hostStore, segmentHelper, eventProcExecutor);
 
             // Bootstrap and start it asynchronously.

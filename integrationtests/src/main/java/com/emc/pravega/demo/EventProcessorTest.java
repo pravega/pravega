@@ -14,7 +14,7 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import com.emc.pravega.controller.store.client.StoreClientFactory;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -168,7 +168,7 @@ public class EventProcessorTest {
                 .config(eventProcessorGroupConfig)
                 .build();
         EventProcessorGroup<TestEvent> eventEventProcessorGroup =
-                system.createEventProcessorGroup(eventProcessorConfig, StoreClientFactory.createInMemoryStoreClient());
+                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore());
 
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());

@@ -78,6 +78,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * This method should be called immediately after creating StreamTransactionMetadataTasks object.
      *
      * @param controller Local controller reference
+     * @param config Controller event processor configuration.
      */
     public Void initializeStreamWriters(Controller controller, ControllerEventProcessorConfig config) {
 
