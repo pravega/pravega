@@ -193,7 +193,7 @@ public class ScopesApi  {
     @Path("/{scopeName}/streams/{streamName}/state")
     @Consumes({ "application/json" })
     @Produces({ "application/json" })
-    @io.swagger.annotations.ApiOperation(value = "", notes = "", response = StreamState.class, tags={  })
+    @io.swagger.annotations.ApiOperation(value = "", notes = "Updates the current state of the stream", response = StreamState.class, tags={  })
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 200, message = "Successfully updated the stream state", response = StreamState.class),
         
