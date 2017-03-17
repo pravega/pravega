@@ -34,11 +34,13 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.curator.RetryPolicy;
@@ -67,7 +69,7 @@ import static org.apache.bookkeeper.util.LocalBookKeeper.runZookeeper;
 public class InProcPravegaCluster implements AutoCloseable {
 
     private static final String THREADPOOL_SIZE = "20";
-    private static final String CONTAINER_COUNT = "2";
+    private static final String CONTAINER_COUNT = "4";
     private final boolean isInMemStorage;
 
     /*Controller related variables*/
@@ -112,12 +114,13 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     @Getter
     private String zkUrl;
+    private boolean startRestServer = false;
 
     @Builder
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
                 boolean isInProcHDFS, boolean isInProcDL, int initialBookiePort,
                 boolean isInprocController, int controllerCount,
-                boolean isInprocHost, int hostCount, String containerCount) {
+                boolean isInprocHost, int hostCount, String containerCount, boolean startRestServer) {
         this.isInMemStorage = isInMemStorage;
         if ( isInMemStorage ) {
             this.isInProcHDFS = false;
@@ -135,22 +138,26 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.isInprocHost = isInprocHost;
         this.hostCount = hostCount;
         this.containerCount = containerCount;
+        this.startRestServer = startRestServer;
     }
 
-    public synchronized void setControllerPorts(int[] controllerPorts) {
+    @Synchronized
+    public void setControllerPorts(int[] controllerPorts) {
         this.controllerPorts = Arrays.copyOf( controllerPorts, controllerPorts.length);
     }
 
-    public synchronized void setHostPorts(int[] hostPorts) {
+    @Synchronized
+    public void setHostPorts(int[] hostPorts) {
         this.hostPorts = Arrays.copyOf( hostPorts, hostPorts.length);
 
     }
+
     /**
      * Kicks off the cluster creation. right now it can be done only once in lifetime of a process.
      * @throws Exception Exception thrown by ZK/HDFS etc.
      */
-
-    public synchronized void start() throws Exception {
+    @Synchronized
+    public void start() throws Exception {
         /*Check possible combinations of flags*/
         checkFeatures();
 
@@ -159,7 +166,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             zkUrl = "localhost:" + zkPort;
             startLocalZK();
         } else {
-            assert zkUrl != null;
+            Preconditions.checkState(zkUrl != null, "ZkUrl must be specified");
             zkHost = new URI("temp://" + zkUrl).getHost();
             zkPort = new URI("temp://" + zkUrl).getPort();
         }
@@ -180,7 +187,8 @@ public class InProcPravegaCluster implements AutoCloseable {
             controllerServices = new ControllerService[controllerCount];
             startLocalControllers();
         } else {
-            assert controllerURI != null;
+            Preconditions.checkState(controllerURI != null,
+                    "ControllerURI should be defined for external controller");
         }
 
         if (isInprocHost) {
@@ -192,7 +200,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private void checkFeatures() {
         if ( isInProcDL ) {
-            //Can not instantiate DL in proc
+           //Can not instantiate DL in proc
            throw new NotImplementedException();
         }
     }
@@ -214,14 +222,14 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .retryPolicy(rp);
         CuratorFramework zclient = builder.build();
         zclient.start();
-        Arrays.stream(pathsTobeCleaned).forEach((path) -> {
+        for ( String path : pathsTobeCleaned ) {
             try {
                 zclient.delete().guaranteed().deletingChildrenIfNeeded()
                         .forPath(path);
             } catch (Exception e) {
-                log.warn("Not able to delete path {} . Exception {}", path, e);
+                log.warn("Not able to delete path {} . Exception {}", path, e.getMessage());
             }
-        });
+        }
         zclient.close();
     }
 
@@ -233,12 +241,12 @@ public class InProcPravegaCluster implements AutoCloseable {
         try {
             admin.run(params);
         } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(1);
+            log.warn("Exception {} while configuring the DL bindings.", e.getMessage());
         }
     }
 
-    private synchronized void startLocalDL() throws Exception {
+    @Synchronized
+    private void startLocalDL() throws Exception {
         localDlm = LocalDLMEmulator.newBuilder().shouldStartZK(false).zkHost(zkHost).
                     zkPort(zkPort).numBookies(this.bookieCount).build();
         localDlm.start();
@@ -263,10 +271,11 @@ public class InProcPravegaCluster implements AutoCloseable {
      *
      * @param hostId id of the host.
      */
-    public synchronized void startLocalHost(int hostId) {
-        assert this.nodeServiceStarter != null : "Hosts not created";
-        assert this.hostPorts != null : "Host ports not declared";
-        assert hostId < hostCount : "Host not initialized";
+    @Synchronized
+    public void startLocalHost(int hostId) {
+        Preconditions.checkState(this.nodeServiceStarter != null, "Hosts not created");
+        Preconditions.checkState( this.hostPorts != null, "Host ports not declared");
+        Preconditions.checkState( hostId < hostCount, "Host not initialized");
 
         try {
             Properties p = new Properties();
@@ -327,9 +336,11 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     }
 
-    public synchronized void startLocalController(int controllerId) {
-        assert this.controllerServers != null && this.controllerPorts != null : "Controllers not present";
-        assert controllerId < controllerCount : "Controller not initialized";
+    @Synchronized
+    public void startLocalController(int controllerId) {
+        Preconditions.checkState(this.controllerServers != null && this.controllerPorts != null,
+                "Controllers not present");
+        Preconditions.checkState(controllerId < controllerCount, "Controller not initialized");
 
         ScheduledExecutorService controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
@@ -401,33 +412,40 @@ public class InProcPravegaCluster implements AutoCloseable {
                     streamTransactionMetadataTasks);
 
             RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
-            /* 4. Start the REST server.
-            try {
-                log.info("Starting Pravega REST Service");
-                RESTServer.start(controllerService);
-            } catch (Exception e) {
-                log.warn("Exception {} while starting REST server",e);
-            }*/
+            // 4. Start the REST server.
+            if ( this.startRestServer ) {
+                try {
+                    log.info("Starting Pravega REST Service");
+                    RESTServer.start(controllerService);
+                } catch (Exception e) {
+                    log.warn("Exception {} while starting REST server", e);
+                }
+            }
         }
     }
 
-    public synchronized void stopController(int controllerId) {
+    @Synchronized
+    public void stopController(int controllerId) {
         this.controllerServers[controllerId].stopAsync().awaitTerminated();
     }
 
     @Override
-    public synchronized void close() {
+    @Synchronized
+    public void close() {
         if (isInprocHost) {
-            Arrays.stream(this.nodeServiceStarter).forEach((serviceStarter) -> serviceStarter.shutdown());
+            for ( ServiceStarter starter : this.nodeServiceStarter ) {
+                starter.shutdown();
+            }
         }
         if (isInprocController) {
-                Arrays.stream(this.controllerServers).forEach(controller -> {
+            for ( GRPCServer controller : this.controllerServers ) {
                     controller.stopAsync();
-                });
-            }
+                }
+        }
     }
 
-    public synchronized void stopHost(int hostId) {
+    @Synchronized
+    public void stopHost(int hostId) {
         this.nodeServiceStarter[hostId].shutdown();
     }
 }
