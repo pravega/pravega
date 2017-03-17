@@ -30,7 +30,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.WriteAbortedException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -40,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -117,11 +115,6 @@ public class AutoScaleTest {
         URI segUri = segUris.get(0);
     }
 
-    @BeforeClass
-    public static void beforeClass() throws InterruptedException, ExecutionException, TimeoutException {
-        // This is the placeholder to perform any operation on the services before executing the system tests
-    }
-
     /**
      * Invoke the createStream method, ensure we are able to create stream.
      *
@@ -139,11 +132,11 @@ public class AutoScaleTest {
         assertNotEquals(Controller.CreateScopeStatus.Status.FAILURE, createScopeStatus.get().getStatus());
         //create a stream
         CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(CONFIG_UP);
-        log.debug("create stream status {}", createStreamStatus.get().getStatus());
+        log.debug("create stream status for scale up stream {}", createStreamStatus.get().getStatus());
         assertNotEquals(Controller.CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
 
         createStreamStatus = controller.createStream(CONFIG_DOWN);
-        log.debug("create stream status {}", createStreamStatus.get().getStatus());
+        log.debug("create stream status for scaledown stream {}", createStreamStatus.get().getStatus());
         assertNotEquals(Controller.CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
 
         log.debug("scale down stream starting segments:" + controller.getCurrentSegments(SCOPE, SCALE_DOWN_STREAM_NAME).get().getSegments().size());
@@ -155,20 +148,20 @@ public class AutoScaleTest {
         CompletableFuture<Controller.ScaleResponse> status = controller.scaleStream(new StreamImpl(SCOPE, SCALE_DOWN_STREAM_NAME),
                 Collections.singletonList(0),
                 keyRanges);
-        log.debug("create stream status {}", status.get().getStatus());
+        log.debug("scale stream status {}", status.get().getStatus());
 
         assertEquals(Controller.ScaleResponse.ScaleStreamStatus.SUCCESS, status.get().getStatus());
 
         createStreamStatus = controller.createStream(CONFIG_TXN);
-        log.debug("create stream status {}", createStreamStatus.get().getStatus());
+        log.debug("create stream status for txn stream {}", createStreamStatus.get().getStatus());
         assertNotEquals(Controller.CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
     }
 
     @Test
     public void scaleTests() throws URISyntaxException, InterruptedException {
-        CompletableFuture<Boolean> scaleup = scaleUpTest();
-        CompletableFuture<Boolean> scaleDown = scaleDownTest();
-        CompletableFuture<Boolean> scalewithTxn = scaleUpTxnTest();
+        CompletableFuture<Void> scaleup = scaleUpTest();
+        CompletableFuture<Void> scaleDown = scaleDownTest();
+        CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
         FutureHelpers.getAndHandleExceptions(CompletableFuture.allOf(scaleup, scaleDown, scalewithTxn)
                 .whenComplete((r, e) -> {
                     recordResult(scaleup, "ScaleUp");
@@ -178,10 +171,10 @@ public class AutoScaleTest {
                 }), RuntimeException::new);
     }
 
-    private void recordResult(CompletableFuture<Boolean> scaleTest, String testName) {
+    private void recordResult(CompletableFuture<Void> scaleTest, String testName) {
         FutureHelpers.getAndHandleExceptions(scaleTest.handle((r, e) -> {
             if (e != null) {
-                log.error("test {} failed with exception {}",  testName, e);
+                log.error("test {} failed with exception {}", testName, e);
             } else {
                 log.debug("test {} succeed", testName);
             }
@@ -197,7 +190,7 @@ public class AutoScaleTest {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Boolean> scaleUpTest() throws InterruptedException, URISyntaxException {
+    private CompletableFuture<Void> scaleUpTest() throws InterruptedException, URISyntaxException {
 
         ClientFactory clientFactory = getClientFactory();
 
@@ -222,12 +215,11 @@ public class AutoScaleTest {
                             if (x.getSegments().size() == 1) {
                                 throw new NotDoneException();
                             } else {
-                                log.info("scale done");
+                                log.info("scale up done successfully");
 
                                 exit.set(true);
                             }
-                        }), EXECUTOR_SERVICE)
-                .thenApply(x -> exit.get());
+                        }), EXECUTOR_SERVICE);
     }
 
     /**
@@ -238,7 +230,7 @@ public class AutoScaleTest {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Boolean> scaleDownTest() throws InterruptedException, URISyntaxException {
+    private CompletableFuture<Void> scaleDownTest() throws InterruptedException, URISyntaxException {
 
         final ControllerImpl controller = getController();
 
@@ -253,10 +245,11 @@ public class AutoScaleTest {
                             if (x.getSegments().size() == 2) {
                                 throw new NotDoneException();
                             } else {
+                                log.info("scale down done successfully");
+
                                 exit.set(true);
                             }
-                        }), EXECUTOR_SERVICE)
-                .thenApply(x -> exit.get());
+                        }), EXECUTOR_SERVICE);
     }
 
     /**
@@ -269,7 +262,7 @@ public class AutoScaleTest {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    public CompletableFuture<Boolean> scaleUpTxnTest() throws InterruptedException, URISyntaxException {
+    public CompletableFuture<Void> scaleUpTxnTest() throws InterruptedException, URISyntaxException {
 
         ControllerImpl controller = getController();
 
@@ -292,10 +285,10 @@ public class AutoScaleTest {
                             if (x.getSegments().size() == 1) {
                                 throw new NotDoneException();
                             } else {
+                                log.info("txn test scale up done successfully");
                                 exit.set(true);
                             }
-                        }), EXECUTOR_SERVICE)
-                .thenApply(x -> exit.get());
+                        }), EXECUTOR_SERVICE);
     }
 
     private void startNewWriter(ClientFactory clientFactory, AtomicBoolean exit) {
@@ -363,5 +356,6 @@ public class AutoScaleTest {
         return clientFactoryRef.get();
     }
 
-    private class NotDoneException extends RuntimeException {}
+    private class NotDoneException extends RuntimeException {
+    }
 }
