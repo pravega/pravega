@@ -32,19 +32,19 @@ public class StreamManagerImplTest {
     @Test
     public void testCreateAndDeleteScope() {
         // Create and delete immediately
-        streamManager.createScope("scope1");
-        streamManager.deleteScope("scope1");
+        streamManager.createScope();
+        streamManager.deleteScope();
 
         // According to the service mock implementation,
         // these calls should fail
-        streamManager.createScope("scope1");
+        streamManager.createScope();
         // This call should actually fail
         // TODO: https://github.com/pravega/pravega/issues/743
-        streamManager.createScope("scope1");
-        streamManager.deleteScope("scope1");
+        streamManager.createScope();
+        streamManager.deleteScope();
 
         // This call should actually fail
         // TODO: https://github.com/pravega/pravega/issues/743
-        streamManager.deleteScope("scope1");
+        streamManager.deleteScope();
     }
 }

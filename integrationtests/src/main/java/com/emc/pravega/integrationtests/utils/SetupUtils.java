@@ -120,7 +120,7 @@ public final class SetupUtils {
 
         @Cleanup
         StreamManager streamManager = StreamManager.withScope(this.scope, this.controllerUri);
-        streamManager.createScope(this.scope);
+        streamManager.createScope();
         streamManager.createStream(streamName,
                 StreamConfiguration.builder()
                         .scope(this.scope)

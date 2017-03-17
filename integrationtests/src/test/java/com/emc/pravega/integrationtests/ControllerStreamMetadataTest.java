@@ -171,7 +171,7 @@ public class ControllerStreamMetadataTest {
     public void streamManagerImpltest() {
         StreamManager streamManager = new StreamManagerImpl(SCOPE, controller);
 
-        streamManager.createScope(SCOPE);
-        streamManager.deleteScope(SCOPE);
+        streamManager.createScope();
+        streamManager.deleteScope();
     }
 }

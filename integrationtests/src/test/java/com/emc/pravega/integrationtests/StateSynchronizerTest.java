@@ -94,7 +94,7 @@ public class StateSynchronizerTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope("scope");
+        streamManager.createScope();
         streamManager.createStream(stateName, null);
         JavaSerializer<TestUpdate> serializer = new JavaSerializer<TestUpdate>();
         
@@ -147,7 +147,7 @@ public class StateSynchronizerTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope("scope");
+        streamManager.createScope();
         streamManager.createStream(stateName, null);
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
 
@@ -174,7 +174,7 @@ public class StateSynchronizerTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope("scope");
+        streamManager.createScope();
         streamManager.createStream(stateName, null);
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
         SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());

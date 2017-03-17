@@ -68,14 +68,14 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public void createScope(String name) {
-        CreateScopeStatus status = FutureHelpers.getAndHandleExceptions(controller.createScope(name),
+    public void createScope() {
+        CreateScopeStatus status = FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
                 RuntimeException::new);
     }
 
     @Override
-    public void deleteScope(String name) {
-        DeleteScopeStatus status = FutureHelpers.getAndHandleExceptions(controller.deleteScope(name),
+    public void deleteScope() {
+        DeleteScopeStatus status = FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
                 RuntimeException::new);
     }
 

@@ -80,7 +80,7 @@ public class ReaderGroupTest {
 
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
-        streamManager.createScope(SCOPE);
+        streamManager.createScope();
         streamManager.createStream(STREAM_NAME, StreamConfiguration.builder()
                                                                    .scope(SCOPE)
                                                                    .streamName(STREAM_NAME)
@@ -123,7 +123,7 @@ public class ReaderGroupTest {
 
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
-        streamManager.createScope(SCOPE);
+        streamManager.createScope();
         streamManager.createStream(STREAM_NAME, StreamConfiguration.builder()
                                                                    .scope(SCOPE)
                                                                    .streamName(STREAM_NAME)

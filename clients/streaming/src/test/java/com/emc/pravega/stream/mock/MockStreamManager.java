@@ -41,13 +41,13 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public void createScope(String scope) {
+    public void createScope() {
         FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
                 RuntimeException::new);
     }
 
     @Override
-    public void deleteScope(String scope) {
+    public void deleteScope() {
         FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
                 RuntimeException::new);
     }
