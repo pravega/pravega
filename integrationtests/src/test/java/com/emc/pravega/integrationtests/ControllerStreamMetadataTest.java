@@ -74,7 +74,7 @@ public class ControllerStreamMetadataTest {
                     .build();
         } catch (Exception e) {
             log.error("Error during setup", e);
-            Assert.fail(e.getMessage());
+            e.printStackTrace();
         }
     }
 
