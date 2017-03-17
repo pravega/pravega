@@ -89,12 +89,12 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
-        if (createdScopes.get(scopeName) != null) {
+        if (createdScopes.get(scopeName) == null) {
             return CompletableFuture.completedFuture(DeleteScopeStatus.newBuilder()
                                                         .setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build());
         }
 
-        if (createdScopes.get(scopeName).isEmpty()) {
+        if (!createdScopes.get(scopeName).isEmpty()) {
             return CompletableFuture.completedFuture(DeleteScopeStatus.newBuilder()
                                                         .setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build());
         }
