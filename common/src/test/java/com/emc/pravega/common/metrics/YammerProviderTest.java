@@ -152,4 +152,20 @@ public class YammerProviderTest {
 
         Assert.assertNotNull(MetricsProvider.YAMMERMETRICS.getCounters().get("counterEnabled"));
     }
+
+    /**
+     * Test that we can transition from stats enabled, to disabled, to enabled.
+     */
+    @Test
+    public void testContinuity() {
+        Properties properties = new Properties();
+        MetricsConfig config;
+
+        statsLogger.createCounter("continuity-counter");
+        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
+        config = new MetricsConfig(properties);
+        MetricsProvider.initialize(config);
+
+        Assert.assertNotNull(null, MetricsProvider.YAMMERMETRICS.getCounters().get("continuity-counter"));
+    }
 }
