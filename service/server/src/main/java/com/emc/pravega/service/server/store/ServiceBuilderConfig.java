@@ -92,7 +92,7 @@ public class ServiceBuilderConfig {
          * @return This instance.
          * @throws IOException If the config file can not be read from.
          */
-        public Builder fromFile(String filePath) throws IOException {
+        public Builder include(String filePath) throws IOException {
             try (FileReader reader = new FileReader(filePath)) {
                 this.properties.load(reader);
             }

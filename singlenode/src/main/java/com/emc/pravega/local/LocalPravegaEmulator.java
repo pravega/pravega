@@ -134,9 +134,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
     private static void configureDLBinding(int zkPort) {
         DistributedLogAdmin admin = new DistributedLogAdmin();
-        String[] params = {"bind", "-dlzr", "localhost:" + zkPort, "-dlzw", "localhost:" + 7000, "-s", "localhost:" +
+        String[] params = { "bind", "-dlzr", "localhost:" + zkPort, "-dlzw", "localhost:" + 7000, "-s", "localhost:" +
                 zkPort, "-bkzr", "localhost:" + 7000, "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
-                "distributedlog://localhost:" + zkPort + "/pravega/segmentstore/containers"};
+                "distributedlog://localhost:" + zkPort + "/pravega/segmentstore/containers" };
         try {
             admin.run(params);
         } catch (Exception e) {
@@ -172,7 +172,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
         try {
             val config = ServiceBuilderConfig
                     .builder()
-                    .fromFile("config.properties")
+                    .include("config.properties")
+                    .include(System.getProperties())
                     .include(HDFSStorageConfig.builder()
                                               .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort())))
                     .include(ServiceConfig.builder()
