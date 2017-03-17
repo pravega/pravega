@@ -65,7 +65,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                            final TaskMetadataStore taskMetadataStore,
                                            SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                                            final Context context) {
-        super(taskMetadataStore, executor, context, false);
+        super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
@@ -92,7 +92,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
-        this.setInitialized();
+        this.setReady();
         return null;
     }
 
