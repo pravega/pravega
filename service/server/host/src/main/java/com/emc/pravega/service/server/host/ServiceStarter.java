@@ -53,7 +53,7 @@ public final class ServiceStarter {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
         Options opt = new Options();
-        if( !isSingleNode ) {
+        if ( !isSingleNode ) {
             opt.distributedLog = true;
             opt.hdfs = true;
         } else {
