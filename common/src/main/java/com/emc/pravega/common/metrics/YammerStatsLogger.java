@@ -54,6 +54,7 @@ public class YammerStatsLogger implements StatsLogger {
 
     @Override
     public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value) {
+        log.info("Going to register gauge: {}", statName);
         try {
             String metricName = name(basename, statName);
             com.codahale.metrics.Gauge gauge = new com.codahale.metrics.Gauge<T>() {

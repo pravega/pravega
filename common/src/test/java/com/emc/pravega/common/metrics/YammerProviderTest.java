@@ -6,18 +6,31 @@
 package com.emc.pravega.common.metrics;
 
 import com.emc.pravega.common.Timer;
+import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import lombok.extern.slf4j.Slf4j;
 
 import static org.junit.Assert.assertEquals;
 
 /**
  * The type Yammer provider test.
  */
+@Slf4j
 public class YammerProviderTest {
     private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("");
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
+
+    @Before
+    public void setUp() {
+        Properties properties = new Properties();
+
+        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
+        MetricsProvider.initialize(new MetricsConfig(properties));
+    }
 
     /**
      * Test Event and Value registered and worked well with OpStats.
@@ -82,7 +95,7 @@ public class YammerProviderTest {
     }
 
     /**
-     * Test gauge registered and  worked well with StatsLogger..
+     * Test gauge registered and  worked well with StatsLogger.
      */
     @Test
     public void testGauge() {
