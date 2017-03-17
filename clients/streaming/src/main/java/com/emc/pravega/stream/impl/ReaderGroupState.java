@@ -13,7 +13,6 @@ import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
-
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,7 +22,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import javax.annotation.concurrent.GuardedBy;
 
 import lombok.Getter;
@@ -43,6 +41,8 @@ class ReaderGroupState implements Revisioned {
     private final ReaderGroupConfig config;
     @GuardedBy("$lock")
     private Revision revision;
+    @GuardedBy("$lock")
+    private final CheckpointState checkpointState = new CheckpointState();
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail = new HashMap<>();
     @GuardedBy("$lock")
@@ -107,7 +107,7 @@ class ReaderGroupState implements Revisioned {
         List<String> sorted = distanceToTail.entrySet()
                                    .stream()
                                    .sorted((o1, o2) -> -Long.compare(o1.getValue(), o2.getValue()))
-                                   .map(e -> e.getKey())
+                                   .map(Entry::getKey)
                                    .collect(Collectors.toList());
         return sorted.indexOf(reader);
     }
@@ -136,25 +136,30 @@ class ReaderGroupState implements Revisioned {
     }
     
     @Synchronized
-    public int getNumberOfUnassignedSegments() {
+    int getNumberOfUnassignedSegments() {
         return unassignedSegments.size();
     }
     
     @Synchronized
-    public Map<Segment, Long> getUnassignedSegments() {
+    Map<Segment, Long> getUnassignedSegments() {
         return new HashMap<>(unassignedSegments);
     }
-    
+
+    @Synchronized
+    boolean isReaderOnline(String reader) {
+        return assignedSegments.get(reader) != null;
+    }
+
     /**
      * Returns the number of segments currently being read from and that are unassigned within the reader group.
      */
     @Synchronized
-    public int getNumberOfSegments() {
+    int getNumberOfSegments() {
         return assignedSegments.values().stream().mapToInt(Set::size).sum() + unassignedSegments.size();
     }
     
     @Synchronized
-    public Set<String> getStreamNames() {
+    Set<String> getStreamNames() {
         Set<String> result = new HashSet<>();
         for (Set<Segment> segments : assignedSegments.values()) {
             for (Segment segment : segments) {
@@ -167,8 +172,25 @@ class ReaderGroupState implements Revisioned {
         return result;
     }
     
+    @Synchronized
+    String getCheckpointsForReader(String readerName) {
+        return checkpointState.getCheckpointForReader(readerName);
+    }
+    
+    @Synchronized
+    boolean isCheckpointComplete(String checkpointId) {
+        return checkpointState.isCheckpointComplete(checkpointId);
+    }
+    
+    @Synchronized
+    Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
+        return checkpointState.getPositionsForCompletedCheckpoint(checkpointId);
+    }
+    
     @RequiredArgsConstructor
     static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
+        private static final long serialVersionUID = 1L;
+
         private final ReaderGroupConfig config;
         private final Map<Segment, Long> segments;
         
@@ -182,6 +204,8 @@ class ReaderGroupState implements Revisioned {
      * Abstract class from which all state updates extend.
      */
     static abstract class ReaderGroupStateUpdate implements Update<ReaderGroupState>, Serializable {
+        private static final long serialVersionUID = 1L;
+
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
             synchronized (oldState.$lock) {
@@ -205,6 +229,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class AddReader extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
 
         /**
@@ -225,6 +250,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class RemoveReader extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final PositionInternal lastPosition;
         
@@ -246,6 +272,7 @@ class ReaderGroupState implements Revisioned {
                 }
             }
             state.distanceToTail.remove(readerId);
+            state.checkpointState.removeReader(readerId, lastPosition.getOwnedSegmentsWithOffsets());
         }
     }
 
@@ -254,6 +281,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class ReleaseSegment extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final Segment segment;
         private final long offset;
@@ -278,6 +306,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class AcquireSegment extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final Segment segment;
 
@@ -300,6 +329,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class UpdateDistanceToTail extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final long distanceToTail;
         
@@ -317,6 +347,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class SegmentCompleted extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final Segment segmentCompleted;
         private final Map<Segment, List<Integer>> successorsMappedToTheirPredecessors; //Immutable
@@ -352,6 +383,49 @@ class ReaderGroupState implements Revisioned {
         }
     }
     
+    @RequiredArgsConstructor
+    static class CheckpointReader extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
+        private final String checkpointId;
+        private final String readerId;
+        private final Map<Segment, Long> positions; //Immutable
+        
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.checkpointState.readerCheckpointed(checkpointId, readerId, positions);
+        }
+    }
     
+    @RequiredArgsConstructor
+    static class CreateCheckpoint extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
+        private final String checkpointId;
+        
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders());
+        }
+    }
     
+    @RequiredArgsConstructor
+    static class ClearCheckpoints extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
+        private final String clearUpThroughCheckpoint;
+        
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.checkpointState.clearCheckpointsThrough(clearUpThroughCheckpoint);
+        }
+    }
+
+
 }
