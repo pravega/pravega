@@ -187,9 +187,51 @@ paths:
           description: Server error
     delete:
       operationId: deleteStream
+      description: Delete a stream
       responses:
-        501:
-          description: Not Implemented
+        204:
+          description: Successfully deleted the stream
+        404:
+          description: Stream not found
+        412:
+          description: Cannot delete stream since it is not sealed
+        500:
+          description: Server error
+  /scopes/{scopeName}/streams/{streamName}/state:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+      - in: path
+        name: streamName
+        description: Stream name
+        required: true
+        type: string
+    put:
+      operationId: updateStreamState
+      description: Updates the current state of the stream
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: UpdateStreamStateRequest
+          description: The state info to be updated
+          required: true
+          schema:
+            $ref: "#/definitions/StreamState"
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Successfully updated the stream state
+          schema:
+            $ref: "#/definitions/StreamState"
+        404:
+          description: Scope or stream not found
+        500:
+          description: Server error
 
 definitions:
   StreamsList:
@@ -246,3 +288,10 @@ definitions:
       retentionTimeMillis:
         type: integer
         format: int64
+  StreamState:
+    type: object
+    properties:
+      streamState:
+        type: string
+        enum:
+        - SEALED

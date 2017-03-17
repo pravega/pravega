@@ -14,6 +14,7 @@ import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 
 import java.util.List;
 import com.emc.pravega.controller.server.rest.generated.api.NotFoundException;
@@ -93,9 +94,15 @@ public class ScopesApi  {
     @Path("/{scopeName}/streams/{streamName}")
     
     
-    @io.swagger.annotations.ApiOperation(value = "", notes = "", response = void.class, tags={  })
+    @io.swagger.annotations.ApiOperation(value = "", notes = "Delete a stream", response = void.class, tags={  })
     @io.swagger.annotations.ApiResponses(value = { 
-        @io.swagger.annotations.ApiResponse(code = 501, message = "Not Implemented", response = void.class) })
+        @io.swagger.annotations.ApiResponse(code = 204, message = "Successfully deleted the stream", response = void.class),
+        
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Stream not found", response = void.class),
+        
+        @io.swagger.annotations.ApiResponse(code = 412, message = "Cannot delete stream since it is not sealed", response = void.class),
+        
+        @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
     public Response deleteStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@ApiParam(value = "Stream name",required=true) @PathParam("streamName") String streamName
 ,@Context SecurityContext securityContext)
@@ -181,5 +188,23 @@ public class ScopesApi  {
 ,@Context SecurityContext securityContext)
     throws NotFoundException {
         return delegate.updateStream(scopeName,streamName,updateStreamRequest,securityContext);
+    }
+    @PUT
+    @Path("/{scopeName}/streams/{streamName}/state")
+    @Consumes({ "application/json" })
+    @Produces({ "application/json" })
+    @io.swagger.annotations.ApiOperation(value = "", notes = "Updates the current state of the stream", response = StreamState.class, tags={  })
+    @io.swagger.annotations.ApiResponses(value = { 
+        @io.swagger.annotations.ApiResponse(code = 200, message = "Successfully updated the stream state", response = StreamState.class),
+        
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream not found", response = StreamState.class),
+        
+        @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = StreamState.class) })
+    public Response updateStreamState(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
+,@ApiParam(value = "Stream name",required=true) @PathParam("streamName") String streamName
+,@ApiParam(value = "The state info to be updated" ,required=true) StreamState updateStreamStateRequest
+,@Context SecurityContext securityContext)
+    throws NotFoundException {
+        return delegate.updateStreamState(scopeName,streamName,updateStreamStateRequest,securityContext);
     }
 }
