@@ -3,6 +3,8 @@
  */
 package com.emc.pravega.controller.server;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
@@ -56,6 +58,9 @@ public class Main {
             log.debug("Failed to get host address.", e);
             hostId = UUID.randomUUID().toString();
         }
+
+        //0. Initialize metrics provider
+        MetricsProvider.initialize(new MetricsConfig(Config.getMetricsProperties()));
 
         //1. LOAD configuration.
         //Initialize the executor service.

@@ -6,6 +6,7 @@
 package com.emc.pravega.common.metrics;
 
 import com.emc.pravega.common.Timer;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -21,6 +22,7 @@ import static org.junit.Assert.assertEquals;
  */
 @Slf4j
 public class YammerProviderTest {
+
     private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("");
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
 
@@ -108,5 +110,46 @@ public class YammerProviderTest {
             assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("testGauge").getValue());
             assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("DYNAMIC.dynamicGauge.Gauge").getValue());
         }
+    }
+
+    /**
+     * Test that an arbitrary environment variable can be used to set the value of
+     * a config parameter.
+     */
+    @Test
+    public void testConfigArbitraryEnvVar() {
+        Properties properties = new Properties();
+        String envKey = System.getenv().keySet().iterator().next();
+        int port = 9999;
+        properties.setProperty("metrics.yammerStatsDHost", "$" + envKey + "$");
+        properties.setProperty("metrics.yammerStatsDPort", Integer.toString(port));
+        String value = System.getenv(envKey);
+        MetricsConfig config = new MetricsConfig(properties);
+
+        assertEquals(config.getStatsDHost(), value);
+        assertEquals(config.getStatsDPort(), port);
+    }
+
+    /**
+     * Test that we can transition from stats enabled, to disabled, to enabled.
+     */
+    @Test
+    public void testMultipleInitialization() {
+        Properties properties = new Properties();
+        MetricsConfig config;
+
+        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "false");
+        config = new MetricsConfig(properties);
+        MetricsProvider.initialize(config);
+        statsLogger.createCounter("counterDisabled");
+
+        assertEquals(null, MetricsProvider.YAMMERMETRICS.getCounters().get("counterDisabled"));
+
+        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
+        config = new MetricsConfig(properties);
+        MetricsProvider.initialize(config);
+        statsLogger.createCounter("counterEnabled");
+
+        Assert.assertNotNull(MetricsProvider.YAMMERMETRICS.getCounters().get("counterEnabled"));
     }
 }

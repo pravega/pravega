@@ -9,6 +9,9 @@ package com.emc.pravega.common.metrics;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class StatsProviderProxy implements StatsProvider {
     private final AtomicReference<StatsProvider> instance = new AtomicReference<>(new NullStatsProvider());
     private final ConcurrentHashMap<StatsLoggerProxy, String> statsLoggerProxies = new ConcurrentHashMap<>();
@@ -17,8 +20,10 @@ public class StatsProviderProxy implements StatsProvider {
 
     void setProvider(MetricsConfig config) {
         if (config.enableStatistics()) {
+            log.info("Stats enabled");
             instance.set(new YammerStatsProvider(config));
         } else {
+            log.info("Stats disabled");
             instance.set(new NullStatsProvider());
         }
 
