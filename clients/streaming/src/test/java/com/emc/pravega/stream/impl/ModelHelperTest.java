@@ -9,14 +9,11 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
-import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-
 import java.util.HashMap;
 import java.util.Map;
-
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -28,7 +25,7 @@ public class ModelHelperTest {
     }
 
     private static ScalingPolicy createScalingPolicy() {
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
+        ScalingPolicy policy = ScalingPolicy.fixed(3);
         return policy;
     }
 
@@ -37,7 +34,6 @@ public class ModelHelperTest {
                                   .scope("scope")
                                   .streamName(name)
                                   .scalingPolicy(createScalingPolicy())
-                                  .retentionPolicy(RetentionPolicy.builder().build())
                                   .build();
     }
 

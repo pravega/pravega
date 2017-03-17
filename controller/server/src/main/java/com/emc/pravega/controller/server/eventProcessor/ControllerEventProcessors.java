@@ -112,7 +112,7 @@ public class ControllerEventProcessors extends AbstractService {
 
         // region Create commit and abort streams
 
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 2);
+        ScalingPolicy policy = ScalingPolicy.fixed(2);
         StreamConfiguration commitStreamConfig =
                 StreamConfiguration.builder()
                         .scope(CONTROLLER_SCOPE)
