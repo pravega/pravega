@@ -21,10 +21,12 @@ public class TestTasks extends TaskBase {
 
     public TestTasks(TaskMetadataStore taskMetadataStore, ScheduledExecutorService executor, String hostId) {
         super(taskMetadataStore, executor, hostId);
+        this.setReady();
     }
 
     public TestTasks(TaskMetadataStore taskMetadataStore, ScheduledExecutorService executor, Context context) {
         super(taskMetadataStore, executor, context);
+        this.setReady();
     }
 
     @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")
