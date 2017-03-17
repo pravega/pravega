@@ -75,6 +75,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
+        this.setReady();
     }
 
     /**
