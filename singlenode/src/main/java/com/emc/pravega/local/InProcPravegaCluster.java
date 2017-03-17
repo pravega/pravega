@@ -42,6 +42,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.retry.RetryOneTime;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.File;
@@ -146,6 +147,9 @@ public class InProcPravegaCluster implements AutoCloseable {
      */
 
     public synchronized void start() throws Exception {
+        /*Check possible combinations of flags*/
+        checkFeatures();
+
         /*Start the ZK*/
         if (isInProcZK) {
             zkUrl = "localhost:" + zkPort;
@@ -180,6 +184,13 @@ public class InProcPravegaCluster implements AutoCloseable {
             startLocalHosts();
         }
 
+    }
+
+    private void checkFeatures() {
+        if ( isInProcDL ) {
+            //Can not instantiate DL in proc
+           throw new NotImplementedException();
+        }
     }
 
     private void startLocalZK() throws IOException {

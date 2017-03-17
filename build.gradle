@@ -601,6 +601,7 @@ project('singlenode') {
         main = "com.emc.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         args = ["4000", "9090", "6000"]
+        environment "ZK_URL", "localhost:4000"
     }
 
     publishing {
