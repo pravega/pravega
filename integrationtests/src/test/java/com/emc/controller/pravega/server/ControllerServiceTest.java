@@ -207,14 +207,14 @@ public class ControllerServiceTest {
 
     private static void getSegmentsAfterCreation(Controller controller, final String scope,
                                                  final String streamName) throws InterruptedException,
-                                                                           ExecutionException {
+                                                                          ExecutionException {
         CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(new StreamImpl(scope, streamName), System.currentTimeMillis() + 3600);
         assertFalse("FAILURE: Fetching positions at given time in furture after stream creation failed", segments.get().isEmpty());
     }
 
     private static void getSegmentsBeforeCreation(Controller controller, final String scope,
                                                   final String streamName) throws InterruptedException,
-                                                                            ExecutionException {
+                                                                           ExecutionException {
         CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(new StreamImpl(scope, streamName), System.currentTimeMillis() - 36000);
         assertFalse("FAILURE: Fetching positions at given time before stream creation failed", segments.get().size() != controller.getCurrentSegments(scope, streamName).get().getSegments().size());
        

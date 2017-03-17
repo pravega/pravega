@@ -61,7 +61,7 @@ public class StreamMetadataTasks extends TaskBase {
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
             final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
             final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
-            ConnectionFactory connectionFactory) {
+            final ConnectionFactory connectionFactory) {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
              connectionFactory);
     }
