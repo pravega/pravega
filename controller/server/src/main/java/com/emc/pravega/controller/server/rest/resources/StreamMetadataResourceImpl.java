@@ -14,6 +14,7 @@ import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamStateRequest;
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
@@ -345,11 +346,12 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
      */
     @Override
     public void updateStreamState(final String scopeName, final String streamName,
-            final StreamState updateStreamStateRequest, SecurityContext securityContext, AsyncResponse asyncResponse) {
+                                  final UpdateStreamStateRequest updateStreamStateRequest,
+                                  SecurityContext securityContext, AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "updateStreamState");
 
         // We only support sealed state now.
-        if (updateStreamStateRequest.getStreamState() != StreamState.StreamStateEnum.SEALED) {
+        if (!updateStreamStateRequest.getStreamState().equals(StreamState.StreamStateEnum.SEALED.toString())) {
             log.warn("Received invalid stream state: {} from client for stream {}/{}",
                      updateStreamStateRequest.getStreamState(), scopeName, streamName);
             asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());

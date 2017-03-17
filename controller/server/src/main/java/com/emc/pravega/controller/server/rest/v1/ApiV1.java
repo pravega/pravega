@@ -13,6 +13,7 @@ import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamStateRequest;
 import io.swagger.annotations.ApiParam;
 
 import javax.ws.rs.Consumes;
@@ -219,21 +220,22 @@ public final class ApiV1 {
         @Path("/{scopeName}/streams/{streamName}/state")
         @Consumes({ "application/json" })
         @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(value = "", notes = "Updates the current state of the stream",
+        @io.swagger.annotations.ApiOperation(
+                value = "", notes = "Updates the current state of the stream",
                 response = StreamState.class, tags = {  })
         @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(code = 200, message = "Successfully updated the stream state",
-                        response = StreamState.class),
+                @io.swagger.annotations.ApiResponse(
+                        code = 200, message = "Successfully updated the stream state", response = StreamState.class),
 
-                @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream not found",
-                        response = StreamState.class),
+                @io.swagger.annotations.ApiResponse(
+                        code = 404, message = "Scope or stream not found", response = StreamState.class),
 
-                @io.swagger.annotations.ApiResponse(code = 500, message = "Server error",
-                        response = StreamState.class) })
-        void updateStreamState(
-                @ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                @io.swagger.annotations.ApiResponse(
+                        code = 500, message = "Server error", response = StreamState.class) })
+        void updateStreamState(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
-                @ApiParam(value = "The state info to be updated", required = true) StreamState updateStreamStateRequest,
+                @ApiParam(value = "The state info to be updated", required = true)
+                                       UpdateStreamStateRequest updateStreamStateRequest,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
     }
 }
