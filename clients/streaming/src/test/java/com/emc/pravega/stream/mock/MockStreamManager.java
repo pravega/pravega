@@ -13,7 +13,6 @@ import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -21,13 +20,9 @@ import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.ReaderGroupImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import lombok.Getter;
-
 import org.apache.commons.lang.NotImplementedException;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
@@ -43,6 +38,18 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         this.connectionFactory = new ConnectionFactoryImpl(false);
         this.controller = new MockController(endpoint, port, connectionFactory);
         this.clientFactory = new MockClientFactory(scope, controller);
+    }
+
+    @Override
+    public void createScope() {
+        FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
+                RuntimeException::new);
+    }
+
+    @Override
+    public void deleteScope() {
+        FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
+                RuntimeException::new);
     }
 
     @Override
@@ -94,17 +101,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
                 groupName,
                 streamNames,
-                config,
                 synchronizerConfig,
                 new JavaSerializer<>(),
                 new JavaSerializer<>(),
-                clientFactory);
-        Map<Segment, Long> segments = streamNames.stream()
-                                                 .flatMap(name -> controller.getSegmentsForStream(new StreamImpl(scope,
-                                                         name)).stream())
-                                                 .collect(Collectors.toMap(segment -> segment,
-                                                                           segment -> Long.valueOf(0)));
-        result.initializeGroup(segments);
+                clientFactory,
+                controller);
+        result.initializeGroup(config, streamNames);
         return result;
     }
 

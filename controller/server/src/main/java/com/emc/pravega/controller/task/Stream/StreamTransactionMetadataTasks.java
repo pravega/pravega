@@ -5,10 +5,10 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
 import com.emc.pravega.controller.server.eventProcessor.CommitEvent;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -78,7 +78,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      *
      * @param controller Local controller reference
      */
-    public void initializeStreamWriters(Controller controller) {
+    public Void initializeStreamWriters(Controller controller) {
 
         ClientFactory clientFactory = new ClientFactoryImpl(ControllerEventProcessors.CONTROLLER_SCOPE, controller);
 
@@ -91,6 +91,9 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 ControllerEventProcessors.ABORT_STREAM,
                 ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
+
+        this.setReady();
+        return null;
     }
 
     /**

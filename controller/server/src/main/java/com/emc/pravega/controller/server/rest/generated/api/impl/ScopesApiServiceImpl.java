@@ -4,12 +4,13 @@ import com.emc.pravega.controller.server.rest.generated.api.*;
 import com.emc.pravega.controller.server.rest.generated.model.*;
 
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
-import com.emc.pravega.controller.server.rest.generated.model.InlineResponse201;
+import com.emc.pravega.controller.server.rest.generated.model.ScopeProperty;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 
 import java.util.List;
 import com.emc.pravega.controller.server.rest.generated.api.NotFoundException;
@@ -44,6 +45,11 @@ public class ScopesApiServiceImpl extends ScopesApiService {
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
     @Override
+    public Response getScope(String scopeName, SecurityContext securityContext) throws NotFoundException {
+        // do some magic!
+        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
+    }
+    @Override
     public Response getStream(String scopeName, String streamName, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
@@ -60,6 +66,11 @@ public class ScopesApiServiceImpl extends ScopesApiService {
     }
     @Override
     public Response updateStream(String scopeName, String streamName, UpdateStreamRequest updateStreamRequest, SecurityContext securityContext) throws NotFoundException {
+        // do some magic!
+        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
+    }
+    @Override
+    public Response updateStreamState(String scopeName, String streamName, StreamState updateStreamStateRequest, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }

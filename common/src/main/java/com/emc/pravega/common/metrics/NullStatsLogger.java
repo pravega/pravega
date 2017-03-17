@@ -15,8 +15,8 @@ public class NullStatsLogger implements StatsLogger {
     static final NullCounter NULLCOUNTER = new NullCounter();
     static final NullGauge NULLGAUGE = new NullGauge();
     static final NullMeter NULLMETER = new NullMeter();
+    static final NullOpStatsLogger NULLOPSTATSLOGGER = new NullOpStatsLogger();
     private static final String NULLNAME = "";
-    private static final NullOpStatsLogger NULLOPSTATSLOGGER = new NullOpStatsLogger();
 
     @Override
     public OpStatsLogger createStats(String name) {

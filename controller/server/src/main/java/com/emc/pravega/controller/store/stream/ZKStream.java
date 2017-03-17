@@ -5,6 +5,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Cache;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
@@ -60,6 +61,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String completedTxPath;
     private final String markerPath;
     private final String scopePath;
+    private final String streamPath;
 
     private final Cache<Integer> cache;
 
@@ -67,6 +69,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
+        streamPath = String.format(STREAM_PATH, scopeName, streamName);
         creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
         statePath = String.format(STATE_PATH, scopeName, streamName);
@@ -95,12 +98,17 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
+    public CompletableFuture<Void> deleteStream() {
+        return store.deleteTree(streamPath);
+    }
+
+    @Override
     public CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException {
         return store.checkExists(creationPath)
                 .thenCompose(x -> {
                     if (x) {
                         return cache.getCachedData(creationPath)
-                                .thenApply(creationTime -> Utilities.toLong(creationTime.getData()) != create.getEventTime());
+                                .thenApply(creationTime -> BitConverter.readLong(creationTime.getData(), 0) != create.getEventTime());
                     } else {
                         return CompletableFuture.completedFuture(false);
                     }

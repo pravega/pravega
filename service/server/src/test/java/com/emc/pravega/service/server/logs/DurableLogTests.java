@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
@@ -694,7 +692,7 @@ public class DurableLogTests extends OperationLogTestBase {
             durableLog.startAsync().awaitRunning();
 
             List<Operation> recoveredOperations = readAllDurableLog(durableLog);
-            AssertExtensions.assertListEquals("Recovered operations do not match original ones.", originalOperations, recoveredOperations, OperationComparer.DEFAULT::assertEquals);
+            assertRecoveredOperationsMatch(originalOperations, recoveredOperations);
             performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, metadata, mergeTransactions, sealStreamSegments);
             performReadIndexChecks(completionFutures, readIndex);
 
@@ -1093,6 +1091,17 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         return completionFutures;
+    }
+
+    private void assertRecoveredOperationsMatch(List<Operation> expected, List<Operation> actual) {
+        Assert.assertEquals("Recovered operations do not match original ones. Collections differ in size.", expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); i++) {
+            Operation expectedItem = expected.get(i);
+            Operation actualItem = actual.get(i);
+            OperationComparer.DEFAULT.assertEquals(
+                    String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
+                    expectedItem, actualItem);
+        }
     }
 
     //endregion

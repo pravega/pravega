@@ -8,6 +8,7 @@ package com.emc.pravega.common.util;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.google.common.base.Preconditions;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -77,9 +78,13 @@ public final class Retry {
      * Used to invoke {@link #retryingOn(Class)}. Note this object is reusable so this can be done more than once.
      */
     public static final class RetryWithBackoff {
+        @Getter
         private final long initialMillis;
+        @Getter
         private final int multiplier;
+        @Getter
         private final int attempts;
+        @Getter
         private final long maxDelay;
 
         private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {

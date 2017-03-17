@@ -4,8 +4,8 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -48,7 +48,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (stream != null) {
             return stream;
         } else {
-            throw new DataNotFoundException(name);
+            return new InMemoryStream.NonExistentStream(scope, name);
         }
     }
 
@@ -79,6 +79,22 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         } else {
             return FutureHelpers.
                     failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+        }
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Void> deleteStream(final String scopeName, final String streamName,
+                                                final OperationContext context,
+                                                final Executor executor) {
+        String scopedStreamName = scopedStreamName(scopeName, streamName);
+        if (scopes.containsKey(scopeName) && streams.containsKey(scopedStreamName)) {
+            streams.remove(scopedStreamName);
+            scopes.get(scopeName).removeStreamFromScope(streamName);
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return FutureHelpers.
+                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Stream not found."));
         }
     }
 
@@ -115,15 +131,18 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (!validateName(scopeName)) {
             log.error("Create scope failed due to invalid scope name {}", scopeName);
-            return CompletableFuture.completedFuture(CreateScopeStatus.INVALID_SCOPE_NAME);
+            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
+                    CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         } else {
             if (!scopes.containsKey(scopeName)) {
                 InMemoryScope scope = new InMemoryScope(scopeName);
                 scope.createScope();
                 scopes.put(scopeName, scope);
-                return CompletableFuture.completedFuture(CreateScopeStatus.SUCCESS);
+                return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
+                        CreateScopeStatus.Status.SUCCESS).build());
             } else {
-                return CompletableFuture.completedFuture(CreateScopeStatus.SCOPE_EXISTS);
+                return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
+                        CreateScopeStatus.Status.SCOPE_EXISTS).build());
             }
         }
     }
@@ -136,13 +155,23 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                 if (streams.isEmpty()) {
                     scopes.get(scopeName).deleteScope();
                     scopes.remove(scopeName);
-                    return DeleteScopeStatus.SUCCESS;
+                    return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
                 } else {
-                    return DeleteScopeStatus.SCOPE_NOT_EMPTY;
+                    return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
                 }
             });
         } else {
-            return CompletableFuture.completedFuture(DeleteScopeStatus.SCOPE_NOT_FOUND);
+            return CompletableFuture.completedFuture(DeleteScopeStatus.newBuilder().setStatus(
+                    DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build());
+        }
+    }
+
+    @Override
+    public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
+        if (scopes.containsKey(scopeName)) {
+            return CompletableFuture.completedFuture(scopeName);
+        } else {
+            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
         }
     }
 

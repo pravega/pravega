@@ -6,11 +6,10 @@ package com.emc.pravega.demo;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.RPCServerConfig;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -26,6 +25,7 @@ import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -35,25 +35,34 @@ import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
-public class ControllerWrapper {
+@Slf4j
+public class ControllerWrapper implements AutoCloseable {
 
     @Getter
     private final ControllerService controllerService;
     @Getter
     private final Controller controller;
+    private final ScheduledExecutorService executor;
+    private final GRPCServer rpcServer;
+    private final ControllerEventProcessors controllerEventProcessors;
+    private final TimeoutService timeoutService;
+    private final StreamMetadataTasks streamMetadataTasks;
+    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     public ControllerWrapper(final String connectionString) throws Exception {
-        this(connectionString, false, Config.SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
+        this(connectionString, false, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
                 Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor) throws Exception {
-        this(connectionString, disableEventProcessor, Config.SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
-                Config.HOST_STORE_CONTAINER_COUNT);
+        this(connectionString, disableEventProcessor, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST,
+                Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableRequestHandler,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) throws Exception {
         String hostId;
@@ -66,7 +75,7 @@ public class ControllerWrapper {
         }
 
         // initialize the executor service
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
+        executor = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
         CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
@@ -83,40 +92,58 @@ public class ControllerWrapper {
         SegmentHelper segmentHelper = new SegmentHelper();
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 segmentHelper, executor, hostId);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, segmentHelper, executor, hostId);
 
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
 
-        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
-                .port(controllerPort)
-                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
-                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
-                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
-                .build();
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
-
-        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
+        if (!disableRequestHandler) {
+            RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
+        }
 
         //region Setup Event Processors
         LocalController localController = new LocalController(controllerService);
 
         if (!disableEventProcessor) {
-            ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
-                    client, streamStore, hostStore, segmentHelper);
-
-            controllerEventProcessors.initialize();
-
-            streamTransactionMetadataTasks.initializeStreamWriters(localController);
+            controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+                    client, streamStore, hostStore, segmentHelper, executor);
+        } else {
+            controllerEventProcessors = null;
         }
+
+        ControllerEventProcessors.bootstrap(localController, streamTransactionMetadataTasks, executor)
+                .thenAcceptAsync(x -> {
+                    if (!disableEventProcessor) {
+                        controllerEventProcessors.startAsync();
+                    }
+                }, executor);
         //endregion
+
+        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
+                .port(controllerPort)
+                .build();
+        rpcServer = new GRPCServer(controllerService, gRPCServerConfig);
+        rpcServer.startAsync();
 
         controller = new LocalController(controllerService);
     }
-}
 
+    public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        return this.streamTransactionMetadataTasks.awaitInitialization(timeout, timeUnit);
+    }
+
+    @Override
+    public void close() throws Exception {
+        rpcServer.stopAsync();
+        if (controllerEventProcessors != null) {
+            controllerEventProcessors.stopAsync();
+        }
+        timeoutService.stopAsync();
+        executor.shutdown();
+    }
+}

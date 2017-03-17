@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class AsyncSegmentInputStreamTest {
 
-    @Test
+    @Test(timeout = 20000)
     public void testRetry() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
@@ -58,7 +58,7 @@ public class AsyncSegmentInputStreamTest {
         verifyNoMoreInteractions(c);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testRead() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testRead", 1);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
@@ -79,7 +79,7 @@ public class AsyncSegmentInputStreamTest {
         verifyNoMoreInteractions(c);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testWrongOffsetReturned() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testWrongOffsetReturned", 0);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);

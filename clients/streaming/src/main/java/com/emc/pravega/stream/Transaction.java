@@ -39,7 +39,7 @@ public interface Transaction<Type> {
      * A routing key will automatically be inferred from the transactionID.
      * So all events written this way will be fully ordered and contiguous when read.
      *
-     * @param event The Event to write.
+     * @param event The Event to write. (Null is disallowed)
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
     void writeEvent(Type event) throws TxnFailedException;
@@ -49,7 +49,7 @@ public interface Transaction<Type> {
      * the message will not be visible to anyone until {@link #commit()} is called.
      *
      * @param routingKey The Routing Key to use for writing.
-     * @param event The Event to write.
+     * @param event The Event to write. (Null is disallowed)
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
     void writeEvent(String routingKey, Type event) throws TxnFailedException;

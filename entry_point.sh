@@ -2,24 +2,31 @@
 PORT0=${PORT0:-$bookiePort}
 PORT0=${PORT0:-3181}
 ZK_URL=${ZK_URL:-127.0.0.1:2181}
-
+USE_MOUNT=${USE_MOUNT:-0}
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${BK_CLUSTER_NAME}/ledgers"
 DL_NS_PATH="/pravega/segmentstore/containers"
 
+if [ $USE_MOUNT -eq 0 ]; then
+    BK_DIR="/bk"
+else
+    BK_DIR=$MESOS_SANDBOX
+fi
+
 echo "bookie service port0 is $PORT0 "
 echo "ZK_URL is $ZK_URL"
 echo "BK_LEDGERS_PATH is $BK_LEDGERS_PATH"
+echo "BK_DIR is $BK_DIR"
 
 cp /opt/dl_all/distributedlog-service/conf/bookie.conf.template /opt/dl_all/distributedlog-service/conf/bookie.conf
 
 sed -i 's/3181/'$PORT0'/' /opt/dl_all/distributedlog-service/conf/bookie.conf
 sed -i "s/localhost:2181/${ZK_URL}/" /opt/dl_all/distributedlog-service/conf/bookie.conf
-sed -i 's|journalDirectory=/tmp/data/bk/journal|journalDirectory=/bk/journal|' /opt/dl_all/distributedlog-service/conf/bookie.conf
-sed -i 's|ledgerDirectories=/tmp/data/bk/ledgers|ledgerDirectories=/bk/ledgers|' /opt/dl_all/distributedlog-service/conf/bookie.conf
-sed -i 's|indexDirectories=/tmp/data/bk/ledgers|indexDirectories=/bk/index|' /opt/dl_all/distributedlog-service/conf/bookie.conf
+sed -i 's|journalDirectory=/tmp/data/bk/journal|journalDirectory='${BK_DIR}'/journal|' /opt/dl_all/distributedlog-service/conf/bookie.conf
+sed -i 's|ledgerDirectories=/tmp/data/bk/ledgers|ledgerDirectories='${BK_DIR}'/ledgers|' /opt/dl_all/distributedlog-service/conf/bookie.conf
+sed -i 's|indexDirectories=/tmp/data/bk/ledgers|indexDirectories='${BK_DIR}'/index|' /opt/dl_all/distributedlog-service/conf/bookie.conf
 sed -i 's|zkLedgersRootPath=/messaging/bookkeeper/ledgers|zkLedgersRootPath='${BK_LEDGERS_PATH}'|' /opt/dl_all/distributedlog-service/conf/bookie.conf
 
 #Re-create all the needed metadata dir in zk is OK, if they exisited before.

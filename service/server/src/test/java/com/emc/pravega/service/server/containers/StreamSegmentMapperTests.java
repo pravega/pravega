@@ -28,7 +28,6 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Service;
 import java.io.InputStream;
 import java.time.Duration;
@@ -556,18 +555,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        @SuppressWarnings("deprecation")
-        public ListenableFuture<State> start() {
-            return null;
-        }
-
-        @Override
-        @SuppressWarnings("deprecation")
-        public State startAndWait() {
-            return null;
-        }
-
-        @Override
         public Service startAsync() {
             return null;
         }
@@ -579,18 +566,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Override
         public State state() {
-            return null;
-        }
-
-        @Override
-        @SuppressWarnings("deprecation")
-        public ListenableFuture<State> stop() {
-            return null;
-        }
-
-        @Override
-        @SuppressWarnings("deprecation")
-        public State stopAndWait() {
             return null;
         }
 

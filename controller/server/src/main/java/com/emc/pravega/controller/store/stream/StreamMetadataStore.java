@@ -5,8 +5,8 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
@@ -54,6 +54,11 @@ public interface StreamMetadataStore {
                                             final OperationContext context,
                                             final Executor executor);
 
+    CompletableFuture<Void> deleteStream(final String scopeName,
+                                            final String streamName,
+                                            final OperationContext context,
+                                            final Executor executor);
+
     CompletableFuture<Boolean> setState(String scope, String name,
                                         State state, OperationContext context,
                                         Executor executor);
@@ -73,6 +78,14 @@ public interface StreamMetadataStore {
      * @return null on success and exception on failure.
      */
     CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
+
+    /**
+     * Retrieve configuration of scope.
+     *
+     * @param scopeName Name of scope.
+     * @return Returns configuration of scope.
+     */
+    CompletableFuture<String> getScopeConfiguration(final String scopeName);
 
     /**
      * List existing streams in scopes.
@@ -149,6 +162,17 @@ public interface StreamMetadataStore {
      * @return segment at given number.
      */
     CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor);
+
+    /**
+     * Returns the total number of segments in the stream.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return total number of segments in the stream.
+     */
+    CompletableFuture<Integer> getSegmentCount(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
      * Get active segments.
