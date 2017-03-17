@@ -407,7 +407,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testCleanup() throws Exception {
-        final WriterConfig config = ConfigHelpers.createWriterConfig(PropertyBag.create(DEFAULT_RAW_CONFIG).with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1));
+        final WriterConfig config = WriterConfig.builder()
+                                                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1) // This differs from DEFAULT_CONFIG.
+                                                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 1000L)
+                                                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
+                                                .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+                                                .with(WriterConfig.MAX_ITEMS_TO_READ_AT_ONCE, 100)
+                                                .with(WriterConfig.ERROR_SLEEP_MILLIS, 0L)
+                                                .build();
         @Cleanup
         final TestContext context = new TestContext(config);
         context.writer.startAsync();
