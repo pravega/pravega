@@ -1,13 +1,10 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -29,7 +26,6 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.reading.CacheManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
@@ -49,7 +45,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -491,12 +486,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
     }
 
     private MetadataCheckpointPolicy getNoOpCheckpointPolicy() {
-        Properties p = new Properties();
-
         // Turn off any MetadataCheckpointing. In these tests, we are doing that manually.
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, Integer.toString(Integer.MAX_VALUE));
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, Long.toString(Long.MAX_VALUE));
-        DurableLogConfig dlConfig = new DurableLogConfig(p);
+        DurableLogConfig dlConfig = DurableLogConfig
+                .builder()
+                .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, Integer.MAX_VALUE)
+                .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, Long.MAX_VALUE)
+                .build();
 
         return new MetadataCheckpointPolicy(
                 dlConfig,
@@ -517,8 +512,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.cacheFactory = new InMemoryCacheFactory();
             this.storage = new InMemoryStorage(executorService());
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-                    PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
+            ReadIndexConfig readIndexConfig = ConfigHelpers
+                    .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
+                    .build();
+
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
             this.memoryLog = new SequencedItemList<>();

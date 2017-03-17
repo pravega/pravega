@@ -1,19 +1,15 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.Properties;
-import java.util.function.Function;
+import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Configuration for ServiceBuilder.
@@ -33,54 +29,35 @@ public class ServiceBuilderConfig {
      *
      * @param properties The Properties object to wrap.
      */
-    public ServiceBuilderConfig(Properties properties) {
+    private ServiceBuilderConfig(Properties properties) {
         Preconditions.checkNotNull(properties, "properties");
         this.properties = properties;
+    }
+
+    /**
+     * Creates a new Builder for this class.
+     *
+     * @return The created Builder.
+     */
+    public static Builder builder() {
+        return new Builder();
     }
 
     //endregion
 
     /**
-     * Gets a new instance of a ComponentConfig for this builder.
+     * Gets a new instance of a Configuration for this builder.
      *
-     * @param constructor The constructor for the new instance.
-     * @param <T>         The type of the ComponentConfig to instantiate.
+     * @param constructor A Supplier for a ConfigBuilder for the given Configuration.
+     * @param <T>         The type of the Configuration to instantiate.
      */
-    public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
-        return constructor.apply(this.properties);
+    public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> constructor) {
+        return constructor.get()
+                          .rebase(this.properties)
+                          .build();
     }
 
     //region Default Configuration
-
-    /**
-     * Gets a set of configuration values from the default config file.
-     *
-     * @return Service builder config read from the default config file.
-     * @throws IOException If the config file can not be read from.
-     */
-    public static ServiceBuilderConfig getConfigFromFile() throws IOException {
-        FileReader reader = null;
-        try {
-            reader = new FileReader("config.properties");
-            return getConfigFromStream(reader);
-        } catch (IOException e) {
-            log.warn("Unable to read configuration because of exception " + e.getMessage());
-            throw e;
-        }
-    }
-
-    /**
-     * Gets a set of configuration values from a given InputStreamReader.
-     *
-     * @param reader the InputStreamReader from which to read the configuration.
-     * @return A ServiceBuilderConfig object.
-     * @throws IOException If an exception occurred during reading of the configuration.
-     */
-    public static ServiceBuilderConfig getConfigFromStream(InputStreamReader reader) throws IOException {
-        Properties p = new Properties();
-        p.load(reader);
-        return new ServiceBuilderConfig(p);
-    }
 
     /**
      * Gets a default set of configuration values, in absence of any real configuration.
@@ -88,27 +65,72 @@ public class ServiceBuilderConfig {
      * create only one container to host segments.
      */
     public static ServiceBuilderConfig getDefaultConfig() {
-        Properties p = new Properties();
-
-        // General params.
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
-
         // All component configs should have defaults built-in, so no need to override them here.
-        return new ServiceBuilderConfig(p);
+        return new Builder()
+                .include(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
+                .build();
     }
 
+    //endregion
+
+    //region Builder
+
     /**
-     * Sets the given property in the given Properties object using the format expected by ComponentConfig, rooted under
-     * ServiceConfig.
-     *
-     * @param p             The Properties object to update.
-     * @param componentCode The name of the component code.
-     * @param propertyName  The name of the property.
-     * @param value         The value of the property.
+     * Represents a Builder for the ServiceBuilderConfig.
      */
-    public static void set(Properties p, String componentCode, String propertyName, String value) {
-        String key = String.format("%s.%s", componentCode, propertyName);
-        p.setProperty(key, value);
+    public static class Builder {
+        private final Properties properties;
+
+        private Builder() {
+            this.properties = new Properties();
+        }
+
+        /**
+         * Loads configuration values from the given config file.
+         *
+         * @param filePath The path to the file to read form.
+         * @return This instance.
+         * @throws IOException If the config file can not be read from.
+         */
+        public Builder include(String filePath) throws IOException {
+            try (FileReader reader = new FileReader(filePath)) {
+                this.properties.load(reader);
+            }
+
+            return this;
+        }
+
+        /**
+         * Includes the given Builder into this Builder.
+         *
+         * @param builder The Builder to include.
+         * @param <T>     Type of the Configuration to include.
+         * @return This instance.
+         */
+        public <T> Builder include(ConfigBuilder<T> builder) {
+            builder.copyTo(this.properties);
+            return this;
+        }
+
+        /**
+         * Includes the given Properties into this Builder.
+         *
+         * @param p The properties to include.
+         * @return This instance.
+         */
+        public Builder include(Properties p) {
+            this.properties.putAll(p);
+            return this;
+        }
+
+        /**
+         * Creates a new instance of the ServiceBuilderConfig class with the information contained in this builder.
+         *
+         * @return The newly created ServiceBuilderConfig.
+         */
+        public ServiceBuilderConfig build() {
+            return new ServiceBuilderConfig(this.properties);
+        }
     }
 
     //endregion
