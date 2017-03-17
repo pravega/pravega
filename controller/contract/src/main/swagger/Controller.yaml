@@ -211,6 +211,7 @@ paths:
         type: string
     put:
       operationId: updateStreamState
+      description: Updates the current state of the stream
       consumes:
         - application/json
       parameters:
