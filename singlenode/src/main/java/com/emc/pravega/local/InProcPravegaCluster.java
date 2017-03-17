@@ -5,6 +5,8 @@
  */
 package com.emc.pravega.local;
 
+import com.emc.pravega.controller.fault.SegmentContainerMonitor;
+import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -23,6 +25,8 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.service.server.host.ServiceStarter;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
@@ -42,7 +46,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.retry.RetryOneTime;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+import org.apache.commons.lang.NotImplementedException;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.File;
@@ -353,6 +357,10 @@ public class InProcPravegaCluster implements AutoCloseable {
 
             TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
 
+            SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, ZKUtils.getCuratorClient(),
+                    new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
+            monitor.startAsync();
+
             SegmentHelper segmentHelper = new SegmentHelper();
 
             StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
@@ -393,9 +401,13 @@ public class InProcPravegaCluster implements AutoCloseable {
                     streamTransactionMetadataTasks);
 
             RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
-            // 4. Start the REST server.
-            log.info("Starting Pravega REST Service");
-            RESTServer.start(controllerService);
+            /* 4. Start the REST server.
+            try {
+                log.info("Starting Pravega REST Service");
+                RESTServer.start(controllerService);
+            } catch (Exception e) {
+                log.warn("Exception {} while starting REST server",e);
+            }*/
         }
     }
 
