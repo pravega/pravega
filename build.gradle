@@ -29,7 +29,6 @@ allprojects {
     apply plugin: 'signing'
     apply plugin: 'checkstyle'
     apply plugin: 'findbugs'
-    apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
 
     apply plugin: 'jacoco'
@@ -67,9 +66,7 @@ allprojects {
     compileJava { 
         options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
     } 
-    docker {
-        url = dockerUrl
-    }
+
     repositories {
         // Use 'jcenter' for resolving your dependencies.
         // You can declare any Maven/Ivy/file repository here.
@@ -295,6 +292,10 @@ project('service:server') {
 
 project('service:server:host') {
     apply plugin: 'application'
+    apply plugin: 'com.bmuschko.docker-java-application'
+    docker {
+        url = dockerUrl
+    }
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
@@ -479,6 +480,10 @@ project('controller:contract') {
 }
 
 project('controller:server') {
+    apply plugin: 'com.bmuschko.docker-java-application'
+    docker {
+        url = dockerUrl
+    }
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
     }
