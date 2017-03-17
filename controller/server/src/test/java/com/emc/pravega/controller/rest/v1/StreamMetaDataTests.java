@@ -12,6 +12,7 @@ import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
+import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
@@ -22,6 +23,7 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -275,6 +277,40 @@ public class StreamMetaDataTests extends JerseyTest {
     }
 
     /**
+     * Test for deleteStream REST API
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testDeleteStream() throws Exception {
+        final String resourceURI = "v1/scopes/scope1/streams/stream1";
+
+        // Test to delete a sealed stream
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.SUCCESS).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 204, response.get().getStatus());
+
+        // Test to delete a unsealed stream
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.STREAM_NOT_SEALED).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 412, response.get().getStatus());
+
+        // Test to delete a non existent stream
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.STREAM_NOT_FOUND).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 404, response.get().getStatus());
+
+        // Test to delete a stream giving an internal server error
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.FAILURE).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 500, response.get().getStatus());
+    }
+
+    /**
      * Test for createScope REST API
      *
      * @throws ExecutionException
@@ -339,6 +375,12 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Delete Scope response code", 500, response.get().getStatus());
     }
 
+    /**
+     * Test to retrieve a scope.
+     *
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
     @Test
     public void testGetScope() throws ExecutionException, InterruptedException {
         final String resourceURI = "v1/scopes/scope1";
@@ -454,6 +496,42 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture);
         response = target(resourceURI).request().async().get();
         assertEquals("List Streams response code", 500, response.get().getStatus());
+    }
+
+    /**
+     * Test for updateStreamState REST API.
+     */
+    @Test
+    public void testUpdateStreamState() throws Exception {
+        final String resourceURI = "v1/scopes/scope1/streams/stream1/state";
+
+        // Test to seal a stream.
+        when(mockControllerService.sealStream("scope1", "stream1")).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SUCCESS).build()));
+        StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 200, response.get().getStatus());
+
+        // Test to seal a non existent scope.
+        when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build()));
+        streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 404, response.get().getStatus());
+
+        // Test to seal a non existent stream.
+        when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND).build()));
+        streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 404, response.get().getStatus());
+
+        // Test to check failure.
+        when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build()));
+        streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 500, response.get().getStatus());
     }
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {

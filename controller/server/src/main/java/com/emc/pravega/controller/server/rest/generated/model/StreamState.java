@@ -3,6 +3,7 @@ package com.emc.pravega.controller.server.rest.generated.model;
 import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
@@ -10,28 +11,46 @@ import io.swagger.annotations.ApiModelProperty;
 
 
 /**
- * InlineResponse201
+ * StreamState
  */
 
-public class InlineResponse201   {
-  private String scopeName = null;
+public class StreamState   {
+  /**
+   * Gets or Sets streamState
+   */
+  public enum StreamStateEnum {
+    SEALED("SEALED");
 
-  public InlineResponse201 scopeName(String scopeName) {
-    this.scopeName = scopeName;
+    private String value;
+
+    StreamStateEnum(String value) {
+      this.value = value;
+    }
+
+    @Override
+    public String toString() {
+      return String.valueOf(value);
+    }
+  }
+
+  private StreamStateEnum streamState = null;
+
+  public StreamState streamState(StreamStateEnum streamState) {
+    this.streamState = streamState;
     return this;
   }
 
    /**
-   * Get scopeName
-   * @return scopeName
+   * Get streamState
+   * @return streamState
   **/
   @ApiModelProperty(value = "")
-  public String getScopeName() {
-    return scopeName;
+  public StreamStateEnum getStreamState() {
+    return streamState;
   }
 
-  public void setScopeName(String scopeName) {
-    this.scopeName = scopeName;
+  public void setStreamState(StreamStateEnum streamState) {
+    this.streamState = streamState;
   }
 
 
@@ -43,21 +62,21 @@ public class InlineResponse201   {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    InlineResponse201 inlineResponse201 = (InlineResponse201) o;
-    return Objects.equals(this.scopeName, inlineResponse201.scopeName);
+    StreamState streamState = (StreamState) o;
+    return Objects.equals(this.streamState, streamState.streamState);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(scopeName);
+    return Objects.hash(streamState);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class InlineResponse201 {\n");
+    sb.append("class StreamState {\n");
     
-    sb.append("    scopeName: ").append(toIndentedString(scopeName)).append("\n");
+    sb.append("    streamState: ").append(toIndentedString(streamState)).append("\n");
     sb.append("}");
     return sb.toString();
   }
