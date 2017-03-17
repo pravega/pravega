@@ -15,10 +15,7 @@ import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.ScalingPolicy;
 import lombok.extern.slf4j.Slf4j;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Entry point of controller server.
@@ -27,15 +24,6 @@ import java.util.UUID;
 public class Main {
 
     public static void main(String[] args) {
-        String hostId;
-        try {
-            //On each controller process restart, it gets a fresh hostId,
-            //which is a combination of hostname and random GUID.
-            hostId = InetAddress.getLocalHost().getHostAddress() + "-" + UUID.randomUUID().toString();
-        } catch (UnknownHostException e) {
-            log.warn("Failed to get host address.", e);
-            hostId = UUID.randomUUID().toString();
-        }
 
         ZKClientConfig zkClientConfig = ZKClientConfig.builder()
                 .connectionString(Config.ZK_URL)
@@ -82,7 +70,6 @@ public class Main {
                 .build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
-                .host(hostId)
                 .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)

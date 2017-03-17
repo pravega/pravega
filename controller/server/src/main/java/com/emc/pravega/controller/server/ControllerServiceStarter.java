@@ -31,6 +31,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -105,6 +108,16 @@ public class ControllerServiceStarter extends AbstractService {
         log.info("Creating the checkpoint store");
         checkpointStore = CheckpointStoreFactory.create(storeClient);
 
+        String hostId;
+        try {
+            //On each controller process restart, it gets a fresh hostId,
+            //which is a combination of hostname and random GUID.
+            hostId = InetAddress.getLocalHost().getHostAddress() + "-" + UUID.randomUUID().toString();
+        } catch (UnknownHostException e) {
+            log.warn("Failed to get host address.", e);
+            hostId = UUID.randomUUID().toString();
+        }
+
         if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
             //Start the Segment Container Monitor.
             monitor = new SegmentContainerMonitor(hostStore, (CuratorFramework) storeClient.getClient(),
@@ -116,9 +129,9 @@ public class ControllerServiceStarter extends AbstractService {
 
         SegmentHelper segmentHelper = new SegmentHelper();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, taskExecutor, serviceConfig.getHost());
+                segmentHelper, taskExecutor, hostId);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, taskExecutor, serviceConfig.getHost());
+                hostStore, taskMetadataStore, segmentHelper, taskExecutor, hostId);
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 serviceConfig.getTimeoutServiceConfig());
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
@@ -129,7 +142,7 @@ public class ControllerServiceStarter extends AbstractService {
 
         if (serviceConfig.getEventProcessorConfig().isPresent()) {
             // Create ControllerEventProcessor object.
-            controllerEventProcessors = new ControllerEventProcessors(serviceConfig.getHost(),
+            controllerEventProcessors = new ControllerEventProcessors(hostId,
                     serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
                     hostStore, segmentHelper, eventProcExecutor);
 
@@ -176,7 +189,7 @@ public class ControllerServiceStarter extends AbstractService {
         // are processed and deleted, that failed HostId is removed from FH folder.
         // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
         // controllers and starts sweeping tasks orphaned by those hostIds.
-        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, serviceConfig.getHost(), streamMetadataTasks,
+        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
         notifyStarted();

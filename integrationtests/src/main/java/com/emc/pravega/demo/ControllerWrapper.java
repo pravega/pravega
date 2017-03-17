@@ -19,8 +19,6 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.Controller;
 import lombok.extern.slf4j.Slf4j;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -44,14 +42,6 @@ public class ControllerWrapper implements AutoCloseable {
                              final boolean disableRequestHandler,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) throws Exception {
-        String hostId;
-        try {
-            // On each controller process restart, it gets a fresh hostId,
-            // which is a combination of hostname and random GUID.
-            hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
-        } catch (UnknownHostException e) {
-            hostId = UUID.randomUUID().toString();
-        }
 
         ZKClientConfig zkClientConfig = ZKClientConfig.builder().connectionString(connectionString)
                 .initialSleepInterval(2000)
@@ -95,7 +85,6 @@ public class ControllerWrapper implements AutoCloseable {
         GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder().port(controllerPort).build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
-                .host(hostId)
                 .serviceThreadPoolSize(3)
                 .taskThreadPoolSize(3)
                 .storeThreadPoolSize(3)

@@ -22,8 +22,6 @@ import java.util.Optional;
 @Getter
 public class ControllerServiceConfig {
 
-
-    private final String host;
     private final int serviceThreadPoolSize;
     private final int taskThreadPoolSize;
     private final int storeThreadPoolSize;
@@ -41,8 +39,7 @@ public class ControllerServiceConfig {
     private final Optional<RESTServerConfig> restServerConfig;
 
     @Builder
-    ControllerServiceConfig(final String host,
-                            final int serviceThreadPoolSize,
+    ControllerServiceConfig(final int serviceThreadPoolSize,
                             final int taskThreadPoolSize,
                             final int storeThreadPoolSize,
                             final int eventProcThreadPoolSize,
@@ -54,7 +51,6 @@ public class ControllerServiceConfig {
                             final boolean requestHandlersEnabled,
                             final Optional<GRPCServerConfig> grpcServerConfig,
                             final Optional<RESTServerConfig> restServerConfig) {
-        Exceptions.checkNotNullOrEmpty(host, "host");
         Exceptions.checkArgument(serviceThreadPoolSize > 0, "serviceThreadPoolSize", "Should be positive integer");
         Exceptions.checkArgument(taskThreadPoolSize > 0, "taskThreadPoolSize", "Should be positive integer");
         Exceptions.checkArgument(storeThreadPoolSize > 0, "storeThreadPoolSize", "Should be positive integer");
@@ -65,14 +61,13 @@ public class ControllerServiceConfig {
         Preconditions.checkNotNull(timeoutServiceConfig, "timeoutServiceConfig");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
-
         if (grpcServerConfig.isPresent()) {
             Preconditions.checkNotNull(grpcServerConfig.get());
         }
         if (restServerConfig.isPresent()) {
             Preconditions.checkNotNull(restServerConfig.get());
         }
-        this.host = host;
+
         this.serviceThreadPoolSize = serviceThreadPoolSize;
         this.taskThreadPoolSize = taskThreadPoolSize;
         this.storeThreadPoolSize = storeThreadPoolSize;

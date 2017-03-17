@@ -34,11 +34,8 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -206,15 +203,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
     }
 
     private void startController() {
-        String hostId;
-        try {
-            //On each controller report restart, it gets a fresh hostId,
-            //which is a combination of hostname and random GUID.
-            hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
-        } catch (UnknownHostException e) {
-            log.debug("Failed to get host address.", e);
-            hostId = UUID.randomUUID().toString();
-        }
 
         ZKClientConfig zkClientConfig = ZKClientConfig.builder()
                 .connectionString(Config.ZK_URL)
@@ -252,7 +240,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
         GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder().port(controllerPort).build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
-                .host(hostId)
                 .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
