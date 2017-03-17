@@ -81,17 +81,17 @@ public class ControllerStreamMetadataTest {
     @After
     public void tearDown() {
         try {
-            if (this.zkTestServer != null) {
-                this.zkTestServer.close();
-                this.zkTestServer = null;
+            if (this.controllerWrapper != null) {
+                this.controllerWrapper.close();
+                this.controllerWrapper = null;
             }
             if (this.server != null) {
                 this.server.close();
                 this.server = null;
             }
-            if (this.controllerWrapper != null) {
-                this.controllerWrapper.close();
-                this.controllerWrapper = null;
+            if (this.zkTestServer != null) {
+                this.zkTestServer.close();
+                this.zkTestServer = null;
             }
         } catch (Exception e) {
             log.warn("Exception while tearing down", e);
