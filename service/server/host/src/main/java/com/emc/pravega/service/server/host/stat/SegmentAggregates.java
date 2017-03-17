@@ -4,6 +4,7 @@
 package com.emc.pravega.service.server.host.stat;
 
 import com.emc.pravega.common.netty.WireCommands;
+import com.google.common.annotations.VisibleForTesting;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -36,6 +37,12 @@ class SegmentAggregates {
     private static final double M20_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 20);
 
     // Amount of data stored in each aggregate object in memory = 77 bytes + object overhead
+
+    /**
+     * 8 bytes.
+     */
+    @VisibleForTesting
+    AtomicLong currentCount;
 
     /**
      * 8 bytes.
@@ -76,11 +83,6 @@ class SegmentAggregates {
      */
     private AtomicLong lastTick;
 
-    /**
-     * 8 bytes.
-     */
-    private AtomicLong currentCount;
-
     SegmentAggregates(byte scaleType, int targetRate) {
         this.targetRate = targetRate;
         this.scaleType = scaleType;
@@ -118,14 +120,21 @@ class SegmentAggregates {
         long durationInSeconds = (System.currentTimeMillis() - txnCreationTime) / 1000;
         long numOfTicks = (int) durationInSeconds / INTERVAL_IN_SECONDS;
 
-        if (scaleType == WireCommands.CreateSegment.IN_KBYTES_PER_SEC) {
-            amortizedPerTick = dataSize / numOfTicks;
-        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS_PER_SEC) {
-            amortizedPerTick = numOfEvents / numOfTicks;
-        }
+        if (numOfTicks == 0) {
+            // Not large enough lifespan for transaction. Include in regular traffic.
+            update(dataSize, numOfEvents);
+        } else {
+            // Transaction lasted at least one tick internal (5 seconds) or more.
+            // Amortize traffic over per tick and decay the rate accordingly.
+            if (scaleType == WireCommands.CreateSegment.IN_KBYTES_PER_SEC) {
+                amortizedPerTick = dataSize / numOfTicks;
+            } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS_PER_SEC) {
+                amortizedPerTick = numOfEvents / numOfTicks;
+            }
 
-        for (int i = 0; i < numOfEvents; i++) {
-            computeDecay(amortizedPerTick, INTERVAL_IN_SECONDS);
+            for (int i = 0; i < numOfTicks; i++) {
+                computeDecay(amortizedPerTick, INTERVAL_IN_SECONDS);
+            }
         }
     }
 

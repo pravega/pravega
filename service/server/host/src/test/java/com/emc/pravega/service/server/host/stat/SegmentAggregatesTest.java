@@ -20,9 +20,24 @@ public class SegmentAggregatesTest {
         assert aggregates.getTwoMinuteRate() > 0 && aggregates.getFiveMinuteRate() > 0 &&
                 aggregates.getTenMinuteRate() > 0 && aggregates.getTwentyMinuteRate() > 0;
 
+    }
+
+    @Test
+    public void aggregateTxn() {
+        SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
+
         // add transaction. Approximately 10 events per second.
-        aggregates.updateTx(0, 1100, System.currentTimeMillis() - Duration.ofSeconds(100).toMillis());
+        aggregates.updateTx(0, 6500, System.currentTimeMillis() - Duration.ofMinutes(10).toMillis());
         assert aggregates.getTwoMinuteRate() > 10;
+
+        aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
+
+        aggregates.updateTx(0, 100, System.currentTimeMillis());
+        assert aggregates.getTwoMinuteRate() == 0;
+        assert aggregates.currentCount.get() == 100;
+
+        aggregates.updateTx(0, 1000, System.currentTimeMillis() - Duration.ofSeconds(5).toMillis());
+        assert aggregates.getTwoMinuteRate() > 0;
     }
 
     private void write(SegmentAggregates aggregates) {
