@@ -45,7 +45,7 @@ public class ControllerStreamMetadataTest {
     private StreamConfiguration streamConfiguration = null;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         final int controllerPort = TestUtils.randomPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.randomPort();
@@ -74,7 +74,7 @@ public class ControllerStreamMetadataTest {
                     .build();
         } catch (Exception e) {
             log.error("Error during setup", e);
-            e.printStackTrace();
+            throw e;
         }
     }
 
