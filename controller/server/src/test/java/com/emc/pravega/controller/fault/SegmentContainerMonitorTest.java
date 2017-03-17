@@ -9,9 +9,9 @@ import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.ZKHostStore;
+import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.util.Config;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -68,7 +68,7 @@ public class SegmentContainerMonitorTest {
 
     @Test
     public void testMonitorWithInMemoryStore() throws Exception {
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfig.defaultConfig());
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.defaultConfig());
         testMonitor(hostStore);
     }
 

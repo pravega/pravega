@@ -3,33 +3,35 @@
  */
 package com.emc.pravega.controller.store.client;
 
-import com.emc.pravega.common.Exceptions;
-import lombok.Builder;
-import lombok.Getter;
-
 /**
- * Zookeeper Curator framework client config.
+ * Configuration of Zookeeper's Curator Framework client.
  */
-@Getter
-public class ZKClientConfig {
-    private String connectionString;
-    private String namespace;
-    private int initialSleepInterval;
-    private int maxRetries;
+public interface ZKClientConfig {
+    /**
+     * Fetches the ZK server connection string.
+     *
+     * @return The ZK server connection string.
+     */
+    String getConnectionString();
 
-    @Builder
-    ZKClientConfig(final String connectionString,
-                   final String namespace,
-                   final int initialSleepInterval,
-                   final int maxRetries) {
-        Exceptions.checkNotNullOrEmpty(connectionString, "connectionString");
-        Exceptions.checkNotNullOrEmpty(namespace, "namespace");
-        Exceptions.checkArgument(initialSleepInterval > 0, "retryInterval", "Should be a positive integer");
-        Exceptions.checkArgument(maxRetries > 0, "maxRetries", "Should be a positive integer");
+    /**
+     * Fetches the ZK client namespace.
+     *
+     * @return The ZK client namespace.
+     */
+    String getNamespace();
 
-        this.connectionString = connectionString;
-        this.namespace = namespace;
-        this.initialSleepInterval = initialSleepInterval;
-        this.maxRetries = maxRetries;
-    }
+    /**
+     * Fetches the amount of sleep time before first retry.
+     *
+     * @return The amount of sleep time before first retry.
+     */
+    int getInitialSleepInterval();
+
+    /**
+     * Fetches the maximum nnumber of retries the client should make while attempting to connect to ZK servers.
+     *
+     * @return The maximum nnumber of retries the client should make while attempting to connect to ZK servers.
+     */
+    int getMaxRetries();
 }

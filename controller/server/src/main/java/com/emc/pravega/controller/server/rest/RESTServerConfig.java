@@ -3,24 +3,21 @@
  */
 package com.emc.pravega.controller.server.rest;
 
-import com.emc.pravega.common.Exceptions;
-import lombok.Builder;
-import lombok.Getter;
-
 /**
- * REST server config.
+ * Configuration of controller REST server.
  */
-@Getter
-public class RESTServerConfig {
-    private final String host;
-    private final int port;
+public interface RESTServerConfig {
+    /**
+     * Fetches the host ip address to which the controller gRPC server binds.
+     *
+     * @return The host ip address to which the controller gRPC server binds.
+     */
+    String getHost();
 
-    @Builder
-    RESTServerConfig(final String host, final int port) {
-        Exceptions.checkNotNullOrEmpty(host, "host");
-        Exceptions.checkArgument(port > 0, "port", "Should be positive integer");
-
-        this.host = host;
-        this.port = port;
-    }
+    /**
+     * Fetches the port on which controller gRPC listens.
+     *
+     * @return The port on which controller gRPC listens.
+     */
+    int getPort();
 }

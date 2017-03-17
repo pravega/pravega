@@ -7,8 +7,8 @@ import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -73,7 +73,7 @@ public class StreamMetadataTasksTest {
                 anyString(), anyString(), any(), any()); //mock only isTransactionOngoing call.
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfig.defaultConfig());
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.defaultConfig());
 
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStorePartialMock, hostStore,

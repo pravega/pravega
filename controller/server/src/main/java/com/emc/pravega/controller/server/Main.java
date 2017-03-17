@@ -5,11 +5,18 @@ package com.emc.pravega.controller.server;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
+import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
+import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
+import com.emc.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
 import com.emc.pravega.controller.store.client.ZKClientConfig;
+import com.emc.pravega.controller.store.client.impl.StoreClientConfigImpl;
+import com.emc.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
+import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -25,16 +32,16 @@ public class Main {
 
     public static void main(String[] args) {
 
-        ZKClientConfig zkClientConfig = ZKClientConfig.builder()
+        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                 .connectionString(Config.ZK_URL)
                 .namespace("pravega/" + Config.CLUSTER_NAME)
                 .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
                 .maxRetries(Config.ZK_MAX_RETRIES)
                 .build();
 
-        StoreClientConfig storeClientConfig = StoreClientConfig.withZKClient(zkClientConfig);
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
 
-        HostMonitorConfig hostMonitorConfig = HostMonitorConfig.builder()
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(Config.HOST_MONITOR_ENABLED)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                 .sssHost(Config.SERVICE_HOST)
@@ -47,7 +54,7 @@ public class Main {
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
-        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfig.builder()
+        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.builder()
                 .scopeName("system")
                 .commitStreamName("commitStream")
                 .abortStreamName("abortStream")
@@ -61,15 +68,15 @@ public class Main {
                 .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
                 .build();
 
-        GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder()
+        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
                 .port(Config.RPC_SERVER_PORT)
                 .build();
-        RESTServerConfig restServerConfig = RESTServerConfig.builder()
+        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
                 .host(Config.REST_SERVER_IP)
                 .port(Config.REST_SERVER_PORT)
                 .build();
 
-        ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
+        ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)

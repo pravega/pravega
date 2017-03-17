@@ -9,11 +9,17 @@ import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.ControllerServiceConfig;
 import com.emc.pravega.controller.server.ControllerServiceStarter;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
+import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
+import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
 import com.emc.pravega.controller.store.client.ZKClientConfig;
+import com.emc.pravega.controller.store.client.impl.StoreClientConfigImpl;
+import com.emc.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
+import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.service.server.host.ServiceStarter;
@@ -204,16 +210,16 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
     private void startController() {
 
-        ZKClientConfig zkClientConfig = ZKClientConfig.builder()
+        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                 .connectionString(Config.ZK_URL)
                 .namespace("pravega/" + Config.CLUSTER_NAME)
                 .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
                 .maxRetries(Config.ZK_MAX_RETRIES)
                 .build();
 
-        StoreClientConfig storeClientConfig = StoreClientConfig.withZKClient(zkClientConfig);
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
 
-        HostMonitorConfig hostMonitorConfig = HostMonitorConfig.builder()
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                 .build();
@@ -223,7 +229,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
-        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfig.builder()
+        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.builder()
                 .scopeName("system")
                 .commitStreamName("commitStream")
                 .abortStreamName("abortStream")
@@ -237,9 +243,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
                 .build();
 
-        GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder().port(controllerPort).build();
+        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder().port(controllerPort).build();
 
-        ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
+        ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)

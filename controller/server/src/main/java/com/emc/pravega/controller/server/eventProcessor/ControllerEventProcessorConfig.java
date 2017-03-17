@@ -3,68 +3,89 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
-import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.google.common.base.Preconditions;
-import lombok.Builder;
-import lombok.Getter;
 
 /**
  * Configuration of controller event processors.
  */
-@Getter
-public class ControllerEventProcessorConfig {
+public interface ControllerEventProcessorConfig {
 
-    private final String scopeName;
-    private final String commitStreamName;
-    private final ScalingPolicy commitStreamScalingPolicy;
-    private final String abortStreamName;
-    private final ScalingPolicy abortStreamScalingPolicy;
+    /**
+     * Fetches the scope name of controller event processor streams.
+     *
+     * @return Scope name of controller event processor streams.
+     */
+    String getScopeName();
 
-    private final String commitReaderGroupName;
-    private final int commitReaderGroupSize;
-    private final String abortReaderGrouopName;
-    private final int abortReaderGroupSize;
+    /**
+     * Fetches name of the commit stream.
+     *
+     * @return Name of the commit stream.
+     */
+    String getCommitStreamName();
 
-    private final CheckpointConfig commitCheckpointConfig;
-    private final CheckpointConfig abortCheckpointConfig;
+    /**
+     * Fetches commit stream scaling policy.
+     *
+     * @return Commit stream scaling policy.
+     */
+    ScalingPolicy getCommitStreamScalingPolicy();
 
-    @Builder
-    ControllerEventProcessorConfig(final String scopeName,
-                                   final String commitStreamName,
-                                   final ScalingPolicy commitStreamScalingPolicy,
-                                   final String abortStreamName,
-                                   final ScalingPolicy abortStreamScalingPolicy,
-                                   final String commitReaderGroupName,
-                                   final int commitReaderGroupSize,
-                                   final String abortReaderGrouopName,
-                                   final int abortReaderGroupSize,
-                                   final CheckpointConfig commitCheckpointConfig,
-                                   final CheckpointConfig abortCheckpointConfig) {
+    /**
+     * Fetches name of the abort stream.
+     *
+     * @return Name of the abort stream.
+     */
+    String getAbortStreamName();
 
-        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
-        Exceptions.checkNotNullOrEmpty(commitStreamName, "commitStreamName");
-        Exceptions.checkNotNullOrEmpty(abortStreamName, "abortStreamName");
-        Exceptions.checkNotNullOrEmpty(commitReaderGroupName, "commitReaderGroupName");
-        Exceptions.checkNotNullOrEmpty(abortReaderGrouopName, "abortReaderGrouopName");
-        Preconditions.checkArgument(commitReaderGroupSize > 0, "commitReaderGroupSize should be a positive integer");
-        Preconditions.checkArgument(abortReaderGroupSize > 0, "abortReaderGroupSize should be a positive integer");
-        Preconditions.checkNotNull(commitStreamScalingPolicy, "commitStreamScalingPolicy");
-        Preconditions.checkNotNull(abortStreamScalingPolicy, "abortStreamScalingPolicy");
-        Preconditions.checkNotNull(commitCheckpointConfig, "commitCheckpointConfig");
-        Preconditions.checkNotNull(abortCheckpointConfig, "abortCheckpointConfig");
+    /**
+     * Fetches abort stream scaling policy.
+     *
+     * @return abort stream scaling policy.
+     */
 
-        this.scopeName = scopeName;
-        this.commitStreamName = commitStreamName;
-        this.commitStreamScalingPolicy = commitStreamScalingPolicy;
-        this.abortStreamName = abortStreamName;
-        this.abortStreamScalingPolicy = abortStreamScalingPolicy;
-        this.commitReaderGroupName = commitReaderGroupName;
-        this.commitReaderGroupSize = commitReaderGroupSize;
-        this.abortReaderGrouopName = abortReaderGrouopName;
-        this.abortReaderGroupSize = abortReaderGroupSize;
-        this.commitCheckpointConfig = commitCheckpointConfig;
-        this.abortCheckpointConfig = abortCheckpointConfig;
-    }
+    ScalingPolicy getAbortStreamScalingPolicy();
+
+    /**
+     * Fetches name of the reader group processing events from commit stream.
+     *
+     * @return Name of the reader group processing events from commit stream.
+     */
+    String getCommitReaderGroupName();
+
+    /**
+     * Fetches the number of readers in a single controller instance participating in commit reader group.
+     *
+     * @return The number of readers in a single controller instance participating in commit reader group.
+     */
+    int getCommitReaderGroupSize();
+
+    /**
+     * Fetches name of the reader group processing events from abort stream.
+     *
+     * @return Name of the reader group processing events from abort stream.
+     */
+    String getAbortReaderGrouopName();
+
+    /**
+     * Fetches the number of readers in a single controller instance participating in abort reader group.
+     *
+     * @return The number of readers in a single controller instance participating in abort reader group.
+     */
+    int getAbortReaderGroupSize();
+
+    /**
+     * Fetches checkpoint configuration for commit stream event processors.
+     *
+     * @return Checkpoint configuration for commit stream event processors.
+     */
+    CheckpointConfig getCommitCheckpointConfig();
+
+    /**
+     * Fetches checkpoint configuration for abort stream event processors.
+     *
+     * @return Checkpoint configuration for abort stream event processors.
+     */
+    CheckpointConfig getAbortCheckpointConfig();
 }

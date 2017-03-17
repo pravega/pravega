@@ -6,8 +6,8 @@ package com.emc.pravega.controller.task;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
@@ -64,7 +64,7 @@ public class TaskTest {
 
     private final StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
 
-    private final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfig.defaultConfig());
+    private final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.defaultConfig());
 
     private final TaskMetadataStore taskMetadataStore;
 

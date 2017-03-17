@@ -3,39 +3,21 @@
  */
 package com.emc.pravega.controller.store.client;
 
-import com.emc.pravega.common.Exceptions;
-import com.google.common.base.Preconditions;
-import lombok.Getter;
-
 import java.util.Optional;
 
 /**
- * Store client configuration.
+ * Configuration of the metadata store client.
  */
-@Getter
-public class StoreClientConfig {
+public interface StoreClientConfig {
+    /**
+     * Fetches the type of the store the client connects to.
+     * @return The type of the store the client connects to.
+     */
+    StoreType getStoreType();
 
-
-    private final StoreType storeType;
-    private final Optional<ZKClientConfig> zkClientConfig;
-
-    StoreClientConfig(final StoreType storeType, final Optional<ZKClientConfig> zkClientConfig) {
-        Preconditions.checkNotNull(storeType, "storeType");
-        Preconditions.checkNotNull(zkClientConfig, "zkClientConfig");
-        if (storeType == StoreType.Zookeeper) {
-            Exceptions.checkArgument(zkClientConfig.isPresent(), "zkClientConfig", "Should be non-empty");
-        }
-
-        this.storeType = storeType;
-        this.zkClientConfig = zkClientConfig;
-    }
-
-    public static StoreClientConfig withInMemoryClient() {
-        return new StoreClientConfig(StoreType.InMemory, Optional.<ZKClientConfig>empty());
-    }
-
-    public static StoreClientConfig withZKClient(ZKClientConfig zkClientConfig) {
-        Preconditions.checkNotNull(zkClientConfig, "zkClientConfig");
-        return new StoreClientConfig(StoreType.Zookeeper, Optional.of(zkClientConfig));
-    }
+    /**
+     * Fetches whether the ZK base store is enabled, and its configuration if it is enabled.
+     * @return Whether the ZK base store is enabled, and its configuration if it is enabled.
+     */
+    Optional<ZKClientConfig> getZkClientConfig();
 }

@@ -8,11 +8,17 @@ import com.emc.pravega.controller.server.ControllerServiceConfig;
 import com.emc.pravega.controller.server.ControllerServiceStarter;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
+import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
+import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
 import com.emc.pravega.controller.store.client.ZKClientConfig;
+import com.emc.pravega.controller.store.client.impl.StoreClientConfigImpl;
+import com.emc.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
+import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -43,14 +49,14 @@ public class ControllerWrapper implements AutoCloseable {
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) throws Exception {
 
-        ZKClientConfig zkClientConfig = ZKClientConfig.builder().connectionString(connectionString)
+        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
                 .initialSleepInterval(2000)
                 .maxRetries(1)
                 .namespace("pravega/" + UUID.randomUUID())
                 .build();
-        StoreClientConfig storeClientConfig = StoreClientConfig.withZKClient(zkClientConfig);
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
 
-        HostMonitorConfig hostMonitorConfig = HostMonitorConfig.builder()
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(false)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                 .sssHost(serviceHost)
@@ -65,7 +71,7 @@ public class ControllerWrapper implements AutoCloseable {
 
         Optional<ControllerEventProcessorConfig> eventProcessorConfig;
         if (!disableEventProcessor) {
-            eventProcessorConfig = Optional.of(ControllerEventProcessorConfig.builder()
+            eventProcessorConfig = Optional.of(ControllerEventProcessorConfigImpl.builder()
                     .scopeName("system")
                     .commitStreamName("commitStream")
                     .abortStreamName("abortStream")
@@ -82,9 +88,9 @@ public class ControllerWrapper implements AutoCloseable {
             eventProcessorConfig = Optional.empty();
         }
 
-        GRPCServerConfig grpcServerConfig = GRPCServerConfig.builder().port(controllerPort).build();
+        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder().port(controllerPort).build();
 
-        ControllerServiceConfig serviceConfig = ControllerServiceConfig.builder()
+        ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .serviceThreadPoolSize(3)
                 .taskThreadPoolSize(3)
                 .storeThreadPoolSize(3)

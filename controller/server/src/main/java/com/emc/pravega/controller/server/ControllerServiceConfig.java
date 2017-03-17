@@ -3,82 +3,100 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
-import com.google.common.base.Preconditions;
-import lombok.Builder;
-import lombok.Getter;
 
 import java.util.Optional;
 
 /**
- * Controller Service Configuration.
+ * Configuration of the controller service.
  */
-@Getter
-public class ControllerServiceConfig {
+public interface ControllerServiceConfig {
+    /**
+     * Fetches the size of the thread pool used by controller service API handler.
+     *
+     * @return The size of the thread pool used by controller service API handler.
+     */
+    int getServiceThreadPoolSize();
 
-    private final int serviceThreadPoolSize;
-    private final int taskThreadPoolSize;
-    private final int storeThreadPoolSize;
-    private final int eventProcThreadPoolSize;
-    private final int requestHandlerThreadPoolSize;
-    private final StoreClientConfig storeClientConfig;
-    private final HostMonitorConfig hostMonitorConfig;
-    private final TimeoutServiceConfig timeoutServiceConfig;
+    /**
+     * Fetches the size of the thread pool used by controller's task processor.
+     *
+     * @return The size of the thread pool used by controller's task processor.
+     */
+    int getTaskThreadPoolSize();
 
-    private final Optional<ControllerEventProcessorConfig> eventProcessorConfig;
-    private final boolean requestHandlersEnabled;
+    /**
+     * Fetches the size of the thread pool used by controller's stream metadata store.
+     *
+     * @return The size of the thread pool used by controller's stream metadata store.
+     */
+    int getStoreThreadPoolSize();
 
-    private final Optional<GRPCServerConfig> gRPCServerConfig;
+    /**
+     * Fetches the size of the thread pool used by controller's event processors.
+     *
+     * @return The size of the thread pool used by controller's event processors.
+     */
+    int getEventProcThreadPoolSize();
 
-    private final Optional<RESTServerConfig> restServerConfig;
+    /**
+     * Fetches the size of the thread pool used by controller's request handlers.
+     *
+     * @return The size of the thread pool used by controller's request handlers.
+     */
+    int getRequestHandlerThreadPoolSize();
 
-    @Builder
-    ControllerServiceConfig(final int serviceThreadPoolSize,
-                            final int taskThreadPoolSize,
-                            final int storeThreadPoolSize,
-                            final int eventProcThreadPoolSize,
-                            final int requestHandlerThreadPoolSize,
-                            final StoreClientConfig storeClientConfig,
-                            final HostMonitorConfig hostMonitorConfig,
-                            final TimeoutServiceConfig timeoutServiceConfig,
-                            final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
-                            final boolean requestHandlersEnabled,
-                            final Optional<GRPCServerConfig> grpcServerConfig,
-                            final Optional<RESTServerConfig> restServerConfig) {
-        Exceptions.checkArgument(serviceThreadPoolSize > 0, "serviceThreadPoolSize", "Should be positive integer");
-        Exceptions.checkArgument(taskThreadPoolSize > 0, "taskThreadPoolSize", "Should be positive integer");
-        Exceptions.checkArgument(storeThreadPoolSize > 0, "storeThreadPoolSize", "Should be positive integer");
-        Exceptions.checkArgument(eventProcThreadPoolSize > 0, "eventProcThreadPoolSize", "Should be positive integer");
-        Exceptions.checkArgument(requestHandlerThreadPoolSize > 0, "requestHandlerThreadPoolSize", "Should be positive integer");
-        Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
-        Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
-        Preconditions.checkNotNull(timeoutServiceConfig, "timeoutServiceConfig");
-        Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
-        Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
-        if (grpcServerConfig.isPresent()) {
-            Preconditions.checkNotNull(grpcServerConfig.get());
-        }
-        if (restServerConfig.isPresent()) {
-            Preconditions.checkNotNull(restServerConfig.get());
-        }
+    /**
+     * Fetches the configuration of the store client used for accessing stream metadata store.
+     *
+     * @return The configuration of the store client used for accessing stream metadata store.
+     */
+    StoreClientConfig getStoreClientConfig();
 
-        this.serviceThreadPoolSize = serviceThreadPoolSize;
-        this.taskThreadPoolSize = taskThreadPoolSize;
-        this.storeThreadPoolSize = storeThreadPoolSize;
-        this.eventProcThreadPoolSize = eventProcThreadPoolSize;
-        this.requestHandlerThreadPoolSize = requestHandlerThreadPoolSize;
-        this.storeClientConfig = storeClientConfig;
-        this.hostMonitorConfig = hostMonitorConfig;
-        this.timeoutServiceConfig = timeoutServiceConfig;
-        this.eventProcessorConfig = eventProcessorConfig;
-        this.requestHandlersEnabled = requestHandlersEnabled;
-        this.gRPCServerConfig = grpcServerConfig;
-        this.restServerConfig = restServerConfig;
-    }
+    /**
+     * Fetches the configuration of HostMonitor module.
+     *
+     * @return The configuration of HostMonitor module.
+     */
+    HostMonitorConfig getHostMonitorConfig();
+
+    /**
+     * Fetches the configuration of service managing transaction timeouts.
+     *
+     * @return The configuration of service managing transaction timeouts.
+     */
+    TimeoutServiceConfig getTimeoutServiceConfig();
+
+    /**
+     * Fetches whether the event processors are enabled, and their configuration if they are enabled.
+     *
+     * @return Whether the event processors are enabled, and their configuration if they are enabled.
+     */
+    Optional<ControllerEventProcessorConfig> getEventProcessorConfig();
+
+    /**
+     * Fetches whether the request handlers are enabled.
+     *
+     * @return Whether the request handlers are enabled.
+     */
+    boolean isRequestHandlersEnabled();
+
+    /**
+     * Fetches whether gRPC server is enabled, and its configuration if it is enabled.
+     *
+     * @return Whether gRPC server is enabled, and its configuration if it is enabled.
+     */
+    Optional<GRPCServerConfig> getGRPCServerConfig();
+
+    /**
+     * Fetches whether REST server is enabled, and its configuration if it is enabled.
+     *
+     * @return Whether REST server is enabled, and its configuration if it is enabled.
+     */
+    Optional<RESTServerConfig> getRestServerConfig();
 }

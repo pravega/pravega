@@ -3,44 +3,42 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import com.emc.pravega.common.Exceptions;
-import com.google.common.annotations.VisibleForTesting;
-import lombok.Builder;
-import lombok.Getter;
-
 /**
- * Host monitor config.
+ * Configuration for controller's host monitor module.
  */
-@Getter
-public class HostMonitorConfig {
-    private final boolean hostMonitorEnabled;
-    private final int hostMonitorMinRebalanceInterval;
-    private final String sssHost;
-    private final int sssPort;
-    private final int containerCount;
+public interface HostMonitorConfig {
+    /**
+     * Fetches whether the host monitor module is enabled.
+     *
+     * @return Whether the host monitor module is enabled.
+     */
+    boolean isHostMonitorEnabled();
 
-    @Builder
-    public HostMonitorConfig(final boolean hostMonitorEnabled,
-                             final int hostMonitorMinRebalanceInterval,
-                             final String sssHost,
-                             final int sssPort,
-                             final int containerCount) {
-        Exceptions.checkArgument(hostMonitorMinRebalanceInterval > 0, "hostMonitorMinRebalanceInterval",
-                "Should be positive integer");
-        if (!hostMonitorEnabled) {
-            Exceptions.checkNotNullOrEmpty(sssHost, "ssshost");
-            Exceptions.checkArgument(sssPort > 0, "sssPort", "Should be positive integer");
-            Exceptions.checkArgument(containerCount > 0, "containerCount", "Should be positive integer");
-        }
-        this.hostMonitorEnabled = hostMonitorEnabled;
-        this.hostMonitorMinRebalanceInterval = hostMonitorMinRebalanceInterval;
-        this.sssHost = sssHost;
-        this.sssPort = sssPort;
-        this.containerCount = containerCount;
-    }
+    /**
+     * Fetches the minimum interval between two consecutive segment container rebalance operation.
+     *
+     * @return The minimum interval between two consecutive segment container rebalance operation.
+     */
+    int getHostMonitorMinRebalanceInterval();
 
-    @VisibleForTesting
-    public static HostMonitorConfig defaultConfig() {
-        return new HostMonitorConfig(false, 10, "localhost", 12345, 4);
-    }
+    /**
+     * Fetches the hostname of SSS.
+     *
+     * @return The hostname of SSS.
+     */
+    String getSssHost();
+
+    /**
+     * Fetches the port on which SSS listens.
+     *
+     * @return The port on which SSS listens.
+     */
+    int getSssPort();
+
+    /**
+     * Fetches the total number of stream segment containers configured in the system.
+     *
+     * @return The total number of stream segment containers configured in the system.
+     */
+    int getContainerCount();
 }
