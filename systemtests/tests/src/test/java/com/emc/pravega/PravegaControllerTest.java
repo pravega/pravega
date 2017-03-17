@@ -6,7 +6,6 @@ package com.emc.pravega;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.PravegaControllerService;
-import com.emc.pravega.framework.services.PravegaSegmentStoreService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
@@ -28,15 +27,11 @@ public class PravegaControllerTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
+        Service zk = new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service seg = new PravegaSegmentStoreService("segmentstore", zk.getServiceDetails().get(0), 1, 1.0, 512.0);
-        if (!seg.isRunning()) {
-            seg.start(true);
-        }
-        Service con = new PravegaControllerService("controller", zk.getServiceDetails().get(0),  1, 0.1, 256.0);
+        Service con = new PravegaControllerService("controller", zk.getServiceDetails().get(0));
         if (!con.isRunning()) {
             con.start(true);
         }

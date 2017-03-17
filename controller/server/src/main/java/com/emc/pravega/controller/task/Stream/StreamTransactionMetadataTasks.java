@@ -78,7 +78,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      *
      * @param controller Local controller reference
      */
-    public void initializeStreamWriters(Controller controller) {
+    public Void initializeStreamWriters(Controller controller) {
 
         ClientFactory clientFactory = new ClientFactoryImpl(ControllerEventProcessors.CONTROLLER_SCOPE, controller);
 
@@ -91,6 +91,9 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 ControllerEventProcessors.ABORT_STREAM,
                 ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
+
+        this.setReady();
+        return null;
     }
 
     /**

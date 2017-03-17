@@ -7,6 +7,8 @@ import com.emc.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
@@ -86,7 +88,7 @@ public abstract class ComponentConfig {
      * 2. Config file   - if the value is defined in a config file, it will be returned.
      *
      * @param name The name of the property (no component code prefix).
-     * @return The property value or default value, if no such is defined in the base Properties.
+     * @return The property value or default value, if no such property is defined in the base Properties.
      * @throws MissingPropertyException When the given property name does not exist within the current component.
      */
     protected String getProperty(String name) throws MissingPropertyException {
@@ -110,7 +112,7 @@ public abstract class ComponentConfig {
      *
      * @param name         The name of the property (no component code prefix).
      * @param defaultValue The default value for the property.
-     * @return The property value or default value, if no such is defined in the base Properties.
+     * @return The property value or default value, if no such property is defined in the base Properties.
      */
     protected String getProperty(String name, String defaultValue) {
         String fullKeyName = getKey(name);
@@ -132,7 +134,7 @@ public abstract class ComponentConfig {
      * Gets the value of an Int32 property.
      *
      * @param name The name of the property (no component code prefix).
-     * @return The property value or default value, if no such is defined in the base Properties.
+     * @return The property value or default value, if no such property is defined in the base Properties.
      * @throws MissingPropertyException      When the given property name does not exist within the current component.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
      */
@@ -151,7 +153,7 @@ public abstract class ComponentConfig {
      *
      * @param name         The name of the property (no component code prefix).
      * @param defaultValue The default value for the property.
-     * @return The property value or default value, if no such is defined in the base Properties.
+     * @return The property value or default value, if no such property is defined in the base Properties.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
      */
     protected int getInt32Property(String name, int defaultValue) throws InvalidPropertyValueException {
@@ -171,7 +173,7 @@ public abstract class ComponentConfig {
      * Gets the value of an Int64 property.
      *
      * @param name The name of the property (no component code prefix).
-     * @return The property value or default value, if no such is defined in the base Properties.
+     * @return The property value or default value, if no such property is defined in the base Properties.
      * @throws MissingPropertyException      When the given property name does not exist within the current component.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
      */
@@ -190,7 +192,7 @@ public abstract class ComponentConfig {
      *
      * @param name         The name of the property (no component code prefix).
      * @param defaultValue The default value for the property.
-     * @return The property value or default value, if no such is defined in the base Properties.
+     * @return The property value or default value, if no such property is defined in the base Properties.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
      */
     protected long getInt64Property(String name, long defaultValue) throws InvalidPropertyValueException {
@@ -215,7 +217,7 @@ public abstract class ComponentConfig {
      * </ul>
      *
      * @param name The name of the property (no component code prefix).
-     * @return The property value or default value, if no such is defined in the base Properties.
+     * @return The property value or default value, if no such property is defined in the base Properties.
      * @throws MissingPropertyException      When the given property name does not exist within the current component.
      * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
      */
@@ -241,7 +243,7 @@ public abstract class ComponentConfig {
      *
      * @param name         The name of the property (no component code prefix).
      * @param defaultValue The default value for the property.
-     * @return The property value or default value, if no such is defined in the base Properties.
+     * @return The property value or default value, if no such property is defined in the base Properties.
      * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
      */
     protected boolean getBooleanProperty(String name, boolean defaultValue) throws InvalidPropertyValueException {
@@ -260,6 +262,39 @@ public abstract class ComponentConfig {
         }
     }
 
+    /**
+     * Gets the value of a RetryWithExponentialBackoff property, serialized in the form: "{key}={value},{key}={value}...",
+     * where {key} is one of: "initialMillis", "multiplier", "attempts", "maxDelay", all of which correspond to constructor
+     * arguments to Retry.RetryWithBackoff.
+     *
+     * @param name The name of the property (no component code prefix).
+     * @return The deserialized property value of default value, if no such property is defined in the base Properties.
+     * @throws InvalidPropertyValueException When the property cannot be parsed.
+     */
+    protected Retry.RetryWithBackoff getRetryWithBackoffProperty(String name) throws InvalidPropertyValueException {
+        String value = getProperty(name).trim();
+        return parseRetryWithBackoff(name, value);
+    }
+
+    /**
+     * Gets the value of a RetryWithExponentialBackoff property, serialized in the form: "{key}={value},{key}={value}...",
+     * where {key} is one of: "initialMillis", "multiplier", "attempts", "maxDelay", all of which correspond to constructor
+     * arguments to Retry.RetryWithBackoff.
+     *
+     * @param name         The name of the property (no component code prefix).
+     * @param defaultValue The default value for the property.
+     * @return The deserialized property value of default value, if no such property is defined in the base Properties.
+     * @throws InvalidPropertyValueException When the property cannot be parsed.
+     */
+    protected Retry.RetryWithBackoff getRetryWithBackoffProperty(String name, Retry.RetryWithBackoff defaultValue) throws InvalidPropertyValueException {
+        String value = getProperty(name, null);
+        if (value == null) {
+            return defaultValue;
+        }
+
+        return parseRetryWithBackoff(name, value);
+    }
+
     protected String getKey(String name) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         return this.keyPrefix + name;
@@ -274,6 +309,26 @@ public abstract class ComponentConfig {
         }
 
         return value != null ? value : defaultValue;
+    }
+
+    private Retry.RetryWithBackoff parseRetryWithBackoff(String name, String value) {
+        AtomicLong initialMillis = new AtomicLong();
+        AtomicInteger multiplier = new AtomicInteger();
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicLong maxDelay = new AtomicLong();
+        try {
+            StringUtils.parse(
+                    value,
+                    ",",
+                    "=",
+                    new StringUtils.Int64Extractor("initialMillis", initialMillis::set),
+                    new StringUtils.Int32Extractor("multiplier", multiplier::set),
+                    new StringUtils.Int32Extractor("attempts", attempts::set),
+                    new StringUtils.Int64Extractor("maxDelay", maxDelay::set));
+            return Retry.withExpBackoff(initialMillis.get(), multiplier.get(), attempts.get(), maxDelay.get());
+        } catch (Exception ex) {
+            throw new InvalidPropertyValueException(getKey(name), value, ex);
+        }
     }
 
     //endregion

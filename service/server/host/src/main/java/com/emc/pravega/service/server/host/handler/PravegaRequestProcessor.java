@@ -64,10 +64,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.common.SegmentStoreMetricsNames.CREATE_SEGMENT;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_BYTES;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_LATENCY;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
+import static com.emc.pravega.common.MetricsNames.SEGMENT_CREATE_LATENCY;
+import static com.emc.pravega.common.MetricsNames.SEGMENT_READ_BYTES;
+import static com.emc.pravega.common.MetricsNames.SEGMENT_READ_LATENCY;
+import static com.emc.pravega.common.MetricsNames.nameFromSegment;
 import static com.emc.pravega.common.netty.WireCommands.SegmentPolicyUpdated;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.common.netty.WireCommands.UpdateSegmentPolicy;
@@ -86,11 +86,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("host");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     @VisibleForTesting
-    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
+    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
 
     private final StreamSegmentStore segmentStore;
 
@@ -113,8 +113,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
-        // A dynamic gauge records read offset of each readSegment for a segment
-        DYNAMIC_LOGGER.reportGaugeValue("readSegment." + segment, readSegment.getOffset());
 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
@@ -209,15 +207,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
-                StreamSegmentInfo result = new StreamSegmentInfo(properties.getName(),
-                        true,
-                        properties.isSealed(),
-                        properties.isDeleted(),
-                        properties.getLastModified().getTime(),
-                        properties.getLength());
+                StreamSegmentInfo result = new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(),
+                                                                 properties.getName(),
+                                                                 true,
+                                                                 properties.isSealed(),
+                                                                 properties.isDeleted(),
+                                                                 properties.getLastModified().getTime(),
+                                                                 properties.getLength());
+                log.trace("Read stream segment info: {}", result);
                 connection.send(result);
             } else {
-                connection.send(new StreamSegmentInfo(segmentName, false, true, true, 0, 0));
+                log.trace("getStreamSegmentInfo could not find segment {}", segmentName);
+                connection.send(new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(), segmentName, false, true, true, 0, 0));
             }
             return null;
         }).exceptionally((Throwable e) -> {
@@ -232,16 +233,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
-                TransactionInfo result = new TransactionInfo(request.getSegment(),
-                        request.getTxid(),
-                        transactionName,
-                        !properties.isDeleted(),
-                        properties.isSealed(),
-                        properties.getLastModified().getTime(),
-                        properties.getLength());
+                TransactionInfo result = new TransactionInfo(request.getRequestId(),
+                                                             request.getSegment(),
+                                                             request.getTxid(),
+                                                             transactionName,
+                                                             !properties.isDeleted(),
+                                                             properties.isSealed(),
+                                                             properties.getLastModified().getTime(),
+                                                             properties.getLength());
+                log.trace("Read transaction segment info: {}", result);
                 connection.send(result);
             } else {
-                connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), transactionName, false, true, 0, 0));
+                log.trace("getTransactionInfo could not find segment {}", transactionName);
+                connection.send(new TransactionInfo(request.getRequestId(),
+                                                    request.getSegment(),
+                                                    request.getTxid(),
+                                                    transactionName,
+                                                    false,
+                                                    true,
+                                                    0,
+                                                    0));
             }
             return null;
         }).exceptionally((Throwable e) -> {

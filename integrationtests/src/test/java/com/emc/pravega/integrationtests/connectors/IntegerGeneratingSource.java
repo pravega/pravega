@@ -3,12 +3,11 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package com.emc.pravega.connectors;
+package com.emc.pravega.integrationtests.connectors;
 
 import org.apache.flink.hadoop.shaded.com.google.common.base.Preconditions;
 import org.apache.flink.streaming.api.checkpoint.ListCheckpointed;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
-import org.apache.flink.streaming.api.functions.source.SourceFunction;
 
 import java.util.Collections;
 import java.util.List;
@@ -47,7 +46,7 @@ public class IntegerGeneratingSource extends RichParallelSourceFunction<Integer>
     }
 
     @Override
-    public void run(SourceFunction.SourceContext<Integer> ctx) throws Exception {
+    public void run(SourceContext<Integer> ctx) throws Exception {
         while (this.currentOffset < this.eventCount) {
             if (this.failOnce && !this.isRecovered && this.snapshotOffset > 0 &&
                     (this.currentOffset - this.snapshotOffset) > 1) {

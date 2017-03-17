@@ -1,9 +1,9 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream.tables;
+
+import com.emc.pravega.common.util.BitConverter;
 
 import java.nio.ByteBuffer;
 
@@ -12,32 +12,25 @@ import java.nio.ByteBuffer;
  */
 public class Utilities {
 
-    public static int toInt(final byte[] b) {
-        return ByteBuffer.wrap(b).getInt();
-    }
-
-    public static long toLong(final byte[] b) {
-        return ByteBuffer.wrap(b).getLong();
-    }
-
-    public static double toDouble(final byte[] b) {
-        return ByteBuffer.wrap(b).getDouble();
+    public static double toDouble(final byte[] b, int offset) {
+        return Double.longBitsToDouble(BitConverter.readLong(b, offset));
     }
 
     public static byte[] toByteArray(final double value) {
-        final byte[] bytes = new byte[Double.SIZE / 8];
-        ByteBuffer.wrap(bytes).putDouble(value);
+        final byte[] bytes = new byte[Double.BYTES];
+
+        ByteBuffer.wrap(bytes).putLong(Double.doubleToRawLongBits(value));
         return bytes;
     }
 
     public static byte[] toByteArray(final int value) {
-        final byte[] bytes = new byte[Integer.SIZE / 8];
+        final byte[] bytes = new byte[Integer.BYTES];
         ByteBuffer.wrap(bytes).putInt(value);
         return bytes;
     }
 
     public static byte[] toByteArray(final long value) {
-        final byte[] bytes = new byte[Long.SIZE / 8];
+        final byte[] bytes = new byte[Long.BYTES];
         ByteBuffer.wrap(bytes).putLong(value);
         return bytes;
     }

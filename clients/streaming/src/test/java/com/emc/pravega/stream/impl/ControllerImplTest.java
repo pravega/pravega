@@ -11,6 +11,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatu
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
@@ -60,6 +61,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -73,7 +75,7 @@ import static org.junit.Assert.assertTrue;
 public class ControllerImplTest {
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     // Test implementation for simulating the server responses.
     private ServerImpl fakeServer = null;
@@ -115,10 +117,14 @@ public class ControllerImplTest {
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getStreamInfo().getStream().equals("streamparallel")) {
+
                     // Simulating delay in sending response.
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(500);
                     } catch (InterruptedException e) {
+                        log.error("Unexpected interrupt");
+                        responseObserver.onError(e);
+                        return;
                     }
                     responseObserver.onNext(CreateStreamStatus.newBuilder()
                                                     .setStatus(CreateStreamStatus.Status.SUCCESS)
@@ -185,6 +191,34 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void deleteStream(StreamInfo request,
+                                     StreamObserver<DeleteStreamStatus> responseObserver) {
+                if (request.getStream().equals("stream1")) {
+                    responseObserver.onNext(DeleteStreamStatus.newBuilder()
+                            .setStatus(DeleteStreamStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream2")) {
+                    responseObserver.onNext(DeleteStreamStatus.newBuilder()
+                            .setStatus(DeleteStreamStatus.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream3")) {
+                    responseObserver.onNext(DeleteStreamStatus.newBuilder()
+                            .setStatus(DeleteStreamStatus.Status.STREAM_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream4")) {
+                    responseObserver.onNext(DeleteStreamStatus.newBuilder()
+                            .setStatus(DeleteStreamStatus.Status.STREAM_NOT_SEALED)
+                            .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
             public void getCurrentSegments(StreamInfo request,
                     StreamObserver<SegmentRanges> responseObserver) {
                 if (request.getStream().equals("stream1")) {
@@ -202,10 +236,12 @@ public class ControllerImplTest {
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("streamparallel")) {
-                    // Simulating delay in sending response.
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(500);
                     } catch (InterruptedException e) {
+                        log.error("Unexpected interrupt");
+                        responseObserver.onError(e);
+                        return;
                     }
                     responseObserver.onNext(SegmentRanges.newBuilder()
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
@@ -633,6 +669,25 @@ public class ControllerImplTest {
     }
 
     @Test
+    public void testDeleteStream() {
+        CompletableFuture<DeleteStreamStatus> deleteStreamStatus;
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream1");
+        assertEquals(DeleteStreamStatus.Status.SUCCESS, deleteStreamStatus.join().getStatus());
+
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream2");
+        assertEquals(DeleteStreamStatus.Status.FAILURE, deleteStreamStatus.join().getStatus());
+
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream3");
+        assertEquals(DeleteStreamStatus.Status.STREAM_NOT_FOUND, deleteStreamStatus.join().getStatus());
+
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream4");
+        assertEquals(DeleteStreamStatus.Status.STREAM_NOT_SEALED, deleteStreamStatus.join().getStatus());
+
+        deleteStreamStatus = controllerClient.deleteStream("scope1", "stream5");
+        AssertExtensions.assertThrows("Should throw Exception", deleteStreamStatus, throwable -> true);
+    }
+
+    @Test
     public void testGetCurrentSegments() throws Exception {
         CompletableFuture<StreamSegments> streamSegments;
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream1");
@@ -844,6 +899,7 @@ public class ControllerImplTest {
     public void testParallelCreateStream() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
         Semaphore createCount = new Semaphore(-19);
+        AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
@@ -856,23 +912,29 @@ public class ControllerImplTest {
                                         .retentionPolicy(RetentionPolicy.builder().retentionTimeMillis(0).build())
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build());
-                        assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
                         log.info("{}", createStreamStatus.get().getStatus());
+                        assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
                         createCount.release();
                     } catch (Exception e) {
-                        assertFalse(true);
+                        log.error("Exception when creating stream: {}", e);
+
+                        // Don't wait for other threads to complete.
+                        success.set(false);
+                        createCount.release(20);
                     }
                 }
             });
         }
         createCount.acquire();
-        assertTrue(true);
+        executorService.shutdownNow();
+        assertTrue(success.get());
     }
 
     @Test
     public void testParallelGetCurrentSegments() throws Exception {
         final ExecutorService executorService = Executors.newFixedThreadPool(10);
         Semaphore createCount = new Semaphore(-19);
+        AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
@@ -886,12 +948,17 @@ public class ControllerImplTest {
                                      streamSegments.get().getSegmentForKey(0.6));
                         createCount.release();
                     } catch (Exception e) {
-                        assertFalse(true);
+                        log.error("Exception when getting segments: {}", e);
+
+                        // Don't wait for other threads to complete.
+                        success.set(false);
+                        createCount.release(20);
                     }
                 }
             });
         }
         createCount.acquire();
-        assertTrue(true);
+        executorService.shutdownNow();
+        assertTrue(success.get());
     }
 }
