@@ -168,8 +168,9 @@ public class InProcPravegaCluster implements AutoCloseable {
             startLocalZK();
         } else {
             Preconditions.checkState(zkUrl != null, "ZkUrl must be specified");
-            zkHost = new URI("temp://" + zkUrl).getHost();
-            zkPort = new URI("temp://" + zkUrl).getPort();
+            URI zkUri = new URI("temp://" + zkUrl);
+            zkHost = zkUri.getHost();
+            zkPort = zkUri.getPort();
         }
 
         if (isInProcHDFS) {
@@ -281,7 +282,6 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         try {
             Properties p = new Properties();
-            ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
 
             if ( !isInMemStorage ) {
                 ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
@@ -317,7 +317,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTROLLER_URI,
                     "tcp://localhost:" + controllerPorts[0]);
 
-            props = new ServiceBuilderConfig(p);
+            ServiceBuilderConfig props = new ServiceBuilderConfig(p);
 
             nodeServiceStarter[sssId] = new ServiceStarter(props, isInMemStorage);
         } catch (Exception e) {
