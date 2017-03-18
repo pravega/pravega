@@ -168,4 +168,28 @@ public class YammerProviderTest {
 
         Assert.assertNotNull(null, MetricsProvider.YAMMERMETRICS.getCounters().get("continuity-counter"));
     }
+
+    /**
+     * Test transition back to null provider
+     */
+    @Test
+    public void testTransitionBackToNullProvider() {
+        Properties properties = new Properties();
+        MetricsConfig config;
+
+        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "false");
+        config = new MetricsConfig(properties);
+        MetricsProvider.initialize(config);
+
+        Counter counter = statsLogger.createCounter("continuity-counter");
+        counter.add(1L);
+        assertEquals(0L, counter.get());
+
+        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
+        config = new MetricsConfig(properties);
+        MetricsProvider.initialize(config);
+
+        counter.add(1L);
+        assertEquals(1L, counter.get());
+    }
 }
