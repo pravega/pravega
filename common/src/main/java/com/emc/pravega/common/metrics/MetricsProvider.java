@@ -10,12 +10,8 @@ import com.codahale.metrics.MetricRegistry;
 
 public class MetricsProvider {
     static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
-    private static final StatsProviderProxy STATS_PROVIDER;
-    private static final DynamicLoggerProxy DYNAMIC_LOGGER;
-    static {
-        STATS_PROVIDER = new StatsProviderProxy();
-        DYNAMIC_LOGGER = new DynamicLoggerProxy(STATS_PROVIDER.createDynamicLogger());
-    }
+    private static final StatsProviderProxy STATS_PROVIDER = new StatsProviderProxy();
+    private static final DynamicLoggerProxy DYNAMIC_LOGGER = new DynamicLoggerProxy(STATS_PROVIDER.createDynamicLogger());
 
     public synchronized static void initialize(MetricsConfig config) {
         STATS_PROVIDER.setProvider(config);
