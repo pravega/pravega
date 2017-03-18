@@ -51,7 +51,7 @@ public class ServiceBuilderConfig {
      * @param constructor A Supplier for a ConfigBuilder for the given Configuration.
      * @param <T>         The type of the Configuration to instantiate.
      */
-    public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> constructor) {
+    public <T> T getConfig(Supplier<? extends ConfigBuilder<? extends T>> constructor) {
         return constructor.get()
                           .rebase(this.properties)
                           .build();

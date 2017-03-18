@@ -4,16 +4,31 @@
 
 package com.emc.pravega.service.server.store;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.common.util.ConfigBuilder;
+import com.emc.pravega.common.util.Property;
+import com.emc.pravega.service.server.logs.DurableLogConfig;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
+import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.io.File;
 import java.io.FileWriter;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.val;
+import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -21,6 +36,10 @@ import org.junit.Test;
  */
 public class ServiceBuilderConfigTests {
     private static final String NAMESPACE = "ns";
+    private static final List<String> SUPPORTED_TYPE_NAMES = Stream
+            .of(Integer.class.getName(), Long.class.getName(), String.class.getName(), Boolean.class.getName())
+            .map(s -> Property.class.getSimpleName() + "<" + s + ">")
+            .collect(Collectors.toList());
 
     /**
      * Tests the Builder for ServiceBuilderConfig.
@@ -56,6 +75,105 @@ public class ServiceBuilderConfigTests {
         b.include(new ConfigBuilderSupplier<>(p3, s -> s));
         expected.putAll(p3);
         verifyContents("Unexpected contents after: file + Properties + ConfigBuilder.", expected, b);
+    }
+
+    /**
+     * Verifies the include(ConfigBuilder) and getConfig() work properly. This test follows a bit of an unusual approach
+     * in that it picks a few known config classes, populates them using their builders and reflection, then uses reflection
+     * once again to compare expected output (generated using their builders) with output from the ServiceBuilderConfig.getConfig().
+     * <p>
+     * This verifies that the namespacing inside ServiceBuilderConfig.builder() works correctly, as well as the constructors
+     * for various configs.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testGetConfig() throws Exception {
+        // Select a few classes to test dynamically.
+        val testClasses = new HashMap<Class, Supplier<ConfigBuilder<?>>>();
+        testClasses.put(ReadIndexConfig.class, ReadIndexConfig::builder);
+        testClasses.put(WriterConfig.class, WriterConfig::builder);
+        testClasses.put(MetricsConfig.class, MetricsConfig::builder);
+        testClasses.put(DurableLogConfig.class, DurableLogConfig::builder);
+        testClasses.put(ServiceConfig.class, ServiceConfig::builder);
+
+        // Value generator.
+        val nextValue = new AtomicInteger(1000 * 1000 * 1000);
+
+        // Create instances of each test class and dynamically assign their properties some arbitrary values
+        val expectedValues = new HashMap<Class, Object>();
+        val b = ServiceBuilderConfig.builder();
+        for (Map.Entry<Class, Supplier<ConfigBuilder<?>>> e : testClasses.entrySet()) {
+            Class c = e.getKey();
+            ConfigBuilder configBuilder = e.getValue().get();
+            for (Field f : c.getDeclaredFields()) {
+                // Property names are defined as static fields; find those that are of type Property and their generic
+                // type contains one of the supported types.
+                if (Modifier.isStatic(f.getModifiers())
+                        && f.getType().isAssignableFrom(Property.class)
+                        && isSupportedType(f.getGenericType().getTypeName())) {
+                    Property p = (Property) f.get(null);
+                    if (p.getDefaultValue() != null && p.getDefaultValue() instanceof Boolean) {
+                        configBuilder.with(p, nextValue.incrementAndGet() % 2 == 0);
+                    } else {
+                        // Any number can be interpreted as a string or number.
+                        configBuilder.with(p, Integer.toString(nextValue.incrementAndGet()));
+                    }
+                }
+            }
+
+            // Collect the built config object for later use.
+            expectedValues.put(c, configBuilder.build());
+
+            // Include the builder in the main builder.
+            b.include(configBuilder);
+        }
+
+        // Create the ServiceBuilderConfig, and verify that the created Config classes (using getConfig()) match the
+        // expected ones.
+        val builderConfig = b.build();
+        for (Map.Entry<Class, Supplier<ConfigBuilder<?>>> e : testClasses.entrySet()) {
+            Class c = e.getKey();
+            Object expectedConfig = expectedValues.get(c);
+            Object actualConfig = builderConfig.getConfig(e.getValue());
+
+            // All the properties we care about are public getters with no arguments - only check those.
+            for (Method m : c.getDeclaredMethods()) {
+                if (m.getName().startsWith("get")
+                        && m.getParameterCount() == 0
+                        && !Modifier.isStatic(m.getModifiers())
+                        && Modifier.isPublic(m.getModifiers())) {
+                    Object expectedValue = m.invoke(expectedConfig);
+                    Object actualValue = m.invoke(actualConfig);
+                    if (expectedValue == null) {
+                        Assert.assertNull("Expected a null value for " + getPropName(c, m), actualValue);
+                    } else {
+                        Assert.assertNotNull("Not expected a null value for " + getPropName(c, m), actualValue);
+                    }
+
+                    if (isSupportedType(expectedValue)) {
+                        Assert.assertEquals("Unexpected value for " + getPropName(c, m), expectedValue, actualValue);
+                    }
+                }
+            }
+        }
+    }
+
+    private String getPropName(Class c, Method m) {
+        return c.getSimpleName() + "." + m.getName();
+    }
+
+    private boolean isSupportedType(String genericTypeName) {
+        for (String s : SUPPORTED_TYPE_NAMES) {
+            if (genericTypeName.contains(s)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isSupportedType(Object target) {
+        return target instanceof Number || target instanceof String || target instanceof Boolean;
     }
 
     private void verifyContents(String message, Properties expected, ServiceBuilderConfig.Builder builder) {
