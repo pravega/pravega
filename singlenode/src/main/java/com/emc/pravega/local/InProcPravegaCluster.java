@@ -81,10 +81,10 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String controllerURI;
     private ControllerService[] controllerServices = null;
 
-    /*Host related variables*/
-    private boolean isInprocHost;
-    private int hostCount = 0;
-    private int[] hostPorts;
+    /*SSS related variables*/
+    private boolean isInprocSSS;
+    private int sssCount = 0;
+    private int[] sssPorts;
 
     /*Distributed log related variables*/
     private boolean isInProcDL;
@@ -102,9 +102,9 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String hdfsUrl;
 
 
-    /* Host configuration*/
+    /* SSS configuration*/
     private String containerCount = "2";
-    private ServiceStarter[] nodeServiceStarter = new ServiceStarter[hostCount];
+    private ServiceStarter[] nodeServiceStarter = new ServiceStarter[sssCount];
 
     private LocalHDFSEmulator localHdfs;
     private LocalDLMEmulator localDlm;
@@ -120,7 +120,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
                 boolean isInProcHDFS, boolean isInProcDL, int initialBookiePort,
                 boolean isInprocController, int controllerCount,
-                boolean isInprocHost, int hostCount, String containerCount, boolean startRestServer) {
+                boolean isInprocSSS, int sssCount, String containerCount, boolean startRestServer) {
         this.isInMemStorage = isInMemStorage;
         if ( isInMemStorage ) {
             this.isInProcHDFS = false;
@@ -135,8 +135,8 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.initialBookiePort = initialBookiePort;
         this.isInprocController = isInprocController;
         this.controllerCount = controllerCount;
-        this.isInprocHost = isInprocHost;
-        this.hostCount = hostCount;
+        this.isInprocSSS = isInprocSSS;
+        this.sssCount = sssCount;
         this.containerCount = containerCount;
         this.startRestServer = startRestServer;
     }
@@ -147,8 +147,8 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     @Synchronized
-    public void setHostPorts(int[] hostPorts) {
-        this.hostPorts = Arrays.copyOf( hostPorts, hostPorts.length);
+    public void setSssPorts(int[] sssPorts) {
+        this.sssPorts = Arrays.copyOf(sssPorts, sssPorts.length);
 
     }
 
@@ -191,9 +191,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                     "ControllerURI should be defined for external controller");
         }
 
-        if (isInprocHost) {
-            nodeServiceStarter = new ServiceStarter[hostCount];
-            startLocalHosts();
+        if (isInprocSSS) {
+            nodeServiceStarter = new ServiceStarter[sssCount];
+            startLocalSSSs();
         }
 
     }
@@ -258,24 +258,24 @@ public class InProcPravegaCluster implements AutoCloseable {
         localHdfs.start();
     }
 
-    private void startLocalHosts() {
-        for (int i = 0; i < this.hostCount; i++) {
-            startLocalHost(i);
+    private void startLocalSSSs() {
+        for (int i = 0; i < this.sssCount; i++) {
+            startLocalSSS(i);
         }
 
     }
 
     /**
-     * Starts a host with a host id. This is re-entrant. Eventually this will allow starting and stopping of
-     * individual host instances. This is not possible right now.
+     * Starts a SSS with a SSS id. This is re-entrant. Eventually this will allow starting and stopping of
+     * individual SSS instances. This is not possible right now.
      *
-     * @param hostId id of the host.
+     * @param sssId id of the SSS.
      */
     @Synchronized
-    public void startLocalHost(int hostId) {
-        Preconditions.checkState(this.nodeServiceStarter != null, "Hosts not created");
-        Preconditions.checkState( this.hostPorts != null, "Host ports not declared");
-        Preconditions.checkState( hostId < hostCount, "Host not initialized");
+    public void startLocalSSS(int sssId) {
+        Preconditions.checkState(this.nodeServiceStarter != null, "SSSs not created");
+        Preconditions.checkState( this.sssPorts != null, "SSS ports not declared");
+        Preconditions.checkState( sssId < sssCount, "SSS not initialized");
 
         try {
             Properties p = new Properties();
@@ -311,18 +311,18 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, "localhost:" +
                     zkPort);
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
-                    Integer.toString(hostPorts[hostId]));
+                    Integer.toString(sssPorts[sssId]));
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTROLLER_URI,
                     "tcp://localhost:" + controllerPorts[0]);
 
             props = new ServiceBuilderConfig(p);
 
-            nodeServiceStarter[hostId] = new ServiceStarter(props, isInMemStorage);
+            nodeServiceStarter[sssId] = new ServiceStarter(props, isInMemStorage);
         } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
         }
-        nodeServiceStarter[hostId].start();
+        nodeServiceStarter[sssId].start();
     }
 
     private void startLocalControllers() {
@@ -432,7 +432,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     @Override
     @Synchronized
     public void close() {
-        if (isInprocHost) {
+        if (isInprocSSS) {
             for ( ServiceStarter starter : this.nodeServiceStarter ) {
                 starter.shutdown();
             }
@@ -445,7 +445,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     @Synchronized
-    public void stopHost(int hostId) {
-        this.nodeServiceStarter[hostId].shutdown();
+    public void stopSSS(int sssId) {
+        this.nodeServiceStarter[sssId].shutdown();
     }
 }

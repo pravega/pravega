@@ -22,12 +22,12 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .isInMemStorage(true)
                 .isInprocController(true)
                 .controllerCount(1)
-                .isInprocHost(true)
-                .hostCount(1)
+                .isInprocSSS(true)
+                .sssCount(1)
                 .containerCount("2")
                 .build();
         inProcPravegaCluster.setControllerPorts(new int[] {controllerPort});
-        inProcPravegaCluster.setHostPorts(new int[] {hostPort});
+        inProcPravegaCluster.setSssPorts(new int[] {hostPort});
     }
 
     public static void main(String[] args) {
