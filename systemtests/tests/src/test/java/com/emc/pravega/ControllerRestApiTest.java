@@ -189,9 +189,10 @@ public class ControllerRestApiTest {
         log.info("List streams successful");
 
         // Test getScope
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes").toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+scope1).toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get scope status", OK.getStatusCode(), response.getStatus());
+        assertEquals("Get scope scope1 response", scope1, response.readEntity(ScopeProperty.class).getScopeName());
         log.info("Get scope successful");
 
         // Test updateStream
@@ -217,6 +218,7 @@ public class ControllerRestApiTest {
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get stream status", OK.getStatusCode(), response.getStatus());
+        assertEquals("Get stream stream1 response", stream1, response.readEntity(StreamProperty.class).getStreamName());
         log.info("Get stream successful");
 
         // Test updateStreamState
@@ -227,6 +229,8 @@ public class ControllerRestApiTest {
         response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
                 .put(Entity.json(streamState));
         assertEquals("UpdateStreamState status", OK.getStatusCode(), response.getStatus());
+        assertEquals("UpdateStreamState status in response", streamState.getStreamState(),
+                response.readEntity(StreamState.class).getStreamState());
         log.info("Update stream state successful");
 
         // Test deleteStream
