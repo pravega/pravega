@@ -33,7 +33,7 @@ public class YammerStatsProvider implements StatsProvider {
     @Synchronized
     void init() {
         if (metrics == null) {
-            metrics = MetricsProvider.YAMMERMETRICS;
+            metrics = MetricsProvider.YAMMERMETRICS.get();
             metrics.registerAll(new MemoryUsageGaugeSet());
             metrics.registerAll(new GarbageCollectorMetricSet());
         }

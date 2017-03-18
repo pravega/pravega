@@ -10,9 +10,12 @@ import com.emc.pravega.common.util.ConfigurationException;
 
 import java.util.Properties;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * General configuration for Metrics.
  */
+@Slf4j
 public class MetricsConfig extends ComponentConfig {
     //region Members
     public static final String COMPONENT_CODE = "metrics";
@@ -125,5 +128,4 @@ public class MetricsConfig extends ComponentConfig {
         this.yammerStatsDHost = getProperty(STATSD_HOST, DEFAULT_STATSD_HOST);
         this.yammerStatsDPort = getInt32Property(STATSD_PORT, DEFAULT_STATSD_PORT);
     }
-
 }

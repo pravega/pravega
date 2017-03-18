@@ -7,6 +7,7 @@ package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -89,7 +90,8 @@ public final class ServiceStarter {
         Exceptions.checkNotClosed(this.closed, this);
 
         log.info("Initializing metrics provider ...");
-        statsProvider = MetricsProvider.getMetricsProvider();
+        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::new));
+        statsProvider = MetricsProvider.getStatsProvider();
         statsProvider.start();
 
         log.info("Initializing Service Builder ...");

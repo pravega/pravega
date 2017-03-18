@@ -55,7 +55,7 @@ import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_N
 @Slf4j
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
-    protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
+    protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getStatsProvider();
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("controller");
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
