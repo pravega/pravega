@@ -170,7 +170,7 @@ public class YammerProviderTest {
     }
 
     /**
-     * Test transition back to null provider
+     * Test transition back to null provider.
      */
     @Test
     public void testTransitionBackToNullProvider() {
