@@ -116,11 +116,6 @@ public class ControllerWrapper implements AutoCloseable {
         if (!disableEventProcessor) {
             controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                     client, streamStore, hostStore, segmentHelper, connectionFactory, executor);
-
-            controllerEventProcessors.startAsync();
-
-            streamTransactionMetadataTasks.initializeStreamWriters(localController);
-
         } else {
             controllerEventProcessors = null;
         }
