@@ -13,7 +13,6 @@ import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
-import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamStateRequest;
 import io.swagger.annotations.ApiParam;
 
 import javax.ws.rs.Consumes;
@@ -235,7 +234,7 @@ public final class ApiV1 {
         void updateStreamState(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
                 @ApiParam(value = "The state info to be updated", required = true)
-                                       UpdateStreamStateRequest updateStreamStateRequest,
+                                       StreamState updateStreamStateRequest,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
     }
 }

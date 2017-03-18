@@ -11,7 +11,6 @@ import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.generated.model.StreamState;
-import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamStateRequest;
 
 import java.util.List;
 import com.emc.pravega.controller.server.rest.generated.api.NotFoundException;
@@ -71,7 +70,7 @@ public class ScopesApiServiceImpl extends ScopesApiService {
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
     @Override
-    public Response updateStreamState(String scopeName, String streamName, UpdateStreamStateRequest updateStreamStateRequest, SecurityContext securityContext) throws NotFoundException {
+    public Response updateStreamState(String scopeName, String streamName, StreamState updateStreamStateRequest, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }

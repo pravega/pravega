@@ -13,7 +13,6 @@ import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.generated.model.StreamState;
-import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamStateRequest;
 
 import java.util.List;
 import com.emc.pravega.controller.server.rest.generated.api.NotFoundException;
@@ -34,5 +33,5 @@ public abstract class ScopesApiService {
     public abstract Response listScopes(SecurityContext securityContext) throws NotFoundException;
     public abstract Response listStreams(String scopeName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response updateStream(String scopeName,String streamName,UpdateStreamRequest updateStreamRequest,SecurityContext securityContext) throws NotFoundException;
-    public abstract Response updateStreamState(String scopeName,String streamName,UpdateStreamStateRequest updateStreamStateRequest,SecurityContext securityContext) throws NotFoundException;
+    public abstract Response updateStreamState(String scopeName,String streamName,StreamState updateStreamStateRequest,SecurityContext securityContext) throws NotFoundException;
 }

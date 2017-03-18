@@ -15,7 +15,6 @@ import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.generated.model.StreamState;
-import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamStateRequest;
 
 import java.util.List;
 import com.emc.pravega.controller.server.rest.generated.api.NotFoundException;
@@ -203,7 +202,7 @@ public class ScopesApi  {
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = StreamState.class) })
     public Response updateStreamState(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@ApiParam(value = "Stream name",required=true) @PathParam("streamName") String streamName
-,@ApiParam(value = "The state info to be updated" ,required=true) UpdateStreamStateRequest updateStreamStateRequest
+,@ApiParam(value = "The state info to be updated" ,required=true) StreamState updateStreamStateRequest
 ,@Context SecurityContext securityContext)
     throws NotFoundException {
         return delegate.updateStreamState(scopeName,streamName,updateStreamStateRequest,securityContext);

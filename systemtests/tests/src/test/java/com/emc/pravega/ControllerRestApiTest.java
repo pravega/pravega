@@ -10,9 +10,9 @@ import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScopeProperty;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
+import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
-import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamStateRequest;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.BookkeeperService;
@@ -222,10 +222,10 @@ public class ControllerRestApiTest {
         // Test updateStreamState
         resourceURl = new StringBuilder(restServerURI)
                 .append("/v1/scopes/"+ scope1 + "/streams/"+stream1+"/state").toString();
-        UpdateStreamStateRequest updateStateRequest = new UpdateStreamStateRequest();
-        updateStateRequest.setStreamState("SEALED");
+        StreamState streamState = new StreamState();
+        streamState.setStreamState(StreamState.StreamStateEnum.SEALED);
         response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
-                .put(Entity.json(updateStateRequest));
+                .put(Entity.json(streamState));
         assertEquals("UpdateStreamState status", OK.getStatusCode(), response.getStatus());
         log.info("Update stream state successful");
 
