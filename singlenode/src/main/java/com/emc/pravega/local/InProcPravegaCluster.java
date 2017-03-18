@@ -39,6 +39,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import lombok.Builder;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -220,6 +221,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .connectionTimeoutMs(5000)
                 .sessionTimeoutMs(5000)
                 .retryPolicy(rp);
+        @Cleanup
         CuratorFramework zclient = builder.build();
         zclient.start();
         for ( String path : pathsTobeCleaned ) {
