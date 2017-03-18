@@ -220,7 +220,7 @@ paths:
           description: The state info to be updated
           required: true
           schema:
-           $ref: "#/definitions/StreamState"
+            $ref: "#/definitions/StreamState"
       produces:
         - application/json
       responses:

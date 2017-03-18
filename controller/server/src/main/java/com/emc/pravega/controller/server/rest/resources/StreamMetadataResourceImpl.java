@@ -345,8 +345,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
      */
     @Override
     public void updateStreamState(final String scopeName, final String streamName,
-                                  final StreamState updateStreamStateRequest,
-                                  SecurityContext securityContext, AsyncResponse asyncResponse) {
+            final StreamState updateStreamStateRequest, SecurityContext securityContext, AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "updateStreamState");
 
         // We only support sealed state now.
