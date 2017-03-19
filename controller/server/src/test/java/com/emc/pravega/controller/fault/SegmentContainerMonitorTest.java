@@ -51,7 +51,7 @@ public class SegmentContainerMonitorTest {
 
         zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
-        cluster = new ClusterZKImpl(zkClient);
+        cluster = new ClusterZKImpl(zkClient, ClusterZKImpl.ClusterType.Host);
     }
 
     @After

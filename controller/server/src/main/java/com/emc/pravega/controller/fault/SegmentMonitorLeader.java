@@ -108,7 +108,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
         hostsChange.release();
 
         //Start cluster monitor.
-        pravegaServiceCluster = new ClusterZKImpl(client);
+        pravegaServiceCluster = new ClusterZKImpl(client, ClusterZKImpl.ClusterType.Host);
 
         //Add listener to track host changes on the monitored pravega cluster.
         pravegaServiceCluster.addListener((type, host) -> {

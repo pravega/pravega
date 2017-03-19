@@ -16,6 +16,7 @@ import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigI
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -70,6 +71,19 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
         this.system = new EventProcessorSystemImpl("Controller", host, config.getScopeName(), controller);
+    }
+
+    public void notifyProcessFailure(String process) {
+        try {
+            if (commitEventEventProcessors != null) {
+                commitEventEventProcessors.notifyProcessFailure(process);
+            }
+            if (abortEventEventProcessors != null) {
+                abortEventEventProcessors.notifyProcessFailure(process);
+            }
+        } catch (CheckpointStoreException e) {
+            log.error(String.format("Failed handling failure for host %s", process), e);
+        }
     }
 
     @Override

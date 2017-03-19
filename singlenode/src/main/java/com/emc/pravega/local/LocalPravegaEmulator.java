@@ -6,8 +6,9 @@ package com.emc.pravega.local;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
+import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
 import com.emc.pravega.controller.server.ControllerServiceConfig;
-import com.emc.pravega.controller.server.ControllerServiceStarter;
+import com.emc.pravega.controller.server.ControllerServiceMain;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -253,6 +254,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
+                .controllerClusterListenerConfig(Optional.<ControllerClusterListenerConfig>empty())
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .requestHandlersEnabled(true)
@@ -260,8 +262,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .restServerConfig(Optional.<RESTServerConfig>empty())
                 .build();
 
-        ControllerServiceStarter controllerServiceStarter = new ControllerServiceStarter(serviceConfig);
-        controllerServiceStarter.startAsync();
+        ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
+        controllerServiceMain.startAsync();
     }
 
 }

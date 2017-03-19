@@ -29,7 +29,7 @@ public class TaskSweeper {
     private final String hostId;
 
     @Data
-    public static class Result {
+    static class Result {
         private final TaggedResource taggedResource;
         private final Object value;
         private final Throwable error;
@@ -48,13 +48,19 @@ public class TaskSweeper {
         initializeMappingTable();
     }
 
+    public void awaitReady() throws InterruptedException {
+        for (TaskBase taskClassObject : taskClassObjects) {
+            taskClassObject.awaitInitialization();
+        }
+    }
+
     /**
      * This method is called whenever a node in the controller cluster dies. A ServerSet abstraction may be used as
      * a trigger to invoke this method with one of the dead hostId.
      * <p>
      * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
      * @param oldHostId old host id
-     * @return
+     * @return A future that completes when sweeping completes
      */
     public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
@@ -63,7 +69,7 @@ public class TaskSweeper {
                 x -> x != null);
     }
 
-    public CompletableFuture<Result> executeHostTask(final String oldHostId) {
+    private CompletableFuture<Result> executeHostTask(final String oldHostId) {
 
         // Get a random child TaggedResource of oldHostId node and attempt to execute corresponding task
         return taskMetadataStore.getRandomChild(oldHostId)
@@ -90,7 +96,7 @@ public class TaskSweeper {
                 });
     }
 
-    public CompletableFuture<Result> executeResourceTask(final String oldHostId, final TaggedResource taggedResource) {
+    private CompletableFuture<Result> executeResourceTask(final String oldHostId, final TaggedResource taggedResource) {
         final CompletableFuture<Result> result = new CompletableFuture<>();
         // Get the task details associated with resource taggedResource.resource
         // that is owned by oldHostId and taggedResource.threadId
@@ -149,7 +155,7 @@ public class TaskSweeper {
      * @param taggedResource resource on which old host had unfinished task.
      * @return the object returned from task method.
      */
-    public CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
+    private CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
 
         log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
                 this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);

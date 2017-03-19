@@ -4,8 +4,9 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
+import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
 import com.emc.pravega.controller.server.ControllerServiceConfig;
-import com.emc.pravega.controller.server.ControllerServiceStarter;
+import com.emc.pravega.controller.server.ControllerServiceMain;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
@@ -32,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class ControllerWrapper implements AutoCloseable {
 
-    private final ControllerServiceStarter controllerServiceStarter;
+    private final ControllerServiceMain controllerServiceMain;
 
     public ControllerWrapper(final String connectionString) throws Exception {
         this(connectionString, false, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
@@ -98,6 +99,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .requestHandlerThreadPoolSize(3)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
+                .controllerClusterListenerConfig(Optional.<ControllerClusterListenerConfig>empty())
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(eventProcessorConfig)
                 .requestHandlersEnabled(!disableRequestHandler)
@@ -105,32 +107,32 @@ public class ControllerWrapper implements AutoCloseable {
                 .restServerConfig(Optional.<RESTServerConfig>empty())
                 .build();
 
-        controllerServiceStarter = new ControllerServiceStarter(serviceConfig);
-        controllerServiceStarter.startAsync();
+        controllerServiceMain = new ControllerServiceMain(serviceConfig);
+        controllerServiceMain.startAsync();
     }
 
     public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
-        return this.controllerServiceStarter.awaitTasksModuleInitialization(timeout, timeUnit);
+        return this.controllerServiceMain.awaitTasksModuleInitialization(timeout, timeUnit);
     }
 
-    public ControllerService getControllerService() {
-        return this.controllerServiceStarter.getControllerService();
+    public ControllerService getControllerService() throws InterruptedException {
+        return this.controllerServiceMain.getControllerService();
     }
 
     public Controller getController() throws InterruptedException {
-        return this.controllerServiceStarter.getController();
+        return this.controllerServiceMain.getController();
     }
 
-    public void awaitRunning() {
-        this.controllerServiceStarter.awaitRunning();
+    public void awaitRunning() throws InterruptedException {
+        this.controllerServiceMain.awaitStarterRunning();
     }
 
     public void awaitTerminated() {
-        this.controllerServiceStarter.awaitTerminated();
+        this.controllerServiceMain.awaitTerminated();
     }
 
     @Override
     public void close() throws Exception {
-        this.controllerServiceStarter.stopAsync();
+        this.controllerServiceMain.stopAsync();
     }
 }

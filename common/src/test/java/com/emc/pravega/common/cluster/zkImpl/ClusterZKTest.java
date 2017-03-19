@@ -62,7 +62,7 @@ public class ClusterZKTest {
                 .namespace(CLUSTER_NAME)
                 .build();
 
-        Cluster clusterListener = new ClusterZKImpl(client2);
+        Cluster clusterListener = new ClusterZKImpl(client2, ClusterZKImpl.ClusterType.Host);
         clusterListener.addListener((eventType, host) -> {
             switch (eventType) {
                 case HOST_ADDED:
@@ -82,12 +82,12 @@ public class ClusterZKTest {
                 .build();
 
         //Create Add a node to the cluster.
-        Cluster clusterZKInstance1 = new ClusterZKImpl(client);
+        Cluster clusterZKInstance1 = new ClusterZKImpl(client, ClusterZKImpl.ClusterType.Host);
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
         //Create a separate instance of Cluster and add node to same Cluster
-        Cluster clusterZKInstance2 = new ClusterZKImpl(client);
+        Cluster clusterZKInstance2 = new ClusterZKImpl(client, ClusterZKImpl.ClusterType.Host);
         clusterZKInstance1.registerHost(new Host(HOST_2, PORT));
         assertEquals(HOST_2, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
         assertEquals(2, clusterListener.getClusterMembers().size());
@@ -109,7 +109,7 @@ public class ClusterZKTest {
                         RETRY_SLEEP_MS, MAX_RETRY))
                 .namespace(CLUSTER_NAME_2)
                 .build();
-        Cluster clusterListener = new ClusterZKImpl(client2);
+        Cluster clusterListener = new ClusterZKImpl(client2, ClusterZKImpl.ClusterType.Host);
         clusterListener.addListener((eventType, host) -> {
             switch (eventType) {
                 case HOST_ADDED:
@@ -128,7 +128,7 @@ public class ClusterZKTest {
                 .namespace(CLUSTER_NAME_2)
                 .build();
         //Create Add a node to the cluster.
-        Cluster clusterZKInstance1 = new ClusterZKImpl(client);
+        Cluster clusterZKInstance1 = new ClusterZKImpl(client, ClusterZKImpl.ClusterType.Host);
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 

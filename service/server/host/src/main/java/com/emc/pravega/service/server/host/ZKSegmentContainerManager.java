@@ -97,7 +97,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         this.client = zkClient;
         this.clusterPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         this.segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
-        this.cluster = new ClusterZKImpl(zkClient);
+        this.cluster = new ClusterZKImpl(zkClient, ClusterZKImpl.ClusterType.Host);
 
         this.host = pravegaServiceEndpoint;
     }
