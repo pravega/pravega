@@ -548,23 +548,52 @@ project('connectors:flink') {
 
     dependencies {
         compile project(":clients:streaming")
-        shadow project(":clients:streaming")
-        compile group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
+        compileOnly group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
+
+        //  configuring the shaded pom dependencies
+        shadow 'org.slf4j:slf4j-api:1.7.14'
+        shadow group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
     }
 
     shadowJar {
         dependencies {
+            // 'include' specific dependencies in the shadow jar
             include dependency("com.google.guava:guava")
             include dependency("commons-lang:commons-lang")
+            include dependency("org.apache.commons:commons-lang3")
             include dependency("commons-io:commons-io")
-            include dependency("io.netty:netty-all")
+            include dependency("io.netty:netty-common")
+            include dependency("io.netty:netty-buffer")
+            include dependency("io.netty:netty-resolver")
+            include dependency("io.netty:netty-transport")
+            include dependency("io.netty:netty-codec")
+            include dependency("io.netty:netty-codec-http")
+            include dependency("io.netty:netty-codec-http2")
+            include dependency("io.netty:netty-codec-socks")
+            include dependency("io.netty:netty-handler")
+            include dependency("io.netty:netty-handler-proxy")
+            include dependency("io.grpc:grpc-core")
+            include dependency("io.grpc:grpc-protobuf")
+            include dependency("io.grpc:grpc-stub")
+            include dependency("io.grpc:grpc-context")
+            include dependency("io.grpc:grpc-netty")
+            include dependency("io.grpc:grpc-protobuf-lite")
+            include dependency("com.google.protobuf:protobuf-java-util")
+            include dependency("com.google.protobuf:protobuf-java")
+            include dependency("com.google.code.gson:gson")
+            include dependency("com.google.instrumentation:instrumentation-api")
+            include(project(":common"))
+            include(project(":controller:contract"))
+            include(project(":clients:streaming"))
         }
 
         // Shading the libraries which could cause potential version conflicts with flink.
-        relocate "com.google", "com.emc.pravega.shaded.com.guava"
-        relocate "org.apache.commons.lang", "com.emc.pravega.shaded.org.apache.commons.lang"
-        relocate "org.apache.commons.io", "com.emc.pravega.shaded.org.apache.commons.io"
+        relocate "com.google", "com.emc.pravega.shaded.com.google"
+        relocate "org.apache.commons", "com.emc.pravega.shaded.org.apache.commons"
+        relocate "io.grpc", "com.emc.pravega.shaded.io.grpc"
         relocate "io.netty", "com.emc.pravega.shaded.io.netty"
+
+        mergeServiceFiles()
     }
 
     // Publishing both shaded and non-shaded versions of the flink connector.
