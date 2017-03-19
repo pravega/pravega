@@ -21,7 +21,7 @@ import static org.junit.Assert.assertEquals;
  * The type Yammer provider test.
  */
 @Slf4j
-public class YammerProviderTest {
+public class MetricsProviderTest {
 
     private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("");
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
