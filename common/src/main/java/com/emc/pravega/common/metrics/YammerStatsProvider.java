@@ -6,13 +6,17 @@
 package com.emc.pravega.common.metrics;
 
 import com.codahale.metrics.CsvReporter;
+import com.codahale.metrics.MetricFilter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.ScheduledReporter;
+import com.codahale.metrics.graphite.Graphite;
+import com.codahale.metrics.graphite.GraphiteReporter;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.google.common.base.Strings;
 import com.readytalk.metrics.StatsDReporter;
 import java.io.File;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -55,6 +59,10 @@ public class YammerStatsProvider implements StatsProvider {
         String statsDHost = conf.getStatsDHost();
         Integer statsDPort = conf.getStatsDPort();
 
+        String graphiteHost = conf.getGraphiteHost();
+        Integer graphitePort = conf.getGraphitePort();
+        //String jmxDomain = conf.getString("codahaleStatsJmxEndpoint");
+
         if (!Strings.isNullOrEmpty(csvDir)) {
             // NOTE:  metrics output files are exclusive to a given process
             File outdir;
@@ -71,9 +79,19 @@ public class YammerStatsProvider implements StatsProvider {
                           .build(outdir));
         }
         if (!Strings.isNullOrEmpty(statsDHost)) {
-            log.info("Configuring stats with statsD at: {} {}", statsDHost, statsDPort);
+            log.info("Configuring stats with statsD at {}:{}", statsDHost, statsDPort);
             reporters.add(StatsDReporter.forRegistry(getMetrics())
                           .build(statsDHost, statsDPort));
+        }
+        if (!Strings.isNullOrEmpty(graphiteHost)) {
+            log.info("Configuring stats with graphite at {}:{}", graphiteHost, graphiteHost);
+            Graphite graphite = new Graphite(new InetSocketAddress("graphite.example.com", 2003));
+            final GraphiteReporter reporter = GraphiteReporter.forRegistry(getMetrics())
+                .prefixedWith(prefix)
+                .convertRatesTo(TimeUnit.SECONDS)
+                .convertDurationsTo(TimeUnit.MILLISECONDS)
+                .filter(MetricFilter.ALL)
+                .build(graphite);
         }
 
         for (ScheduledReporter r : reporters) {

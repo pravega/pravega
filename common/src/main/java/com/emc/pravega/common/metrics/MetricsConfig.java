@@ -24,6 +24,8 @@ public class MetricsConfig extends ComponentConfig {
     public final static String CSV_ENDPOINT = "yammerCSVEndpoint";
     public final static String STATSD_HOST = "yammerStatsDHost";
     public final static String STATSD_PORT = "yammerStatsDPort";
+    public final static String GRAPHITE_HOST = "yammerGraphitePort";
+    public final static String GRAPHITE_PORT = "yammerGraphitePort";
 
     public final static boolean DEFAULT_ENABLE_STATISTICS = true;
     public final static long DEFAULT_DYNAMIC_CACHE_SIZE = 1000000L;
@@ -33,6 +35,8 @@ public class MetricsConfig extends ComponentConfig {
     public final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
     public final static String DEFAULT_STATSD_HOST = "localhost";
     public final static int DEFAULT_STATSD_PORT = 8125;
+    public final static String DEFAULT_GRAPHITE_HOST = null;
+    public final static int DEFAULT_GRAPHITE_PORT = 2003;
 
     private boolean enableStatistics = true;
     private long dynamicCacheSize = 1000000L;
@@ -42,6 +46,8 @@ public class MetricsConfig extends ComponentConfig {
     private String yammerCSVEndpoint;
     private String yammerStatsDHost;
     private int yammerStatsDPort;
+    private String yammerGraphiteHost;
+    private int yammerGraphitePort;
 
     /**
      * Creates a new instance of the MetricsConfig class.
@@ -113,6 +119,20 @@ public class MetricsConfig extends ComponentConfig {
         return this.yammerStatsDPort;
     }
 
+    /**
+     * Gets a value indicating the host name (no port) where Graphite is listening.
+     */
+    public String getGraphiteHost() {
+        return this.yammerGraphiteHost;
+    }
+
+    /**
+     * Gets a value indicating the port where Graphite is listening.
+     */
+    public int getGraphitePort() {
+        return this.yammerGraphitePort;
+    }
+
 
     @Override
     public void refresh() throws ConfigurationException {
@@ -124,6 +144,8 @@ public class MetricsConfig extends ComponentConfig {
         this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);
         this.yammerStatsDHost = getProperty(STATSD_HOST, DEFAULT_STATSD_HOST);
         this.yammerStatsDPort = getInt32Property(STATSD_PORT, DEFAULT_STATSD_PORT);
+        this.yammerGraphiteHost = getProperty(GRAPHITE_HOST, DEFAULT_GRAPHITE_HOST);
+        this.yammerGraphitePort = getInt32Property(GRAPHITE_PORT, DEFAULT_GRAPHITE_PORT);
     }
 
 }
