@@ -20,6 +20,9 @@ buildscript {
 
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 allprojects {
     apply plugin: 'java'
@@ -627,11 +630,41 @@ project('singlenode') {
     }
 
     task startSinglenode(type: JavaExec) {
+
+        // Configuration to resolve to full path of the guava version which we need for bookkeeper.
+        configurations {
+            bkguavaversion
+        }
+
+        dependencies {
+            // bookkeeper emulator is not compatible with guava version > 16.
+            bkguavaversion "com.google.guava:guava:16.0"
+        }
+
+        // Filter out existing guava dependency and replace it with the specific version thats needed by bookkeeper.
         main = "com.emc.pravega.local.LocalPravegaEmulator"
-        classpath = sourceSets.main.runtimeClasspath
+        def allJars = files(sourceSets.main.runtimeClasspath)
+        allJars = allJars.filter { !it.path.contains("com.google.guava") && !it.path.contains("guava-") } +
+                configurations.bkguavaversion.files
+        classpath allJars
         standardInput = System.in
-        args = ["4000", "5000", "6000"]
+        args = ["true", "4000", "5000", "6000"]
+
+        doFirst {
+            ExecutorService es = Executors.newSingleThreadExecutor()
+            es.submit({
+                project.javaexec {
+                    main = "com.emc.pravega.local.LocalPravegaEmulator"
+                    classpath = sourceSets.main.runtimeClasspath
+
+                    standardInput = System.in
+                    // Starts all services other than bookkeeper.
+                    args = ["false", "4000", "5000", "6000"]
+                }
+            } as Callable)
+        }
     }
+
     publishing {
         publications {
             maven(MavenPublication) {
@@ -641,7 +674,6 @@ project('singlenode') {
         }
     }
 }
-
 
 project('systemtests:tests') {
     dependencies {
