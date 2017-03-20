@@ -153,14 +153,14 @@ public class MetricsConfig extends ComponentConfig {
     }
 
     /**
-     * Gets a value indicating the host name (no port) where Graphite is listening.
+     * Gets a value indicating the host name (no port) of Ganglia.
      */
     public String getGangliaHost() {
         return this.yammerGangliaHost;
     }
 
     /**
-     * Gets a value indicating the port where Graphite is listening.
+     * Gets a value indicating the port of Ganglia.
      */
     public int getGangliaPort() {
         return this.yammerGangliaPort;
