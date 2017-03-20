@@ -3,6 +3,8 @@
  */
 package com.emc.pravega.controller.server;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
@@ -57,6 +59,9 @@ public class Main {
             hostId = UUID.randomUUID().toString();
         }
 
+        //0. Initialize metrics provider
+        MetricsProvider.initialize(new MetricsConfig(Config.getMetricsProperties()));
+
         //1. LOAD configuration.
         //Initialize the executor service.
         ScheduledExecutorService controllerServiceExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
@@ -68,8 +73,11 @@ public class Main {
         ScheduledExecutorService storeExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("storepool-%d").build());
 
-        final ScheduledExecutorService requestExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+        final ScheduledExecutorService requestExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE / 2,
                 new ThreadFactoryBuilder().setNameFormat("requestpool-%d").build());
+
+        final ScheduledExecutorService eventProcExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE / 2,
+                new ThreadFactoryBuilder().setNameFormat("eventprocpool-%d").build());
 
         log.info("Creating store client");
         StoreClient storeClient = StoreClientFactory.createStoreClient(
@@ -113,18 +121,10 @@ public class Main {
         LocalController localController = new LocalController(controllerService);
 
         ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
-                ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper);
+                ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper, eventProcExecutor);
 
-        controllerEventProcessors.startAsync();
-
-        // After completion of startAsync method, server is expected to be in RUNNING state.
-        // If it is not in running state, we return.
-        if (!controllerEventProcessors.isRunning()) {
-            log.error("Controller event processors failed to start, state = {} ", controllerEventProcessors.state());
-            return;
-        }
-
-        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+        ControllerEventProcessors.bootstrap(localController, streamTransactionMetadataTasks, eventProcExecutor)
+                .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
 
         //endregion
 

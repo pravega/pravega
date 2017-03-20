@@ -34,17 +34,28 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class YammerStatsProvider implements StatsProvider {
     @GuardedBy("$lock")
-    private MetricRegistry metrics = null;
+    private MetricRegistry metrics = MetricsProvider.YAMMERMETRICS;
     private final List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
     private final MetricsConfig conf;
 
     @Synchronized
     void init() {
-        if (metrics == null) {
-            metrics = MetricsProvider.YAMMERMETRICS;
-            metrics.registerAll(new MemoryUsageGaugeSet());
-            metrics.registerAll(new GarbageCollectorMetricSet());
-        }
+        // I'm not entirely sure that re-inserting is necessary, but given that
+        // at this point we are preserving the registry, it seems safer to remove
+        // and re-insert.
+        MemoryUsageGaugeSet memoryGaugeNames = new MemoryUsageGaugeSet();
+        GarbageCollectorMetricSet gcMetricSet = new GarbageCollectorMetricSet();
+
+        memoryGaugeNames.getMetrics().forEach((key, value) -> {
+            metrics.remove(key);
+        });
+
+        gcMetricSet.getMetrics().forEach((key, value) -> {
+           metrics.remove(key);
+        });
+
+        metrics.registerAll(new MemoryUsageGaugeSet());
+        metrics.registerAll(new GarbageCollectorMetricSet());
     }
 
     @Synchronized

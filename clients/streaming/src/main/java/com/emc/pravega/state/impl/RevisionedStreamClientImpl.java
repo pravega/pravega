@@ -11,6 +11,7 @@ import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.RevisionedStreamClient;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.impl.PendingEvent;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
@@ -48,8 +49,9 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         ByteBuffer serialized = serializer.serialize(value);
         int size = serialized.remaining();
         try {
+            PendingEvent event = new PendingEvent(null, serialized, wasWritten, offset);
             synchronized (lock) {
-                out.conditionalWrite(offset, serialized, wasWritten);
+                out.write(event);
             }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
@@ -73,9 +75,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
         try {
+            PendingEvent event = new PendingEvent(null, serialized, wasWritten);
             log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
-                out.write(serialized, wasWritten);
+                out.write(event);
             }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
