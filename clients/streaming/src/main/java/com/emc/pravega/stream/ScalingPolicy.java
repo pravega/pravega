@@ -48,7 +48,7 @@ public class ScalingPolicy implements Serializable {
         return new ScalingPolicy(Type.BY_RATE_IN_EVENTS_PER_SEC, targetRate, scaleFactor, minNumSegments);
     }
     
-    public static ScalingPolicy byDataRate(int target_KBps, int scaleFactor, int minNumSegments) {
-        return new ScalingPolicy(Type.BY_RATE_IN_KBYTES_PER_SEC, target_KBps, scaleFactor, minNumSegments);
+    public static ScalingPolicy byDataRate(int targetKBps, int scaleFactor, int minNumSegments) {
+        return new ScalingPolicy(Type.BY_RATE_IN_KBYTES_PER_SEC, targetKBps, scaleFactor, minNumSegments);
     }
 }

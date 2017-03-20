@@ -27,7 +27,6 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStat
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.StreamConfiguration;
 
 import java.util.concurrent.CompletableFuture;

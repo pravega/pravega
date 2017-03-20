@@ -25,7 +25,7 @@ public class ModelHelperTest {
     }
 
     private static ScalingPolicy createScalingPolicy() {
-        ScalingPolicy policy = ScalingPolicy.fixed(3);
+        ScalingPolicy policy = ScalingPolicy.byEventRate(100, 2, 3);
         return policy;
     }
 
@@ -80,7 +80,7 @@ public class ModelHelperTest {
     @Test
     public void decodeScalingPolicy() {
         Controller.ScalingPolicy policy = ModelHelper.decode(createScalingPolicy());
-        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
+        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -94,7 +94,7 @@ public class ModelHelperTest {
     @Test
     public void encodeScalingPolicy() {
         ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(createScalingPolicy()));
-        assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
+        assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -110,7 +110,7 @@ public class ModelHelperTest {
         StreamConfig config = ModelHelper.decode(createStreamConfig("test"));
         assertEquals("test", config.getStreamInfo().getStream());
         Controller.ScalingPolicy policy = config.getPolicy();
-        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
+        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -126,7 +126,7 @@ public class ModelHelperTest {
         StreamConfiguration config = ModelHelper.encode(ModelHelper.decode(createStreamConfig("test")));
         assertEquals("test", config.getStreamName());
         ScalingPolicy policy = config.getScalingPolicy();
-        assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
+        assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());

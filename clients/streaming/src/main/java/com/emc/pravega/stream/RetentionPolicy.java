@@ -14,10 +14,10 @@ import lombok.RequiredArgsConstructor;
 @Data
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class RetentionPolicy implements Serializable {
+    public static final RetentionPolicy INFINITE = new RetentionPolicy(Type.TIME, Long.MAX_VALUE);
+
     private static final long serialVersionUID = 1L;
 
-    public static final RetentionPolicy INFINITE = new RetentionPolicy(Type.TIME, Long.MAX_VALUE);
-    
     public enum Type {
         /**
          * Set retention based on how long data has been in the stream.
