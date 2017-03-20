@@ -100,20 +100,22 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
             return new EventReadImpl<>(lastRead,
                     deserializer.deserialize(buffer),
-                    getPosition(),
                     new EventPointerImpl(segment, offset, length),
                     null);
         }
     }
     
     private EventRead<Type> createEmptyEvent(String checkpoint) {
-        return new EventReadImpl<>(lastRead, null, getPosition(), null, checkpoint);
+        return new EventReadImpl<>(lastRead, null, null, checkpoint);
     }
 
-    private PositionInternal getPosition() {
-        Map<Segment, Long> positions = readers.stream()
-                .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
-        return new PositionImpl(positions);
+    @Override
+    public PositionInternal getPosition() {
+        synchronized (readers) {
+            Map<Segment, Long> positions = readers.stream()
+                    .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
+            return new PositionImpl(positions);
+        }
     }
     
     /**

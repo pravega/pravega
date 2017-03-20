@@ -92,7 +92,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                         actor.process(event.getEvent());
 
                         // possibly persist event position
-                        state.store(event.getPosition());
+                        state.store(reader.getPosition());
                     }
                 } catch (Exception e) {
                     log.warn("Failed in run method of event processor " + this, e);

@@ -25,15 +25,6 @@ public interface EventRead<T> {
     T getEvent();
 
     /**
-     * The position in the stream that represents where the reader is immediately following this
-     * event. It is useful to store this so that
-     * {@link ReaderGroup#readerOffline(String, Position)} can be called if the reader dies.
-     *
-     * @return Position of the event
-     */
-    Position getPosition();
-
-    /**
      * Returns a pointer object for the event read. The event pointer enables a random read of the
      * event at a future time.
      */
