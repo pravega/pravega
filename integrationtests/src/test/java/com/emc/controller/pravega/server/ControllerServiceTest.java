@@ -154,7 +154,7 @@ public class ControllerServiceTest {
         final StreamConfiguration config3 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(streamName2)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3))
+                .scalingPolicy(ScalingPolicy.fixed(3))
                 .build();
 
         createAStream(controller, config1);
@@ -260,9 +260,7 @@ public class ControllerServiceTest {
         final StreamConfiguration config = StreamConfiguration.builder()
                 .scope("scope")
                 .streamName("streamName")
-                .scalingPolicy(new ScalingPolicy(
-                        ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
-                        200, 2, 3))
+                .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
                 .build();
         CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(config);
         assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStatus.get().getStatus());
@@ -273,9 +271,7 @@ public class ControllerServiceTest {
         CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(streamName)
-                .scalingPolicy(new ScalingPolicy(
-                        ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
-                        100, 2, 3))
+                .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
                 .build());
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
     }
@@ -285,8 +281,7 @@ public class ControllerServiceTest {
         CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(streamName)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
-                        100, 3, 2))
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 3, 2))
                 .build());
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
     }
@@ -296,8 +291,7 @@ public class ControllerServiceTest {
         CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(streamName)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
-                        200, 2, 2))
+                .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 2))
                 .build());
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
     }
@@ -307,7 +301,7 @@ public class ControllerServiceTest {
         CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(streamName)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_KBYTES_PER_SEC, 100, 2, 2))
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
                 .build());
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
     }
