@@ -10,7 +10,9 @@ import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.ScopeProperty;
+import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
+import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.BookkeeperService;
@@ -39,6 +41,7 @@ import java.util.List;
 
 import static com.emc.pravega.controller.server.rest.generated.model.ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS;
 import static javax.ws.rs.core.Response.Status.CREATED;
+import static javax.ws.rs.core.Response.Status.NO_CONTENT;
 import static javax.ws.rs.core.Response.Status.OK;
 import static org.junit.Assert.assertEquals;
 
@@ -184,5 +187,64 @@ public class ControllerRestApiTest {
         assertEquals("List streams", OK.getStatusCode(), response.getStatus());
         assertEquals("List streams size", 1, response.readEntity(StreamsList.class).getStreams().size());
         log.info("List streams successful");
+
+        // Test getScope
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+scope1).toString();
+        response = client.target(resourceURl).request().get();
+        assertEquals("Get scope status", OK.getStatusCode(), response.getStatus());
+        assertEquals("Get scope scope1 response", scope1, response.readEntity(ScopeProperty.class).getScopeName());
+        log.info("Get scope successful");
+
+        // Test updateStream
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
+
+        UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
+        ScalingConfig scalingConfig1 = new ScalingConfig();
+        scalingConfig1.setType(FIXED_NUM_SEGMENTS);
+        scalingConfig1.setTargetRate(2L);
+        scalingConfig1.scaleFactor(3); // update existing scaleFactor from 2 to 3
+        scalingConfig1.minSegments(4); // update existing minSegments from 2 to 4
+        updateStreamRequest.setScalingPolicy(scalingConfig1);
+        updateStreamRequest.setRetentionPolicy(retentionConfig);
+
+        response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
+                .put(Entity.json(updateStreamRequest));
+        assertEquals("Update stream status", OK.getStatusCode(), response.getStatus());
+        assertEquals("Verify updated property", 3, response.readEntity(StreamProperty.class)
+                .getScalingPolicy().getScaleFactor().intValue());
+        log.info("Update stream successful");
+
+        // Test getStream
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
+        response = client.target(resourceURl).request().get();
+        assertEquals("Get stream status", OK.getStatusCode(), response.getStatus());
+        assertEquals("Get stream stream1 response", stream1, response.readEntity(StreamProperty.class).getStreamName());
+        log.info("Get stream successful");
+
+        // Test updateStreamState
+        resourceURl = new StringBuilder(restServerURI)
+                .append("/v1/scopes/"+ scope1 + "/streams/"+stream1+"/state").toString();
+        StreamState streamState = new StreamState();
+        streamState.setStreamState(StreamState.StreamStateEnum.SEALED);
+        response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
+                .put(Entity.json(streamState));
+        assertEquals("UpdateStreamState status", OK.getStatusCode(), response.getStatus());
+        assertEquals("UpdateStreamState status in response", streamState.getStreamState(),
+                response.readEntity(StreamState.class).getStreamState());
+        log.info("Update stream state successful");
+
+        // Test deleteStream
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
+        response = client.target(resourceURl).request().delete();
+        assertEquals("DeleteStream status", NO_CONTENT.getStatusCode(), response.getStatus());
+        log.info("Delete stream successful");
+
+        // Test deleteScope
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+scope1).toString();
+        response = client.target(resourceURl).request().delete();
+        assertEquals("Get scope status", NO_CONTENT.getStatusCode(), response.getStatus());
+        log.info("Delete Scope successful");
+
+        log.info("Test restApiTests passed successfully!");
     }
 }
