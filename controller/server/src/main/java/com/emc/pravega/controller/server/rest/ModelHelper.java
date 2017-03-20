@@ -104,10 +104,11 @@ public class ModelHelper {
             } else {
                 retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
             }
+            retentionConfig.setValue(Duration.ofMillis(streamConfiguration.getRetentionPolicy().getValue()).toDays());
         } else {
             retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
+            retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
         }
-        retentionConfig.setValue(Duration.ofMillis(streamConfiguration.getRetentionPolicy().getValue()).toDays());
 
         StreamProperty streamProperty = new StreamProperty();
         streamProperty.setStreamName(streamConfiguration.getStreamName());
