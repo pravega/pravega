@@ -50,7 +50,7 @@ public class PravegaTest {
     private final static String STREAM_SCOPE = "testScopeSampleY";
     private final static String READER_GROUP = "ExampleReaderGroupY";
     private final static int NUM_EVENTS = 100;
-    private final ScalingPolicy scalingPolicy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 2, 2, 4);
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
     /**

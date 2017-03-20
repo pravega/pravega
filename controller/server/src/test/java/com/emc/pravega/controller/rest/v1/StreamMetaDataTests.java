@@ -86,15 +86,8 @@ public class StreamMetaDataTests extends JerseyTest {
     private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
             .scope(scope1)
             .streamName(stream1)
-            .scalingPolicy(ScalingPolicy.builder()
-                           .type(Type.BY_RATE_IN_EVENTS_PER_SEC)
-                           .targetRate(100)
-                           .scaleFactor(2)
-                           .minNumSegments(2)
-                           .build())
-            .retentionPolicy(RetentionPolicy.builder()
-                             .retentionTimeMillis(123L)
-                             .build())
+            .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+            .retentionPolicy(RetentionPolicy.byTimeMillis(123L))
             .build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
@@ -447,29 +440,15 @@ public class StreamMetaDataTests extends JerseyTest {
         final StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(stream1)
-                .scalingPolicy(ScalingPolicy.builder()
-                                       .type(Type.BY_RATE_IN_EVENTS_PER_SEC)
-                                       .targetRate(100)
-                                       .scaleFactor(2)
-                                       .minNumSegments(2)
-                                       .build())
-                .retentionPolicy(RetentionPolicy.builder()
-                                         .retentionTimeMillis(123L)
-                                         .build())
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+                .retentionPolicy(RetentionPolicy.byTimeMillis(123L))
                 .build();
 
         final StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(stream2)
-                .scalingPolicy(ScalingPolicy.builder()
-                                       .type(Type.BY_RATE_IN_EVENTS_PER_SEC)
-                                       .targetRate(100)
-                                       .scaleFactor(2)
-                                       .minNumSegments(2)
-                                       .build())
-                .retentionPolicy(RetentionPolicy.builder()
-                                         .retentionTimeMillis(123L)
-                                         .build())
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+                .retentionPolicy(RetentionPolicy.byTimeMillis(123L))
                 .build();
 
         // Test to list streams.
