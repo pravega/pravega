@@ -156,6 +156,10 @@ project('common') {
         compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: '3.1.0'
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-graphite
         compile group: 'io.dropwizard.metrics', name: 'metrics-graphite', version: '3.1.2'
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-ganglia
+        compile group: 'io.dropwizard.metrics', name: 'metrics-ganglia', version: '3.1.2'
+        // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
+        compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: '1.0.10'
 
         jar {
             from project.sourceSets.main.output

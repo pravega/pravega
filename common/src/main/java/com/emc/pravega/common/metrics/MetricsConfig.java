@@ -24,8 +24,12 @@ public class MetricsConfig extends ComponentConfig {
     public final static String CSV_ENDPOINT = "yammerCSVEndpoint";
     public final static String STATSD_HOST = "yammerStatsDHost";
     public final static String STATSD_PORT = "yammerStatsDPort";
-    public final static String GRAPHITE_HOST = "yammerGraphitePort";
+    public final static String GRAPHITE_HOST = "yammerGraphiteHost";
     public final static String GRAPHITE_PORT = "yammerGraphitePort";
+    public final static String JMX_DOMAIN = "yammerJMXDomain";
+    public final static String GANGLIA_HOST = "yammerGangliaHost";
+    public final static String GANGLIA_PORT = "yammerGangliaPort";
+    public final static String ENABLE_CONSOLE_REPORTER = "enableConsoleReporter";
 
     public final static boolean DEFAULT_ENABLE_STATISTICS = true;
     public final static long DEFAULT_DYNAMIC_CACHE_SIZE = 1000000L;
@@ -37,6 +41,10 @@ public class MetricsConfig extends ComponentConfig {
     public final static int DEFAULT_STATSD_PORT = 8125;
     public final static String DEFAULT_GRAPHITE_HOST = null;
     public final static int DEFAULT_GRAPHITE_PORT = 2003;
+    public final static String DEFAULT_JMX_DOMAIN = null;
+    public final static String DEFAULT_GANGLIA_HOST = null;
+    public final static int DEFAULT_GANGLIA_PORT = 8649;
+    public final static boolean DEFAULT_ENABLE_CONSOLE_REPORTER = false;
 
     private boolean enableStatistics = true;
     private long dynamicCacheSize = 1000000L;
@@ -48,6 +56,10 @@ public class MetricsConfig extends ComponentConfig {
     private int yammerStatsDPort;
     private String yammerGraphiteHost;
     private int yammerGraphitePort;
+    private String yammerJMXDomain;
+    private String yammerGangliaHost;
+    private int yammerGangliaPort;
+    private boolean enableConsoleReporter = false;
 
     /**
      * Creates a new instance of the MetricsConfig class.
@@ -133,6 +145,33 @@ public class MetricsConfig extends ComponentConfig {
         return this.yammerGraphitePort;
     }
 
+    /**
+     * Gets a value indicating the JMX Domain.
+     */
+    public String getJMXDomain() {
+        return this.yammerJMXDomain;
+    }
+
+    /**
+     * Gets a value indicating the host name (no port) where Graphite is listening.
+     */
+    public String getGangliaHost() {
+        return this.yammerGangliaHost;
+    }
+
+    /**
+     * Gets a value indicating the port where Graphite is listening.
+     */
+    public int getGangliaPort() {
+        return this.yammerGangliaPort;
+    }
+
+    /**
+     * Gets a value indicating the status of enable console reporter.
+     */
+    public boolean enableConsoleReporter() {
+        return enableConsoleReporter;
+    }
 
     @Override
     public void refresh() throws ConfigurationException {
@@ -146,6 +185,10 @@ public class MetricsConfig extends ComponentConfig {
         this.yammerStatsDPort = getInt32Property(STATSD_PORT, DEFAULT_STATSD_PORT);
         this.yammerGraphiteHost = getProperty(GRAPHITE_HOST, DEFAULT_GRAPHITE_HOST);
         this.yammerGraphitePort = getInt32Property(GRAPHITE_PORT, DEFAULT_GRAPHITE_PORT);
+        this.yammerJMXDomain = getProperty(JMX_DOMAIN, DEFAULT_JMX_DOMAIN);
+        this.yammerGangliaHost = getProperty(GANGLIA_HOST, DEFAULT_GANGLIA_HOST);
+        this.yammerGangliaPort = getInt32Property(GANGLIA_PORT, DEFAULT_GANGLIA_PORT);
+        this.enableConsoleReporter = getBooleanProperty(ENABLE_CONSOLE_REPORTER, DEFAULT_ENABLE_CONSOLE_REPORTER);
     }
 
 }

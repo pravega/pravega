@@ -5,23 +5,27 @@
  */
 package com.emc.pravega.common.metrics;
 
+import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.CsvReporter;
+import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricFilter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.ScheduledReporter;
+import com.codahale.metrics.ganglia.GangliaReporter;
 import com.codahale.metrics.graphite.Graphite;
 import com.codahale.metrics.graphite.GraphiteReporter;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.google.common.base.Strings;
 import com.readytalk.metrics.StatsDReporter;
+import info.ganglia.gmetric4j.gmetric.GMetric;
 import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -58,10 +62,12 @@ public class YammerStatsProvider implements StatsProvider {
         String csvDir = conf.getCSVEndpoint();
         String statsDHost = conf.getStatsDHost();
         Integer statsDPort = conf.getStatsDPort();
-
         String graphiteHost = conf.getGraphiteHost();
         Integer graphitePort = conf.getGraphitePort();
-        //String jmxDomain = conf.getString("codahaleStatsJmxEndpoint");
+        String jmxDomain = conf.getJMXDomain();
+        String gangliaHost = conf.getGangliaHost();
+        Integer gangliaPort = conf.getGangliaPort();
+        boolean enableConsole = conf.enableConsoleReporter();
 
         if (!Strings.isNullOrEmpty(csvDir)) {
             // NOTE:  metrics output files are exclusive to a given process
@@ -84,16 +90,43 @@ public class YammerStatsProvider implements StatsProvider {
                           .build(statsDHost, statsDPort));
         }
         if (!Strings.isNullOrEmpty(graphiteHost)) {
-            log.info("Configuring stats with graphite at {}:{}", graphiteHost, graphiteHost);
-            Graphite graphite = new Graphite(new InetSocketAddress("graphite.example.com", 2003));
-            final GraphiteReporter reporter = GraphiteReporter.forRegistry(getMetrics())
+            log.info("Configuring stats with graphite at {}:{}", graphiteHost, graphitePort);
+            final Graphite graphite = new Graphite(new InetSocketAddress(graphiteHost, graphitePort));
+            reporters.add(GraphiteReporter.forRegistry(getMetrics())
                 .prefixedWith(prefix)
                 .convertRatesTo(TimeUnit.SECONDS)
                 .convertDurationsTo(TimeUnit.MILLISECONDS)
                 .filter(MetricFilter.ALL)
-                .build(graphite);
+                .build(graphite));
         }
-
+        if (!Strings.isNullOrEmpty(jmxDomain)) {
+            log.info("Configuring stats with jmx");
+            final JmxReporter jmx = JmxReporter.forRegistry(getMetrics())
+                .inDomain(jmxDomain)
+                .convertRatesTo(TimeUnit.SECONDS)
+                .convertDurationsTo(TimeUnit.MILLISECONDS)
+                .build();
+            jmx.start();
+        }
+        if (!Strings.isNullOrEmpty(gangliaHost)) {
+            try {
+                log.info("Configuring stats with ganglia at {}:{}", gangliaHost, gangliaPort);
+                final GMetric ganglia = new GMetric(gangliaHost, gangliaPort, GMetric.UDPAddressingMode.MULTICAST, 1);
+                reporters.add(GangliaReporter.forRegistry(getMetrics())
+                    .convertRatesTo(TimeUnit.SECONDS)
+                    .convertDurationsTo(TimeUnit.MILLISECONDS)
+                    .build(ganglia));
+            } catch (IOException e) {
+                log.warn("ganglia create failure: {}", e);
+            }
+        }
+        if (enableConsole) {
+            log.info("Configuring console reporter");
+            reporters.add(ConsoleReporter.forRegistry(getMetrics())
+                .convertRatesTo(TimeUnit.SECONDS)
+                .convertDurationsTo(TimeUnit.MILLISECONDS)
+                .build());
+        }
         for (ScheduledReporter r : reporters) {
             r.start(metricsOutputFrequency, TimeUnit.SECONDS);
         }
