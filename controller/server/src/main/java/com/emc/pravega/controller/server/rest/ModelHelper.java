@@ -11,6 +11,7 @@ import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamReques
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import java.time.Duration;
 
 /**
  * Provides translation between the Model classes and its REST representation.
@@ -35,7 +36,7 @@ public class ModelHelper {
                                .scaleFactor(createStreamRequest.getScalingPolicy().getScaleFactor())
                                .minNumSegments(createStreamRequest.getScalingPolicy().getMinSegments())
                                .build())
-                .retentionPolicy(RetentionPolicy.byTimeMillis(createStreamRequest.getRetentionPolicy().getRetentionTimeMillis()))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(createStreamRequest.getRetentionPolicy().getRetentionTimeMillis())))
                 .build();
     }
 
@@ -59,8 +60,8 @@ public class ModelHelper {
                                           updateStreamRequest.getScalingPolicy().getTargetRate().intValue()).scaleFactor(
                                           updateStreamRequest.getScalingPolicy().getScaleFactor()).minNumSegments(
                                           updateStreamRequest.getScalingPolicy().getMinSegments()).build())
-                                  .retentionPolicy(RetentionPolicy.byTimeMillis(updateStreamRequest.getRetentionPolicy()
-                                                                                .getRetentionTimeMillis()))
+                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(updateStreamRequest.getRetentionPolicy()
+                                .getRetentionTimeMillis())))
                                   .build();
     }
 

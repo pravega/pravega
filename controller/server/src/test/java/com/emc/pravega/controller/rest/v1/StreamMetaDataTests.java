@@ -45,7 +45,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -87,7 +87,7 @@ public class StreamMetaDataTests extends JerseyTest {
             .scope(scope1)
             .streamName(stream1)
             .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-            .retentionPolicy(RetentionPolicy.byTimeMillis(123L))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
             .build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
@@ -441,14 +441,14 @@ public class StreamMetaDataTests extends JerseyTest {
                 .scope(scope1)
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byTimeMillis(123L))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         final StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(stream2)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byTimeMillis(123L))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         // Test to list streams.

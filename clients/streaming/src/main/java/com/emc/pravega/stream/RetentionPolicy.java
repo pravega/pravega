@@ -14,9 +14,8 @@ import lombok.RequiredArgsConstructor;
 @Data
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class RetentionPolicy implements Serializable {
-    private static final long serialVersionUID = 1L;
-
     public static final RetentionPolicy INFINITE = new RetentionPolicy(Type.TIME, Long.MAX_VALUE);
+    private static final long serialVersionUID = 1L;
     
     public enum Type {
         /**
@@ -34,10 +33,6 @@ public class RetentionPolicy implements Serializable {
     
     public static RetentionPolicy byTime(Duration duration) {
         return new RetentionPolicy(Type.TIME, duration.toMillis());
-    }
-    
-    public static RetentionPolicy byTimeMillis(long duration) {
-        return new RetentionPolicy(Type.TIME, duration);
     }
     
     public static RetentionPolicy bySizeBytes(long size) {
