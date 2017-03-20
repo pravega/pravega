@@ -41,12 +41,6 @@ class SegmentAggregates {
     /**
      * 8 bytes.
      */
-    @VisibleForTesting
-    AtomicLong currentCount;
-
-    /**
-     * 8 bytes.
-     */
     AtomicLong lastReportedTime;
 
     /**
@@ -83,6 +77,11 @@ class SegmentAggregates {
      */
     private AtomicLong lastTick;
 
+    /**
+     * 8 bytes.
+     */
+    private AtomicLong currentCount;
+
     SegmentAggregates(byte scaleType, int targetRate) {
         this.targetRate = targetRate;
         this.scaleType = scaleType;
@@ -94,6 +93,11 @@ class SegmentAggregates {
         this.fiveMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
         this.tenMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
         this.twentyMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
+    }
+
+    @VisibleForTesting
+    AtomicLong getCurrentCount() {
+        return currentCount;
     }
 
     void update(long dataLength, int numOfEvents) {
@@ -147,7 +151,11 @@ class SegmentAggregates {
 
     private double decayingRate(long count, double rate, double alpha, long interval) {
         final double instantRate = (double) count / (double) interval;
-        return rate + (alpha * (instantRate - rate));
+        if (rate == 0) {
+            return instantRate;
+        } else {
+            return rate + (alpha * (instantRate - rate));
+        }
     }
 
     double getTwoMinuteRate() {

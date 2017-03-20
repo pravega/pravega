@@ -34,7 +34,7 @@ public class SegmentAggregatesTest {
 
         aggregates.updateTx(0, 100, System.currentTimeMillis());
         assert aggregates.getTwoMinuteRate() == 0;
-        assert aggregates.currentCount.get() == 100;
+        assert aggregates.getCurrentCount().get() == 100;
 
         aggregates.updateTx(0, 1000, System.currentTimeMillis() - Duration.ofSeconds(5).toMillis());
         assert aggregates.getTwoMinuteRate() > 0;
