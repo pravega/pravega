@@ -42,9 +42,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 public class RequestHandlersInit {
-    private static final StreamConfiguration REQUEST_STREAM_CONFIG = StreamConfiguration.builder().scope(Config.INTERNAL_SCOPE).
-            streamName(Config.SCALE_STREAM_NAME).scalingPolicy(
-            new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 1000, 2, 1)).build();
+    private static final StreamConfiguration REQUEST_STREAM_CONFIG = StreamConfiguration.builder()
+                                                                                        .scope(Config.INTERNAL_SCOPE)
+                                                                                        .streamName(Config.SCALE_STREAM_NAME)
+                                                                                        .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                                        .build();
 
     private static final AtomicReference<ScaleRequestHandler> SCALE_HANDLER_REF = new AtomicReference<>();
     private static final AtomicReference<EventStreamReader<ScaleRequest>> SCALE_READER_REF = new AtomicReference<>();
