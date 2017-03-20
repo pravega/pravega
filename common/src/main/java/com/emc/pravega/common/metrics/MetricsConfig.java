@@ -25,8 +25,8 @@ public class MetricsConfig extends ComponentConfig {
     public final static String OUTPUT_FREQUENCY = "yammerStatsOutputFrequencySeconds";
     public final static String METRICS_PREFIX = "yammerMetricsPrefix";
     public final static String CSV_ENDPOINT = "yammerCSVEndpoint";
-    public final static String STATSD_HOST = "yammerStatsDHost";
-    public final static String STATSD_PORT = "yammerStatsDPort";
+    public final static String STATSD_HOST = "STATSD_UDP_HOST";
+    public final static String STATSD_PORT = "STATSD_UDP_PORT";
 
     public final static boolean DEFAULT_ENABLE_STATISTICS = true;
     public final static long DEFAULT_DYNAMIC_CACHE_SIZE = 1000000L;
@@ -126,8 +126,8 @@ public class MetricsConfig extends ComponentConfig {
         this.yammerStatsOutputFrequencySeconds = getInt32Property(OUTPUT_FREQUENCY, DEFAULT_OUTPUT_FREQUENCY);
         this.yammerMetricsPrefix = getProperty(METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
         this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);
-        this.yammerStatsDHost = getProperty(STATSD_HOST, DEFAULT_STATSD_HOST);
-        this.yammerStatsDPort = getInt32Property(STATSD_PORT, DEFAULT_STATSD_PORT);
+        this.yammerStatsDHost = getPropertyWithoutPrefix(STATSD_HOST, DEFAULT_STATSD_HOST);
+        this.yammerStatsDPort = getInt32PropertyWithoutPrefix(STATSD_PORT, DEFAULT_STATSD_PORT);
     }
 
 }
