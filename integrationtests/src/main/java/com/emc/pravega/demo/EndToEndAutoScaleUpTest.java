@@ -32,7 +32,7 @@ import java.util.concurrent.CompletableFuture;
 public class EndToEndAutoScaleUpTest {
     static final StreamConfiguration CONFIG =
             StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 3)).build();
+                    ScalingPolicy.byEventRate(10, 2, 3)).build();
 
     public static void main(String[] args) throws Exception {
         try {

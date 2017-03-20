@@ -31,7 +31,7 @@ import java.util.Map;
 public class EndToEndAutoScaleDownTest {
     static final StreamConfiguration CONFIG =
             StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 1)).build();
+                    ScalingPolicy.byEventRate(10, 2, 1)).build();
 
     public static void main(String[] args) throws Exception {
         try {

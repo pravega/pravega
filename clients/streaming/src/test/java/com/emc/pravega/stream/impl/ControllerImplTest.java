@@ -44,6 +44,7 @@ import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -528,9 +529,7 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream1")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.builder()
-                                                                                            .retentionTimeMillis(0)
-                                                                                            .build())
+                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
@@ -538,9 +537,7 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream2")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.builder()
-                                                                                            .retentionTimeMillis(0)
-                                                                                            .build())
+                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertEquals(CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
@@ -548,9 +545,7 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream3")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.builder()
-                                                                                            .retentionTimeMillis(0)
-                                                                                            .build())
+                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertEquals(CreateStreamStatus.Status.SCOPE_NOT_FOUND, createStreamStatus.get().getStatus());
@@ -558,9 +553,7 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream4")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.builder()
-                                                                                            .retentionTimeMillis(0)
-                                                                                            .build())
+                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, createStreamStatus.get().getStatus());
@@ -568,9 +561,7 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream5")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.builder()
-                                                                                            .retentionTimeMillis(0)
-                                                                                            .build())
+                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertEquals(CreateStreamStatus.Status.INVALID_STREAM_NAME, createStreamStatus.get().getStatus());
@@ -578,9 +569,7 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream6")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.builder()
-                                                                                            .retentionTimeMillis(0)
-                                                                                            .build())
+                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertThrows("Should throw Exception", createStreamStatus, throwable -> true);
@@ -592,9 +581,7 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream1")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.builder()
-                                                                                           .retentionTimeMillis(0)
-                                                                                           .build())
+                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStreamStatus.get().getStatus());
@@ -602,9 +589,7 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream2")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.builder()
-                                                                                           .retentionTimeMillis(0)
-                                                                                           .build())
+                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         assertEquals(UpdateStreamStatus.Status.FAILURE, updateStreamStatus.get().getStatus());
@@ -612,9 +597,7 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream3")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.builder()
-                                                                                           .retentionTimeMillis(0)
-                                                                                           .build())
+                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         assertEquals(UpdateStreamStatus.Status.SCOPE_NOT_FOUND, updateStreamStatus.get().getStatus());
@@ -622,9 +605,7 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream4")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.builder()
-                                                                                           .retentionTimeMillis(0)
-                                                                                           .build())
+                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.get().getStatus());
@@ -632,9 +613,7 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream5")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.builder()
-                                                                                           .retentionTimeMillis(0)
-                                                                                           .build())
+                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
@@ -897,7 +876,7 @@ public class ControllerImplTest {
                                 StreamConfiguration.builder()
                                         .streamName("streamparallel")
                                         .scope("scope1")
-                                        .retentionPolicy(RetentionPolicy.builder().retentionTimeMillis(0).build())
+                                        .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build());
                         log.info("{}", createStreamStatus.get().getStatus());
