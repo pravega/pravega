@@ -275,7 +275,7 @@ public class InProcPravegaCluster implements AutoCloseable {
      * @param sssId id of the SSS.
      */
     @Synchronized
-    public void startLocalSSS(int sssId) {
+    private void startLocalSSS(int sssId) {
         Preconditions.checkState(this.nodeServiceStarter != null, "SSSs not created");
         Preconditions.checkState( this.sssPorts != null, "SSS ports not declared");
         Preconditions.checkState( sssId < sssCount, "SSS not initialized");
@@ -322,7 +322,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             nodeServiceStarter[sssId] = new ServiceStarter(props, isInMemStorage);
         } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);
-            System.exit(1);
+            throw e;
         }
         nodeServiceStarter[sssId].start();
     }
@@ -339,7 +339,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     @Synchronized
-    public void startLocalController(int controllerId) {
+    private void startLocalController(int controllerId) {
         Preconditions.checkState(this.controllerServers != null && this.controllerPorts != null,
                 "Controllers not present");
         Preconditions.checkState(controllerId < controllerCount, "Controller not initialized");
