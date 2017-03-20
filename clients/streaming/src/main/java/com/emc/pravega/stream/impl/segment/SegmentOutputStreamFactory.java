@@ -31,8 +31,7 @@ public interface SegmentOutputStreamFactory {
      * in the same process space).
      *
      * @param segment The segment.
-     * @throws SegmentSealedException If the segment is closed for modifications.
      * @return New instance of SegmentOutputStream for writing.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment) throws SegmentSealedException;
+    SegmentOutputStream createOutputStreamForSegment(Segment segment);
 }

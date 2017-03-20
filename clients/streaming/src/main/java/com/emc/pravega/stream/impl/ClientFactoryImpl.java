@@ -12,7 +12,6 @@ import com.emc.pravega.state.RevisionedStreamClient;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
-import com.emc.pravega.state.impl.CorruptedStateException;
 import com.emc.pravega.state.impl.RevisionedStreamClientImpl;
 import com.emc.pravega.state.impl.StateSynchronizerImpl;
 import com.emc.pravega.state.impl.UpdateOrInitSerializer;
@@ -34,7 +33,6 @@ import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.util.function.Supplier;
@@ -97,8 +95,7 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         Stream stream = new StreamImpl(scope, streamName);
-        EventRouter router = new EventRouter(stream, controller);
-        return new EventStreamWriterImpl<T>(stream, controller, outFactory, router, s, config);
+        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config);
     }
 
     @Override
@@ -137,12 +134,7 @@ public class ClientFactoryImpl implements ClientFactory {
             SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
-        SegmentOutputStream out;
-        try {
-            out = outFactory.createOutputStreamForSegment(segment);
-        } catch (SegmentSealedException e) {
-            throw new CorruptedStateException("Attempted to create synchronizer on sealed segment", e);
-        }
+        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment);
         return new RevisionedStreamClientImpl<>(segment, in, out, serializer);
     }
 

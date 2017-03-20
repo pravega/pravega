@@ -7,35 +7,26 @@ package com.emc.pravega.common.metrics;
 
 import com.codahale.metrics.MetricRegistry;
 
+
 public class MetricsProvider {
-    public static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
-    private static final MetricsProvider INSTANCE  = new MetricsProvider();
-    
-    private final StatsProvider nullProvider = new NullStatsProvider();
-    private final StatsProvider yammerProvider;
+    static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
+    private static final StatsProviderProxy STATS_PROVIDER = new StatsProviderProxy();
+    private static final DynamicLoggerProxy DYNAMIC_LOGGER = new DynamicLoggerProxy(STATS_PROVIDER.createDynamicLogger());
 
-    // Dynamic logger
-    private final DynamicLogger yammerDynamicLogger;
-    private final DynamicLogger nullDynamicLogger;
-    private MetricsConfig metricsConfig;
-
-    private MetricsProvider() {
-        this.metricsConfig = MetricsConfig.builder().build();
-        this.nullDynamicLogger = nullProvider.createDynamicLogger();
-        this.yammerProvider = new YammerStatsProvider(metricsConfig);
-        this.yammerDynamicLogger = yammerProvider.createDynamicLogger();
+    public synchronized static void initialize(MetricsConfig config) {
+        STATS_PROVIDER.setProvider(config);
+        DYNAMIC_LOGGER.setLogger(STATS_PROVIDER.createDynamicLogger());
     }
 
-    public static StatsProvider getMetricsProvider() {
-        return INSTANCE.metricsConfig.isEnableStatistics() ? INSTANCE.yammerProvider : INSTANCE.nullProvider;
+    public synchronized static StatsProvider getMetricsProvider() {
+        return STATS_PROVIDER;
     }
 
-    public static StatsLogger createStatsLogger(String loggerName) {
-        return INSTANCE.metricsConfig.isEnableStatistics() ? INSTANCE.yammerProvider.createStatsLogger(loggerName)
-                : INSTANCE.nullProvider.createStatsLogger(loggerName);
+    public synchronized static StatsLogger createStatsLogger(String loggerName) {
+        return STATS_PROVIDER.createStatsLogger(loggerName);
     }
 
-    public static DynamicLogger getDynamicLogger() {
-        return INSTANCE.metricsConfig.isEnableStatistics() ? INSTANCE.yammerDynamicLogger : INSTANCE.nullDynamicLogger;
+    public synchronized static DynamicLogger getDynamicLogger() {
+        return DYNAMIC_LOGGER;
     }
 }

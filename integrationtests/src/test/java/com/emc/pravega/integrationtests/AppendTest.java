@@ -34,6 +34,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.PendingEvent;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
@@ -177,7 +178,7 @@ public class AppendTest {
         @Cleanup("close")
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment);
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
-        out.write(ByteBuffer.wrap(testString.getBytes()), ack);
+        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
         assertTrue(ack.get(5, TimeUnit.SECONDS));
     }
 

@@ -4,6 +4,8 @@
 package com.emc.pravega.service.server.host.handler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsData;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
@@ -52,6 +54,12 @@ import static org.mockito.Mockito.when;
 
 @Slf4j
 public class PravegaRequestProcessorTest {
+    static {
+        Properties properties = new Properties();
+
+        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
+        MetricsProvider.initialize(new MetricsConfig(properties));
+    }
 
     @Data
     private static class TestReadResult implements ReadResult {
