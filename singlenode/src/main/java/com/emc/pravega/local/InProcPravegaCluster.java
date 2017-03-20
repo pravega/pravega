@@ -76,16 +76,16 @@ public class InProcPravegaCluster implements AutoCloseable {
     /*Controller related variables*/
     private boolean isInprocController;
     private int controllerCount;
-    private int[] controllerPorts;
+    private int[] controllerPorts = null;
 
     @Getter
-    private String controllerURI;
+    private String controllerURI = null;
     private ControllerService[] controllerServices = null;
 
     /*SSS related variables*/
     private boolean isInprocSSS;
     private int sssCount = 0;
-    private int[] sssPorts;
+    private int[] sssPorts = null;
 
     /*Distributed log related variables*/
     private boolean isInProcDL;
@@ -329,8 +329,8 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
                     .zkSegmentManager(true);
 
-            nodeServiceStarter[sssId] = new ServiceStarter(props, isInMemStorage? optBuilder.hdfs(false)
-                    .distributedLog(false).build(): optBuilder.hdfs(true).distributedLog(true).build());
+            nodeServiceStarter[sssId] = new ServiceStarter(props, isInMemStorage ? optBuilder.hdfs(false)
+                    .distributedLog(false).build() : optBuilder.hdfs(true).distributedLog(true).build());
         } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             throw e;
