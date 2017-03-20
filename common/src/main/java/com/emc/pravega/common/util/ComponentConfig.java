@@ -122,10 +122,9 @@ public abstract class ComponentConfig {
         if (value == null) {
             // Get value from config.
             value = this.properties.getProperty(fullKeyName, defaultValue);
-
-            // See if it can be interpreted as an environment variable.
-            value = extractEnvironmentVariable(value, defaultValue);
         }
+        // See if it can be interpreted as an environment variable.
+        value = extractEnvironmentVariable(value, defaultValue);
         return value;
     }
 
