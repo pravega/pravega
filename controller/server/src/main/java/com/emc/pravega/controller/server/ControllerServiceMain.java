@@ -54,15 +54,17 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     protected void run() throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, this.objectId, "run");
         try {
-            CountDownLatch sessionExpityLatch = new CountDownLatch(1);
-
-            // Create store client.
-            log.info("Creating store client");
-            StoreClient storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
+            CountDownLatch sessionExpiryLatch = new CountDownLatch(1);
 
             if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
-                do {
-                    // If controller cluster listener is enabled,
+
+                // Controller cluster feature is enabled.
+                while (isRunning()) {
+                    // Create store client.
+                    log.info("Creating store client");
+                    StoreClient storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
+
+                    // Client should be ZK if controller cluster is enabled.
                     CuratorFramework client = (CuratorFramework) storeClient.getClient();
 
                     log.info("Awaiting ZK client connection to ZK server");
@@ -75,21 +77,16 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                     staterInitialized.countDown();
 
                     // Await ZK session expiry.
-                    log.info("Awaiting ZK session expiry");
-                    client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpityLatch));
+                    log.info("Awaiting ZK session expiry or termination of ControllerServiceMain");
+                    client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpiryLatch));
 
-                    boolean expired;
-                    do {
-                        expired = sessionExpityLatch.await(2000, TimeUnit.MILLISECONDS);
-                    } while (isRunning() && !expired);
+                    boolean expired = false;
+                    while (isRunning() && !expired) {
+                        expired = sessionExpiryLatch.await(1500, TimeUnit.MILLISECONDS);
+                    }
 
-                    // TODO: When ZK session expires, curator would have created a new session and controller
-                    // service components would be communicating with ZK. This problem can be mitigated by one of
-                    // the following ways.
-                    // 1. Change controller store implementations to use Zookeeper client instead of Curator client, so
-                    //    that only leader elector uses curator framework, most of other controller code uses ZK client.
-                    // 2. Configure curator to not recreate Zookeeper client automatically under the hood
-                    // Can we pass a custom ZookeeperClientFactory while creating CuratorFramework for achieving 2?
+                    // Problem of curator automatically recreating ZK client on session expiry is mitigated by
+                    // employing a custom ZookeeperFactory that always returns the same ZK client to curator
 
                     // Once ZK session expires or once ControllerServiceMain is externally stopped,
                     // stop ControllerServiceStarter.
@@ -98,8 +95,13 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
                     log.info("Awaiting termination of ControllerServiceStarter");
                     starter.awaitTerminated();
-                } while (isRunning());
+                }
             } else {
+
+                // Create store client.
+                log.info("Creating store client");
+                StoreClient storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
+
                 // Start controller services.
                 log.info("Starting controller services");
                 starter = new ControllerServiceStarter(serviceConfig, storeClient);
@@ -107,10 +109,10 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 staterInitialized.countDown();
 
                 // Await termination of controller services.
-                log.info("Awaiting termination of ControllerServiceStarter or stop of ControllerServiceMain");
+                log.info("Awaiting termination of ControllerServiceStarter or termination of ControllerServiceMain");
                 boolean terminated;
                 do {
-                    terminated = awaitStarterTerminated(2000, TimeUnit.MILLISECONDS);
+                    terminated = awaitStarterTerminated(1500, TimeUnit.MILLISECONDS);
                 } while (isRunning() && !terminated);
 
                 if (!isRunning()) {
