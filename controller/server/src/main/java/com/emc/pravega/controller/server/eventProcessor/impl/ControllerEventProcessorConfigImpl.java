@@ -68,4 +68,20 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
         this.commitCheckpointConfig = commitCheckpointConfig;
         this.abortCheckpointConfig = abortCheckpointConfig;
     }
+
+    ControllerEventProcessorConfig withDefault() {
+        return ControllerEventProcessorConfigImpl.builder()
+                .scopeName("system")
+                .commitStreamName("commitStream")
+                .abortStreamName("abortStream")
+                .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
+                .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
+                .commitReaderGroupName("commitStreamReaders")
+                .commitReaderGroupSize(1)
+                .abortReaderGrouopName("abortStreamReaders")
+                .abortReaderGroupSize(1)
+                .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
+                .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
+                .build();
+    }
 }

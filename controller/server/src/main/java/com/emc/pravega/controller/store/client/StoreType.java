@@ -9,7 +9,4 @@ package com.emc.pravega.controller.store.client;
 public enum StoreType {
     InMemory,
     Zookeeper,
-    ECS,
-    S3,
-    HDFS
 }
