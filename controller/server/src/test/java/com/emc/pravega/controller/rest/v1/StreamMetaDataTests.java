@@ -29,6 +29,7 @@ import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -49,6 +50,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.emc.pravega.controller.server.rest.generated.model.RetentionConfig.TypeEnum;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,7 +88,7 @@ public class StreamMetaDataTests extends JerseyTest {
             .scope(scope1)
             .streamName(stream1)
             .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-            .retentionPolicy(RetentionPolicy.byTimeMillis(123L))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(123L)))
             .build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
@@ -121,8 +123,10 @@ public class StreamMetaDataTests extends JerseyTest {
         scalingPolicyCommon.setTargetRate(100L);
         scalingPolicyCommon.setScaleFactor(2);
         scalingPolicyCommon.setMinSegments(2);
-        retentionPolicyCommon.setRetentionTimeMillis(123L);
-        retentionPolicyCommon2.setRetentionTimeMillis(null);
+        retentionPolicyCommon.setType(TypeEnum.LIMITED_DAYS);
+        retentionPolicyCommon.setValue(123L);
+        retentionPolicyCommon2.setType(null);
+        retentionPolicyCommon2.setValue(null);
         streamResponseExpected.setScopeName(scope1);
         streamResponseExpected.setStreamName(stream1);
         streamResponseExpected.setScalingPolicy(scalingPolicyCommon);
@@ -529,9 +533,12 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("StreamConfig: Scaling Policy: MinNumSegments",
                 expected.getScalingPolicy().getMinSegments(),
                 actual.getScalingPolicy().getMinSegments());
-        assertEquals("StreamConfig: Retention Policy: MinNumSegments",
-                expected.getRetentionPolicy().getRetentionTimeMillis(),
-                actual.getRetentionPolicy().getRetentionTimeMillis());
+        assertEquals("StreamConfig: Retention Policy: type",
+                expected.getRetentionPolicy().getType(),
+                actual.getRetentionPolicy().getType());
+        assertEquals("StreamConfig: Retention Policy: value",
+                expected.getRetentionPolicy().getValue(),
+                actual.getRetentionPolicy().getValue());
     }
 }
 
