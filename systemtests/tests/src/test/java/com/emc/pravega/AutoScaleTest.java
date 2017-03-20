@@ -278,7 +278,7 @@ public class AutoScaleTest {
         return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
                 .retryingOn(NotDoneException.class)
                 .throwingOn(RuntimeException.class)
-                .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_UP_STREAM_NAME)
+                .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_UP_TXN_STREAM_NAME)
                         .thenAccept(x -> {
                             if (x.getSegments().size() == 1) {
                                 throw new NotDoneException();
@@ -310,7 +310,7 @@ public class AutoScaleTest {
     private void startNewTxnWriter(ClientFactory clientFactory, AtomicBoolean exit) {
         CompletableFuture.runAsync(() -> {
             @Cleanup
-            EventStreamWriter<String> writer = clientFactory.createEventWriter(SCALE_UP_STREAM_NAME,
+            EventStreamWriter<String> writer = clientFactory.createEventWriter(SCALE_UP_TXN_STREAM_NAME,
                     new JavaSerializer<>(),
                     EventWriterConfig.builder().build());
 
