@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
@@ -29,13 +28,12 @@ import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.extern.slf4j.Slf4j;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
@@ -60,7 +58,7 @@ public class Main {
         }
 
         //0. Initialize metrics provider
-        MetricsProvider.initialize(new MetricsConfig(Config.getMetricsProperties()));
+        MetricsProvider.initialize(Config.getMetricsConfig());
 
         //1. LOAD configuration.
         //Initialize the executor service.

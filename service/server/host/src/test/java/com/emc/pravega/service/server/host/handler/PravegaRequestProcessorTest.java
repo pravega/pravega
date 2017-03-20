@@ -55,10 +55,7 @@ import static org.mockito.Mockito.when;
 @Slf4j
 public class PravegaRequestProcessorTest {
     static {
-        Properties properties = new Properties();
-
-        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
-        MetricsProvider.initialize(new MetricsConfig(properties));
+        MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build());
     }
 
     @Data

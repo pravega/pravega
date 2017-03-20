@@ -9,8 +9,6 @@ import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
-import lombok.extern.slf4j.Slf4j;
-
 /**
  * General configuration for Metrics.
  */
