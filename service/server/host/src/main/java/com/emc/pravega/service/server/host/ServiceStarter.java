@@ -90,7 +90,7 @@ public final class ServiceStarter {
         Exceptions.checkNotClosed(this.closed, this);
 
         log.info("Initializing metrics provider ...");
-        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::new));
+        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start();
 
