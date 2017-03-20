@@ -83,6 +83,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
     protected void startUp() {
         long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
         log.info("Initiating controller service startUp");
+        log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
+        log.info("Request handlers enabled = {}", serviceConfig.isRequestHandlersEnabled());
+        log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
+        log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
 
         try {
             //Initialize the executor service.
@@ -155,6 +159,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                         hostStore, segmentHelper, eventProcExecutor);
 
                 // Bootstrap and start it asynchronously.
+                log.info("Starting event processors");
                 ControllerEventProcessors.bootstrap(localController, serviceConfig.getEventProcessorConfig().get(),
                         streamTransactionMetadataTasks, eventProcExecutor)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
@@ -162,6 +167,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Start request handlers
             if (serviceConfig.isRequestHandlersEnabled()) {
+                log.info("Starting request handlers");
                 RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
             }
 

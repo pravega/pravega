@@ -69,7 +69,7 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
         this.abortCheckpointConfig = abortCheckpointConfig;
     }
 
-    ControllerEventProcessorConfig withDefault() {
+    public static ControllerEventProcessorConfig withDefault() {
         return ControllerEventProcessorConfigImpl.builder()
                 .scopeName("system")
                 .commitStreamName("commitStream")

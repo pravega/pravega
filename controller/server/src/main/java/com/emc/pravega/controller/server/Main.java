@@ -54,23 +54,12 @@ public class Main {
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
-        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.builder()
-                .scopeName("system")
-                .commitStreamName("commitStream")
-                .abortStreamName("abortStream")
-                .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
-                .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
-                .commitReaderGroupName("commitStreamReaders")
-                .commitReaderGroupSize(1)
-                .abortReaderGrouopName("abortStreamReaders")
-                .abortReaderGroupSize(1)
-                .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
-                .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
-                .build();
+        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
                 .port(Config.RPC_SERVER_PORT)
                 .build();
+
         RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
                 .host(Config.REST_SERVER_IP)
                 .port(Config.REST_SERVER_PORT)
