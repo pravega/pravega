@@ -4,11 +4,11 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
-import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
-import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -23,19 +23,21 @@ import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+
 
 @Slf4j
 public class ControllerWrapper implements AutoCloseable {
@@ -92,10 +94,12 @@ public class ControllerWrapper implements AutoCloseable {
         SegmentHelper segmentHelper = new SegmentHelper();
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, executor, hostId);
+                segmentHelper, executor, hostId, connectionFactory);
+
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, executor, hostId);
+                hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory);
 
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
@@ -111,7 +115,7 @@ public class ControllerWrapper implements AutoCloseable {
 
         if (!disableEventProcessor) {
             controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
-                    client, streamStore, hostStore, segmentHelper, executor);
+                    client, streamStore, hostStore, segmentHelper, connectionFactory, executor);
         } else {
             controllerEventProcessors = null;
         }

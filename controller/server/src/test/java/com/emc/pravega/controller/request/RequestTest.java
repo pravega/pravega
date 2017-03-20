@@ -20,6 +20,7 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -80,10 +81,11 @@ public class RequestTest {
         hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executor, hostId);
+                executor, hostId, connectionFactory);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, executor, hostId);
+                segmentHelper, executor, hostId, connectionFactory);
 
         long createTimestamp = System.currentTimeMillis();
 

@@ -9,26 +9,28 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Positions;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import com.emc.pravega.stream.PingFailedException;
@@ -55,7 +57,7 @@ import lombok.extern.slf4j.Slf4j;
  * RPC based client implementation of Stream Controller V1 API.
  */
 @Slf4j
-public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
+public class ControllerImpl implements Controller {
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
@@ -114,7 +116,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         long traceId = LoggerHelpers.traceEnter(log, "deleteScope", scopeName);
         log.trace("Invoke AdminService.Client.deleteScope() with name: {}", scopeName);
 
-        RPCAsyncCallback<Controller.DeleteScopeStatus> callback = new RPCAsyncCallback<>();
+        RPCAsyncCallback<DeleteScopeStatus> callback = new RPCAsyncCallback<>();
         client.deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
         return callback.getFuture()
                 .thenApply(x -> {
@@ -279,25 +281,24 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp,
-            final int count) {
-        long traceId = LoggerHelpers.traceEnter(log, "getPositions", stream, timestamp, count);
+    public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(final Stream stream, final long timestamp) {
         Preconditions.checkNotNull(stream, "stream");
 
-        RPCAsyncCallback<Positions> callback = new RPCAsyncCallback<>();
-        client.getPositions(GetPositionRequest.newBuilder()
-                                    .setStreamInfo(ModelHelper.createStreamInfo(
-                                            stream.getScope(), stream.getStreamName()))
-                                    .setTimestamp(timestamp)
-                                    .setCount(count)
-                                    .build(),
-                            callback);
-        return callback.getFuture()
-                .thenApply(positions -> {
-                    log.debug("Received the following data from the controller {}", positions);
-                    return positions.getPositionsList().stream().map(ModelHelper::encode).collect(Collectors.toList());
-                })
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "getPositions", traceId));
+        log.trace("Invoke ConsumerService.Client.getSegmentsAtTime() for stream: {}, timestamp: {}", stream, timestamp);
+        RPCAsyncCallback<SegmentsAtTime> callback = new RPCAsyncCallback<>();
+        StreamInfo streamInfo = ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName());
+        GetSegmentsRequest request = GetSegmentsRequest.newBuilder()
+                                                       .setStreamInfo(streamInfo)
+                                                       .setTimestamp(timestamp)
+                                                       .build();
+        client.getSegments(request, callback);
+        return callback.getFuture().thenApply(segments -> {
+            log.debug("Received the following data from the controller {}", segments);
+            return segments.getSegmentsList()
+                           .stream()
+                           .collect(Collectors.toMap(location -> ModelHelper.encode(location.getSegmentId()),
+                                                     location -> location.getOffset()));
+        });
     }
 
     @Override
@@ -403,20 +404,19 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         long traceId = LoggerHelpers.traceEnter(log, "commitTransaction", stream, txId);
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
-
-        RPCAsyncCallback<Controller.TxnStatus> callback = new RPCAsyncCallback<>();
+        log.trace("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
+        RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>();
         client.commitTransaction(TxnRequest.newBuilder()
-                                         .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                                                     stream.getStreamName()))
-                                         .setTxnId(ModelHelper.decode(txId))
-                                         .build(),
+                                           .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                                                                       stream.getStreamName()))
+                                           .setTxnId(ModelHelper.decode(txId))
+                                           .build(),
                                  callback);
 
-        return FutureHelpers.toVoidExpecting(
-                callback.getFuture(),
-                Controller.TxnStatus.newBuilder().setStatus(Controller.TxnStatus.Status.SUCCESS).build(),
-                TxnFailedException::new)
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "commitTransaction", traceId));
+        return FutureHelpers.toVoidExpecting(callback.getFuture(),
+                                             TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(),
+                                             TxnFailedException::new)
+                            .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "commitTransaction", traceId));
     }
 
     @Override
@@ -424,19 +424,18 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         long traceId = LoggerHelpers.traceEnter(log, "abortTransaction", stream, txId);
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
-
-        RPCAsyncCallback<Controller.TxnStatus> callback = new RPCAsyncCallback<>();
+        log.trace("Invoke AdminService.Client.abortTransaction() with stream: {}, txUd: {}", stream, txId);
+        RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>();
         client.abortTransaction(TxnRequest.newBuilder()
-                                       .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                                                   stream.getStreamName()))
-                                       .setTxnId(ModelHelper.decode(txId))
-                                       .build(),
+                                          .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                                                                      stream.getStreamName()))
+                                          .setTxnId(ModelHelper.decode(txId))
+                                          .build(),
                                 callback);
         return FutureHelpers.toVoidExpecting(callback.getFuture(),
-                Controller.TxnStatus.newBuilder().setStatus(
-                        Controller.TxnStatus.Status.SUCCESS).build(),
-                TxnFailedException::new)
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "abortTransaction", traceId));
+                                             TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(),
+                                             TxnFailedException::new)
+                            .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "abortTransaction", traceId));
     }
 
     @Override
@@ -447,14 +446,14 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
 
         RPCAsyncCallback<TxnState> callback = new RPCAsyncCallback<>();
         client.checkTransactionState(TxnRequest.newBuilder()
-                                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                                                         stream.getStreamName()))
-                                             .setTxnId(ModelHelper.decode(txId))
-                                             .build(),
+                                               .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                                                                           stream.getStreamName()))
+                                               .setTxnId(ModelHelper.decode(txId))
+                                               .build(),
                                      callback);
         return callback.getFuture()
-                .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId))
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId));
+                       .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId))
+                       .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId));
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.

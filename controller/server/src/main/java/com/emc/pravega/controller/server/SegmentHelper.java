@@ -20,12 +20,10 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 public class SegmentHelper {
 
@@ -300,7 +298,7 @@ public class SegmentHelper {
 
     public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy,
                                                 int segmentNumber, HostControllerStore hostControllerStore,
-                                                ConnectionFactoryImpl clientCF) {
+                                                ConnectionFactory clientCF) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 

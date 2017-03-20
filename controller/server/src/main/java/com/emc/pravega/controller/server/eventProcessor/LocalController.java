@@ -25,9 +25,7 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ControllerFailureException;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamSegments;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -238,9 +236,13 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return controller.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count)
-                .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
+    public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(Stream stream, long timestamp) {
+        return controller.getSegmentsAtTime(stream.getScope(), stream.getStreamName(), timestamp).thenApply(segments -> {
+            return segments.entrySet()
+                           .stream()
+                           .collect(Collectors.toMap(entry -> ModelHelper.encode(entry.getKey()),
+                                                     entry -> entry.getValue()));
+        });
     }
 
     @Override
