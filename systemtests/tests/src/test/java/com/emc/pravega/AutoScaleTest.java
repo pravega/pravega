@@ -56,8 +56,7 @@ public class AutoScaleTest {
     private final static String SCALE_UP_TXN_STREAM_NAME = "testTxnScaleUp";
     private final static String SCALE_DOWN_STREAM_NAME = "testScaleDown";
 
-    private static final ScalingPolicy SCALING_POLICY = new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC,
-            1, 2, 1);
+    private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 1);
     private static final StreamConfiguration CONFIG_UP = StreamConfiguration.builder().scope(SCOPE)
             .streamName(SCALE_UP_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
 

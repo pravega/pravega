@@ -62,7 +62,7 @@ public class EndToEndTransactionTest {
             return;
         }
 
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 5);
+        ScalingPolicy policy = ScalingPolicy.fixed(5);
         StreamConfiguration streamConfig =
                 StreamConfiguration.builder()
                         .scope(testScope)
