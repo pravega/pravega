@@ -10,9 +10,12 @@ import com.emc.pravega.common.util.ConfigurationException;
 
 import java.util.Properties;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * General configuration for Metrics.
  */
+@Slf4j
 public class MetricsConfig extends ComponentConfig {
     //region Members
     public static final String COMPONENT_CODE = "metrics";
@@ -55,6 +58,7 @@ public class MetricsConfig extends ComponentConfig {
      */
     public MetricsConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+        refresh();
     }
 
     /**
