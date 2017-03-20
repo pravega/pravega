@@ -44,12 +44,12 @@ import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.util.IOUtils;
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.commons.lang.NotImplementedException;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.File;
@@ -58,7 +58,6 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.Arrays;
-import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -297,7 +296,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                                           .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId])
-                            .with(ServiceConfig.CONTROLLER_URI,"tcp://localhost:" + controllerPorts[0]))
+                            .with(ServiceConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]))
                     .include(DurableLogConfig.builder()
                                              .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                              .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
@@ -305,7 +304,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .include(ReadIndexConfig.builder()
                                             .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
                                             .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L));
-
 
             if ( !isInMemStorage ) {
                     configBuilder = configBuilder.include(HDFSStorageConfig.builder()
