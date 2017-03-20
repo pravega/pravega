@@ -40,10 +40,12 @@ public class EndToEndAutoScaleUpWithTxnTest {
             @Cleanup
             TestingServer zkTestServer = new TestingServer();
 
+            @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
             Controller controller = controllerWrapper.getController();
             controllerWrapper.getControllerService().createScope("pravega").get();
 
+            @Cleanup
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -75,6 +77,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
                     if (streamSegments.getSegments().size() > 3) {
                         System.err.println("Success scale up");
+                        log.debug("Success scale up");
                         done.set(true);
                     } else {
                         Thread.sleep(10000);
@@ -86,6 +89,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             }
         } catch (Throwable e) {
             System.err.print("Test failed with exception: " + e.getMessage());
+            log.error("Test failed with exception: {}", e);
             System.exit(-1);
         }
 
@@ -104,6 +108,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     transaction.commit();
                 } catch (Throwable e) {
                     System.err.println("test exception writing events " + e.getMessage());
+                    log.error("test exception writing events {}", e);
                 }
             }
         });
