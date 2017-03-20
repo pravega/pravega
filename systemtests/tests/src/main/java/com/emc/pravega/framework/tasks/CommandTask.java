@@ -45,7 +45,7 @@ public class CommandTask extends MetronomeBasedTask {
         log.info("Starting execution of Command Task with id : {}", id);
         Job cmd = createJob(id, cpu, mem, disk);
         try {
-            startTaskExecution(cmd).get(5, TimeUnit.MINUTES);
+            startTaskExecution(cmd).get(10, TimeUnit.MINUTES);
         } catch (InterruptedException | ExecutionException | TimeoutException ex) {
             log.error("Error while execution Command Task with id : {}", id, ex);
             throw new TestFrameworkException(InternalError, "Error executing command Task.", ex);
@@ -71,7 +71,8 @@ public class CommandTask extends MetronomeBasedTask {
 
         Run run = new Run();
         run.setArtifacts(Collections.emptyList());
-        run.setCmd("/bin/bash -c " + command.replaceAll(" ", "\\ ")); // enable multiple commands seperated by ;
+        run.setCmd("/bin/bash -c \"" + command.replaceAll(" ", "\\ ") +"\"");
+        // enable multiple commands seperated by ;
 
         run.setCpus(cpu);
         run.setMem(mem);
@@ -89,4 +90,5 @@ public class CommandTask extends MetronomeBasedTask {
 
         return job;
     }
+
 }
