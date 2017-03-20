@@ -8,32 +8,27 @@ package com.emc.pravega.controller.eventProcessor.impl;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
-import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
-import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
-import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReinitializationRequiredException;
-import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -103,22 +98,14 @@ public class EventProcessorTest {
     private static class MockEventRead<T> implements EventRead<T> {
 
         final T value;
-        final Position position;
 
-        MockEventRead(long position, T value) {
+        MockEventRead(T value) {
             this.value = value;
-            Segment segment = new Segment(SCOPE, STREAM_NAME, 0);
-            this.position = new PositionImpl(Collections.singletonMap(segment, position));
         }
 
         @Override
         public T getEvent() {
             return value;
-        }
-
-        @Override
-        public Position getPosition() {
-            return position;
         }
 
         @Override
@@ -167,9 +154,9 @@ public class EventProcessorTest {
 
         List<MockEventRead<TestEvent>> inputEvents = new ArrayList<>(input.length);
         for (int i = 0; i < input.length; i++) {
-            inputEvents.add(new MockEventRead<>(i, new TestEvent(input[i])));
+            inputEvents.add(new MockEventRead<>(new TestEvent(input[i])));
         }
-        inputEvents.add(new MockEventRead<>(input.length, new TestEvent(-1)));
+        inputEvents.add(new MockEventRead<>(new TestEvent(-1)));
 
         EventProcessorSystem system = Mockito.mock(EventProcessorSystem.class);
         Mockito.when(system.getProcess()).thenReturn(PROCESS);
