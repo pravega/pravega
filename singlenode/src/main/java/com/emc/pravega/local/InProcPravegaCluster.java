@@ -122,6 +122,20 @@ public class InProcPravegaCluster implements AutoCloseable {
                 boolean isInProcHDFS, boolean isInProcDL, int initialBookiePort,
                 boolean isInprocController, int controllerCount,
                 boolean isInprocSSS, int sssCount, String containerCount, boolean startRestServer) {
+
+        //Check for valid combinations of flags
+        //For ZK
+        Preconditions.checkState(isInProcZK || zkUrl != null, "ZkUrl must be specified");
+
+        //For controller
+        Preconditions.checkState( isInprocController || controllerURI != null,
+                "ControllerURI should be defined for external controller");
+        Preconditions.checkState(isInprocController || this.controllerPorts != null,
+                "Controller ports not present");
+
+        //For SSS
+        Preconditions.checkState(  isInprocSSS || this.sssPorts != null, "SSS ports not declared");
+
         this.isInMemStorage = isInMemStorage;
         if ( isInMemStorage ) {
             this.isInProcHDFS = false;
@@ -140,6 +154,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.sssCount = sssCount;
         this.containerCount = containerCount;
         this.startRestServer = startRestServer;
+        checkAvailableFeatures();
     }
 
     @Synchronized
@@ -160,14 +175,12 @@ public class InProcPravegaCluster implements AutoCloseable {
     @Synchronized
     public void start() throws Exception {
         /*Check possible combinations of flags*/
-        checkFeatures();
 
         /*Start the ZK*/
         if (isInProcZK) {
             zkUrl = "localhost:" + zkPort;
             startLocalZK();
         } else {
-            Preconditions.checkState(zkUrl != null, "ZkUrl must be specified");
             URI zkUri = new URI("temp://" + zkUrl);
             zkHost = zkUri.getHost();
             zkPort = zkUri.getPort();
@@ -188,9 +201,6 @@ public class InProcPravegaCluster implements AutoCloseable {
         if (isInprocController) {
             controllerServices = new ControllerService[controllerCount];
             startLocalControllers();
-        } else {
-            Preconditions.checkState(controllerURI != null,
-                    "ControllerURI should be defined for external controller");
         }
 
         if (isInprocSSS) {
@@ -200,9 +210,9 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     }
 
-    private void checkFeatures() {
+    private void checkAvailableFeatures() {
         if ( isInProcDL ) {
-           //Can not instantiate DL in proc
+           //Can not instantiate DL in proc till DL-192 is fixed
            throw new NotImplementedException();
         }
     }
@@ -276,9 +286,6 @@ public class InProcPravegaCluster implements AutoCloseable {
      */
     @Synchronized
     private void startLocalSSS(int sssId) {
-        Preconditions.checkState(this.nodeServiceStarter != null, "SSSs not created");
-        Preconditions.checkState( this.sssPorts != null, "SSS ports not declared");
-        Preconditions.checkState( sssId < sssCount, "SSS not initialized");
 
         try {
             Properties p = new Properties();
@@ -319,7 +326,11 @@ public class InProcPravegaCluster implements AutoCloseable {
 
             ServiceBuilderConfig props = new ServiceBuilderConfig(p);
 
-            nodeServiceStarter[sssId] = new ServiceStarter(props, isInMemStorage);
+            ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
+                    .zkSegmentManager(true);
+
+            nodeServiceStarter[sssId] = new ServiceStarter(props, isInMemStorage? optBuilder.hdfs(false)
+                    .distributedLog(false).build(): optBuilder.hdfs(true).distributedLog(true).build());
         } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             throw e;
@@ -340,9 +351,6 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     @Synchronized
     private void startLocalController(int controllerId) {
-        Preconditions.checkState(this.controllerServers != null && this.controllerPorts != null,
-                "Controllers not present");
-        Preconditions.checkState(controllerId < controllerCount, "Controller not initialized");
 
         ScheduledExecutorService controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
@@ -426,11 +434,6 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
     }
 
-    @Synchronized
-    public void stopController(int controllerId) {
-        this.controllerServers[controllerId].stopAsync().awaitTerminated();
-    }
-
     @Override
     @Synchronized
     public void close() {
@@ -444,10 +447,5 @@ public class InProcPravegaCluster implements AutoCloseable {
                     controller.stopAsync();
                 }
         }
-    }
-
-    @Synchronized
-    public void stopSSS(int sssId) {
-        this.nodeServiceStarter[sssId].shutdown();
     }
 }
