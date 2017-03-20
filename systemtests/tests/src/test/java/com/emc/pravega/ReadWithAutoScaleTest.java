@@ -65,7 +65,7 @@ public class ReadWithAutoScaleTest {
     //Initial number of segments is 2.
     private static final ScalingPolicy SCALING_POLICY = new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC,
             1, 2, 2);
-    private static final StreamConfiguration CONFIG_UP = StreamConfiguration.builder().scope(SCOPE)
+    private static final StreamConfiguration CONFIG = StreamConfiguration.builder().scope(SCOPE)
             .streamName(STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
 
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
@@ -91,7 +91,6 @@ public class ReadWithAutoScaleTest {
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
-
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
 
         //3. start controller
@@ -99,7 +98,6 @@ public class ReadWithAutoScaleTest {
         if (!conService.isRunning()) {
             conService.start(true);
         }
-
         List<URI> conUris = conService.getServiceDetails();
         log.debug("Pravega Controller service details: {}", conUris);
 
@@ -108,8 +106,8 @@ public class ReadWithAutoScaleTest {
         if (!segService.isRunning()) {
             segService.start(true);
         }
-
         log.debug("Pravega host service details: {}", segService.getServiceDetails());
+
     }
 
     /**
@@ -131,7 +129,7 @@ public class ReadWithAutoScaleTest {
         assertNotEquals(Controller.CreateScopeStatus.Status.FAILURE, createScopeStatus.get().getStatus());
 
         //create a stream
-        CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(CONFIG_UP);
+        CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(CONFIG);
         log.debug("Create stream status for scale up stream {}", createStreamStatus.get().getStatus());
         assertNotEquals(Controller.CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
     }
@@ -162,8 +160,6 @@ public class ReadWithAutoScaleTest {
         ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
 
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
-        final AtomicBoolean stopReadFlag = new AtomicBoolean(false); //TODO: remove
-
         final AtomicLong data = new AtomicLong(); //data used by each of the writers.
 
         @Cleanup
@@ -210,7 +206,8 @@ public class ReadWithAutoScaleTest {
                             } else {
                                 Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
                             }
-                        }), EXECUTOR_SERVICE).thenCompose(v -> CompletableFuture.allOf(reader1, reader2))
+                        }), EXECUTOR_SERVICE)
+                .thenCompose(v -> CompletableFuture.allOf(reader1, reader2))
                 .thenRun(() -> validateResults(data.get(), eventsReadFromPravega));
     }
 
@@ -252,7 +249,6 @@ public class ReadWithAutoScaleTest {
             }
         });
     }
-
 
     private void startNewTxnWriter(final AtomicLong data, final ClientFactory clientFactory, final AtomicBoolean
             exitFlag) {
@@ -304,7 +300,7 @@ public class ReadWithAutoScaleTest {
     private class NotDoneException extends RuntimeException {
     }
 
-    private void recordResult(CompletableFuture<Void> scaleTestResult, String testName) {
+    private void recordResult(final CompletableFuture<Void> scaleTestResult, final String testName) {
         FutureHelpers.getAndHandleExceptions(scaleTestResult.handle((r, e) -> {
             if (e != null) {
                 log.error("test {} failed with exception {}", testName, e);
