@@ -48,7 +48,7 @@ public class FlinkPravegaReaderTest {
 
     //Ensure each test completes within 30 seconds.
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
     @Before
     public void setup() throws Exception {

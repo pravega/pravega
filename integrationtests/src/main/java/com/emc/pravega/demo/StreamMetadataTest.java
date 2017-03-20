@@ -148,7 +148,7 @@ public class StreamMetadataTest {
         final StreamConfiguration config3 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(streamName2)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3))
+                .scalingPolicy(ScalingPolicy.fixed(3))
                 .build();
         System.err.println(String.format("Creating stream with different stream  name (%s) and config in same scope (%s)", scope1, streamName2));
         createStatus = controller.createStream(config3);
@@ -181,7 +181,7 @@ public class StreamMetadataTest {
         final StreamConfiguration config6 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(streamName1)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_KBYTES_PER_SEC, 100, 2, 2))
+                .scalingPolicy(ScalingPolicy.byDataRate(100, 2, 2))
                 .build();
         updateStatus = controller.alterStream(config6);
         System.err.println(String.format("Updating the  type of scaling policy(%s, %s)", scope1, streamName1));
@@ -196,8 +196,7 @@ public class StreamMetadataTest {
         final StreamConfiguration config7 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(streamName1)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
-                        200, 2, 2))
+                .scalingPolicy(ScalingPolicy.byDataRate(200, 2, 2))
                 .build();
         System.err.println(String.format("Updating the target rate (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config7);
@@ -212,8 +211,7 @@ public class StreamMetadataTest {
         final StreamConfiguration config8 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(streamName1)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
-                        100, 3, 2))
+                .scalingPolicy(ScalingPolicy.byDataRate(200, 4, 2))
                 .build();
         System.err.println(String.format("Updating the scalefactor (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config8);
@@ -228,9 +226,7 @@ public class StreamMetadataTest {
         final StreamConfiguration config9 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(streamName1)
-                .scalingPolicy(new ScalingPolicy(
-                        ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
-                        100, 2, 3))
+                .scalingPolicy(ScalingPolicy.byDataRate(200, 4, 3))
                 .build();
         System.err.println(String.format("Updating the min Num segments (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config9);
@@ -245,9 +241,7 @@ public class StreamMetadataTest {
         final StreamConfiguration config = StreamConfiguration.builder()
                 .scope("scope")
                 .streamName("streamName")
-                .scalingPolicy(new ScalingPolicy(
-                        ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
-                        200, 2, 3))
+                .scalingPolicy(ScalingPolicy.fixed(2))
                 .build();
         System.err.println(String.format("Altering the  configuration of a non-existent stream (%s, %s)", "scope", "streamName"));
         updateStatus = controller.alterStream(config);

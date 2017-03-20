@@ -38,8 +38,8 @@ public abstract class StreamMetadataStoreTest {
     private final String scope = "scope";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
-    private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
-    private final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
+    private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+    private final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
     private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(scope).streamName(stream1).scalingPolicy(policy1).build();
     private final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream2).scalingPolicy(policy2).build();
 
