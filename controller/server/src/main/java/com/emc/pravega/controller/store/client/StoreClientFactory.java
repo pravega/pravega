@@ -22,9 +22,6 @@ public class StoreClientFactory {
                 return new ZKStoreClient(createZKClient(storeClientConfig.getZkClientConfig().get()));
             case InMemory:
                 return new InMemoryStoreClient();
-            case ECS:
-            case S3:
-            case HDFS:
             default:
                 throw new NotImplementedException();
         }
