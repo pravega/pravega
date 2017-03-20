@@ -69,8 +69,8 @@ import static org.apache.bookkeeper.util.LocalBookKeeper.runZookeeper;
 @Slf4j
 public class InProcPravegaCluster implements AutoCloseable {
 
-    private static final String THREADPOOL_SIZE = "20";
-    private static final String CONTAINER_COUNT = "4";
+    private static final int THREADPOOL_SIZE = 20;
+    private static final int CONTAINER_COUNT = 4;
     private final boolean isInMemStorage;
 
     /*Controller related variables*/
@@ -271,7 +271,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         localHdfs.start();
     }
 
-    private void startLocalSSSs() {
+    private void startLocalSSSs() throws IOException {
         for (int i = 0; i < this.sssCount; i++) {
             startLocalSSS(i);
         }
@@ -285,51 +285,41 @@ public class InProcPravegaCluster implements AutoCloseable {
      * @param sssId id of the SSS.
      */
     @Synchronized
-    private void startLocalSSS(int sssId) {
+    private void startLocalSSS(int sssId) throws IOException {
 
         try {
-            Properties p = new Properties();
+                ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
+                    .builder()
+                    .include("config.properties")
+                    .include(System.getProperties())
+                    .include(ServiceConfig.builder()
+                                          .with(ServiceConfig.CONTAINER_COUNT, CONTAINER_COUNT)
+                                          .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
+                                          .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
+                                          .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId])
+                            .with(ServiceConfig.CONTROLLER_URI,"tcp://localhost:" + controllerPorts[0]))
+                    .include(DurableLogConfig.builder()
+                                             .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+                                             .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
+                                             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
+                    .include(ReadIndexConfig.builder()
+                                            .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
+                                            .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L));
+
 
             if ( !isInMemStorage ) {
-                ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
-                        String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
-                ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
-                        "localhost");
-                ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
-                        Integer.toString(zkPort));
+                    configBuilder = configBuilder.include(HDFSStorageConfig.builder()
+                        .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/",
+                                localHdfs.getNameNodePort())))
+                            .include(DistributedLogConfig.builder()
+                                    .with(DistributedLogConfig.HOSTNAME, "localhost")
+                                    .with(DistributedLogConfig.PORT, zkPort));
             }
-
-            // Change Number of containers and Thread Pool Size for each test.
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT,
-                    CONTAINER_COUNT);
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE,
-                    THREADPOOL_SIZE);
-
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
-                    DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
-                    DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, "100");
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
-                    DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, "104857600");
-
-            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME,
-                    Integer.toString(60 * 1000));
-            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE,
-                    Long.toString(128 * 1024 * 1024));
-
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, "localhost:" +
-                    zkPort);
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
-                    Integer.toString(sssPorts[sssId]));
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTROLLER_URI,
-                    "tcp://localhost:" + controllerPorts[0]);
-
-            ServiceBuilderConfig props = new ServiceBuilderConfig(p);
 
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
                     .zkSegmentManager(true);
 
-            nodeServiceStarter[sssId] = new ServiceStarter(props, isInMemStorage ? optBuilder.hdfs(false)
+            nodeServiceStarter[sssId] = new ServiceStarter(configBuilder.build(), isInMemStorage ? optBuilder.hdfs(false)
                     .distributedLog(false).build() : optBuilder.hdfs(true).distributedLog(true).build());
         } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);

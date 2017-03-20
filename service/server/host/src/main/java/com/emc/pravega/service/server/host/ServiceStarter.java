@@ -26,6 +26,8 @@ import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import java.net.URI;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -52,7 +54,7 @@ public final class ServiceStarter {
 
     public ServiceStarter(ServiceBuilderConfig config, Options options) {
         this.builderConfig = config;
-        this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
+        this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::builder);
         this.serviceBuilder = createServiceBuilder(options);
     }
 
@@ -85,7 +87,7 @@ public final class ServiceStarter {
         Exceptions.checkNotClosed(this.closed, this);
 
         log.info("Initializing metrics provider ...");
-        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::new));
+        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start();
 
@@ -135,7 +137,7 @@ public final class ServiceStarter {
     private void attachDistributedLog(ServiceBuilder builder) {
         builder.withDataLogFactory(setup -> {
             try {
-                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
+                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::builder);
                 String clientId = String.format("%s-%s", this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort());
                 DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory(clientId, dlConfig, setup.getExecutor());
                 factory.initialize();
@@ -147,13 +149,13 @@ public final class ServiceStarter {
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)));
+        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
     }
 
     private void attachHDFS(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::new);
+                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
                 HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
                 factory.initialize();
                 return factory;
@@ -198,7 +200,7 @@ public final class ServiceStarter {
                     .include("config.properties")
                     .include(System.getProperties())
                     .build();
-            serviceStarter.set(new ServiceStarter(config), Options.builder().
+            serviceStarter.set(new ServiceStarter(config, Options.builder().
                     distributedLog(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
