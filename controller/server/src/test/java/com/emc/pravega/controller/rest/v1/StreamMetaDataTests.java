@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.rest.v1;
 
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rest.CustomObjectMapperProvider;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
@@ -16,7 +17,6 @@ import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -27,17 +27,17 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStat
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.StreamConfiguration;
-
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-
+import java.util.concurrent.TimeUnit;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.core.Response;
-
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
@@ -45,10 +45,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
