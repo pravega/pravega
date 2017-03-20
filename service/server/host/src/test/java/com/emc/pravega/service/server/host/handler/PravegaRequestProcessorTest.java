@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.host.handler;
 
@@ -35,7 +33,6 @@ import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
@@ -58,10 +55,7 @@ import static org.mockito.Mockito.when;
 @Slf4j
 public class PravegaRequestProcessorTest {
     static {
-        Properties properties = new Properties();
-
-        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
-        MetricsProvider.initialize(new MetricsConfig(properties));
+        MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build());
     }
 
     @Data
@@ -205,10 +199,12 @@ public class PravegaRequestProcessorTest {
     }
 
     private static ServiceBuilderConfig getBuilderConfig() {
-        Properties p = new Properties();
-        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
-        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "3");
-        return new ServiceBuilderConfig(p);
+        return ServiceBuilderConfig
+                .builder()
+                .include(ServiceConfig.builder()
+                                      .with(ServiceConfig.CONTAINER_COUNT, 1)
+                                      .with(ServiceConfig.THREAD_POOL_SIZE, 3))
+                .build();
     }
 
     private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {

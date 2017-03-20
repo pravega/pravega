@@ -1,12 +1,10 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
@@ -18,7 +16,6 @@ import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
-import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.mocks.LocalSegmentContainerManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
@@ -28,20 +25,19 @@ import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
+import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Helps create StreamSegmentStore Instances.
@@ -76,7 +72,7 @@ public final class ServiceBuilder implements AutoCloseable {
     //region Constructor
 
     public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig) {
-        this(serviceBuilderConfig, createExecutorService(serviceBuilderConfig.getConfig(ServiceConfig::new)));
+        this(serviceBuilderConfig, createExecutorService(serviceBuilderConfig.getConfig(ServiceConfig::builder)));
     }
 
     /**
@@ -88,7 +84,7 @@ public final class ServiceBuilder implements AutoCloseable {
     public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(serviceBuilderConfig, "config");
         this.serviceBuilderConfig = serviceBuilderConfig;
-        ServiceConfig serviceConfig = this.serviceBuilderConfig.getConfig(ServiceConfig::new);
+        ServiceConfig serviceConfig = this.serviceBuilderConfig.getConfig(ServiceConfig::builder);
         this.segmentToContainerMapper = new SegmentToContainerMapper(serviceConfig.getContainerCount());
         this.executorService = executorService;
         this.operationLogFactory = new AtomicReference<>();
@@ -249,13 +245,13 @@ public final class ServiceBuilder implements AutoCloseable {
 
     private WriterFactory createWriterFactory() {
         StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
-        WriterConfig writerConfig = this.serviceBuilderConfig.getConfig(WriterConfig::new);
+        WriterConfig writerConfig = this.serviceBuilderConfig.getConfig(WriterConfig::builder);
         return new StorageWriterFactory(writerConfig, storageFactory, this.executorService);
     }
 
     private ReadIndexFactory createReadIndexFactory() {
         StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
-        ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::new);
+        ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::builder);
         return new ContainerReadIndexFactory(readIndexConfig, storageFactory, this.executorService);
     }
 
@@ -276,7 +272,7 @@ public final class ServiceBuilder implements AutoCloseable {
 
     private OperationLogFactory createOperationLogFactory() {
         DurableDataLogFactory dataLogFactory = getSingleton(this.dataLogFactory, this.dataLogFactoryCreator);
-        DurableLogConfig durableLogConfig = this.serviceBuilderConfig.getConfig(DurableLogConfig::new);
+        DurableLogConfig durableLogConfig = this.serviceBuilderConfig.getConfig(DurableLogConfig::builder);
         return new DurableLogFactory(durableLogConfig, dataLogFactory, this.executorService);
     }
 
@@ -368,13 +364,13 @@ public final class ServiceBuilder implements AutoCloseable {
         }
 
         /**
-         * Gets the ComponentConfig with specified constructor from the ServiceBuilder's config.
+         * Gets the Configuration with specified constructor from the ServiceBuilder's config.
          *
-         * @param constructor The ComponentConfig constructor.
-         * @param <T>         The type of the ComponentConfig to instantiate.
+         * @param builderConstructor A Supplier that creates a ConfigBuilder for the desired configuration type.
+         * @param <T>         The type of the Configuration to instantiate.
          */
-        public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
-            return this.builder.serviceBuilderConfig.getConfig(constructor);
+        public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> builderConstructor) {
+            return this.builder.serviceBuilderConfig.getConfig(builderConstructor);
         }
 
         /**
