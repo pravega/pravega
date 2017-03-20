@@ -6,19 +6,12 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,51 +28,57 @@ public interface Controller {
      * Api to create scope.
      *
      * @param scopeName Scope name.
-     * @return Status of create stream operation.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the scope was added because it did not already exist.
      */
-    CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
+    CompletableFuture<Boolean> createScope(final String scopeName);
 
     /**
      * API to delete scope.
      *
      * @param scopeName Scope name.
-     * @return          Status of delete scope operation.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the scope was removed because it existed.
      */
-    CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
+    CompletableFuture<Boolean> deleteScope(final String scopeName);
 
     /**
      * Api to create stream.
      *
      * @param streamConfig Stream configuration
-     * @return Status of create stream operation.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the stream was added because it did not already exist.
      */
-    CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig);
+    CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig);
 
     /**
      * Api to alter stream.
      *
      * @param streamConfig Stream configuration to updated
-     * @return Status of update stream operation.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the stream was altered because the config is now different from before.
      */
-    CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
+    CompletableFuture<Boolean> alterStream(final StreamConfiguration streamConfig);
 
     /**
      * Api to seal stream.
      * 
      * @param scope Scope
      * @param streamName Stream name
-     * @return Status of update stream operation.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the stream was sealed because it was not previously.
      */
-    CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName);
+    CompletableFuture<Boolean> sealStream(final String scope, final String streamName);
 
     /**
      * API to delete stream. Only a sealed stream can be deleted.
      *
      * @param scope      Scope name.
      * @param streamName Stream name.
-     * @return           Status of delete stream operation.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the stream was removed because it existed.
      */
-    CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String streamName);
+    CompletableFuture<Boolean> deleteStream(final String scope, final String streamName);
 
     /**
      * API to merge or split stream segments.
@@ -87,9 +86,11 @@ public interface Controller {
      * @param stream Stream object.
      * @param sealedSegments List of segments to be sealed.
      * @param newKeyRanges Key ranges after scaling the stream.
-     * @return Status of scale operation.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the stream was altered or false if the segments to seal have already
+     *         been sealed.
      */
-    CompletableFuture<ScaleResponse> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
             final Map<Double, Double> newKeyRanges);
 
     // Controller Apis called by pravega producers for getting stream specific information

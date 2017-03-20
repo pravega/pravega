@@ -37,7 +37,10 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
-
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.stub.StreamObserver;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,11 +49,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -87,7 +85,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
     }
 
     @Override
-    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+    public CompletableFuture<Boolean> createScope(final String scopeName) {
         long traceId = LoggerHelpers.traceEnter(log, "createScope", scopeName);
 
         RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>();
@@ -95,12 +93,24 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         return callback.getFuture()
                 .thenApply(x -> {
                     LoggerHelpers.traceLeave(log, "createScope", traceId);
-                    return x;
+                    switch(x.getStatus()) {
+                    case FAILURE:
+                        throw new ControllerFailureException("Failed to create scope: " + scopeName);
+                    case INVALID_SCOPE_NAME:
+                        throw new IllegalArgumentException("Illegal scope name: " + scopeName);
+                    case SCOPE_EXISTS:
+                        return false;
+                    case SUCCESS:
+                        return true;
+                    default:
+                        throw new ControllerFailureException("Unknown return status creating scope " + scopeName
+                                                             + " " + x.getStatus());
+                    }
                 });
     }
 
     @Override
-    public CompletableFuture<Controller.DeleteScopeStatus> deleteScope(String scopeName) {
+    public CompletableFuture<Boolean> deleteScope(String scopeName) {
         long traceId = LoggerHelpers.traceEnter(log, "deleteScope", scopeName);
         log.trace("Invoke AdminService.Client.deleteScope() with name: {}", scopeName);
 
@@ -109,34 +119,76 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         return callback.getFuture()
                 .thenApply(x -> {
                     LoggerHelpers.traceLeave(log, "deleteScope", traceId);
-                    return x;
+                    switch(x.getStatus()) {
+                    case FAILURE:
+                        throw new ControllerFailureException("Failed to delete scope: " + scopeName);
+                    case SCOPE_NOT_EMPTY:
+                        throw new IllegalStateException("Scope "+ scopeName+ " is not empty.");
+                    case SCOPE_NOT_FOUND:
+                        return false;
+                    case SUCCESS:
+                        return true;
+                    default:
+                        throw new ControllerFailureException("Unknown return status deleting scope " + scopeName
+                                                             + " " + x.getStatus());
+                    }
                 });
     }
 
     @Override
-    public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
         long traceId = LoggerHelpers.traceEnter(log, "createStream", streamConfig);
         Preconditions.checkNotNull(streamConfig, "streamConfig");
 
         RPCAsyncCallback<CreateStreamStatus> callback = new RPCAsyncCallback<>();
         client.createStream(ModelHelper.decode(streamConfig), callback);
-        return callback.getFuture()
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "createStream", traceId));
+        return callback.getFuture().thenApply(x -> {
+            LoggerHelpers.traceLeave(log, "createStream", traceId);
+            switch(x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
+            case INVALID_STREAM_NAME:
+                throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
+            case SCOPE_NOT_FOUND:
+                throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
+            case STREAM_EXISTS:
+                return false;
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status creating stream " + streamConfig
+                                                     + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> alterStream(final StreamConfiguration streamConfig) {
         long traceId = LoggerHelpers.traceEnter(log, "alterStream", streamConfig);
         Preconditions.checkNotNull(streamConfig, "streamConfig");
 
         RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
         client.alterStream(ModelHelper.decode(streamConfig), callback);
-        return callback.getFuture()
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "alterStream", traceId));
+        return callback.getFuture().thenApply(x -> {
+            LoggerHelpers.traceLeave(log, "alterStream", traceId);
+            switch(x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to altering stream: " + streamConfig);
+            case SCOPE_NOT_FOUND:
+                throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
+            case STREAM_NOT_FOUND:
+                throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status altering stream " + streamConfig
+                                                     + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<ScaleResponse> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    public CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
             final Map<Double, Double> newKeyRanges) {
         long traceId = LoggerHelpers.traceEnter(log, "scaleStream", stream);
         Preconditions.checkNotNull(stream, "stream");
@@ -154,32 +206,76 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
                              .setScaleTimestamp(System.currentTimeMillis())
                              .build(),
                      callback);
-        return callback.getFuture()
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "scaleStream", traceId));
+        return callback.getFuture().thenApply(x -> {
+            LoggerHelpers.traceLeave(log, "scaleStream", traceId);
+            switch (x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to scale stream: " + stream);
+            case PRECONDITION_FAILED:
+                return false;
+            case SUCCESS:
+                return true;
+            case TXN_CONFLICT:
+                throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "
+                        + stream);
+            default:
+                throw new ControllerFailureException("Unknown return status scaling stream " + stream
+                                                     + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName) {
+    public CompletableFuture<Boolean> sealStream(final String scope, final String streamName) {
         long traceId = LoggerHelpers.traceEnter(log, "sealStream", scope, streamName);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
 
         RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
         client.sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
-        return callback.getFuture()
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "sealStream", traceId));
+        return callback.getFuture().thenApply(x -> {
+            LoggerHelpers.traceLeave(log, "sealStream", traceId);
+            switch (x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to seal stream: " + streamName);
+            case SCOPE_NOT_FOUND:
+                throw new IllegalArgumentException("Scope does not exist: " + scope);
+            case STREAM_NOT_FOUND:
+                throw new IllegalArgumentException("Stream does not exist: " + streamName);
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status scealing stream " + streamName
+                                                     + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String streamName) {
+    public CompletableFuture<Boolean> deleteStream(final String scope, final String streamName) {
         long traceId = LoggerHelpers.traceEnter(log, "deleteStream", scope, streamName);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
 
         RPCAsyncCallback<DeleteStreamStatus> callback = new RPCAsyncCallback<>();
         client.deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
-        return callback.getFuture()
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "deleteStream", traceId));
+        return callback.getFuture().thenApply(x -> {
+            LoggerHelpers.traceLeave(log, "deleteStream", traceId);
+            switch (x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to delete stream: " + streamName);
+            case STREAM_NOT_FOUND:
+                return false;
+            case STREAM_NOT_SEALED:
+                throw new IllegalArgumentException("Stream is not sealed: " + streamName);
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status deleting stream " + streamName
+                                                     + " " + x.getStatus());
+            
+            }
+        });
     }
 
     @Override

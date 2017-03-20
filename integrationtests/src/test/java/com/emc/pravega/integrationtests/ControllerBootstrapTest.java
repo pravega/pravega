@@ -5,8 +5,6 @@
  */
 package com.emc.pravega.integrationtests;
 
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -17,16 +15,15 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.testcommon.TestUtils;
-import org.junit.After;
-import org.junit.Assert;
-import org.apache.curator.test.TestingServer;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
@@ -81,8 +78,8 @@ public class ControllerBootstrapTest {
         Controller controller = controllerWrapper.getController();
 
         // Create test scope. This operation should succeed.
-        CreateScopeStatus scopeStatus = controller.createScope(SCOPE).join();
-        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+        Boolean scopeStatus = controller.createScope(SCOPE).join();
+        Assert.assertEquals(true, scopeStatus);
 
         // Try creating a stream. It should not complete until Pravega host has started.
         // After Pravega host starts, stream should be successfully created.
@@ -91,7 +88,7 @@ public class ControllerBootstrapTest {
                 .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        CompletableFuture<CreateStreamStatus> streamStatus = controller.createStream(streamConfiguration);
+        CompletableFuture<Boolean> streamStatus = controller.createStream(streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
 
         // Create transaction should fail.
@@ -116,8 +113,8 @@ public class ControllerBootstrapTest {
 
         // Ensure that create stream succeeds.
         try {
-            CreateStreamStatus status = streamStatus.join();
-            Assert.assertEquals(CreateStreamStatus.Status.SUCCESS, status.getStatus());
+            Boolean status = streamStatus.join();
+            Assert.assertEquals(true, status);
         } catch (CompletionException ce) {
             Assert.fail();
         }

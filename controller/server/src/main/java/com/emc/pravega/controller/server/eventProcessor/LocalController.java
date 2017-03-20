@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.ControllerService;
@@ -22,6 +23,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.ControllerFailureException;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamSegments;
@@ -44,44 +46,146 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
-        return this.controller.createScope(scopeName);
+    public CompletableFuture<Boolean> createScope(final String scopeName) {
+        return this.controller.createScope(scopeName).thenApply(x -> {
+            switch (x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to create scope: " + scopeName);
+            case INVALID_SCOPE_NAME:
+                throw new IllegalArgumentException("Illegal scope name: " + scopeName);
+            case SCOPE_EXISTS:
+                return false;
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status creating scope " + scopeName + " "
+                        + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
-        return this.controller.deleteScope(scopeName);
+    public CompletableFuture<Boolean> deleteScope(String scopeName) {
+        return this.controller.deleteScope(scopeName).thenApply(x -> {
+            switch(x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to delete scope: " + scopeName);
+            case SCOPE_NOT_EMPTY:
+                throw new IllegalStateException("Scope "+ scopeName+ " is not empty.");
+            case SCOPE_NOT_FOUND:
+                return false;
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status deleting scope " + scopeName
+                                                     + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig) {
-        return this.controller.createStream(streamConfig, System.currentTimeMillis());
+    public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
+        return this.controller.createStream(streamConfig, System.currentTimeMillis()).thenApply(x -> {
+            switch(x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
+            case INVALID_STREAM_NAME:
+                throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
+            case SCOPE_NOT_FOUND:
+                throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
+            case STREAM_EXISTS:
+                return false;
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status creating stream " + streamConfig
+                                                     + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
-        return this.controller.alterStream(streamConfig);
+    public CompletableFuture<Boolean> alterStream(final StreamConfiguration streamConfig) {
+        return this.controller.alterStream(streamConfig).thenApply(x -> {
+            switch(x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to altering stream: " + streamConfig);
+            case SCOPE_NOT_FOUND:
+                throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
+            case STREAM_NOT_FOUND:
+                throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status altering stream " + streamConfig
+                                                     + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
-        return this.controller.sealStream(scope, streamName);
+    public CompletableFuture<Boolean> sealStream(String scope, String streamName) {
+        return this.controller.sealStream(scope, streamName).thenApply(x -> {
+            switch (x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to seal stream: " + streamName);
+            case SCOPE_NOT_FOUND:
+                throw new IllegalArgumentException("Scope does not exist: " + scope);
+            case STREAM_NOT_FOUND:
+                throw new IllegalArgumentException("Stream does not exist: " + streamName);
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status scealing stream " + streamName
+                                                     + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String streamName) {
-        return this.controller.deleteStream(scope, streamName);
+    public CompletableFuture<Boolean> deleteStream(final String scope, final String streamName) {
+        return this.controller.deleteStream(scope, streamName).thenApply(x -> {
+            switch (x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to delete stream: " + streamName);
+            case STREAM_NOT_FOUND:
+                return false;
+            case STREAM_NOT_SEALED:
+                throw new IllegalArgumentException("Stream is not sealed: " + streamName);
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status deleting stream " + streamName + " "
+                        + x.getStatus());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
-                                                        final List<Integer> sealedSegments,
-                                                        final Map<Double, Double> newKeyRanges) {
+    public CompletableFuture<Boolean> scaleStream(final Stream stream,
+                                                  final List<Integer> sealedSegments,
+                                                  final Map<Double, Double> newKeyRanges) {
         return this.controller.scale(stream.getScope(),
-                stream.getStreamName(),
-                sealedSegments,
-                newKeyRanges,
-                System.currentTimeMillis());
+                                     stream.getStreamName(),
+                                     sealedSegments,
+                                     newKeyRanges,
+                                     System.currentTimeMillis())
+                .thenApply(x -> {
+                    switch (x.getStatus()) {
+                    case FAILURE:
+                        throw new ControllerFailureException("Failed to scale stream: " + stream);
+                    case PRECONDITION_FAILED:
+                        return false;
+                    case SUCCESS:
+                        return true;
+                    case TXN_CONFLICT:
+                        throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "
+                                + stream);
+                    default:
+                        throw new ControllerFailureException("Unknown return status scaling stream "
+                                + stream + " " + x.getStatus());
+                    }
+                });
     }
 
     @Override
