@@ -72,4 +72,12 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      * @throws IllegalArgumentException If the other SegmentMetadata refers to a different StreamSegment.
      */
     void copyFrom(SegmentMetadata other);
+
+    /**
+     * Sets a value indicating when the Segment was last used.
+     *
+     * @param value The value to set. The meaning of this value is implementation-specific, however higher values should
+     *              indicate it was used more recently.
+     */
+    void setLastUsed(long value);
 }

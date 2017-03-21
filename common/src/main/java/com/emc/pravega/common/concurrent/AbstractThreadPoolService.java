@@ -1,14 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.concurrent;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -75,7 +75,9 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
         this.runTask = doRun();
         this.runTask.whenComplete((r, ex) -> {
             // Handle any exception that may have been thrown.
-            if (ex != null) {
+            if (ex != null
+                    && !(ExceptionHelpers.getRealException(ex) instanceof CancellationException && state() != State.RUNNING)) {
+                // We ignore CancellationExceptions while shutting down - those are expected.
                 errorHandler(ex);
             }
 

@@ -12,6 +12,7 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
@@ -20,11 +21,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -39,19 +42,20 @@ import lombok.val;
  * </ol>
  */
 @Slf4j
+@ThreadSafe
 public class ContainerReadIndex implements ReadIndex {
     //region Members
 
     private final String traceObjectId;
     @GuardedBy("lock")
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
-    @GuardedBy("lock")
     private final Object lock = new Object();
     private final Cache cache;
     private final ReadOnlyStorage storage;
     private final ScheduledExecutorService executor;
     private final ReadIndexConfig config;
     private final CacheManager cacheManager;
+    @GuardedBy("lock")
     private ContainerMetadata metadata;
     @GuardedBy("lock")
     private ContainerMetadata preRecoveryMetadata;
@@ -66,15 +70,15 @@ public class ContainerReadIndex implements ReadIndex {
      *
      * @param config       Configuration for the ReadIndex.
      * @param metadata     The ContainerMetadata to attach to.
-     * @param cache        The cache to store data into.
+     * @param cacheFactory A CacheFactory that can be used to create Caches for storing data into.
      * @param storage      Storage to read data not in the ReadIndex from.
      * @param cacheManager The CacheManager to use for cache lifecycle management.
      * @param executor     An Executor to run async callbacks on.
      */
-    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, Cache cache, ReadOnlyStorage storage, CacheManager cacheManager, ScheduledExecutorService executor) {
+    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, CacheFactory cacheFactory, ReadOnlyStorage storage, CacheManager cacheManager, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(cacheFactory, "cacheFactory");
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(cacheManager, "cacheManager");
         Preconditions.checkNotNull(executor, "executor");
@@ -83,7 +87,7 @@ public class ContainerReadIndex implements ReadIndex {
         this.traceObjectId = String.format("ReadIndex[%s]", metadata.getContainerId());
         this.readIndices = new HashMap<>();
         this.config = config;
-        this.cache = cache;
+        this.cache = cacheFactory.getCache(String.format("Container_%d", metadata.getContainerId()));
         this.metadata = metadata;
         this.storage = storage;
         this.cacheManager = cacheManager;
@@ -99,7 +103,8 @@ public class ContainerReadIndex implements ReadIndex {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            closeAllIndices();
+            closeAllIndices(false); // Do not individually clear the cache; we are wiping it anyway when closing it.
+            this.cache.close();
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -139,7 +144,10 @@ public class ContainerReadIndex implements ReadIndex {
 
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         targetIndex.completeMerge(sourceStreamSegmentId);
-        closeIndex(sourceStreamSegmentId);
+        synchronized (this.lock) {
+            // Do not clear the Cache after merger - we are reusing the cache entries from the source index in the target one.
+            closeIndex(sourceStreamSegmentId, false);
+        }
     }
 
     @Override
@@ -168,12 +176,14 @@ public class ContainerReadIndex implements ReadIndex {
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.debug("{}: triggerFutureReads (StreamSegmentIds = {}).", this.traceObjectId, streamSegmentIds);
 
-        HashSet<String> missingIds = new HashSet<>();
-        for (long ssId : streamSegmentIds) {
-            StreamSegmentReadIndex index = getReadIndex(ssId, false);
+        HashSet<Long> missingIds = new HashSet<>();
+        for (long segmentId : streamSegmentIds) {
+            StreamSegmentReadIndex index = getReadIndex(segmentId, false);
             if (index == null) {
-                if (this.metadata.getStreamSegmentMetadata(ssId) == null) {
-                    missingIds.add(Long.toString(ssId));
+                synchronized (this.lock) {
+                    if (this.metadata.getStreamSegmentMetadata(segmentId) == null) {
+                        missingIds.add(segmentId);
+                    }
                 }
             } else {
                 index.triggerFutureReads();
@@ -188,22 +198,27 @@ public class ContainerReadIndex implements ReadIndex {
     public void clear() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(isRecoveryMode(), "Read Index is not in recovery mode. Cannot clear ReadIndex.");
-        closeAllIndices();
+        closeAllIndices(true);
         log.info("{}: Cleared.", this.traceObjectId);
     }
 
     @Override
-    public void cleanup(Collection<Long> segmentIds) {
+    public void cleanup(Iterator<Long> segmentIds) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         List<Long> removed = new ArrayList<>();
         List<Long> notRemoved = new ArrayList<>();
         synchronized (this.lock) {
-            for (long streamSegmentId : segmentIds) {
+            if (segmentIds == null) {
+                segmentIds = new ArrayList<>(this.readIndices.keySet()).iterator();
+            }
+
+            while (segmentIds.hasNext()) {
+                long streamSegmentId = segmentIds.next();
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 boolean wasRemoved = false;
                 if (segmentMetadata == null || segmentMetadata.isDeleted()) {
-                    wasRemoved = closeIndex(streamSegmentId);
+                    wasRemoved = closeIndex(streamSegmentId, true);
                 }
 
                 if (wasRemoved) {
@@ -227,12 +242,17 @@ public class ContainerReadIndex implements ReadIndex {
         Preconditions.checkState(!isRecoveryMode(), "Read Index is already in recovery mode.");
         Preconditions.checkNotNull(recoveryMetadataSource, "recoveryMetadataSource");
         Preconditions.checkArgument(recoveryMetadataSource.isRecoveryMode(), "Given ContainerMetadata is not in recovery mode.");
-        Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(), "Given ContainerMetadata refers to a different container than this ReadIndex.");
 
         // Swap metadata with recovery metadata (but still keep track of recovery metadata.
-        assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless we already are in recovery mode";
-        this.preRecoveryMetadata = this.metadata;
-        this.metadata = recoveryMetadataSource;
+        synchronized (this.lock) {
+            Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(),
+                    "Given ContainerMetadata refers to a different container than this ReadIndex.");
+            assert this.preRecoveryMetadata == null
+                    : "preRecoveryMetadata is not null, which should not happen unless we already are in recovery mode";
+            this.preRecoveryMetadata = this.metadata;
+            this.metadata = recoveryMetadataSource;
+        }
+
         log.info("{} Enter RecoveryMode.", this.traceObjectId);
         clear();
     }
@@ -241,26 +261,33 @@ public class ContainerReadIndex implements ReadIndex {
     public void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.isRecoveryMode(), "Read Index is not in recovery mode.");
-        assert this.preRecoveryMetadata != null : "preRecoveryMetadata not null, which should only be the case when we are not in recovery mode";
-        Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(), "Cannot take ReadIndex out of recovery: ContainerMetadata is still in recovery mode.");
 
-        if (successfulRecovery) {
-            // Validate that the metadata has been properly recovered and that we are still in sync with it.
-            for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet()) {
-                SegmentMetadata metadata = this.preRecoveryMetadata.getStreamSegmentMetadata(e.getKey());
-                if (metadata == null) {
-                    throw new DataCorruptionException(String.format("ContainerMetadata has no knowledge of StreamSegment Id %s.", e.getKey()));
+        synchronized (this.lock) {
+            assert this.preRecoveryMetadata != null
+                    : "preRecoveryMetadata not null, which should only be the case when we are not in recovery mode";
+            Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(),
+                    "Cannot take ReadIndex out of recovery: ContainerMetadata is still in recovery mode.");
+
+            if (successfulRecovery) {
+                // Validate that the metadata has been properly recovered and that we are still in sync with it.
+                for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet()) {
+                    SegmentMetadata metadata = this.preRecoveryMetadata.getStreamSegmentMetadata(e.getKey());
+                    if (metadata == null) {
+                        throw new DataCorruptionException(
+                                String.format("ContainerMetadata has no knowledge of StreamSegment Id %s.", e.getKey()));
+                    }
+
+                    e.getValue().exitRecoveryMode(metadata);
                 }
-
-                e.getValue().exitRecoveryMode(metadata);
+            } else {
+                // Recovery was unsuccessful. Clear the contents of the ReadIndex to avoid further issues.
+                clear();
             }
-        } else {
-            // Recovery was unsuccessful. Clear the contents of the ReadIndex to avoid further issues.
-            clear();
+
+            this.metadata = this.preRecoveryMetadata;
+            this.preRecoveryMetadata = null;
         }
 
-        this.metadata = this.preRecoveryMetadata;
-        this.preRecoveryMetadata = null;
         log.info("{} Exit RecoveryMode.", this.traceObjectId);
     }
 
@@ -269,7 +296,9 @@ public class ContainerReadIndex implements ReadIndex {
     //region Helpers
 
     private boolean isRecoveryMode() {
-        return this.preRecoveryMetadata != null;
+        synchronized (this.lock) {
+            return this.preRecoveryMetadata != null;
+        }
     }
 
     /**
@@ -301,22 +330,21 @@ public class ContainerReadIndex implements ReadIndex {
         return index;
     }
 
-    private boolean closeIndex(long streamSegmentId) {
-        synchronized (this.lock) {
-            StreamSegmentReadIndex index = this.readIndices.remove(streamSegmentId);
-            if (index != null) {
-                this.cacheManager.unregister(index);
-                index.close();
-            }
-
-            return index != null;
+    @GuardedBy("lock")
+    private boolean closeIndex(long streamSegmentId, boolean cleanCache) {
+        StreamSegmentReadIndex index = this.readIndices.remove(streamSegmentId);
+        if (index != null) {
+            this.cacheManager.unregister(index);
+            index.close(cleanCache);
         }
+
+        return index != null;
     }
 
-    private void closeAllIndices() {
+    private void closeAllIndices(boolean cleanCache) {
         synchronized (this.lock) {
-            val indices = new ArrayList<Long>(this.readIndices.keySet());
-            indices.forEach(this::closeIndex);
+            val segmentIds = new ArrayList<Long>(this.readIndices.keySet());
+            segmentIds.forEach(segmentId -> closeIndex(segmentId, cleanCache));
             this.readIndices.clear();
         }
     }
