@@ -27,8 +27,8 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<String> CONTROLLER_URI = Property.named("controllerUri", "tcp://localhost:9090");
-    public static final Property<String> REQUEST_STREAM  = Property.named("internalRequestStream", "pravega");
-    public static final Property<String> INTERNAL_SCOPE = Property.named("internalScope", "requeststream");
+    public static final Property<String> REQUEST_STREAM  = Property.named("internalRequestStream", "requeststream");
+    public static final Property<String> INTERNAL_SCOPE = Property.named("internalScope", "pravega");
     private static final String COMPONENT_CODE = "pravegaservice";
 
     //endregion
