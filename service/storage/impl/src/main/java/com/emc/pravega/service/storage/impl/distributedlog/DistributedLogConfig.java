@@ -1,33 +1,54 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
-
-import java.util.Properties;
+import com.emc.pravega.common.util.Property;
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.common.util.TypedProperties;
+import lombok.Getter;
 
 /**
  * General configuration for DistributedLog Client.
  */
-public class DistributedLogConfig extends ComponentConfig {
+public class DistributedLogConfig {
+    //region Config Names
+
+    public static final Property<String> HOSTNAME = Property.named("hostname", "zk1");
+    public static final Property<Integer> PORT = Property.named("port", 2181);
+    public static final Property<String> NAMESPACE = Property.named("namespace", "pravega/segmentstore/containers");
+    public static final Property<Retry.RetryWithBackoff> RETRY_POLICY = Property.named("retryPolicy", Retry.withExpBackoff(100, 4, 5, 30000));
+    private static final String COMPONENT_CODE = "dlog";
+
+    //endregion
+
     //region Members
 
-    public static final String COMPONENT_CODE = "dlog";
-    public static final String PROPERTY_HOSTNAME = "hostname";
-    public static final String PROPERTY_PORT = "port";
-    public static final String PROPERTY_NAMESPACE = "namespace";
+    /**
+     * The host name (no port) where DistributedLog is listening.
+     */
+    @Getter
+    private final String distributedLogHost;
 
-    private static final String DEFAULT_HOSTNAME = "zk1";
-    private static final int DEFAULT_PORT = 2181;
-    private static final String DEFAULT_NAMESPACE = "pravega/segmentstore/containers";
+    /**
+     * The port where DistributedLog is listening.
+     */
+    @Getter
+    private final int distributedLogPort;
 
-    private String distributedLogHost;
-    private int distributedLogPort;
-    private String distributedLogNamespace;
+    /**
+     * The DistributedLog Namespace to use.
+     */
+    @Getter
+    private final String distributedLogNamespace;
+
+    /**
+     * The Retry Policy base to use for all DistributedLog parameters.
+     */
+    @Getter
+    private Retry.RetryWithBackoff retryPolicy;
 
     //endregion
 
@@ -36,51 +57,22 @@ public class DistributedLogConfig extends ComponentConfig {
     /**
      * Creates a new instance of the DistributedLogConfig class.
      *
-     * @param properties The java.util.Properties object to read Properties from.
-     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
-     * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
+     * @param properties The TypedProperties object to read Properties from.
      */
-    public DistributedLogConfig(Properties properties) throws ConfigurationException {
-        super(properties, COMPONENT_CODE);
-    }
-
-    //endregion
-
-    //region Properties
-
-    /**
-     * Gets a value indicating the host name (no port) where DistributedLog is listening.
-     */
-    public String getDistributedLogHost() {
-        return this.distributedLogHost;
+    private DistributedLogConfig(TypedProperties properties) throws ConfigurationException {
+        this.distributedLogHost = properties.get(HOSTNAME);
+        this.distributedLogPort = properties.getInt(PORT);
+        this.distributedLogNamespace = properties.get(NAMESPACE);
+        this.retryPolicy = properties.getRetryWithBackoff(RETRY_POLICY);
     }
 
     /**
-     * Gets a value indicating the port where DistributedLog is listening.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
+     *
+     * @return A new Builder for this class.
      */
-    public int getDistributedLogPort() {
-        return this.distributedLogPort;
-    }
-
-    /**
-     * Gets a value indicating the DistributedLog Namespace to use.
-     */
-    public String getDistributedLogNamespace() {
-        return this.distributedLogNamespace;
-    }
-
-    //endregion
-
-    //region ComponentConfig Implementation
-
-    @Override
-    protected void refresh() throws ConfigurationException {
-        this.distributedLogHost = getProperty(PROPERTY_HOSTNAME, DEFAULT_HOSTNAME);
-        this.distributedLogPort = getInt32Property(PROPERTY_PORT, DEFAULT_PORT);
-        this.distributedLogNamespace = getProperty(PROPERTY_NAMESPACE, DEFAULT_NAMESPACE);
+    public static ConfigBuilder<DistributedLogConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, DistributedLogConfig::new);
     }
 
     //endregion

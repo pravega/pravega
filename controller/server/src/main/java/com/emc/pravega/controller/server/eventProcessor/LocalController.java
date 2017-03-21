@@ -11,6 +11,7 @@ import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
@@ -22,9 +23,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamSegments;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +64,11 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
         return this.controller.sealStream(scope, streamName);
+    }
+
+    @Override
+    public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String streamName) {
+        return this.controller.deleteStream(scope, streamName);
     }
 
     @Override
@@ -128,9 +132,13 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return controller.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count)
-                .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
+    public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(Stream stream, long timestamp) {
+        return controller.getSegmentsAtTime(stream.getScope(), stream.getStreamName(), timestamp).thenApply(segments -> {
+            return segments.entrySet()
+                           .stream()
+                           .collect(Collectors.toMap(entry -> ModelHelper.encode(entry.getKey()),
+                                                     entry -> entry.getValue()));
+        });
     }
 
     @Override

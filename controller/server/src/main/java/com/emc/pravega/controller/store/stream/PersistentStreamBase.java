@@ -18,7 +18,6 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -95,6 +94,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(x -> true);
     }
 
+    @Override
+    public CompletableFuture<Void> delete() {
+        return deleteStream();
+    }
+
     /**
      * Update configuration at configurationPath.
      *
@@ -139,6 +143,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Segment> getSegment(final int number) {
         return verifyLegalState(getSegmentRow(number));
+    }
+
+    @Override
+    public CompletableFuture<Integer> getSegmentCount() {
+        return verifyLegalState(getHistoryTable().thenApply(x -> TableHelper.getSegmentCount(x.getData())));
     }
 
     /**
@@ -665,6 +674,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return getSegmentTableChunk(latestChunkNumber)
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
     }
+
+    abstract CompletableFuture<Void> deleteStream();
 
     abstract CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException;
 

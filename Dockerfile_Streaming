@@ -4,7 +4,7 @@ MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
 
 COPY service/server/host/build/distributions/ /opt
 
-COPY config/config_dcos.properties /opt/config.properties
+COPY config/config.properties /opt/config.properties
 
 WORKDIR /opt
 

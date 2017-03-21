@@ -4,6 +4,7 @@
 package com.emc.pravega.service.server.host.stat;
 
 import com.emc.pravega.common.netty.WireCommands;
+import com.google.common.annotations.VisibleForTesting;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -94,6 +95,11 @@ class SegmentAggregates {
         this.twentyMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
     }
 
+    @VisibleForTesting
+    AtomicLong getCurrentCount() {
+        return currentCount;
+    }
+
     void update(long dataLength, int numOfEvents) {
         if (scaleType == WireCommands.CreateSegment.IN_KBYTES_PER_SEC) {
             currentCount.addAndGet(dataLength / 1024); // convert to kbps
@@ -118,14 +124,21 @@ class SegmentAggregates {
         long durationInSeconds = (System.currentTimeMillis() - txnCreationTime) / 1000;
         long numOfTicks = (int) durationInSeconds / INTERVAL_IN_SECONDS;
 
-        if (scaleType == WireCommands.CreateSegment.IN_KBYTES_PER_SEC) {
-            amortizedPerTick = dataSize / numOfTicks;
-        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS_PER_SEC) {
-            amortizedPerTick = numOfEvents / numOfTicks;
-        }
+        if (numOfTicks == 0) {
+            // Not large enough lifespan for transaction. Include in regular traffic.
+            update(dataSize, numOfEvents);
+        } else {
+            // Transaction lasted at least one tick internal (5 seconds) or more.
+            // Amortize traffic over per tick and decay the rate accordingly.
+            if (scaleType == WireCommands.CreateSegment.IN_KBYTES_PER_SEC) {
+                amortizedPerTick = dataSize / numOfTicks;
+            } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS_PER_SEC) {
+                amortizedPerTick = numOfEvents / numOfTicks;
+            }
 
-        for (int i = 0; i < numOfEvents; i++) {
-            computeDecay(amortizedPerTick, INTERVAL_IN_SECONDS);
+            for (int i = 0; i < numOfTicks; i++) {
+                computeDecay(amortizedPerTick, INTERVAL_IN_SECONDS);
+            }
         }
     }
 
@@ -138,7 +151,11 @@ class SegmentAggregates {
 
     private double decayingRate(long count, double rate, double alpha, long interval) {
         final double instantRate = (double) count / (double) interval;
-        return rate + (alpha * (instantRate - rate));
+        if (rate == 0) {
+            return instantRate;
+        } else {
+            return rate + (alpha * (instantRate - rate));
+        }
     }
 
     double getTwoMinuteRate() {

@@ -6,8 +6,6 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
-
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +44,13 @@ interface Stream {
     CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
 
     /**
+     * Deletes an already SEALED stream.
+     *
+     * @return boolean indicating success.
+     */
+    CompletableFuture<Void> delete();
+
+    /**
      * Updates the configuration of an existing stream.
      *
      * @param configuration new stream configuration.
@@ -81,6 +86,13 @@ interface Stream {
      * @return segment at given number.
      */
     CompletableFuture<Segment> getSegment(final int number);
+
+    /**
+     * Returns the total number segments in the stream.
+     *
+     * @return total number of segments in the stream.
+     */
+    CompletableFuture<Integer> getSegmentCount();
 
     /**
      * @param number segment number.

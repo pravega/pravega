@@ -5,12 +5,14 @@ package com.emc.pravega.framework.services;
 
 import com.emc.pravega.framework.TestFrameworkException;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
+import mesosphere.marathon.client.utils.MarathonException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
@@ -108,6 +111,10 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega-host:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
+        List<Parameter> parameterList = new ArrayList<>();
+        Parameter element1 = new Parameter("env", "JAVA_OPTS=-Xmx900m");
+        parameterList.add(element1);
+        app.getContainer().getDocker().setParameters(parameterList);
         //set port
         app.setPorts(Arrays.asList(SEGMENTSTORE_PORT));
         app.setRequirePorts(true);
@@ -117,14 +124,22 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.setHealthChecks(healthCheckList);
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
+
+        //System properties to configure SS service.
+        String hostSystemProperties = setSystemProperty("pravegaservice.zkURL", zk) +
+                setSystemProperty("dlog.hostname", zkUri.getHost()) +
+                setSystemProperty("hdfs.fs.default.name", "namenode-0.hdfs.mesos:9001") +
+                setSystemProperty("pravegaservice.controllerUri", conUri.toString());
+
         Map<String, String> map = new HashMap<>();
+        map.put("HOST_OPTS", hostSystemProperties);
         map.put("ZK_URL", zk);
-        map.put("pravegaservice_zkURL", zk);
-        map.put("dlog_hostname", zkUri.getHost());
-        map.put("hdfs_fs_default_name", "namenode-0.hdfs.mesos:9001");
-        map.put("pravegaservice_controllerUri", conUri.toString());
         app.setEnv(map);
 
         return app;
+    }
+
+    private String setSystemProperty(final String propertyName, final String propertyValue) {
+        return new StringBuilder().append(" -D").append(propertyName).append("=").append(propertyValue).toString();
     }
 }

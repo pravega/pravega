@@ -70,7 +70,7 @@ public class ReaderGroupTest {
     public void testEventHandoff() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.randomPort();
-
+        @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
@@ -80,11 +80,13 @@ public class ReaderGroupTest {
 
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
+        streamManager.createScope();
         streamManager.createStream(STREAM_NAME, StreamConfiguration.builder()
                                                                    .scope(SCOPE)
                                                                    .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))
                                                                    .build());
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
@@ -111,7 +113,7 @@ public class ReaderGroupTest {
     public void testMultiSegmentsPerReader() throws InterruptedException, ExecutionException {
         String endpoint = "localhost";
         int port = TestUtils.randomPort();
-
+        @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
@@ -121,11 +123,13 @@ public class ReaderGroupTest {
 
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
+        streamManager.createScope();
         streamManager.createStream(STREAM_NAME, StreamConfiguration.builder()
                                                                    .scope(SCOPE)
                                                                    .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))
                                                                    .build());
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();

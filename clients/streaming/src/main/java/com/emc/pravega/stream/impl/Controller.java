@@ -9,6 +9,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
@@ -17,7 +18,6 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -70,6 +70,15 @@ public interface Controller {
      * @return Status of update stream operation.
      */
     CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName);
+
+    /**
+     * API to delete stream. Only a sealed stream can be deleted.
+     *
+     * @param scope      Scope name.
+     * @param streamName Stream name.
+     * @return           Status of delete stream operation.
+     */
+    CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String streamName);
 
     /**
      * API to merge or split stream segments.
@@ -150,15 +159,13 @@ public interface Controller {
     // Controller Apis that are called by readers
 
     /**
-     * Given a timestamp and a number of readers, returns a position object for each reader that collectively
-     * include all of the segments that exist at that time in the stream.
+     * Given a timestamp and a stream returns segments and offsets that were present at that time in the stream.
      *
-     * @param stream Name
-     * @param timestamp Timestamp for getting position objects
-     * @param count Number of position objects
-     * @return List of position objects.
+     * @param stream Name of the stream
+     * @param timestamp Timestamp for getting segments
+     * @return A map of segments to the offset within them.
      */
-    CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
+    CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(final Stream stream, final long timestamp);
 
     /**
      * Returns a Map containing each of the segments that are successors to the segment requested mapped to a

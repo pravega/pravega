@@ -13,9 +13,9 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.bmuschko:gradle-docker-plugin:3.0.3'
-        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.0'
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.4'
+        classpath group: 'com.bmuschko', name :'gradle-docker-plugin', version: gradleDockerPlugin
+        classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
+        classpath group: 'com.github.jengelman.gradle.plugins', name:'shadow', version: shadowGradlePlugin
     }
 }
 
@@ -30,12 +30,11 @@ allprojects {
     apply plugin: 'signing'
     apply plugin: 'checkstyle'
     apply plugin: 'findbugs'
-    apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
     apply plugin: 'jacoco'
 
     checkstyle {
-        toolVersion = "7.1"
+        toolVersion = checkstyleToolVersion
     }
 
     jacocoTestReport {
@@ -67,9 +66,7 @@ allprojects {
     compileJava { 
         options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
     } 
-    docker {
-        url = dockerUrl
-    }
+
     repositories {
         // Use 'jcenter' for resolving your dependencies.
         // You can declare any Maven/Ivy/file repository here.
@@ -77,7 +74,7 @@ allprojects {
         mavenCentral()
         mavenLocal()
         maven {
-            url "https://raw.github.com/twitter/bookkeeper/mvn-repo/4.3.4-TWTTR"
+            url "https://raw.github.com/twitter/bookkeeper/mvn-repo/"+ mvnRepoVersion
         }
         maven {
             url "http://maven.twttr.com"
@@ -91,17 +88,9 @@ allprojects {
 
     dependencies {
         // The production code uses the SLF4J logging API at compile time
-        compile 'org.slf4j:slf4j-api:1.7.14'
-
-        testCompile 'junit:junit:4.12'
-        compile group: 'com.google.guava', name: 'guava', version: '20.0'
-        compile group: 'commons-lang', name: 'commons-lang', version: '2.6'
-        compile group: 'com.google.code.findbugs', name: 'jsr305', version: '1.3.9'
-        compile group: 'org.projectlombok', name: 'lombok', version: '1.16.10'
-        compile group: 'commons-io', name: 'commons-io', version: '2.5'
-        compile 'io.netty:netty-all:4.1.8.Final'
-
-        testCompile "org.mockito:mockito-core:2.+"
+        compile group: 'org.slf4j', name:'slf4j-api', version: slf4jApiVersion
+        testCompile group: 'junit', name:'junit', version: junitVersion
+        testCompile "org.mockito:mockito-core:${mockitoVersion}"
     }
 
     publishing {
@@ -128,7 +117,7 @@ allprojects {
 
     tasks.withType(Test) {
         systemProperties 'logback.configurationFile' : new File(buildDir,'resources/test/logback.xml').absolutePath
-        testLogging.showStandardStreams = true
+        testLogging.showStandardStreams = false
         testLogging.exceptionFormat = "FULL"
         testLogging.showCauses = true
         testLogging.showExceptions = true
@@ -145,16 +134,26 @@ def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
 project('common') {
     dependencies {
         testCompile project(':testcommon')
-        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
-        compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
-        compile group: 'commons-io', name: 'commons-io', version: '2.5'
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
+        compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         // for Metrics
-        compile('com.readytalk:metrics3-statsd:4.1.0')
+        compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
-        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '3.1.0'
+        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
-        compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: '3.1.0'
-
+        compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: metricsVersion
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-graphite
+        compile group: 'io.dropwizard.metrics', name: 'metrics-graphite', version: metricsVersion
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-ganglia
+        compile group: 'io.dropwizard.metrics', name: 'metrics-ganglia', version: metricsVersion
+        // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
+        compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
+        compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         jar {
             from project.sourceSets.main.output
             from project(":testcommon").sourceSets.main.output
@@ -178,6 +177,12 @@ project('common') {
 
 project('clients:streaming') {
     dependencies {
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
+        compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
+        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
         compile project(":controller:contract")
         testCompile project(':testcommon')
@@ -194,7 +199,13 @@ project('clients:streaming') {
 
 project('testcommon') {
     dependencies {
-        compile 'junit:junit:4.12'
+        compile group: 'junit', name :'junit', version: junitVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
+        compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
+        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
     }
 }
 
@@ -231,22 +242,36 @@ project('service:storage') {
 
 project('service:storage:impl') {
     dependencies {
-        compile('com.twitter:distributedlog-core:0.3.51-RC1') {
+        compile(group: 'com.twitter', name:'distributedlog-core', version: distributedlogVersion) {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
-        compile('com.twitter:distributedlog-client:0.3.51-RC1') {
+        compile(group: 'com.twitter', name: 'distributedlog-client', version: distributedlogVersion) {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
-        compile group: 'org.rocksdb', name: 'rocksdbjni', version: '4.11.2'
+        testCompile ('com.twitter:distributedlog-service:0.3.51-RC1') {
+            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        }
+
+        test {
+            // We use Guava 20.0, however DistributedLog use Guava 16.0. We cannot start DistributedLog in process or
+            // using our own classpath because it can't find required classes. As such, we get the path to Guava 16.0
+            // and pass it down via a System Property, so the DistributedLogDataLogTests can make use of it.
+            // TODO: we should update this version when DistributedLog upgrades to the latest Guava or when we use
+            // something else. See DistributedLog issue: https://issues.apache.org/jira/browse/DL-193
+            configurations { guava16 }
+            dependencies { guava16 "com.google.guava:guava:${guavaServiceStorageImplVersion}" }
+            systemProperty "user.guava16", configurations.guava16.files
+        }
+
+        compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
 
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: '2.7.3'
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version:hadoopVersion
 
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
-
-        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
-        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         compile project(':common')
         compile project(':service:storage')
@@ -282,6 +307,10 @@ project('service:server') {
 
 project('service:server:host') {
     apply plugin: 'application'
+    apply plugin: 'com.bmuschko.docker-java-application'
+    docker {
+        url = dockerUrl
+    }
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
@@ -306,7 +335,7 @@ project('service:server:host') {
         compile project(':service:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         testCompile project(':testcommon')
-        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
         dependsOn 'distTar','distZip'
@@ -343,13 +372,13 @@ project('integrationtests') {
         compile project(':service:server:host')
         compile project(':controller:server')
         compile project(':connectors:flink')
-        compile 'junit:junit:4.12'
-        compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
-        runtime group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
-        testCompile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
-        testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
-        testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: '1.2.0'
-        testCompile project(':testcommon')
+        compile project(':testcommon')
+        compile group: 'junit', name:'junit', version: junitVersion
+        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile group: 'org.apache.flink', name: 'flink-tests_2.11', version: flinkVersion
+        testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: flinkVersion
+        testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: flinkVersion
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
@@ -427,11 +456,11 @@ project('controller:contract') {
     apply plugin: 'com.google.protobuf'
     protobuf {
         protoc {
-            artifact = "com.google.protobuf:protoc:3.0.2"
+            artifact = "com.google.protobuf:protoc:${protobufProtocVersion}"
         }
         plugins {
             grpc {
-                artifact = 'io.grpc:protoc-gen-grpc-java:1.1.2'
+                artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
             }
         }
         generatedFilesBaseDir = "$projectDir/src/generated/grpc-java"
@@ -452,10 +481,14 @@ project('controller:contract') {
     }
 
     dependencies {
-        compile group: 'io.grpc', name: 'grpc-netty', version: '1.1.2'
-        compile group: 'io.grpc', name: 'grpc-protobuf', version: '1.1.2'
-        compile group: 'io.grpc', name: 'grpc-stub', version: '1.1.2'
-        compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+        compile group: 'io.grpc', name: 'grpc-netty', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-protobuf', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-stub', version: grpcVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3ControllerContractVersion
+        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
+        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
     }
     publishing {
         publications {
@@ -468,6 +501,10 @@ project('controller:contract') {
 }
 
 project('controller:server') {
+    apply plugin: 'com.bmuschko.docker-java-application'
+    docker {
+        url = dockerUrl
+    }
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
     }
@@ -479,7 +516,7 @@ project('controller:server') {
 
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.controller.server.Main"
-    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-Xmx512m", "-XX:+HeapDumpOnOutOfMemoryError",
+    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
                                  "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
 
@@ -498,21 +535,22 @@ project('controller:server') {
         compile project(':common')
         compile project(":controller:contract")
         compile project(":clients:streaming")
-        runtime group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
-        compile group: 'javax.servlet', name: 'servlet-api', version: '2.5'
-        compile('io.swagger:swagger-jersey2-jaxrs:1.5.9') {
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
+        compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
 
-        compile group: 'com.typesafe', name: 'config', version: '1.3.0'
-        compile group: 'org.apache.curator', name: 'curator-framework', version: '2.11.0'
-        compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
-        compile group: 'org.apache.curator', name: 'curator-client', version: '2.11.0'
-        compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.3.2'
-        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: '2.25'
-        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
-        testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: '2.25'
-        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+        compile group: 'com.typesafe', name: 'config', version: typesafeConfigVersion
+        compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
+        compile group: 'org.apache.curator', name: 'curator-client', version: apacheCuratorVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+        testCompile project(':testcommon')
+        testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: jerseyVersion
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
 
     task buildPravegaControllerImage(type: DockerBuildImage) {
@@ -548,11 +586,11 @@ project('connectors:flink') {
 
     dependencies {
         compile project(":clients:streaming")
-        compileOnly group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
+        compileOnly group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
 
         //  configuring the shaded pom dependencies
-        shadow 'org.slf4j:slf4j-api:1.7.14'
-        shadow group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
+        shadow group: 'org.slf4j', name:'slf4j-api', version: slf4jApiVersion
+        shadow group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
     }
 
     shadowJar {
@@ -629,20 +667,20 @@ project('singlenode') {
         compile project(':service:storage')
         compile project(':service:storage:impl')
 
-        runtime group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
-        compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: '2.7.3'
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion
 
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion
 
-        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
+        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
 
-        compile('com.twitter:distributedlog-core:0.3.51-RC1') {
+        compile(group: 'com.twitter', name:'distributedlog-core', version: distributedlogVersion) {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
-        compile('com.twitter:distributedlog-client:0.3.51-RC1') {
+        compile(group: 'com.twitter', name: 'distributedlog-client', version: distributedlogVersion) {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
 
@@ -673,10 +711,13 @@ project('singlenode') {
 project('systemtests:tests') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
-        runtime group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
-        compile group: 'com.mesosphere', name: 'marathon-client', version: '0.3.0'
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        compile project(':controller:server')
         compile project(":clients:streaming")
-        compile 'junit:junit:4.12'
+        compile group: 'junit', name: 'junit', version: junitVersion
+        compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
+        compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
     }
     //disable the default test task.
     test {
@@ -752,4 +793,17 @@ task publishAllJars() {
     dependsOn ':connectors:flink:publish'
     dependsOn ':singlenode:publish'
     dependsOn ':systemtests:tests:publish'
+}
+
+task sourceCopy(type: Copy) {
+    from rootDir
+    into 'source'
+}
+
+task sourceTar(type: Tar) {
+    dependsOn 'sourceCopy'
+    from  'source'
+    destinationDir = file('sourceArtifacts')
+    extension = 'tgz'
+    compression = Compression.GZIP
 }

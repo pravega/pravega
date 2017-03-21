@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.testcommon;
 
@@ -14,6 +12,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.junit.Assert;
@@ -232,15 +231,15 @@ public class AssertExtensions {
      * @param message  The message to include in the Assert calls.
      * @param expected The list to check against.
      * @param actual   The list to check.
-     * @param tester   A BiConsumerWithMessage that will be used to assert the elements at the same indices in each list are equivalent.
+     * @param tester   A BiPredicate that will be used to verify the elements at the same indices in each list are equivalent.
      * @param <T>      The type of the list's elements.
      */
-    public static <T> void assertListEquals(String message, List<T> expected, List<T> actual, BiConsumerWithMessage<T, T> tester) {
+    public static <T> void assertListEquals(String message, List<T> expected, List<T> actual, BiPredicate<T, T> tester) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
         for (int i = 0; i < expected.size(); i++) {
             T expectedItem = expected.get(i);
             T actualItem = actual.get(i);
-            tester.accept(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem), expectedItem, actualItem);
+            Assert.assertTrue(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem), tester.test(expectedItem, actualItem));
         }
     }
 
@@ -322,9 +321,5 @@ public class AssertExtensions {
 
     public interface RunnableWithException {
         void run() throws Exception;
-    }
-
-    public interface BiConsumerWithMessage<T, U> {
-        void accept(String message, T var1, U var2);
     }
 }

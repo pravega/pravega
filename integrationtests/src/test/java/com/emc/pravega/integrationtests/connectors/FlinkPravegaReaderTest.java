@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.integrationtests.connectors;
 
+import com.emc.pravega.integrationtests.utils.SetupUtils;
 import com.emc.pravega.connectors.flink.FlinkPravegaReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.google.common.collect.Lists;
@@ -47,7 +48,7 @@ public class FlinkPravegaReaderTest {
 
     //Ensure each test completes within 30 seconds.
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
     @Before
     public void setup() throws Exception {

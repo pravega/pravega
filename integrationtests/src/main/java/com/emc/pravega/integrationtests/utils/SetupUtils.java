@@ -1,11 +1,12 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.integrationtests.connectors;
+package com.emc.pravega.integrationtests.utils;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.connectors.IntegerSerializer;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -120,6 +121,7 @@ public final class SetupUtils {
 
         @Cleanup
         StreamManager streamManager = StreamManager.withScope(this.scope, this.controllerUri);
+        streamManager.createScope();
         streamManager.createStream(streamName,
                 StreamConfiguration.builder()
                         .scope(this.scope)

@@ -15,8 +15,6 @@ import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -31,18 +29,20 @@ import java.util.stream.Collectors;
 public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
-    private final ConnectionFactory connectionFactory;
     private final ScheduledExecutorService executor;
     private final SegmentHelper segmentHelper;
+    private final ConnectionFactory connectionFactory;
 
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore,
-                               final ScheduledExecutorService executor, SegmentHelper segmentHelper) {
+                               final ScheduledExecutorService executor,
+                               final SegmentHelper segmentHelper,
+                               final ConnectionFactory connectionFactory) {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
         this.executor = executor;
+        this.connectionFactory = connectionFactory;
     }
 
     @Override

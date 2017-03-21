@@ -8,8 +8,6 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
-
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -51,6 +49,11 @@ public interface StreamMetadataStore {
                                             final String streamName,
                                             final StreamConfiguration configuration,
                                             final long createTimestamp,
+                                            final OperationContext context,
+                                            final Executor executor);
+
+    CompletableFuture<Void> deleteStream(final String scopeName,
+                                            final String streamName,
                                             final OperationContext context,
                                             final Executor executor);
 
@@ -159,6 +162,17 @@ public interface StreamMetadataStore {
     CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor);
 
     /**
+     * Returns the total number of segments in the stream.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return total number of segments in the stream.
+     */
+    CompletableFuture<Integer> getSegmentCount(final String scope, final String name, final OperationContext context, final Executor executor);
+
+    /**
      * Get active segments.
      *
      * @param scope    stream scope
@@ -177,9 +191,9 @@ public interface StreamMetadataStore {
      * @param timestamp point in time.
      * @param context   operation context
      * @param executor  callers executor
-     * @return the list of segments active at timestamp.
+     * @return the list of segments numbers active at timestamp.
      */
-    CompletableFuture<SegmentFutures> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
+    CompletableFuture<List<Integer>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
      * Given a segment return a map containing the numbers of the segments immediately succeeding it

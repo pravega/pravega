@@ -16,7 +16,6 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
 
@@ -61,6 +60,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String completedTxPath;
     private final String markerPath;
     private final String scopePath;
+    private final String streamPath;
 
     private final Cache<Integer> cache;
 
@@ -68,6 +68,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
+        streamPath = String.format(STREAM_PATH, scopeName, streamName);
         creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
         statePath = String.format(STATE_PATH, scopeName, streamName);
@@ -93,6 +94,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public void refresh() {
         cache.invalidateAll();
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteStream() {
+        return store.deleteTree(streamPath);
     }
 
     @Override
