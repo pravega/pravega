@@ -5,19 +5,27 @@
  */
 package com.emc.pravega.common.metrics;
 
+import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.CsvReporter;
+import com.codahale.metrics.JmxReporter;
+import com.codahale.metrics.MetricFilter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.ScheduledReporter;
+import com.codahale.metrics.ganglia.GangliaReporter;
+import com.codahale.metrics.graphite.Graphite;
+import com.codahale.metrics.graphite.GraphiteReporter;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.google.common.base.Strings;
 import com.readytalk.metrics.StatsDReporter;
+import info.ganglia.gmetric4j.gmetric.GMetric;
 import java.io.File;
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -60,19 +68,13 @@ public class YammerStatsProvider implements StatsProvider {
     public void start() {
         init();
 
-        int metricsOutputFrequency = conf.getStatsOutputFrequencySeconds();
-        String prefix = conf.getMetricsPrefix();
-        String csvDir = conf.getCsvEndpoint();
-        String statsDHost = conf.getStatsDHost();
-        Integer statsDPort = conf.getStatsDPort();
-
-        if (!Strings.isNullOrEmpty(csvDir)) {
+        if (conf.isEnableCSVReporter()) {
             // NOTE:  metrics output files are exclusive to a given process
             File outdir;
-            if (!Strings.isNullOrEmpty(prefix)) {
-                outdir = new File(csvDir, prefix);
+            if (!Strings.isNullOrEmpty(conf.getMetricsPrefix())) {
+                outdir = new File(conf.getCsvEndpoint(), conf.getMetricsPrefix());
             } else {
-                outdir = new File(csvDir);
+                outdir = new File(conf.getCsvEndpoint());
             }
             outdir.mkdirs();
             log.info("Configuring stats with csv output to directory [{}]", outdir.getAbsolutePath());
@@ -81,14 +83,52 @@ public class YammerStatsProvider implements StatsProvider {
                           .convertDurationsTo(TimeUnit.MILLISECONDS)
                           .build(outdir));
         }
-        if (!Strings.isNullOrEmpty(statsDHost)) {
-            log.info("Configuring stats with statsD at: {} {}", statsDHost, statsDPort);
+        if (conf.isEnableStatsdReporter()) {
+            log.info("Configuring stats with statsD at {}:{}", conf.getStatsDHost(), conf.getStatsDPort());
             reporters.add(StatsDReporter.forRegistry(getMetrics())
-                          .build(statsDHost, statsDPort));
+                          .build(conf.getStatsDHost(), conf.getStatsDPort()));
         }
-
+        if (conf.isEnableGraphiteReporter()) {
+            log.info("Configuring stats with graphite at {}:{}", conf.getGraphiteHost(), conf.getGraphitePort());
+            final Graphite graphite = new Graphite(new InetSocketAddress(conf.getGraphiteHost(), conf.getGraphitePort()));
+            reporters.add(GraphiteReporter.forRegistry(getMetrics())
+                .prefixedWith(conf.getMetricsPrefix())
+                .convertRatesTo(TimeUnit.SECONDS)
+                .convertDurationsTo(TimeUnit.MILLISECONDS)
+                .filter(MetricFilter.ALL)
+                .build(graphite));
+        }
+        if (conf.isEnableJMXReporter()) {
+            log.info("Configuring stats with jmx {}", conf.getJmxDomain());
+            final JmxReporter jmx = JmxReporter.forRegistry(getMetrics())
+                .inDomain(conf.getJmxDomain())
+                .convertRatesTo(TimeUnit.SECONDS)
+                .convertDurationsTo(TimeUnit.MILLISECONDS)
+                .build();
+            jmx.start();
+        }
+        if (conf.isEnableGangliaReporter()) {
+            try {
+                log.info("Configuring stats with ganglia at {}:{}", conf.getGangliaHost(), conf.getGangliaPort());
+                final GMetric ganglia = new GMetric(conf.getGangliaHost(), conf.getGangliaPort(), GMetric.UDPAddressingMode.MULTICAST, 1);
+                reporters.add(GangliaReporter.forRegistry(getMetrics())
+                    .prefixedWith(conf.getMetricsPrefix())
+                    .convertRatesTo(TimeUnit.SECONDS)
+                    .convertDurationsTo(TimeUnit.MILLISECONDS)
+                    .build(ganglia));
+            } catch (IOException e) {
+                log.warn("ganglia create failure: {}", e);
+            }
+        }
+        if (conf.isEnableConsoleReporter()) {
+            log.info("Configuring console reporter");
+            reporters.add(ConsoleReporter.forRegistry(getMetrics())
+                .convertRatesTo(TimeUnit.SECONDS)
+                .convertDurationsTo(TimeUnit.MILLISECONDS)
+                .build());
+        }
         for (ScheduledReporter r : reporters) {
-            r.start(metricsOutputFrequency, TimeUnit.SECONDS);
+            r.start(conf.getStatsOutputFrequencySeconds(), TimeUnit.SECONDS);
         }
     }
 
