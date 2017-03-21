@@ -32,7 +32,6 @@ import com.emc.pravega.service.server.reading.CacheManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.storage.CacheFactory;
-import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.Storage;
