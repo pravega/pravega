@@ -24,13 +24,15 @@ public class ControllerClusterListenerConfigImpl implements ControllerClusterLis
     private final int maxQueueSize;
 
     @Builder
-    ControllerClusterListenerConfigImpl(final int minThreads, final int maxThreads, final int idleTime, final TimeUnit idleTimeUnit,
+    ControllerClusterListenerConfigImpl(final int minThreads, final int maxThreads, final int idleTime,
+                                        final TimeUnit idleTimeUnit,
                                         final int maxQueueSize) {
         Preconditions.checkArgument(minThreads > 0, "minThreads should be positive integer");
         Preconditions.checkArgument(maxThreads >= minThreads, "maxThreads should be >= minThreads");
         Preconditions.checkArgument(idleTime > 0, "idleTime should be positive integer");
         Preconditions.checkNotNull(idleTimeUnit, "idleTimeUnit");
-        Preconditions.checkArgument(maxQueueSize > 0, "maxQueueSize should be positive integer");
+        Preconditions.checkArgument(maxQueueSize > 0 && maxQueueSize <= 1024,
+                "maxQueueSize should be positive integer smaller than 1024");
 
         this.minThreads = minThreads;
         this.maxThreads = maxThreads;

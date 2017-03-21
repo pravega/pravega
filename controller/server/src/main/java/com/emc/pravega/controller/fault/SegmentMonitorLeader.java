@@ -7,6 +7,7 @@ package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -108,7 +109,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
         hostsChange.release();
 
         //Start cluster monitor.
-        pravegaServiceCluster = new ClusterZKImpl(client, ClusterZKImpl.ClusterType.Host);
+        pravegaServiceCluster = new ClusterZKImpl(client, ClusterType.Host.toString());
 
         //Add listener to track host changes on the monitored pravega cluster.
         pravegaServiceCluster.addListener((type, host) -> {

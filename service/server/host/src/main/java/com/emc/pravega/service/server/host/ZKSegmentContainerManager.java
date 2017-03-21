@@ -9,6 +9,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -97,7 +98,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         this.client = zkClient;
         this.clusterPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         this.segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
-        this.cluster = new ClusterZKImpl(zkClient, ClusterZKImpl.ClusterType.Host);
+        this.cluster = new ClusterZKImpl(zkClient, ClusterType.Host.toString());
 
         this.host = pravegaServiceEndpoint;
     }

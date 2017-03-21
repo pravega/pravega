@@ -8,7 +8,9 @@ package com.emc.pravega.controller.fault;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Controller cluster configuration.
+ * Controller cluster configuration. This includes configuration parameters for
+ * the cluster listener's thread pool, including minimum and maximum thread pool
+ * size, maximum idle time and max queue size.
  */
 public interface ControllerClusterListenerConfig {
     /**

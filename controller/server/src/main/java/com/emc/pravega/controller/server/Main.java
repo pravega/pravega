@@ -57,7 +57,7 @@ public class Main {
                 .maxThreads(10)
                 .idleTime(10)
                 .idleTimeUnit(TimeUnit.SECONDS)
-                .maxQueueSize(1000)
+                .maxQueueSize(512)
                 .build();
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
@@ -82,6 +82,7 @@ public class Main {
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
                 .port(Config.RPC_SERVER_PORT)
                 .build();
+
         RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
                 .host(Config.REST_SERVER_IP)
                 .port(Config.REST_SERVER_PORT)

@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -51,7 +52,7 @@ public class SegmentContainerMonitorTest {
 
         zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
-        cluster = new ClusterZKImpl(zkClient, ClusterZKImpl.ClusterType.Host);
+        cluster = new ClusterZKImpl(zkClient, ClusterType.Host.toString());
     }
 
     @After

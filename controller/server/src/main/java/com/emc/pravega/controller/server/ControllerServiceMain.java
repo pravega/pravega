@@ -80,6 +80,10 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                     log.info("Awaiting ZK session expiry or termination of ControllerServiceMain");
                     client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpiryLatch));
 
+                    // At this point, wait until either of the two things happen
+                    // 1. ZK session expires, or
+                    // isRunning() is false, which happens when this service is stopped by invoking stopAsync()
+                    //             method.
                     boolean expired = false;
                     while (isRunning() && !expired) {
                         expired = sessionExpiryLatch.await(1500, TimeUnit.MILLISECONDS);

@@ -51,8 +51,8 @@ public class ControllerWrapper implements AutoCloseable {
                              final int containerCount) throws Exception {
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
-                .initialSleepInterval(2000)
-                .maxRetries(1)
+                .initialSleepInterval(500)
+                .maxRetries(10)
                 .namespace("pravega/" + UUID.randomUUID())
                 .build();
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
@@ -92,11 +92,11 @@ public class ControllerWrapper implements AutoCloseable {
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder().port(controllerPort).build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .serviceThreadPoolSize(3)
-                .taskThreadPoolSize(3)
-                .storeThreadPoolSize(3)
-                .eventProcThreadPoolSize(3)
-                .requestHandlerThreadPoolSize(3)
+                .serviceThreadPoolSize(2)
+                .taskThreadPoolSize(4)
+                .storeThreadPoolSize(2)
+                .eventProcThreadPoolSize(4)
+                .requestHandlerThreadPoolSize(4)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
                 .controllerClusterListenerConfig(Optional.<ControllerClusterListenerConfig>empty())

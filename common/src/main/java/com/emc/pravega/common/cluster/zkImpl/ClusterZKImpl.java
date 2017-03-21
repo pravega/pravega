@@ -47,26 +47,19 @@ import static com.emc.pravega.common.cluster.ClusterListener.EventType.HOST_REMO
 @Slf4j
 public class ClusterZKImpl implements Cluster {
 
-    public enum ClusterType {
-        Host,
-        Controller,
-    }
-
     private final static String PATH_CLUSTER = "/cluster/";
-    private final static String HOSTS = "hosts";
-    private final static String CONTROLLERS = "controllers";
 
     private final static int INIT_SIZE = 3;
-    private final ClusterType clusterType;
+    private final String clusterName;
 
     private final CuratorFramework client;
 
     private final Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();
 
-    public ClusterZKImpl(CuratorFramework zkClient, ClusterType clusterType) {
+    public ClusterZKImpl(CuratorFramework zkClient, String clusterName) {
         this.client = zkClient;
-        this.clusterType = clusterType;
+        this.clusterName = clusterName;
         if (client.getState().equals(CuratorFrameworkState.LATENT)) {
             client.start();
         }
@@ -213,6 +206,6 @@ public class ClusterZKImpl implements Cluster {
     }
 
     private String getPathPrefix() {
-        return ZKPaths.makePath(PATH_CLUSTER, clusterType == ClusterType.Host ? HOSTS : CONTROLLERS);
+        return ZKPaths.makePath(PATH_CLUSTER, clusterName);
     }
 }
