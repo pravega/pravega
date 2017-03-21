@@ -333,7 +333,7 @@ project('service:server:host') {
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
-        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
@@ -712,6 +712,7 @@ project('systemtests:tests') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
         compile project(':controller:server')
         compile project(":clients:streaming")
         compile group: 'junit', name: 'junit', version: junitVersion
