@@ -315,7 +315,7 @@ public class AutoScaleTest {
 
             while (!exit.get()) {
                 try {
-                    Transaction<String> transaction = writer.beginTxn(5000, 3600000, 60000);
+                    Transaction<String> transaction = writer.beginTxn(5000, 3600000, 29000);
 
                     for (int i = 0; i < 10; i++) {
                         transaction.writeEvent("0", "txntest");
