@@ -42,14 +42,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class AutoScaleTest {
+public class AutoScaleTest extends AbstractScaleTests {
 
     private final static String SCOPE = "testAutoScale" + new Random().nextInt();
     private final static String SCALE_UP_STREAM_NAME = "testScaleUp";
@@ -66,9 +65,6 @@ public class AutoScaleTest {
     private static final StreamConfiguration CONFIG_DOWN = StreamConfiguration.builder().scope(SCOPE)
             .streamName(SCALE_DOWN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
-
-    private final AtomicReference<ClientFactory> clientFactoryRef = new AtomicReference<>();
-    private final AtomicReference<ControllerImpl> controllerRef = new AtomicReference<>();
 
     @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
@@ -123,7 +119,9 @@ public class AutoScaleTest {
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
         //create a scope
-        com.emc.pravega.stream.impl.Controller controller = getController();
+        URI controllerUri = getControllerURI();
+        com.emc.pravega.stream.impl.Controller controller = getController(controllerUri);
+
         CompletableFuture<Controller.CreateScopeStatus> createScopeStatus = controller.createScope(SCOPE);
         log.debug("create scope status {}", createScopeStatus.get().getStatus());
         assertNotEquals(Controller.CreateScopeStatus.Status.FAILURE, createScopeStatus.get().getStatus());
@@ -156,9 +154,10 @@ public class AutoScaleTest {
 
     @Test
     public void scaleTests() throws URISyntaxException, InterruptedException {
-        CompletableFuture<Void> scaleup = scaleUpTest();
-        CompletableFuture<Void> scaleDown = scaleDownTest();
-        CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
+        URI controllerUri = getControllerURI();
+        CompletableFuture<Void> scaleup = scaleUpTest(controllerUri);
+        CompletableFuture<Void> scaleDown = scaleDownTest(controllerUri);
+        CompletableFuture<Void> scalewithTxn = scaleUpTxnTest(controllerUri);
         FutureHelpers.getAndHandleExceptions(CompletableFuture.allOf(scaleup, scaleDown, scalewithTxn)
                 .whenComplete((r, e) -> {
                     recordResult(scaleup, "ScaleUp");
@@ -166,17 +165,6 @@ public class AutoScaleTest {
                     recordResult(scalewithTxn, "ScaleWithTxn");
 
                 }), RuntimeException::new);
-    }
-
-    private void recordResult(CompletableFuture<Void> scaleTest, String testName) {
-        FutureHelpers.getAndHandleExceptions(scaleTest.handle((r, e) -> {
-            if (e != null) {
-                log.error("test {} failed with exception {}", testName, e);
-            } else {
-                log.debug("test {} succeed", testName);
-            }
-            return null;
-        }), RuntimeException::new);
     }
 
     /**
@@ -187,11 +175,12 @@ public class AutoScaleTest {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleUpTest() throws InterruptedException, URISyntaxException {
+    private CompletableFuture<Void> scaleUpTest(final URI controllerUri) throws InterruptedException,
+            URISyntaxException {
 
-        ClientFactory clientFactory = getClientFactory();
+        ClientFactory clientFactory = getClientFactory(SCOPE);
 
-        ControllerImpl controller = getController();
+        ControllerImpl controller = getController(controllerUri);
 
         final AtomicBoolean exit = new AtomicBoolean(false);
 
@@ -204,13 +193,13 @@ public class AutoScaleTest {
 
         // overall wait for test to complete in 1500 seconds (25 minutes) or scale up, whichever happens first.
         return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
-                .retryingOn(NotDoneException.class)
+                .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_UP_STREAM_NAME)
                         .thenAccept(x -> {
                             log.debug("size ==" + x.getSegments().size());
                             if (x.getSegments().size() == 1) {
-                                throw new NotDoneException();
+                                throw new ScaleOperationNotDoneException();
                             } else {
                                 log.info("scale up done successfully");
 
@@ -226,21 +215,22 @@ public class AutoScaleTest {
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
+     * @param controllerUri Controller URI
      */
-    private CompletableFuture<Void> scaleDownTest() throws InterruptedException, URISyntaxException {
+    private CompletableFuture<Void> scaleDownTest(final URI controllerUri) throws InterruptedException, URISyntaxException {
 
-        final ControllerImpl controller = getController();
+        final ControllerImpl controller = getController(controllerUri);
 
         final AtomicBoolean exit = new AtomicBoolean(false);
 
         // overall wait for test to complete in 1500 seconds (25 minutes) or scale down, whichever happens first.
         return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
-                .retryingOn(NotDoneException.class)
+                .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_DOWN_STREAM_NAME)
                         .thenAccept(x -> {
                             if (x.getSegments().size() == 2) {
-                                throw new NotDoneException();
+                                throw new ScaleOperationNotDoneException();
                             } else {
                                 log.info("scale down done successfully");
 
@@ -258,14 +248,16 @@ public class AutoScaleTest {
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
+     * @param controllerUri Controller URI
      */
-    public CompletableFuture<Void> scaleUpTxnTest() throws InterruptedException, URISyntaxException {
+    private CompletableFuture<Void> scaleUpTxnTest(final URI controllerUri) throws InterruptedException,
+            URISyntaxException {
 
-        ControllerImpl controller = getController();
+        ControllerImpl controller = getController(controllerUri);
 
         final AtomicBoolean exit = new AtomicBoolean(false);
 
-        ClientFactory clientFactory = getClientFactory();
+        ClientFactory clientFactory = getClientFactory(SCOPE);
         startNewTxnWriter(clientFactory, exit);
         startNewTxnWriter(clientFactory, exit);
         startNewTxnWriter(clientFactory, exit);
@@ -275,12 +267,12 @@ public class AutoScaleTest {
 
         // overall wait for test to complete in 1500 seconds (25 minutes) or scale up, whichever happens first.
         return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
-                .retryingOn(NotDoneException.class)
+                .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_UP_TXN_STREAM_NAME)
                         .thenAccept(x -> {
                             if (x.getSegments().size() == 1) {
-                                throw new NotDoneException();
+                                throw new ScaleOperationNotDoneException();
                             } else {
                                 log.info("txn test scale up done successfully");
                                 exit.set(true);
@@ -315,7 +307,7 @@ public class AutoScaleTest {
 
             while (!exit.get()) {
                 try {
-                    Transaction<String> transaction = writer.beginTxn(5000, 3600000, 60000);
+                    Transaction<String> transaction = writer.beginTxn(5000, 3600000, 29000);
 
                     for (int i = 0; i < 10; i++) {
                         transaction.writeEvent("0", "txntest");
@@ -328,31 +320,5 @@ public class AutoScaleTest {
                 }
             }
         });
-    }
-
-    private URI getControllerURI() {
-        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
-        List<URI> ctlURIs = conService.getServiceDetails();
-        return ctlURIs.get(0);
-    }
-
-    private ControllerImpl getController() {
-        if (controllerRef.get() == null) {
-            URI controllerUri = getControllerURI();
-            log.debug("controller uri:" + controllerUri.getHost() + ":" + controllerUri.getPort());
-
-            controllerRef.set(new ControllerImpl(controllerUri.getHost(), controllerUri.getPort()));
-        }
-        return controllerRef.get();
-    }
-
-    private ClientFactory getClientFactory() {
-        if (clientFactoryRef.get() == null) {
-            clientFactoryRef.set(ClientFactory.withScope(SCOPE, getControllerURI()));
-        }
-        return clientFactoryRef.get();
-    }
-
-    private class NotDoneException extends RuntimeException {
     }
 }

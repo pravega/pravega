@@ -26,6 +26,8 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -67,8 +69,13 @@ public final class ControllerServiceStarter extends AbstractIdleService {
     private ControllerService controllerService;
 
     private LocalController localController;
-    private CountDownLatch controllerReadyLatch;
     private ControllerEventProcessors controllerEventProcessors;
+
+    /**
+     * ControllerReadyLatch is released once localController, streamTransactionMetadataTasks and controllerService
+     * variables are initialized in the startUp method.
+     */
+    private final CountDownLatch controllerReadyLatch;
 
     private GRPCServer grpcServer;
     private RESTServer restServer;
@@ -139,11 +146,12 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
+            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
             SegmentHelper segmentHelper = new SegmentHelper();
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, taskExecutor, hostId);
+                    segmentHelper, taskExecutor, hostId, connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, taskMetadataStore, segmentHelper, taskExecutor, hostId);
+                    hostStore, taskMetadataStore, segmentHelper, taskExecutor, hostId, connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
@@ -156,7 +164,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(hostId,
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        hostStore, segmentHelper, eventProcExecutor);
+                        hostStore, segmentHelper, connectionFactory, eventProcExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
@@ -279,11 +287,13 @@ public final class ControllerServiceStarter extends AbstractIdleService {
 
     @VisibleForTesting
     public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        controllerReadyLatch.await();
         return this.streamTransactionMetadataTasks.awaitInitialization(timeout, timeUnit);
     }
 
     @VisibleForTesting
-    public ControllerService getControllerService() {
+    public ControllerService getControllerService() throws InterruptedException {
+        controllerReadyLatch.await();
         return this.controllerService;
     }
 

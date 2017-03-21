@@ -33,15 +33,11 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.PositionImpl;
-import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,12 +49,9 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
-
 import org.apache.commons.lang.NotImplementedException;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
@@ -326,9 +319,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return CompletableFuture.completedFuture(ImmutableList.<PositionInternal>of(getInitialPosition(stream.getScope(),
-                                                                                                       stream.getStreamName())));
+    public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(Stream stream, long timestamp) {
+        return CompletableFuture.completedFuture(getSegmentsForStream(stream).stream().collect(Collectors.toMap(s -> s, s -> 0L)));
     }
     
     @Override
@@ -339,12 +331,6 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         return CompletableFuture.completedFuture(new PravegaNodeUri(endpoint, port));
-    }
-
-    private PositionImpl getInitialPosition(String scope, String stream) {
-        return new PositionImpl(
-                getSegmentsForStream(new StreamImpl(scope, stream)).stream()
-                                                                   .collect(Collectors.toMap(s -> s, s -> 0L)));
     }
 
     private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {

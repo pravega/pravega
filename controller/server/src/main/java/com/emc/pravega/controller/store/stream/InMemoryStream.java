@@ -7,7 +7,6 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import org.apache.commons.lang.NotImplementedException;

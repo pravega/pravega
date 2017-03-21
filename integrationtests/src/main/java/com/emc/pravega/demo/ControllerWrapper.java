@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+
 @Slf4j
 public class ControllerWrapper implements AutoCloseable {
 
@@ -113,7 +114,7 @@ public class ControllerWrapper implements AutoCloseable {
         return this.controllerServiceStarter.awaitTasksModuleInitialization(timeout, timeUnit);
     }
 
-    public ControllerService getControllerService() {
+    public ControllerService getControllerService() throws InterruptedException {
         return this.controllerServiceStarter.getControllerService();
     }
 
