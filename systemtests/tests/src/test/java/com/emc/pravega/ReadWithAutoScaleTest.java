@@ -60,7 +60,7 @@ public class ReadWithAutoScaleTest {
 
     private final static String SCOPE = "testReadAutoScale" + new Random().nextInt();
     private final static String STREAM_NAME = "testScaleUp";
-    private final static String READER_GROUP_NAME = "testReaderGroup" + new Random().nextInt();
+    private final static String READER_GROUP_NAME = "testReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
 
     //Initial number of segments is 2.
     private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 2);
@@ -134,7 +134,7 @@ public class ReadWithAutoScaleTest {
     }
 
     @Test
-    public void scaleTests() throws URISyntaxException, InterruptedException {
+    public void scaleTestsWithReader() throws URISyntaxException, InterruptedException {
 
         CompletableFuture<Void> testResult = scaleUpWithTxnAndReaderGroup();
         FutureHelpers.getAndHandleExceptions(testResult
@@ -170,15 +170,16 @@ public class ReadWithAutoScaleTest {
         //2. Start a reader group with 2 readers (The stream is configured with 2 segments.)
 
         //2.1 Create a reader group.
+        log.info("Creating Reader group : {}", READER_GROUP_NAME);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
         readerGroupManager.createReaderGroup(READER_GROUP_NAME, ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singleton(STREAM_NAME));
 
         //2.2 Create readers.
-        CompletableFuture<Void> reader1 = startReader("reader-1", clientFactory, READER_GROUP_NAME,
+        CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,
                 eventsReadFromPravega);
-        CompletableFuture<Void> reader2 = startReader("reader-2", clientFactory, READER_GROUP_NAME,
+        CompletableFuture<Void> reader2 = startReader("reader2", clientFactory, READER_GROUP_NAME,
                 eventsReadFromPravega);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
@@ -261,7 +262,7 @@ public class ReadWithAutoScaleTest {
             while (!exitFlag.get()) {
                 try {
                     //create a transaction with 10 events.
-                    Transaction<Long> transaction = writer.beginTxn(5000, 3600000, 60000);
+                    Transaction<Long> transaction = writer.beginTxn(5000, 3600000, 29000); //Default max scale grace period is 30000
                     for (int i = 0; i < 10; i++) {
                         long value = data.incrementAndGet();
                         transaction.writeEvent(String.valueOf(value), value);
