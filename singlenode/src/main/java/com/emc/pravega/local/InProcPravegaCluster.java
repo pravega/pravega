@@ -254,7 +254,6 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
     }
 
-    @Synchronized
     private void startLocalDL() throws Exception {
         localDlm = LocalDLMEmulator.newBuilder().shouldStartZK(false).zkHost(zkHost).
                     zkPort(zkPort).numBookies(this.bookieCount).build();
@@ -280,7 +279,6 @@ public class InProcPravegaCluster implements AutoCloseable {
      *
      * @param sssId id of the SSS.
      */
-    @Synchronized
     private void startLocalSSS(int sssId) throws IOException {
 
         try {
@@ -322,7 +320,6 @@ public class InProcPravegaCluster implements AutoCloseable {
         nodeServiceStarter[sssId].start();
     }
 
-    @Synchronized
     private void startLocalControllers() {
         controllerServers = new GRPCServer[this.controllerCount];
         controllerExecutors = new ScheduledExecutorService[this.controllerCount];
@@ -334,7 +331,6 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     }
 
-    @Synchronized
     private void startLocalController(int controllerId) {
 
         ScheduledExecutorService controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
