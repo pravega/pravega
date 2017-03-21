@@ -58,7 +58,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
     private class Delegate extends AbstractExecutionThreadService {
 
-        private final long defaultTimeout = 4000L;
+        private final long defaultTimeout = 2000L;
         private final EventProcessorConfig<T> eventProcessorConfig;
         private EventRead<T> event;
         private final CheckpointState state;
