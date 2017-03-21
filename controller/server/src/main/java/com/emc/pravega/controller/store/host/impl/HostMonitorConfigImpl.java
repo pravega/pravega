@@ -48,8 +48,15 @@ public class HostMonitorConfigImpl implements HostMonitorConfig {
      */
     @VisibleForTesting
     public static HostMonitorConfig dummyConfig() {
+        return new HostMonitorConfigImpl(false, 10, getHostContainerMap("localhost", 12345, 4));
+    }
+
+    public static Map<Host, Set<Integer>> getHostContainerMap(String host, int port, int containerCount) {
+        Exceptions.checkNotNullOrEmpty(host, "host");
+        Preconditions.checkArgument(port > 0, "port");
+        Preconditions.checkArgument(containerCount > 0, "containerCount");
         Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
-        hostContainerMap.put(new Host("localhost", 12345), IntStream.range(0, 4).boxed().collect(Collectors.toSet()));
-        return new HostMonitorConfigImpl(false, 10, hostContainerMap);
+        hostContainerMap.put(new Host(host, port), IntStream.range(0, containerCount).boxed().collect(Collectors.toSet()));
+        return hostContainerMap;
     }
 }

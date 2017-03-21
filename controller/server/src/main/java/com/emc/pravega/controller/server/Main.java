@@ -46,9 +46,8 @@ public class Main {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(Config.HOST_MONITOR_ENABLED)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
-                .sssHost(Config.SERVICE_HOST)
-                .sssPort(Config.SERVICE_PORT)
-                .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
+                .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(Config.SERVICE_HOST,
+                        Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT))
                 .build();
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
