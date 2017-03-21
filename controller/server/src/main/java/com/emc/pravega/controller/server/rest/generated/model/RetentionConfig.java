@@ -3,6 +3,7 @@ package com.emc.pravega.controller.server.rest.generated.model;
 import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
@@ -14,24 +15,66 @@ import io.swagger.annotations.ApiModelProperty;
  */
 
 public class RetentionConfig   {
-  private Long retentionTimeMillis = null;
+  /**
+   * Gets or Sets type
+   */
+  public enum TypeEnum {
+    INFINITE("INFINITE"),
+    
+    LIMITED_DAYS("LIMITED_DAYS"),
+    
+    LIMITED_SIZE_MB("LIMITED_SIZE_MB");
 
-  public RetentionConfig retentionTimeMillis(Long retentionTimeMillis) {
-    this.retentionTimeMillis = retentionTimeMillis;
+    private String value;
+
+    TypeEnum(String value) {
+      this.value = value;
+    }
+
+    @Override
+    public String toString() {
+      return String.valueOf(value);
+    }
+  }
+
+  private TypeEnum type = null;
+
+  private Long value = null;
+
+  public RetentionConfig type(TypeEnum type) {
+    this.type = type;
     return this;
   }
 
    /**
-   * Get retentionTimeMillis
-   * @return retentionTimeMillis
+   * Get type
+   * @return type
   **/
   @ApiModelProperty(value = "")
-  public Long getRetentionTimeMillis() {
-    return retentionTimeMillis;
+  public TypeEnum getType() {
+    return type;
   }
 
-  public void setRetentionTimeMillis(Long retentionTimeMillis) {
-    this.retentionTimeMillis = retentionTimeMillis;
+  public void setType(TypeEnum type) {
+    this.type = type;
+  }
+
+  public RetentionConfig value(Long value) {
+    this.value = value;
+    return this;
+  }
+
+   /**
+   * Get value
+   * @return value
+  **/
+  @ApiModelProperty(value = "")
+  public Long getValue() {
+    return value;
+  }
+
+  public void setValue(Long value) {
+    this.value = value;
   }
 
 
@@ -44,12 +87,13 @@ public class RetentionConfig   {
       return false;
     }
     RetentionConfig retentionConfig = (RetentionConfig) o;
-    return Objects.equals(this.retentionTimeMillis, retentionConfig.retentionTimeMillis);
+    return Objects.equals(this.type, retentionConfig.type) &&
+        Objects.equals(this.value, retentionConfig.value);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(retentionTimeMillis);
+    return Objects.hash(type, value);
   }
 
   @Override
@@ -57,7 +101,8 @@ public class RetentionConfig   {
     StringBuilder sb = new StringBuilder();
     sb.append("class RetentionConfig {\n");
     
-    sb.append("    retentionTimeMillis: ").append(toIndentedString(retentionTimeMillis)).append("\n");
+    sb.append("    type: ").append(toIndentedString(type)).append("\n");
+    sb.append("    value: ").append(toIndentedString(value)).append("\n");
     sb.append("}");
     return sb.toString();
   }

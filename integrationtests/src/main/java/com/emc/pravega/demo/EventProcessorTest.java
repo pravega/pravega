@@ -27,8 +27,10 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -75,23 +77,27 @@ public class EventProcessorTest {
     @Data
     @AllArgsConstructor
     public static class TestEvent implements ControllerEvent, Serializable {
+        private static final long serialVersionUID = 1L;
         int number;
     }
 
     public static void main(String[] args) throws Exception {
         new EventProcessorTest().testEventProcessor();
+        System.exit(0);
     }
 
     @Test
     public void testEventProcessor() throws Exception {
+        @Cleanup
         TestingServer zkTestServer = new TestingServer();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
-
+        @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
         Controller controller = controllerWrapper.getController();
 
@@ -123,8 +129,11 @@ public class EventProcessorTest {
             return;
         }
 
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
+        @Cleanup
         EventStreamWriter<TestEvent> producer = clientFactory.createEventWriter(streamName,
                 new JavaSerializer<>(), EventWriterConfig.builder().build());
 
@@ -137,7 +146,7 @@ public class EventProcessorTest {
         producer.writeEvent("key", new TestEvent(-1));
         producer.flush();
 
-        EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope, controller);
+        EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope, controller, connectionFactory);
 
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()
@@ -172,12 +181,6 @@ public class EventProcessorTest {
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
         log.info("SUCCESS: received expected sum = " + expectedSum);
-
-        producer.close();
         eventEventProcessorGroup.stopAll();
-        server.close();
-        zkTestServer.close();
-
-        System.exit(0);
     }
 }

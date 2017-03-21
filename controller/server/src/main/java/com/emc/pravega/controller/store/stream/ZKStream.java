@@ -16,7 +16,6 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
 

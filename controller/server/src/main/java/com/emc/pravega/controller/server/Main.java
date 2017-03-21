@@ -20,13 +20,15 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -100,12 +102,12 @@ public class Main {
                     new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
             monitor.startAsync();
         }
-
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
         SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, taskExecutor, hostId);
+                segmentHelper, taskExecutor, hostId, connectionFactory);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, taskExecutor, hostId);
+                hostStore, taskMetadataStore, segmentHelper, taskExecutor, hostId, connectionFactory);
         TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 Config.MAX_LEASE_VALUE, Config.MAX_SCALE_GRACE_PERIOD);
 
@@ -119,7 +121,7 @@ public class Main {
         LocalController localController = new LocalController(controllerService);
 
         ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
-                ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper, eventProcExecutor);
+                ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper, connectionFactory, eventProcExecutor);
 
         ControllerEventProcessors.bootstrap(localController, streamTransactionMetadataTasks, eventProcExecutor)
                 .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);

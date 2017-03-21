@@ -65,7 +65,7 @@ public class RequestHandlersInit {
         final LocalController localController = new LocalController(controller);
         ClientFactory clientFactory = ClientFactory.withScope(Config.INTERNAL_SCOPE, localController);
 
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, localController);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, localController, clientFactory);
 
         CHECKPOINT_STORE_REF.set(checkpointStore);
         SERIALIZER_REF.set(new JavaSerializer<>());

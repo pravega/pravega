@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 public class RetentionPolicy implements Serializable {
     public static final RetentionPolicy INFINITE = new RetentionPolicy(Type.TIME, Long.MAX_VALUE);
     private static final long serialVersionUID = 1L;
-    
+
     public enum Type {
         /**
          * Set retention based on how long data has been in the stream.
@@ -30,11 +30,11 @@ public class RetentionPolicy implements Serializable {
 
     private final Type type;
     private final long value;
-    
+
     public static RetentionPolicy byTime(Duration duration) {
         return new RetentionPolicy(Type.TIME, duration.toMillis());
     }
-    
+
     public static RetentionPolicy bySizeBytes(long size) {
         return new RetentionPolicy(Type.SIZE, size);
     }
