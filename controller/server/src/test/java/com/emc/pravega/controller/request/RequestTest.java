@@ -78,7 +78,7 @@ public class RequestTest {
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
 
-        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.defaultConfig());
+        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);

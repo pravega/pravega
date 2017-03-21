@@ -68,7 +68,7 @@ public class SegmentContainerMonitorTest {
 
     @Test
     public void testMonitorWithInMemoryStore() throws Exception {
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.defaultConfig());
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         testMonitor(hostStore);
     }
 

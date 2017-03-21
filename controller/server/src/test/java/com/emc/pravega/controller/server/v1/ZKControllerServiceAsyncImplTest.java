@@ -61,7 +61,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         executorService = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
         taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
-        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.defaultConfig());
+        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 

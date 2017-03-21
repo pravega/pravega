@@ -158,7 +158,7 @@ public class TimeoutServiceTest {
         // Create STREAM store, host store, and task metadata store.
         StoreClient storeClient = StoreClientFactory.createZKStoreClient(client);
         streamStore = StreamStoreFactory.createZKStore(client, executor);
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.defaultConfig());
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
