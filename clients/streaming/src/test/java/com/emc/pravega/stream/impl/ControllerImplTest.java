@@ -525,14 +525,14 @@ public class ControllerImplTest {
 
     @Test
     public void testCreateStream() throws Exception {
-        CompletableFuture<CreateStreamStatus> createStreamStatus;
+        CompletableFuture<Boolean> createStreamStatus;
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream1")
                                                                    .scope("scope1")
                                                                    .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
-        assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
+        assertTrue(createStreamStatus.get());
 
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream2")
@@ -540,7 +540,7 @@ public class ControllerImplTest {
                                                                    .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
-        assertEquals(CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", createStreamStatus, Throwable -> true);
 
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream3")
@@ -548,7 +548,7 @@ public class ControllerImplTest {
                                                                    .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
-        assertEquals(CreateStreamStatus.Status.SCOPE_NOT_FOUND, createStreamStatus.get().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", createStreamStatus, Throwable -> true);
 
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream4")
@@ -556,7 +556,7 @@ public class ControllerImplTest {
                                                                    .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
-        assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, createStreamStatus.get().getStatus());
+        assertFalse(createStreamStatus.get());
 
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream5")
@@ -564,7 +564,7 @@ public class ControllerImplTest {
                                                                    .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
-        assertEquals(CreateStreamStatus.Status.INVALID_STREAM_NAME, createStreamStatus.get().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", createStreamStatus, Throwable -> true);
 
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream6")
@@ -577,14 +577,14 @@ public class ControllerImplTest {
 
     @Test
     public void testAlterStream() throws Exception {
-        CompletableFuture<UpdateStreamStatus> updateStreamStatus;
+        CompletableFuture<Boolean> updateStreamStatus;
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream1")
                                                                   .scope("scope1")
                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStreamStatus.get().getStatus());
+        assertTrue(updateStreamStatus.get());
 
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream2")
@@ -592,7 +592,7 @@ public class ControllerImplTest {
                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
-        assertEquals(UpdateStreamStatus.Status.FAILURE, updateStreamStatus.get().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
 
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream3")
@@ -600,7 +600,7 @@ public class ControllerImplTest {
                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
-        assertEquals(UpdateStreamStatus.Status.SCOPE_NOT_FOUND, updateStreamStatus.get().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
 
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream4")
@@ -608,7 +608,7 @@ public class ControllerImplTest {
                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
-        assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.get().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
 
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream5")
@@ -621,18 +621,18 @@ public class ControllerImplTest {
 
     @Test
     public void testSealStream() throws Exception {
-        CompletableFuture<UpdateStreamStatus> updateStreamStatus;
+        CompletableFuture<Boolean> updateStreamStatus;
         updateStreamStatus = controllerClient.sealStream("scope1", "stream1");
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStreamStatus.get().getStatus());
+        assertTrue(updateStreamStatus.get());
 
         updateStreamStatus = controllerClient.sealStream("scope1", "stream2");
-        assertEquals(UpdateStreamStatus.Status.FAILURE, updateStreamStatus.get().getStatus());
+        AssertExtensions.assertThrows("Should throw exception", updateStreamStatus, Throwable -> true);
 
         updateStreamStatus = controllerClient.sealStream("scope1", "stream3");
-        assertEquals(UpdateStreamStatus.Status.SCOPE_NOT_FOUND, updateStreamStatus.get().getStatus());
+        AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
 
         updateStreamStatus = controllerClient.sealStream("scope1", "stream4");
-        assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.get().getStatus());
+        AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
 
         updateStreamStatus = controllerClient.sealStream("scope1", "stream5");
         AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
@@ -640,18 +640,18 @@ public class ControllerImplTest {
 
     @Test
     public void testDeleteStream() {
-        CompletableFuture<DeleteStreamStatus> deleteStreamStatus;
+        CompletableFuture<Boolean> deleteStreamStatus;
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream1");
-        assertEquals(DeleteStreamStatus.Status.SUCCESS, deleteStreamStatus.join().getStatus());
+        assertTrue(deleteStreamStatus.join());
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream2");
-        assertEquals(DeleteStreamStatus.Status.FAILURE, deleteStreamStatus.join().getStatus());
+        AssertExtensions.assertThrows("Should throw Exception", deleteStreamStatus, throwable -> true);
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream3");
-        assertEquals(DeleteStreamStatus.Status.STREAM_NOT_FOUND, deleteStreamStatus.join().getStatus());
+        assertFalse(deleteStreamStatus.join());
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream4");
-        assertEquals(DeleteStreamStatus.Status.STREAM_NOT_SEALED, deleteStreamStatus.join().getStatus());
+        AssertExtensions.assertThrows("Should throw Exception", deleteStreamStatus, throwable -> true);
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream5");
         AssertExtensions.assertThrows("Should throw Exception", deleteStreamStatus, throwable -> true);
@@ -694,15 +694,14 @@ public class ControllerImplTest {
 
     @Test
     public void testScale() throws Exception {
-        CompletableFuture<ScaleResponse> scaleStream;
+        CompletableFuture<Boolean> scaleStream;
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream1"), new ArrayList<>(),
                                                    new HashMap<>());
-        assertTrue(scaleStream.get().getStatus() == ScaleResponse.ScaleStreamStatus.SUCCESS);
-        assertEquals(2, scaleStream.get().getSegmentsCount());
-        assertEquals(ModelHelper.createSegmentRange("scope1", "stream1", 0, 0.0, 0.5),
-                     scaleStream.get().getSegments(0));
-        assertEquals(ModelHelper.createSegmentRange("scope1", "stream1", 1, 0.5, 1.0),
-                     scaleStream.get().getSegments(1));
+        assertTrue(scaleStream.get());
+        CompletableFuture<StreamSegments> segments = controllerClient.getCurrentSegments("scope1", "stream1");
+        assertEquals(2, segments.get().getSegments().size());
+        assertEquals(new Segment("scope1", "stream1", 0), segments.get().getSegmentForKey(0.25));
+        assertEquals(new Segment("scope1", "stream1", 1), segments.get().getSegmentForKey(0.75));
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream2"), new ArrayList<>(),
                                                    new HashMap<>());
@@ -820,18 +819,18 @@ public class ControllerImplTest {
 
     @Test
     public void testCreateScope() throws Exception {
-        CompletableFuture<CreateScopeStatus> scopeStatus;
+        CompletableFuture<Boolean> scopeStatus;
         scopeStatus = controllerClient.createScope("scope1");
-        assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.get().getStatus());
+        assertTrue(scopeStatus.get());
 
         scopeStatus = controllerClient.createScope("scope2");
-        assertEquals(CreateScopeStatus.Status.FAILURE, scopeStatus.get().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", scopeStatus, Throwable -> true);
 
         scopeStatus = controllerClient.createScope("scope3");
-        assertEquals(CreateScopeStatus.Status.INVALID_SCOPE_NAME, scopeStatus.get().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", scopeStatus, Throwable -> true);
 
         scopeStatus = controllerClient.createScope("scope4");
-        assertEquals(CreateScopeStatus.Status.SCOPE_EXISTS, scopeStatus.get().getStatus());
+        assertFalse(scopeStatus.get());
 
         scopeStatus = controllerClient.createScope("scope5");
         AssertExtensions.assertThrows("Should throw Exception", scopeStatus, throwable -> true);
@@ -839,7 +838,7 @@ public class ControllerImplTest {
 
     @Test
     public void testDeleteScope() {
-        CompletableFuture<DeleteScopeStatus> deleteStatus;
+        CompletableFuture<Boolean> deleteStatus;
         String scope1 = "scope1";
         String scope2 = "scope2";
         String scope3 = "scope3";
@@ -847,16 +846,16 @@ public class ControllerImplTest {
         String scope5 = "scope5";
 
         deleteStatus = controllerClient.deleteScope(scope1);
-        assertEquals(DeleteScopeStatus.Status.SUCCESS, deleteStatus.join().getStatus());
+        assertTrue(deleteStatus.join());
 
         deleteStatus = controllerClient.deleteScope(scope2);
-        assertEquals(DeleteScopeStatus.Status.FAILURE, deleteStatus.join().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", deleteStatus, Throwable -> true);
 
         deleteStatus = controllerClient.deleteScope(scope3);
-        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY, deleteStatus.join().getStatus());
+        AssertExtensions.assertThrows("Server should throw exception", deleteStatus, Throwable -> true);
 
         deleteStatus = controllerClient.deleteScope(scope4);
-        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, deleteStatus.join().getStatus());
+        assertFalse(deleteStatus.join());
 
         deleteStatus = controllerClient.deleteScope(scope5);
         AssertExtensions.assertThrows("Server should throw exception", deleteStatus, Throwable -> true);
@@ -871,7 +870,7 @@ public class ControllerImplTest {
             executorService.submit(() -> {
                 for (int j = 0; j < 2; j++) {
                     try {
-                        CompletableFuture<CreateStreamStatus> createStreamStatus;
+                        CompletableFuture<Boolean> createStreamStatus;
                         createStreamStatus = controllerClient.createStream(
                                 StreamConfiguration.builder()
                                         .streamName("streamparallel")
@@ -879,8 +878,8 @@ public class ControllerImplTest {
                                         .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build());
-                        log.info("{}", createStreamStatus.get().getStatus());
-                        assertEquals(CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
+                        log.info("{}", createStreamStatus.get());
+                        assertTrue(createStreamStatus.get());
                         createCount.release();
                     } catch (Exception e) {
                         log.error("Exception when creating stream: {}", e);

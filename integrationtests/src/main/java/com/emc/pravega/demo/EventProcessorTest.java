@@ -14,8 +14,6 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -29,6 +27,8 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.base.Preconditions;
+import java.io.Serializable;
+import java.util.concurrent.CompletableFuture;
 import lombok.AllArgsConstructor;
 import lombok.Cleanup;
 import lombok.Data;
@@ -36,9 +36,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.io.Serializable;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * End-to-end tests for event processor.
@@ -109,11 +106,10 @@ public class EventProcessorTest {
         final String streamName = "stream1";
         final String readerGroup = "readerGroup";
 
-        final CompletableFuture<CreateScopeStatus> createScopeStatus = controller.createScope(scope);
-        final CreateScopeStatus scopeStatus = createScopeStatus.join();
+        final CompletableFuture<Boolean> createScopeStatus = controller.createScope(scope);
 
-        if (CreateScopeStatus.Status.SUCCESS != scopeStatus.getStatus()) {
-            throw new RuntimeException("Error creating scope");
+        if (!createScopeStatus.join()) {
+            throw new RuntimeException("Scope already existed");
         }
 
         final StreamConfiguration config = StreamConfiguration.builder()
@@ -123,9 +119,9 @@ public class EventProcessorTest {
                 .build();
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
-        CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
-        if (createStatus.get().getStatus() != CreateStreamStatus.Status.SUCCESS) {
-            System.err.println("Create stream failed, exiting");
+        CompletableFuture<Boolean> createStatus = controller.createStream(config);
+        if (!createStatus.get()) {
+            System.err.println("Stream alrady existed, exiting");
             return;
         }
 
