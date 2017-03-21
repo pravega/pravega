@@ -1,27 +1,32 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.rocksdb;
 
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
-
-import java.util.Properties;
+import com.emc.pravega.common.util.Property;
+import com.emc.pravega.common.util.TypedProperties;
+import lombok.Getter;
 
 /**
  * Configuration for RocksDB-backed cache.
  */
-public class RocksDBConfig extends ComponentConfig {
+public class RocksDBConfig {
+    //region Config Names
+
+    public static final Property<String> DATABASE_DIR = Property.named("dbDir", "/tmp/pravega/cache");
+    private static final String COMPONENT_CODE = "rocksdb";
+
+    //endregion
+
     //region Members
 
-    public static final String COMPONENT_CODE = "rocksdb";
-    public static final String PROPERTY_DATABASE_DIR = "dbDir";
-
-    private static final String DEFAULT_DATABASE_DIR = "/tmp/pravega/cache";
-
-    private String databaseDir;
+    /**
+     * The path to the RocksDB database (in the local filesystem).
+     */
+    @Getter
+    private final String databaseDir;
 
     //endregion
 
@@ -30,35 +35,19 @@ public class RocksDBConfig extends ComponentConfig {
     /**
      * Creates a new instance of the RocksDBConfig class.
      *
-     * @param properties    The java.util.Properties object to read Properties from.
-     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
-     * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
+     * @param properties    The TypedProperties object to read Properties from.
      */
-    public RocksDBConfig(Properties properties) throws ConfigurationException {
-        super(properties, COMPONENT_CODE);
+    private RocksDBConfig(TypedProperties properties) throws ConfigurationException {
+        this.databaseDir = properties.get(DATABASE_DIR);
     }
-
-    //endregion
-
-    //region Properties
 
     /**
-     * Gets a value indicating the path to the RocksDB database (in the local filesystem).
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
+     *
+     * @return A new Builder for this class.
      */
-    public String getDatabaseDir() {
-        return this.databaseDir;
-    }
-
-    //endregion
-
-    //region ComponentConfig Implementation
-
-    @Override
-    protected void refresh() throws ConfigurationException {
-        this.databaseDir = getProperty(PROPERTY_DATABASE_DIR, DEFAULT_DATABASE_DIR);
+    public static ConfigBuilder<RocksDBConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, RocksDBConfig::new);
     }
 
     //endregion

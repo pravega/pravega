@@ -77,7 +77,7 @@ public class ControllerBootstrapTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 20000)
     public void bootstrapTest() throws Exception {
         Controller controller = controllerWrapper.getController();
 

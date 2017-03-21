@@ -543,7 +543,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                                              final Executor executor) {
         return FutureHelpers.allOfWithResults(
                 sealedSegments.stream()
-                        .map(value ->
+                        .map((Integer value) ->
                                 getSegment(scopeName, streamName, value, context, executor).thenApply(segment ->
                                         new AbstractMap.SimpleEntry<>(
                                                 segment.getKeyStart(),

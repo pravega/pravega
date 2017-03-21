@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
  * Creates the controller service, given the service configuration.
  */
 @Slf4j
-public class ControllerServiceStarter extends AbstractIdleService {
+public final class ControllerServiceStarter extends AbstractIdleService {
     private final ControllerServiceConfig serviceConfig;
     private final String objectId;
 

@@ -33,18 +33,17 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
-import lombok.Builder;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.bookkeeper.util.IOUtils;
-import org.apache.commons.io.FileUtils;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.apache.bookkeeper.util.IOUtils;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.LoggerFactory;
 
 import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 
@@ -52,8 +51,8 @@ import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 public class LocalPravegaEmulator implements AutoCloseable {
 
     private static final int NUM_BOOKIES = 5;
-    private static final String CONTAINER_COUNT = "2";
-    private static final String THREADPOOL_SIZE = "20";
+    private static final int CONTAINER_COUNT = 2;
+    private static final int THREADPOOL_SIZE = 20;
 
     private final AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
 
@@ -72,7 +71,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         this.localHdfs = localHdfs;
         this.controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d")
-                        .build());
+                                          .build());
     }
 
     public static void main(String[] args) {
@@ -129,9 +128,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
     private static void configureDLBinding(int zkPort) {
         DistributedLogAdmin admin = new DistributedLogAdmin();
-        String[] params = {"bind", "-dlzr", "localhost:" + zkPort, "-dlzw", "localhost:" + 7000, "-s", "localhost:" +
+        String[] params = { "bind", "-dlzr", "localhost:" + zkPort, "-dlzw", "localhost:" + 7000, "-s", "localhost:" +
                 zkPort, "-bkzr", "localhost:" + 7000, "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
-                "distributedlog://localhost:" + zkPort + "/pravega/segmentstore/containers"};
+                "distributedlog://localhost:" + zkPort + "/pravega/segmentstore/containers" };
         try {
             admin.run(params);
         } catch (Exception e) {
@@ -165,42 +164,30 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
     private void startPravegaHost() {
         try {
-            Properties p = new Properties();
-            ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
-            ServiceBuilderConfig.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
-                    String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
+            val config = ServiceBuilderConfig
+                    .builder()
+                    .include("config.properties")
+                    .include(System.getProperties())
+                    .include(HDFSStorageConfig.builder()
+                                              .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort())))
+                    .include(ServiceConfig.builder()
+                                          .with(ServiceConfig.CONTAINER_COUNT, CONTAINER_COUNT)
+                                          .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
+                                          .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
+                                          .with(ServiceConfig.LISTENING_PORT, hostPort))
+                    .include(DurableLogConfig.builder()
+                                             .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+                                             .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
+                                             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
+                    .include(ReadIndexConfig.builder()
+                                            .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
+                                            .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
+                    .include(DistributedLogConfig.builder()
+                                                 .with(DistributedLogConfig.HOSTNAME, "localhost")
+                                                 .with(DistributedLogConfig.PORT, zkPort))
+                    .build();
 
-            // Change Number of containers and Thread Pool Size for each test.
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT,
-                    CONTAINER_COUNT);
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE,
-                    THREADPOOL_SIZE);
-
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
-                    DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
-                    DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, "100");
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
-                    DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, "104857600");
-
-            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME,
-                    Integer.toString(60 * 1000));
-            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE,
-                    Long.toString(128 * 1024 * 1024));
-
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, "localhost:" +
-                    zkPort);
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
-                    Integer.toString(hostPort));
-
-            ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
-                    "localhost");
-            ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
-                    Integer.toString(zkPort));
-
-            props = new ServiceBuilderConfig(p);
-
-            nodeServiceStarter.set(new ServiceStarter(props));
+            nodeServiceStarter.set(new ServiceStarter(config));
         } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -263,5 +250,4 @@ public class LocalPravegaEmulator implements AutoCloseable {
         ControllerServiceStarter controllerServiceStarter = new ControllerServiceStarter(serviceConfig);
         controllerServiceStarter.startAsync();
     }
-
 }

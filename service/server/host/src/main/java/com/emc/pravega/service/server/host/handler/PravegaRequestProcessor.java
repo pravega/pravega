@@ -51,6 +51,8 @@ import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -62,7 +64,6 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.MetricsNames.SEGMENT_CREATE_LATENCY;
 import static com.emc.pravega.common.MetricsNames.SEGMENT_READ_BYTES;
@@ -335,21 +336,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void commitTransaction(CommitTransaction commitTx) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
-        segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
-            segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
-                connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
-            }).thenCompose(x -> recordStatForTransaction(commitTx.getSegment())
-                    .exceptionally((Throwable e) -> {
-                        // gobble up any errors from stat recording so we do not affect rest of the flow.
-                        log.error("exception while computing stats while merging txn {}", e);
+        segmentStore.sealStreamSegment(transactionName, TIMEOUT)
+                .thenCompose((Long length) -> recordStatForTransaction(transactionName, commitTx.getSegment())
+                        .exceptionally((Throwable e) -> {
+                            // gobble up any errors from stat recording so we do not affect rest of the flow.
+                            log.error("exception while computing stats while merging txn {}", e);
+                            return null;
+                        }))
+                .thenApply(result -> {
+                    segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
+                        connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
+                    }).exceptionally((Throwable e) -> {
+                        handleException(transactionName, "Commit transaction", e);
                         return null;
-                    })
-            ).exceptionally((Throwable e) -> {
-                handleException(transactionName, "Commit transaction", e);
-                return null;
-            });
-            return null;
-        }).exceptionally((Throwable e) -> {
+                    });
+                    return null;
+                }).exceptionally((Throwable e) -> {
             handleException(transactionName, "Commit transaction", e);
             return null;
         });
@@ -421,8 +423,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         });
     }
 
-    private CompletableFuture<Void> recordStatForTransaction(String parentSegmentName) {
-        return segmentStore.getStreamSegmentInfo(parentSegmentName, false, TIMEOUT)
+    private CompletableFuture<Void> recordStatForTransaction(String transactionName, String parentSegmentName) {
+        return segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT)
                 .thenAccept(prop -> {
                     if (prop != null &&
                             prop.getAttributes().containsKey(Attributes.CREATION_TIME) &&

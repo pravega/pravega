@@ -41,7 +41,7 @@ public class RequestTest {
     private final String scope = "scope";
     private final String stream = "stream";
     StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 0, 2, 3)).build();
+            ScalingPolicy.byEventRate(0, 2, 3)).build();
 
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(100);
     private StreamMetadataStore streamStore;

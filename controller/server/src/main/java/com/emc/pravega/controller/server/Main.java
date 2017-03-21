@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
+import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -19,7 +19,6 @@ import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
-import com.emc.pravega.stream.ScalingPolicy;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -31,6 +30,9 @@ import java.util.Optional;
 public class Main {
 
     public static void main(String[] args) {
+
+        //0. Initialize metrics provider
+        MetricsProvider.initialize(Config.getMetricsConfig());
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                 .connectionString(Config.ZK_URL)

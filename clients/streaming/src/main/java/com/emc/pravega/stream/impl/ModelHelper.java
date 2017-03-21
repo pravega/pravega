@@ -76,10 +76,12 @@ public final class ModelHelper {
 
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "policy");
-        return new ScalingPolicy(ScalingPolicy.Type.valueOf(policy.getType().name()),
-                                 policy.getTargetRate(),
-                                 policy.getScaleFactor(),
-                                 policy.getMinNumSegments());
+        return ScalingPolicy.builder()
+                            .type(ScalingPolicy.Type.valueOf(policy.getType().name()))
+                            .targetRate(policy.getTargetRate())
+                            .scaleFactor(policy.getScaleFactor())
+                            .minNumSegments(policy.getMinNumSegments())
+                            .build();
     }
 
     /**
