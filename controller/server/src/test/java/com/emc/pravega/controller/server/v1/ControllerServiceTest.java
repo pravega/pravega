@@ -13,13 +13,23 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.ModelHelper;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import java.io.IOException;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -27,15 +37,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.AbstractMap.SimpleEntry;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -66,10 +67,11 @@ public class ControllerServiceTest {
         final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
-                taskMetadataStore, segmentHelper, executor, "host");
+                taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, executor, "host");
+                hostStore, taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
         TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
@@ -112,47 +114,29 @@ public class ControllerServiceTest {
 
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
-        List<Position> positions;
+        Map<SegmentId, Long> segments;
 
-        positions = consumer.getPositions(SCOPE, stream1, 10, 3).get();
-        assertEquals(2, positions.size());
-        assertEquals(1, positions.get(0).getOwnedSegmentsCount());
-        assertEquals(1, positions.get(1).getOwnedSegmentsCount());
+        segments = consumer.getSegmentsAtTime(SCOPE, stream1, 10).get();
+        assertEquals(2, segments.size());
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 0)));
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 1)));
 
-        positions = consumer.getPositions(SCOPE, stream1, 10, 1).get();
-        assertEquals(1, positions.size());
-        assertEquals(2, positions.get(0).getOwnedSegmentsCount());
+        segments = consumer.getSegmentsAtTime(SCOPE, stream2, 10).get();
+        assertEquals(3, segments.size());
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 0)));
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 1)));
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 2)));
 
-        positions = consumer.getPositions(SCOPE, stream2, 10, 3).get();
-        assertEquals(3, positions.size());
-        assertEquals(1, positions.get(0).getOwnedSegmentsCount());
-        assertEquals(1, positions.get(1).getOwnedSegmentsCount());
-        assertEquals(1, positions.get(2).getOwnedSegmentsCount());
+        segments = consumer.getSegmentsAtTime(SCOPE, stream1, 25).get();
+        assertEquals(3, segments.size());
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 0)));
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 2)));
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 3)));
 
-        positions = consumer.getPositions(SCOPE, stream2, 10, 2).get();
-        assertEquals(2, positions.size());
-        assertEquals(2, positions.get(0).getOwnedSegmentsCount());
-        assertEquals(1, positions.get(1).getOwnedSegmentsCount());
-
-        positions = consumer.getPositions(SCOPE, stream1, 25, 3).get();
-        assertEquals(3, positions.size());
-        assertEquals(1, positions.get(0).getOwnedSegmentsCount());
-        assertEquals(1, positions.get(1).getOwnedSegmentsCount());
-        assertEquals(1, positions.get(2).getOwnedSegmentsCount());
-
-        positions = consumer.getPositions(SCOPE, stream1, 25, 1).get();
-        assertEquals(1, positions.size());
-        assertEquals(3, positions.get(0).getOwnedSegmentsCount());
-
-        positions = consumer.getPositions(SCOPE, stream2, 25, 3).get();
-        assertEquals(3, positions.size());
-        assertEquals(1, positions.get(0).getOwnedSegmentsCount());
-        assertEquals(1, positions.get(1).getOwnedSegmentsCount());
-        assertEquals(1, positions.get(2).getOwnedSegmentsCount());
-
-        positions = consumer.getPositions(SCOPE, stream2, 25, 2).get();
-        assertEquals(2, positions.size());
-        assertEquals(2, positions.get(0).getOwnedSegmentsCount());
-        assertEquals(1, positions.get(1).getOwnedSegmentsCount());
+        segments = consumer.getSegmentsAtTime(SCOPE, stream2, 25).get();
+        assertEquals(3, segments.size());
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 3)));
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 4)));
+        assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 5)));
     }
 }

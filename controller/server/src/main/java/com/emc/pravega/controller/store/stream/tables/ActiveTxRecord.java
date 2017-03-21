@@ -3,12 +3,12 @@
  */
 package com.emc.pravega.controller.store.stream.tables;
 
-import com.emc.pravega.common.util.BitConverter;
-import com.emc.pravega.stream.impl.TxnStatus;
-import lombok.Data;
 
+import com.emc.pravega.common.util.BitConverter;
+import com.emc.pravega.controller.store.stream.TxnStatus;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import lombok.Data;
 
 @Data
 public class ActiveTxRecord {
