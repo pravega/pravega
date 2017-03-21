@@ -4,12 +4,14 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.RequiredArgsConstructor;
 
 /**
  * Builder for StreamSegmentContainerMetadata to aid in testing.
  */
 @RequiredArgsConstructor
+@NotThreadSafe
 public class MetadataBuilder {
     private final int containerId;
     private int maxActiveSegmentCount = 1000;
