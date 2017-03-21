@@ -24,7 +24,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .controllerCount(1)
                 .isInprocSSS(true)
                 .sssCount(1)
-                .containerCount("2")
+                .containerCount(4)
                 .build();
         inProcPravegaCluster.setControllerPorts(new int[] {controllerPort});
         inProcPravegaCluster.setSssPorts(new int[] {hostPort});

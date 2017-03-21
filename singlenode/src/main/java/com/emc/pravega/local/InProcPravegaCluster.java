@@ -69,7 +69,6 @@ import static org.apache.bookkeeper.util.LocalBookKeeper.runZookeeper;
 public class InProcPravegaCluster implements AutoCloseable {
 
     private static final int THREADPOOL_SIZE = 20;
-    private static final int CONTAINER_COUNT = 4;
     private final boolean isInMemStorage;
 
     /*Controller related variables*/
@@ -103,7 +102,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
 
     /* SSS configuration*/
-    private String containerCount = "2";
+    private int containerCount = 4;
     private ServiceStarter[] nodeServiceStarter = new ServiceStarter[sssCount];
 
     private LocalHDFSEmulator localHdfs;
@@ -120,7 +119,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
                 boolean isInProcHDFS, boolean isInProcDL, int initialBookiePort,
                 boolean isInprocController, int controllerCount,
-                boolean isInprocSSS, int sssCount, String containerCount, boolean startRestServer) {
+                boolean isInprocSSS, int sssCount, int containerCount, boolean startRestServer) {
 
         //Check for valid combinations of flags
         //For ZK
@@ -173,7 +172,6 @@ public class InProcPravegaCluster implements AutoCloseable {
      */
     @Synchronized
     public void start() throws Exception {
-        /*Check possible combinations of flags*/
 
         /*Start the ZK*/
         if (isInProcZK) {
@@ -292,18 +290,18 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .include("config.properties")
                     .include(System.getProperties())
                     .include(ServiceConfig.builder()
-                                          .with(ServiceConfig.CONTAINER_COUNT, CONTAINER_COUNT)
+                                          .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                                           .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                                           .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId])
-                            .with(ServiceConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]))
+                                          .with(ServiceConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]))
                     .include(DurableLogConfig.builder()
-                                             .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
-                                             .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
-                                             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
+                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+                                          .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
+                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                     .include(ReadIndexConfig.builder()
-                                            .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
-                                            .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L));
+                                          .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
+                                          .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L));
 
             if ( !isInMemStorage ) {
                     configBuilder = configBuilder.include(HDFSStorageConfig.builder()
@@ -317,8 +315,8 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
                     .zkSegmentManager(true);
 
-            nodeServiceStarter[sssId] = new ServiceStarter(configBuilder.build(), isInMemStorage ? optBuilder.hdfs(false)
-                    .distributedLog(false).build() : optBuilder.hdfs(true).distributedLog(true).build());
+            nodeServiceStarter[sssId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs(!isInMemStorage)
+                    .distributedLog(isInMemStorage).build());
         } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             throw e;

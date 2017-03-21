@@ -233,7 +233,7 @@ public final class ServiceStarter {
 
     //region Options
     @Builder
-    public static class Options {
+    public final static class Options {
         boolean distributedLog;
         boolean hdfs;
         boolean rocksDb;
