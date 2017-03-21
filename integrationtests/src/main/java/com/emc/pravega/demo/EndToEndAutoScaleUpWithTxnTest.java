@@ -14,6 +14,7 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -25,11 +26,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
-public class EndToEndAutoScaleUpTest {
+public class EndToEndAutoScaleUpWithTxnTest {
     static final StreamConfiguration CONFIG =
             StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
                     ScalingPolicy.byEventRate(10, 2, 3)).build();
@@ -39,10 +40,12 @@ public class EndToEndAutoScaleUpTest {
             @Cleanup
             TestingServer zkTestServer = new TestingServer();
 
-            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+            @Cleanup
+            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
             Controller controller = controllerWrapper.getController();
             controllerWrapper.getControllerService().createScope("pravega").get();
 
+            @Cleanup
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -65,38 +68,49 @@ public class EndToEndAutoScaleUpTest {
             EventStreamWriter<String> test = clientFactory.createEventWriter(
                     "test", new JavaSerializer<>(), EventWriterConfig.builder().build());
 
-            // keep writing. Scale should happen
-            long start = System.currentTimeMillis();
-            char[] chars = new char[1];
-            Arrays.fill(chars, 'a');
+            final AtomicBoolean done = new AtomicBoolean(false);
 
-            String str = new String(chars);
+            startWriter(test, done);
 
-            CompletableFuture.runAsync(() -> {
-                while (System.currentTimeMillis() - start < Duration.ofMinutes(3).toMillis()) {
-                    try {
-                        test.writeEvent("0", str).get();
-                    } catch (Throwable e) {
-                        System.err.println("test exception writing events " + e.getMessage());
-                        break;
+            for (int i = 0; i < 15; i++) {
+                try {
+                    StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
+                    if (streamSegments.getSegments().size() > 3) {
+                        System.err.println("Success scale up");
+                        log.debug("Success scale up");
+                        done.set(true);
+                    } else {
+                        Thread.sleep(10000);
                     }
+
+                } catch (Throwable e) {
+                    e.printStackTrace();
                 }
-            });
-
-            Thread.sleep(130 * 1000);
-
-            StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
-            if (streamSegments.getSegments().size() > 3) {
-                System.err.println("Success scale up");
-            } else {
-                System.err.println("Failure");
-                System.exit(1);
             }
         } catch (Throwable e) {
             System.err.print("Test failed with exception: " + e.getMessage());
+            log.error("Test failed with exception: {}", e);
             System.exit(-1);
         }
 
         System.exit(0);
+    }
+
+    private static void startWriter(EventStreamWriter<String> test, AtomicBoolean done) {
+        CompletableFuture.runAsync(() -> {
+            while (!done.get()) {
+                try {
+                    Transaction<String> transaction = test.beginTxn(5000, 3600000, 60000);
+
+                    for (int i = 0; i < 10000; i++) {
+                        transaction.writeEvent("0", "txntest");
+                    }
+                    transaction.commit();
+                } catch (Throwable e) {
+                    System.err.println("test exception writing events " + e.getMessage());
+                    log.error("test exception writing events {}", e);
+                }
+            }
+        });
     }
 }
