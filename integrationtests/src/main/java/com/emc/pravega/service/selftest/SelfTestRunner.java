@@ -8,8 +8,6 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.FileAppender;
-import com.emc.pravega.common.util.PropertyBag;
-import com.emc.pravega.service.server.containers.ContainerConfig;
 import com.emc.pravega.service.server.containers.ContainerConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;

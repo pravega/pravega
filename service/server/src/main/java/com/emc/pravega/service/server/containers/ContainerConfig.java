@@ -52,7 +52,7 @@ public class ContainerConfig {
         }
         this.segmentMetadataExpiration = Duration.ofSeconds(segmentMetadataExpirationSeconds);
         int maxActiveSegments = properties.getInt(MAX_ACTIVE_SEGMENT_COUNT);
-        if (maxActiveSegments < 0) {
+        if (maxActiveSegments <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_ACTIVE_SEGMENT_COUNT));
         }
         this.maxActiveSegmentCount = maxActiveSegments;

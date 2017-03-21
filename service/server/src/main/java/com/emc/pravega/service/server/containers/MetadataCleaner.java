@@ -11,9 +11,6 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.UpdateableContainerMetadata;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.Collection;
@@ -22,6 +19,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +38,6 @@ class MetadataCleaner extends AbstractThreadPoolService {
     private final Consumer<Collection<SegmentMetadata>> cleanupCallback;
     private final AtomicLong lastIterationSequenceNumber;
     private final SingleRunner runner;
-    private final AtomicLong lastIterationSequenceNumber;
     private final CancellationToken stopToken;
 
     //endregion

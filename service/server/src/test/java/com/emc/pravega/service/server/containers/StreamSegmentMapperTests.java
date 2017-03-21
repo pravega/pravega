@@ -581,6 +581,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         public CompletableFuture<Void> operationProcessingBarrier(Duration timeout) {
             return null;
         }
+
         @Override
         public Service startAsync() {
             return null;

@@ -30,13 +30,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-
-import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
-import lombok.Setter;
-import lombok.val;
 
 /**
  * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
