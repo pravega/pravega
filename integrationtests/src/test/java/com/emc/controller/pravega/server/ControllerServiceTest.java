@@ -28,6 +28,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -240,6 +241,7 @@ public class ControllerServiceTest {
         assertFalse("FAILURE: Fetching active segments failed", getActiveSegments.get().getSegments().isEmpty());
         
     }
+
 
     private static void alterConfigOfNonExistantStream(Controller controller) {
         assertFalse(FutureHelpers.await(controller.alterStream(StreamConfiguration.builder()

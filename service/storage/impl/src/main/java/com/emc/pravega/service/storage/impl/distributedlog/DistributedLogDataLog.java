@@ -108,7 +108,7 @@ class DistributedLogDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Boolean> truncate(LogAddress logAddress, Duration timeout) {
+    public CompletableFuture<Void> truncate(LogAddress logAddress, Duration timeout) {
         ensureActive();
         Preconditions.checkArgument(logAddress instanceof DLSNAddress, "Invalid logAddress. Expected a DLSNAddress.");
         DLSNAddress dlsnAddress = (DLSNAddress) logAddress;
@@ -119,10 +119,7 @@ class DistributedLogDataLog implements DurableDataLog {
                 .thenComposeAsync(
                         truncateAddress -> withRetries(() -> getTruncateHandle().truncate((DLSNAddress) truncateAddress)),
                         this.executor)
-                .thenApply(v -> {
-                    this.truncatedAddress.set(dlsnAddress);
-                    return true;
-                });
+                .thenRun(() -> this.truncatedAddress.set(dlsnAddress));
     }
 
     @Override

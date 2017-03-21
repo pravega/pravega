@@ -19,6 +19,7 @@ import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
@@ -661,7 +662,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         ArrayList<CacheKey> removedKeys = new ArrayList<>();
         @Cleanup
         TestContext context = new TestContext(config, cachePolicy);
-        context.cache.removeCallback = removedKeys::add; // Record every cache removal.
+        context.cacheFactory.cache.removeCallback = removedKeys::add; // Record every cache removal.
 
         // Create the segments (metadata + storage).
         ArrayList<Long> segmentIds = createSegments(context);
@@ -1168,7 +1169,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final UpdateableContainerMetadata metadata;
         final ContainerReadIndex readIndex;
         final TestCacheManager cacheManager;
-        final TestCache cache;
+        final TestCacheFactory cacheFactory;
         final Storage storage;
 
         TestContext() {
@@ -1176,17 +1177,17 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
-            this.cache = new TestCache(Integer.toString(CONTAINER_ID));
+            this.cacheFactory = new TestCacheFactory();
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new InMemoryStorage();
             this.cacheManager = new TestCacheManager(cachePolicy, executorService());
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, executorService());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
         }
 
         @Override
         public void close() {
             this.readIndex.close();
-            this.cache.close();
+            this.cacheFactory.close();
             this.storage.close();
             this.cacheManager.close();
         }
@@ -1211,6 +1212,20 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             super.remove(key);
+        }
+    }
+
+    private static class TestCacheFactory implements CacheFactory {
+        final TestCache cache = new TestCache("Test");
+
+        @Override
+        public Cache getCache(String id) {
+            return this.cache;
+        }
+
+        @Override
+        public void close() {
+            this.cache.close();
         }
     }
 

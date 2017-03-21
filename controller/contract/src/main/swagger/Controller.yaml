@@ -285,7 +285,13 @@ definitions:
   RetentionConfig:
     type: object
     properties:
-      retentionTimeMillis:
+      type:
+        type: string
+        enum:
+        - INFINITE
+        - LIMITED_DAYS
+        - LIMITED_SIZE_MB
+      value:
         type: integer
         format: int64
   StreamState:

@@ -9,6 +9,7 @@ import com.google.common.base.Preconditions;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
  *
  * @param <T> The type of the list items.
  */
+@ThreadSafe
 public class SequencedItemList<T extends SequencedItemList.Element> {
     //region Members
 
@@ -74,23 +76,19 @@ public class SequencedItemList<T extends SequencedItemList.Element> {
      *
      * @param upToSequenceNumber The Sequence Number to truncate up to.
      */
-    public int truncate(long upToSequenceNumber) {
-        int count = 0;
+    public void truncate(long upToSequenceNumber) {
         synchronized (this.lock) {
             // We truncate by finding the new head and simply pointing our head reference to it, as well as disconnecting
             // its predecessor node from it. We also need to mark every truncated node as such - this will instruct ongoing
             // reads to stop serving truncated data.
             while (this.head != null && this.head.item.getSequenceNumber() <= upToSequenceNumber) {
                 this.head = trim(this.head);
-                count++;
             }
 
             if (this.head == null) {
                 this.tail = null;
             }
         }
-
-        return count;
     }
 
     /**

@@ -144,6 +144,12 @@ project('common') {
         compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
         compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: metricsVersion
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-graphite
+        compile group: 'io.dropwizard.metrics', name: 'metrics-graphite', version: metricsVersion
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-ganglia
+        compile group: 'io.dropwizard.metrics', name: 'metrics-ganglia', version: metricsVersion
+        // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
+        compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
@@ -599,6 +605,10 @@ project('singlenode') {
         compile project(':service:server:host')
         compile project(':controller:server')
 
+        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
+        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
+
         compile project(':service:contracts')
         compile project(':service:storage')
         compile project(':service:storage:impl')
@@ -627,11 +637,13 @@ project('singlenode') {
     }
 
     task startSinglenode(type: JavaExec) {
+
         main = "com.emc.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-        args = ["4000", "5000", "6000"]
+        args = ["4000", "9090", "6000"]
+        environment "ZK_URL", "localhost:4000"
     }
+
     publishing {
         publications {
             maven(MavenPublication) {
@@ -641,7 +653,6 @@ project('singlenode') {
         }
     }
 }
-
 
 project('systemtests:tests') {
     dependencies {

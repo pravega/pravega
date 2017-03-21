@@ -38,9 +38,11 @@ public interface ContainerMetadata {
      * Gets the Id of the StreamSegment with given name.
      *
      * @param streamSegmentName The case-sensitive StreamSegment name.
+     * @param updateLastUsed    If true, marks the given segment as 'touched' in the metadata stats, which are used for
+     *                          determining segment metadata evictions.
      * @return The Id of the StreamSegment, or NO_STREAM_SEGMENT_ID if the Metadata has no knowledge of it.
      */
-    long getStreamSegmentId(String streamSegmentName);
+    long getStreamSegmentId(String streamSegmentName, boolean updateLastUsed);
 
     /**
      * Gets the StreamSegmentMetadata mapped to the given StreamSegment Id.

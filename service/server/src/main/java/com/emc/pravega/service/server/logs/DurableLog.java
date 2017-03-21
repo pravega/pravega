@@ -16,6 +16,7 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.LogItemFactory;
 import com.emc.pravega.service.server.OperationLog;
+import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -39,12 +40,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Represents an OperationLog that durably stores Log Operations it receives.
  */
 @Slf4j
+@ThreadSafe
 public class DurableLog extends AbstractService implements OperationLog {
     //region Members
 
@@ -57,6 +61,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final MemoryStateUpdater memoryStateUpdater;
     private final OperationProcessor operationProcessor;
     private final UpdateableContainerMetadata metadata;
+    @GuardedBy("tailReads")
     private final Set<TailRead> tailReads;
     private final ScheduledExecutorService executor;
     private final AtomicReference<Throwable> stopException = new AtomicReference<>();
@@ -72,15 +77,15 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @param config              Durable Log Configuration.
      * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is part of.
      * @param dataFrameLogFactory A DurableDataLogFactory which can be used to create instances of DataFrameLogs.
-     * @param cacheUpdater        A CacheUpdater which can be used to store newly processed appends.
+     * @param readIndex           A ReadIndex which can be used to store newly processed appends.
      * @param executor            The Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, CacheUpdater cacheUpdater, ScheduledExecutorService executor) {
+    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, ReadIndex readIndex, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(dataFrameLogFactory, "dataFrameLogFactory");
-        Preconditions.checkNotNull(cacheUpdater, "cacheUpdater");
+        Preconditions.checkNotNull(readIndex, "readIndex");
         Preconditions.checkNotNull(executor, "executor");
 
         this.config = config;
@@ -92,7 +97,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.executor = executor;
         this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = new SequencedItemList<>();
-        this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, cacheUpdater, this::triggerTailReads);
+        this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
