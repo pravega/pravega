@@ -1,198 +1,157 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.metrics;
 
-import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
-
-import java.util.Properties;
-
-import lombok.extern.slf4j.Slf4j;
+import com.emc.pravega.common.util.Property;
+import com.emc.pravega.common.util.TypedProperties;
+import lombok.Getter;
 
 /**
  * General configuration for Metrics.
  */
-@Slf4j
-public class MetricsConfig extends ComponentConfig {
+public class MetricsConfig {
+    //region Config Names
+    public final static Property<Boolean> ENABLE_STATISTICS = Property.named("enableStatistics", true);
+    public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 1000000L);
+    public final static Property<Long> DYNAMIC_TTL_SECONDS = Property.named("dynamicTTLSeconds", 120L);
+    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("yammerStatsOutputFrequencySeconds", 60);
+    public final static Property<String> METRICS_PREFIX = Property.named("yammerMetricsPrefix", "pravega");
+    public final static Property<String> CSV_ENDPOINT = Property.named("yammerCSVEndpoint", "/tmp/csv");
+    public final static Property<String> STATSD_HOST = Property.named("yammerStatsDHost", "localhost");
+    public final static Property<Integer> STATSD_PORT = Property.named("yammerStatsDPort", 8125);
+    public final static Property<String> GRAPHITE_HOST = Property.named("yammerGraphiteHost", null);
+    public final static Property<Integer> GRAPHITE_PORT = Property.named("yammerGraphitePort", 2003);
+    public final static Property<String> JMX_DOMAIN = Property.named("yammerJMXDomain", null);
+    public final static Property<String> GANGLIA_HOST = Property.named("yammerGangliaHost", null);
+    public final static Property<Integer> GANGLIA_PORT = Property.named("yammerGangliaPort", 8649);
+    public final static Property<Boolean> ENABLE_CONSOLE_REPORTER = Property.named("enableConsoleReporter", false);
+    private static final String COMPONENT_CODE = "metrics";
+
+    //endregion
+
     //region Members
-    public static final String COMPONENT_CODE = "metrics";
-    public final static String ENABLE_STATISTICS = "enableStatistics";
-    public final static String DYNAMIC_CACHE_SIZE = "dynamicCacheSize";
-    public final static String DYNAMIC_TTL_SECONDS = "dynamicTTLSeconds";
-    public final static String OUTPUT_FREQUENCY = "yammerStatsOutputFrequencySeconds";
-    public final static String METRICS_PREFIX = "yammerMetricsPrefix";
-    public final static String CSV_ENDPOINT = "yammerCSVEndpoint";
-    public final static String STATSD_HOST = "yammerStatsDHost";
-    public final static String STATSD_PORT = "yammerStatsDPort";
-    public final static String GRAPHITE_HOST = "yammerGraphiteHost";
-    public final static String GRAPHITE_PORT = "yammerGraphitePort";
-    public final static String JMX_DOMAIN = "yammerJMXDomain";
-    public final static String GANGLIA_HOST = "yammerGangliaHost";
-    public final static String GANGLIA_PORT = "yammerGangliaPort";
-    public final static String ENABLE_CONSOLE_REPORTER = "enableConsoleReporter";
-
-    public final static boolean DEFAULT_ENABLE_STATISTICS = true;
-    public final static long DEFAULT_DYNAMIC_CACHE_SIZE = 1000000L;
-    public final static long DEFAULT_DYNAMIC_TTL_SECONDS = 120L;
-    public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
-    public final static String DEFAULT_METRICS_PREFIX = "pravega";
-    public final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
-    public final static String DEFAULT_STATSD_HOST = "localhost";
-    public final static int DEFAULT_STATSD_PORT = 8125;
-    public final static String DEFAULT_GRAPHITE_HOST = null;
-    public final static int DEFAULT_GRAPHITE_PORT = 2003;
-    public final static String DEFAULT_JMX_DOMAIN = null;
-    public final static String DEFAULT_GANGLIA_HOST = null;
-    public final static int DEFAULT_GANGLIA_PORT = 8649;
-    public final static boolean DEFAULT_ENABLE_CONSOLE_REPORTER = false;
-
-    private boolean enableStatistics = true;
-    private long dynamicCacheSize = 1000000L;
-    private long dynamicTTLSeconds = 120L;
-    private int yammerStatsOutputFrequencySeconds;
-    private String yammerMetricsPrefix;
-    private String yammerCSVEndpoint;
-    private String yammerStatsDHost;
-    private int yammerStatsDPort;
-    private String yammerGraphiteHost;
-    private int yammerGraphitePort;
-    private String yammerJMXDomain;
-    private String yammerGangliaHost;
-    private int yammerGangliaPort;
-    private boolean enableConsoleReporter = false;
 
     /**
-     * Creates a new instance of the MetricsConfig class.
-     *
-     * @param properties The java.util.Properties object to read Properties from.
-     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
-     * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
+     * The status of enable statistics.
      */
-    public MetricsConfig(Properties properties) throws ConfigurationException {
-        super(properties, COMPONENT_CODE);
-        refresh();
-    }
+    @Getter
+    private final boolean enableStatistics;
 
     /**
-     * Gets a value indicating the status of enable statistics.
+     * Cache size for dynamic metrics.
      */
-    public boolean enableStatistics() {
-        return enableStatistics;
-    }
+    @Getter
+    private final long dynamicCacheSize;
 
     /**
-     * Gets cache size for dynamic metrics.
+     * Cache TTL for dynamic metrics.
      */
-    public long getDynamicCacheSize() {
-        return dynamicCacheSize;
-    }
-
-    /**
-     * Gets cache TTL for dynamic metrics.
-     */
-    public long getDynamicTTLSeconds() {
-        return dynamicTTLSeconds;
-    }
+    @Getter
+    private final long dynamicTTLSeconds;
 
     /**
      * Gets a value indicating output frequency in seconds.
      */
-    public int getStatsOutputFrequency() {
-        return this.yammerStatsOutputFrequencySeconds;
+    @Getter
+    private final int statsOutputFrequencySeconds;
+
+    /**
+     * The metrics prefix.
+     */
+    @Getter
+    private final String metricsPrefix;
+
+    /**
+     * The metrics csv endpoint.
+     */
+    @Getter
+    private final String csvEndpoint;
+
+    /**
+     * The host name (no port) where StatsD is listening.
+     */
+    @Getter
+    private final String statsDHost;
+
+    /**
+     * The port where StatsD is listening.
+     */
+    @Getter
+    private final int statsDPort;
+
+    /**
+     * The host name where Graphite is listening.
+     */
+    @Getter
+    private final String graphiteHost;
+
+    /**
+     * The port where Graphite is listening.
+     */
+    @Getter
+    private final int graphitePort;
+
+    /**
+     * The JMX domain.
+     */
+    @Getter
+    private final String jmxDomain;
+
+    /**
+     * The host where Ganglia is listening.
+     */
+    @Getter
+    private final String gangliaHost;
+
+    /**
+     * The port where Ganglia is listening.
+     */
+    @Getter
+    private final int gangliaPort;
+
+    /**
+     * The status of enable Console reporter.
+     */
+    @Getter
+    private final boolean enableConsoleReporter;
+
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the MetricsConfig class.
+     *
+     * @param properties The TypedProperties object to read Properties from.
+     */
+    private MetricsConfig(TypedProperties properties) throws ConfigurationException {
+        this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS);
+        this.dynamicCacheSize = properties.getLong(DYNAMIC_CACHE_SIZE);
+        this.dynamicTTLSeconds = properties.getLong(DYNAMIC_TTL_SECONDS);
+        this.statsOutputFrequencySeconds = properties.getInt(OUTPUT_FREQUENCY);
+        this.metricsPrefix = properties.get(METRICS_PREFIX);
+        this.csvEndpoint = properties.get(CSV_ENDPOINT);
+        this.statsDHost = properties.get(STATSD_HOST);
+        this.statsDPort = properties.getInt(STATSD_PORT);
+        this.graphiteHost = properties.get(GRAPHITE_HOST);
+        this.graphitePort = properties.getInt(GRAPHITE_PORT);
+        this.jmxDomain = properties.get(JMX_DOMAIN);
+        this.gangliaHost = properties.get(GANGLIA_HOST);
+        this.gangliaPort = properties.getInt(GANGLIA_PORT);
+        this.enableConsoleReporter = properties.getBoolean(ENABLE_CONSOLE_REPORTER);
     }
 
     /**
-     * Gets a value indicating the metrics prefix.
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
+     *
+     * @return A new Builder for this class.
      */
-    public String getMetricsPrefix() {
-        return this.yammerMetricsPrefix;
+    public static ConfigBuilder<MetricsConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, MetricsConfig::new);
     }
 
-    /**
-     * Gets a value indicating the metrics csv endpoint.
-     */
-    public String getCSVEndpoint() {
-        return this.yammerCSVEndpoint;
-    }
-
-    /**
-     * Gets a value indicating the host name (no port) where StatsD is listening.
-     */
-    public String getStatsDHost() {
-        return this.yammerStatsDHost;
-    }
-
-    /**
-     * Gets a value indicating the port where StatsD is listening.
-     */
-    public int getStatsDPort() {
-        return this.yammerStatsDPort;
-    }
-
-    /**
-     * Gets a value indicating the host name (no port) where Graphite is listening.
-     */
-    public String getGraphiteHost() {
-        return this.yammerGraphiteHost;
-    }
-
-    /**
-     * Gets a value indicating the port where Graphite is listening.
-     */
-    public int getGraphitePort() {
-        return this.yammerGraphitePort;
-    }
-
-    /**
-     * Gets a value indicating the JMX Domain.
-     */
-    public String getJMXDomain() {
-        return this.yammerJMXDomain;
-    }
-
-    /**
-     * Gets a value indicating the host name (no port) of Ganglia.
-     */
-    public String getGangliaHost() {
-        return this.yammerGangliaHost;
-    }
-
-    /**
-     * Gets a value indicating the port of Ganglia.
-     */
-    public int getGangliaPort() {
-        return this.yammerGangliaPort;
-    }
-
-    /**
-     * Gets a value indicating the status of enable console reporter.
-     */
-    public boolean enableConsoleReporter() {
-        return enableConsoleReporter;
-    }
-
-    @Override
-    public void refresh() throws ConfigurationException {
-        this.enableStatistics = getBooleanProperty(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
-        this.dynamicCacheSize = getInt64Property(DYNAMIC_CACHE_SIZE, DEFAULT_DYNAMIC_CACHE_SIZE);
-        this.dynamicTTLSeconds = getInt64Property(DYNAMIC_TTL_SECONDS, DEFAULT_DYNAMIC_TTL_SECONDS);
-        this.yammerStatsOutputFrequencySeconds = getInt32Property(OUTPUT_FREQUENCY, DEFAULT_OUTPUT_FREQUENCY);
-        this.yammerMetricsPrefix = getProperty(METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
-        this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);
-        this.yammerStatsDHost = getProperty(STATSD_HOST, DEFAULT_STATSD_HOST);
-        this.yammerStatsDPort = getInt32Property(STATSD_PORT, DEFAULT_STATSD_PORT);
-        this.yammerGraphiteHost = getProperty(GRAPHITE_HOST, DEFAULT_GRAPHITE_HOST);
-        this.yammerGraphitePort = getInt32Property(GRAPHITE_PORT, DEFAULT_GRAPHITE_PORT);
-        this.yammerJMXDomain = getProperty(JMX_DOMAIN, DEFAULT_JMX_DOMAIN);
-        this.yammerGangliaHost = getProperty(GANGLIA_HOST, DEFAULT_GANGLIA_HOST);
-        this.yammerGangliaPort = getInt32Property(GANGLIA_PORT, DEFAULT_GANGLIA_PORT);
-        this.enableConsoleReporter = getBooleanProperty(ENABLE_CONSOLE_REPORTER, DEFAULT_ENABLE_CONSOLE_REPORTER);
-    }
-
+    //endregion
 }

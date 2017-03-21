@@ -64,7 +64,7 @@ public class ZkStreamTest {
 
     @Test
     public void testZkConnectionLoss() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
+        final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         final String streamName = "testfail";
 
@@ -82,7 +82,7 @@ public class ZkStreamTest {
 
     @Test
     public void testCreateStreamState() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
+        final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testfail";
@@ -122,7 +122,7 @@ public class ZkStreamTest {
         //listStreamsInScope test
         final String streamName1 = "Stream1";
         final String streamName2 = "Stream2";
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
+        final ScalingPolicy policy = ScalingPolicy.fixed(5);
         StreamConfiguration streamConfig =
                 StreamConfiguration.builder().scope(scopeName).streamName(streamName1).scalingPolicy(policy).build();
 
@@ -157,7 +157,7 @@ public class ZkStreamTest {
 
         // Delete non-empty scope Scope3
         store.createScope("Scope3").get();
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
+        final ScalingPolicy policy = ScalingPolicy.fixed(5);
         final StreamConfiguration streamConfig =
                 StreamConfiguration.builder().scope("Scope3").streamName("Stream3").scalingPolicy(policy).build();
 

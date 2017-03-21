@@ -72,7 +72,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
                     factory.setAppendDelayProvider(() -> appendDelay);
                     return factory;
                 })
-                .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)))
+                .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
                     TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter();

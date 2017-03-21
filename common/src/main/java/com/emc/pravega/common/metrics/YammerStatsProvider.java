@@ -68,25 +68,13 @@ public class YammerStatsProvider implements StatsProvider {
     public void start() {
         init();
 
-        int metricsOutputFrequency = conf.getStatsOutputFrequency();
-        String prefix = conf.getMetricsPrefix();
-        String csvDir = conf.getCSVEndpoint();
-        String statsDHost = conf.getStatsDHost();
-        Integer statsDPort = conf.getStatsDPort();
-        String graphiteHost = conf.getGraphiteHost();
-        Integer graphitePort = conf.getGraphitePort();
-        String jmxDomain = conf.getJMXDomain();
-        String gangliaHost = conf.getGangliaHost();
-        Integer gangliaPort = conf.getGangliaPort();
-        boolean enableConsole = conf.enableConsoleReporter();
-
-        if (!Strings.isNullOrEmpty(csvDir)) {
+        if (!Strings.isNullOrEmpty(conf.getCsvEndpoint())) {
             // NOTE:  metrics output files are exclusive to a given process
             File outdir;
-            if (!Strings.isNullOrEmpty(prefix)) {
-                outdir = new File(csvDir, prefix);
+            if (!Strings.isNullOrEmpty(conf.getMetricsPrefix())) {
+                outdir = new File(conf.getCsvEndpoint(), conf.getMetricsPrefix());
             } else {
-                outdir = new File(csvDir);
+                outdir = new File(conf.getCsvEndpoint());
             }
             outdir.mkdirs();
             log.info("Configuring stats with csv output to directory [{}]", outdir.getAbsolutePath());
@@ -95,35 +83,36 @@ public class YammerStatsProvider implements StatsProvider {
                           .convertDurationsTo(TimeUnit.MILLISECONDS)
                           .build(outdir));
         }
-        if (!Strings.isNullOrEmpty(statsDHost)) {
-            log.info("Configuring stats with statsD at {}:{}", statsDHost, statsDPort);
+        if (!Strings.isNullOrEmpty(conf.getStatsDHost())) {
+            log.info("Configuring stats with statsD at {}:{}", conf.getStatsDHost(), conf.getStatsDPort());
             reporters.add(StatsDReporter.forRegistry(getMetrics())
-                          .build(statsDHost, statsDPort));
+                          .build(conf.getStatsDHost(), conf.getStatsDPort()));
         }
-        if (!Strings.isNullOrEmpty(graphiteHost)) {
-            log.info("Configuring stats with graphite at {}:{}", graphiteHost, graphitePort);
-            final Graphite graphite = new Graphite(new InetSocketAddress(graphiteHost, graphitePort));
+        if (!Strings.isNullOrEmpty(conf.getGraphiteHost())) {
+            log.info("Configuring stats with graphite at {}:{}", conf.getGraphiteHost(), conf.getGraphitePort());
+            final Graphite graphite = new Graphite(new InetSocketAddress(conf.getGraphiteHost(), conf.getGraphitePort()));
             reporters.add(GraphiteReporter.forRegistry(getMetrics())
-                .prefixedWith(prefix)
+                .prefixedWith(conf.getMetricsPrefix())
                 .convertRatesTo(TimeUnit.SECONDS)
                 .convertDurationsTo(TimeUnit.MILLISECONDS)
                 .filter(MetricFilter.ALL)
                 .build(graphite));
         }
-        if (!Strings.isNullOrEmpty(jmxDomain)) {
-            log.info("Configuring stats with jmx");
+        if (!Strings.isNullOrEmpty(conf.getJmxDomain())) {
+            log.info("Configuring stats with jmx {}", conf.getJmxDomain());
             final JmxReporter jmx = JmxReporter.forRegistry(getMetrics())
-                .inDomain(jmxDomain)
+                .inDomain(conf.getJmxDomain())
                 .convertRatesTo(TimeUnit.SECONDS)
                 .convertDurationsTo(TimeUnit.MILLISECONDS)
                 .build();
             jmx.start();
         }
-        if (!Strings.isNullOrEmpty(gangliaHost)) {
+        if (!Strings.isNullOrEmpty(conf.getGangliaHost())) {
             try {
-                log.info("Configuring stats with ganglia at {}:{}", gangliaHost, gangliaPort);
-                final GMetric ganglia = new GMetric(gangliaHost, gangliaPort, GMetric.UDPAddressingMode.MULTICAST, 1);
+                log.info("Configuring stats with ganglia at {}:{}", conf.getGangliaHost(), conf.getGangliaPort());
+                final GMetric ganglia = new GMetric(conf.getGangliaHost(), conf.getGangliaPort(), GMetric.UDPAddressingMode.MULTICAST, 1);
                 reporters.add(GangliaReporter.forRegistry(getMetrics())
+                    .prefixedWith(conf.getMetricsPrefix())
                     .convertRatesTo(TimeUnit.SECONDS)
                     .convertDurationsTo(TimeUnit.MILLISECONDS)
                     .build(ganglia));
@@ -131,7 +120,7 @@ public class YammerStatsProvider implements StatsProvider {
                 log.warn("ganglia create failure: {}", e);
             }
         }
-        if (enableConsole) {
+        if (conf.isEnableConsoleReporter()) {
             log.info("Configuring console reporter");
             reporters.add(ConsoleReporter.forRegistry(getMetrics())
                 .convertRatesTo(TimeUnit.SECONDS)
@@ -139,7 +128,7 @@ public class YammerStatsProvider implements StatsProvider {
                 .build());
         }
         for (ScheduledReporter r : reporters) {
-            r.start(metricsOutputFrequency, TimeUnit.SECONDS);
+            r.start(conf.getStatsOutputFrequencySeconds(), TimeUnit.SECONDS);
         }
     }
 

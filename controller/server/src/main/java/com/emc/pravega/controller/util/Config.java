@@ -5,16 +5,15 @@
  */
 package com.emc.pravega.controller.util;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.common.util.Property;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
-
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
-import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * This is a utility used to read configuration. It can be configured to read custom configuration
@@ -83,13 +82,14 @@ public final class Config {
     // Metrics
     private static final String METRIC_PATH = "config.controller.metric";
 
-    public static Properties getMetricsProperties() {
-        Properties prop = new Properties();
+    public static MetricsConfig getMetricsConfig() {
+        val builder = MetricsConfig.builder();
+        for (Map.Entry<String, ConfigValue> e : CONFIG.entrySet()) {
+            if (e.getKey().startsWith(METRIC_PATH)) {
+                builder.with(Property.named(e.getKey().replaceFirst(METRIC_PATH, "")), e.getValue().unwrapped());
+            }
+        }
 
-        prop.putAll(CONFIG.entrySet().stream()
-                .filter(x -> x.getKey().startsWith(METRIC_PATH))
-                .collect(Collectors.toMap(x -> x.getKey().replaceFirst(METRIC_PATH, ""), x -> x.getValue().unwrapped())));
-
-        return prop;
+        return builder.build();
     }
 }
