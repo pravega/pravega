@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.rest.v1;
 
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rest.CustomObjectMapperProvider;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
@@ -16,7 +17,6 @@ import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -28,16 +28,17 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStat
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-
+import java.util.concurrent.TimeUnit;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.core.Response;
-
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
@@ -45,10 +46,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static com.emc.pravega.controller.server.rest.generated.model.RetentionConfig.TypeEnum;
 import static org.junit.Assert.assertEquals;
@@ -444,14 +441,14 @@ public class StreamMetaDataTests extends JerseyTest {
                 .scope(scope1)
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byTimeMillis(123L))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         final StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(stream2)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byTimeMillis(123L))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         // Test to list streams.

@@ -1,19 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.metrics;
 
 import com.emc.pravega.common.Timer;
+import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.Properties;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import lombok.extern.slf4j.Slf4j;
 
 import static org.junit.Assert.assertEquals;
 
@@ -28,10 +23,9 @@ public class MetricsProviderTest {
 
     @Before
     public void setUp() {
-        Properties properties = new Properties();
-
-        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
-        MetricsProvider.initialize(new MetricsConfig(properties));
+        MetricsProvider.initialize(MetricsConfig.builder()
+                                                .with(MetricsConfig.ENABLE_STATISTICS, true)
+                                                .build());
     }
 
     /**
@@ -113,40 +107,21 @@ public class MetricsProviderTest {
     }
 
     /**
-     * Test that an arbitrary environment variable can be used to set the value of
-     * a config parameter.
-     */
-    @Test
-    public void testConfigArbitraryEnvVar() {
-        Properties properties = new Properties();
-        String envKey = System.getenv().keySet().iterator().next();
-        int port = 9999;
-        properties.setProperty("metrics.yammerStatsDHost", "$" + envKey + "$");
-        properties.setProperty("metrics.yammerStatsDPort", Integer.toString(port));
-        String value = System.getenv(envKey);
-        MetricsConfig config = new MetricsConfig(properties);
-
-        assertEquals(config.getStatsDHost(), value);
-        assertEquals(config.getStatsDPort(), port);
-    }
-
-    /**
      * Test that we can transition from stats enabled, to disabled, to enabled.
      */
     @Test
     public void testMultipleInitialization() {
-        Properties properties = new Properties();
-        MetricsConfig config;
-
-        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "false");
-        config = new MetricsConfig(properties);
+        MetricsConfig config = MetricsConfig.builder()
+                                            .with(MetricsConfig.ENABLE_STATISTICS, false)
+                                            .build();
         MetricsProvider.initialize(config);
         statsLogger.createCounter("counterDisabled");
 
         assertEquals(null, MetricsProvider.YAMMERMETRICS.getCounters().get("counterDisabled"));
 
-        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
-        config = new MetricsConfig(properties);
+        config = MetricsConfig.builder()
+                              .with(MetricsConfig.ENABLE_STATISTICS, true)
+                              .build();
         MetricsProvider.initialize(config);
         statsLogger.createCounter("counterEnabled");
 
@@ -158,12 +133,10 @@ public class MetricsProviderTest {
      */
     @Test
     public void testContinuity() {
-        Properties properties = new Properties();
-        MetricsConfig config;
-
         statsLogger.createCounter("continuity-counter");
-        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
-        config = new MetricsConfig(properties);
+        MetricsConfig config = MetricsConfig.builder()
+                                            .with(MetricsConfig.ENABLE_STATISTICS, false)
+                                            .build();
         MetricsProvider.initialize(config);
 
         Assert.assertNotNull(null, MetricsProvider.YAMMERMETRICS.getCounters().get("continuity-counter"));
@@ -174,19 +147,18 @@ public class MetricsProviderTest {
      */
     @Test
     public void testTransitionBackToNullProvider() {
-        Properties properties = new Properties();
-        MetricsConfig config;
-
-        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "false");
-        config = new MetricsConfig(properties);
+        MetricsConfig config = MetricsConfig.builder()
+                                            .with(MetricsConfig.ENABLE_STATISTICS, false)
+                                            .build();
         MetricsProvider.initialize(config);
 
         Counter counter = statsLogger.createCounter("continuity-counter");
         counter.add(1L);
         assertEquals(0L, counter.get());
 
-        properties.setProperty("metrics." + MetricsConfig.ENABLE_STATISTICS, "true");
-        config = new MetricsConfig(properties);
+        config = MetricsConfig.builder()
+                              .with(MetricsConfig.ENABLE_STATISTICS, true)
+                              .build();
         MetricsProvider.initialize(config);
 
         counter.add(1L);

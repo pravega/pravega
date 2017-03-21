@@ -24,19 +24,6 @@ public class ModelHelperTest {
         return new Segment("scope", streamName, number);
     }
 
-    private static ScalingPolicy createScalingPolicy() {
-        ScalingPolicy policy = ScalingPolicy.byEventRate(100, 2, 3);
-        return policy;
-    }
-
-    private static StreamConfiguration createStreamConfig(String name) {
-        return StreamConfiguration.builder()
-                                  .scope("scope")
-                                  .streamName(name)
-                                  .scalingPolicy(createScalingPolicy())
-                                  .build();
-    }
-
     private static PositionInternal createPosition() {
         Map<Segment, Long> ownedLogs = new HashMap<>();
         ownedLogs.put(createSegmentId("stream", 1), 1L);
@@ -79,7 +66,7 @@ public class ModelHelperTest {
 
     @Test
     public void decodeScalingPolicy() {
-        Controller.ScalingPolicy policy = ModelHelper.decode(createScalingPolicy());
+        Controller.ScalingPolicy policy = ModelHelper.decode(ScalingPolicy.byEventRate(100, 2, 3));
         assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
@@ -93,7 +80,7 @@ public class ModelHelperTest {
 
     @Test
     public void encodeScalingPolicy() {
-        ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(createScalingPolicy()));
+        ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(ScalingPolicy.byEventRate(100, 2, 3)));
         assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
@@ -107,7 +94,11 @@ public class ModelHelperTest {
 
     @Test
     public void decodeStreamConfig() {
-        StreamConfig config = ModelHelper.decode(createStreamConfig("test"));
+        StreamConfig config = ModelHelper.decode(StreamConfiguration.builder()
+                                                 .scope("scope")
+                                                 .streamName("test")
+                                                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
+                                                 .build());
         assertEquals("test", config.getStreamInfo().getStream());
         Controller.ScalingPolicy policy = config.getPolicy();
         assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
@@ -123,7 +114,11 @@ public class ModelHelperTest {
 
     @Test
     public void encodeStreamConfig() {
-        StreamConfiguration config = ModelHelper.encode(ModelHelper.decode(createStreamConfig("test")));
+        StreamConfiguration config = ModelHelper.encode(ModelHelper.decode(StreamConfiguration.builder()
+          .scope("scope")
+          .streamName("test")
+          .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
+          .build()));
         assertEquals("test", config.getStreamName());
         ScalingPolicy policy = config.getScalingPolicy();
         assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());

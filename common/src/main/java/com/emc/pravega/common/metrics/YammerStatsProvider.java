@@ -60,9 +60,9 @@ public class YammerStatsProvider implements StatsProvider {
     public void start() {
         init();
 
-        int metricsOutputFrequency = conf.getStatsOutputFrequency();
+        int metricsOutputFrequency = conf.getStatsOutputFrequencySeconds();
         String prefix = conf.getMetricsPrefix();
-        String csvDir = conf.getCSVEndpoint();
+        String csvDir = conf.getCsvEndpoint();
         String statsDHost = conf.getStatsDHost();
         Integer statsDPort = conf.getStatsDPort();
 
