@@ -21,6 +21,7 @@ public class ContainerConfig {
     public static final Property<Integer> SEGMENT_METADATA_EXPIRATION_SECONDS = Property.named("segmentMetadataExpirationSeconds",
             5 * MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS);
     public static final Property<Integer> MAX_ACTIVE_SEGMENT_COUNT = Property.named("maxActiveSegmentCount", 10000);
+    public static final Property<Integer> MAX_CONCURRENT_SEGMENT_EVICTION_COUNT = Property.named("maxConcurrentSegmentEvictionCount", 250);
     private static final String COMPONENT_CODE = "containers";
 
     /**
@@ -34,6 +35,12 @@ public class ContainerConfig {
      */
     @Getter
     private int maxActiveSegmentCount;
+
+    /**
+     * The maximum number of segments to evict at once.
+     */
+    @Getter
+    private int maxConcurrentSegmentEvictionCount;
 
     //endregion
 
@@ -51,11 +58,16 @@ public class ContainerConfig {
                     SEGMENT_METADATA_EXPIRATION_SECONDS, MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS));
         }
         this.segmentMetadataExpiration = Duration.ofSeconds(segmentMetadataExpirationSeconds);
-        int maxActiveSegments = properties.getInt(MAX_ACTIVE_SEGMENT_COUNT);
-        if (maxActiveSegments <= 0) {
+
+        this.maxActiveSegmentCount = properties.getInt(MAX_ACTIVE_SEGMENT_COUNT);
+        if (this.maxActiveSegmentCount <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_ACTIVE_SEGMENT_COUNT));
         }
-        this.maxActiveSegmentCount = maxActiveSegments;
+
+        this.maxConcurrentSegmentEvictionCount = properties.getInt(MAX_CONCURRENT_SEGMENT_EVICTION_COUNT);
+        if (this.maxConcurrentSegmentEvictionCount <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_CONCURRENT_SEGMENT_EVICTION_COUNT));
+        }
     }
 
     /**

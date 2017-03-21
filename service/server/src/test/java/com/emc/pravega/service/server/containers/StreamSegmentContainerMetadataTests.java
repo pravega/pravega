@@ -384,7 +384,7 @@ public class StreamSegmentContainerMetadataTests {
      * 5. "Expires" all segments and verifies they are all identified as candidates.
      */
     @Test
-    public void testGetCleanupCandidates() {
+    public void testGetEvictionCandidates() {
         // Expire each segment at a different stage.
         final long firstStageExpiration = SEGMENT_COUNT;
         final long transactionExpiration = firstStageExpiration + SEGMENT_COUNT;
@@ -426,16 +426,16 @@ public class StreamSegmentContainerMetadataTests {
             m.removeTruncationMarkers(truncatedSeqNo);
 
             // Try to evict everything.
-            evictionCandidates = m.getEvictionCandidates(finalExpiration + 1);
+            evictionCandidates = m.getEvictionCandidates(finalExpiration + 1, Integer.MAX_VALUE);
             checkEvictedSegmentCandidates(evictionCandidates, transactions, m, finalExpiration + 1, truncatedSeqNo);
         }
 
         // Now we expire transactions.
-        evictionCandidates = m.getEvictionCandidates(transactionExpiration + 1);
+        evictionCandidates = m.getEvictionCandidates(transactionExpiration + 1, Integer.MAX_VALUE);
         checkEvictedSegmentCandidates(evictionCandidates, transactions, m, transactionExpiration + 1, Long.MAX_VALUE);
 
         // Now we expire all segments.
-        evictionCandidates = m.getEvictionCandidates(finalExpiration + 1);
+        evictionCandidates = m.getEvictionCandidates(finalExpiration + 1, Integer.MAX_VALUE);
         checkEvictedSegmentCandidates(evictionCandidates, transactions, m, finalExpiration + 1, Long.MAX_VALUE);
 
         // Check that, in the end, all segments in the metadata have been selected for eviction.
@@ -472,7 +472,7 @@ public class StreamSegmentContainerMetadataTests {
 
         // Truncate everything and expire all segments.
         m.removeTruncationMarkers(maxLastUsed);
-        Collection<SegmentMetadata> evictionCandidates = m.getEvictionCandidates(maxLastUsed);
+        Collection<SegmentMetadata> evictionCandidates = m.getEvictionCandidates(maxLastUsed, Integer.MAX_VALUE);
 
         // Pick a Transaction and a non-related Segment and touch them. Then verify all but the three involved Segments are evicted.
         final long touchedSeqNo = maxLastUsed + 10;
@@ -501,7 +501,7 @@ public class StreamSegmentContainerMetadataTests {
         }
 
         // Now expire the remaining segments and verify.
-        evictionCandidates = m.getEvictionCandidates(touchedSeqNo + 1);
+        evictionCandidates = m.getEvictionCandidates(touchedSeqNo + 1, Integer.MAX_VALUE);
         evictedSegments = m.cleanup(evictionCandidates, touchedSeqNo + 1);
 
         Assert.assertEquals("Unexpected number of segments were evicted (second-cleanup).",

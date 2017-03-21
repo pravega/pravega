@@ -696,7 +696,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     private Collection<Long> evictSegments(long cutoffSeqNo, TestContext context) {
         EvictableMetadata metadata = (EvictableMetadata) context.metadata;
-        Collection<SegmentMetadata> evictionCandidates = metadata.getEvictionCandidates(cutoffSeqNo);
+        Collection<SegmentMetadata> evictionCandidates = metadata.getEvictionCandidates(cutoffSeqNo, Integer.MAX_VALUE);
         metadata.cleanup(evictionCandidates, cutoffSeqNo);
         return evictionCandidates
                 .stream()

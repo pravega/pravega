@@ -17,11 +17,10 @@ import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -29,6 +28,7 @@ import lombok.val;
  * Utility Service that performs ContainerMetadata cleanup on a periodic basis.
  */
 @Slf4j
+@ThreadSafe
 class MetadataCleaner extends AbstractThreadPoolService {
     //region Private
 
@@ -37,8 +37,10 @@ class MetadataCleaner extends AbstractThreadPoolService {
     private final AsyncMap<String, SegmentState> stateStore;
     private final Consumer<Collection<SegmentMetadata>> cleanupCallback;
     private final AtomicLong lastIterationSequenceNumber;
-    private final SingleRunner runner;
     private final CancellationToken stopToken;
+    private final Object singleRunLock = new Object();
+    @GuardedBy("singleRunLock")
+    private CompletableFuture<Void> currentIteration = null;
 
     //endregion
 
@@ -68,7 +70,6 @@ class MetadataCleaner extends AbstractThreadPoolService {
         this.cleanupCallback = cleanupCallback;
         this.lastIterationSequenceNumber = new AtomicLong(metadata.getOperationSequenceNumber());
         this.stopToken = new CancellationToken();
-        this.runner = new SingleRunner(this::runOnceInternal);
     }
 
     //endregion
@@ -105,7 +106,38 @@ class MetadataCleaner extends AbstractThreadPoolService {
      * @return A CompletableFuture that, when completed, indicates that the operation completed (successfully or not).
      */
     CompletableFuture<Void> runOnce() {
-        return this.runner.runOnce();
+        CompletableFuture<Void> result;
+        synchronized (this.singleRunLock) {
+            if (this.currentIteration != null) {
+                // Some other iteration is in progress. Piggyback on that one and return when it is done.
+                return this.currentIteration;
+            } else {
+                // No other iteration is running.
+                this.currentIteration = new CompletableFuture<>();
+                result = this.currentIteration;
+
+                // Unregister the current iteration when done.
+                this.currentIteration.whenComplete((r, ex) -> {
+                    synchronized (this.singleRunLock) {
+                        this.currentIteration = null;
+                    }
+                });
+            }
+        }
+
+        try {
+            CompletableFuture<Void> f = runOnceInternal();
+
+            // Async termination.
+            f.thenAccept(result::complete);
+            FutureHelpers.exceptionListener(f, result::completeExceptionally);
+        } catch (Throwable ex) {
+            // Synchronous termination.
+            result.completeExceptionally(ex);
+            throw ex;
+        }
+
+        return result;
     }
 
     private CompletableFuture<Void> runOnceInternal() {
@@ -113,7 +145,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "metadataCleanup", lastSeqNo);
 
         // Get candidates.
-        Collection<SegmentMetadata> cleanupCandidates = this.metadata.getEvictionCandidates(lastSeqNo);
+        Collection<SegmentMetadata> cleanupCandidates = this.metadata.getEvictionCandidates(lastSeqNo, this.config.getMaxConcurrentSegmentEvictionCount());
 
         // Serialize only those segments that are still alive (not deleted or merged - those will get removed anyway).
         val cleanupTasks = cleanupCandidates
@@ -136,41 +168,4 @@ class MetadataCleaner extends AbstractThreadPoolService {
         this.stopToken.register(result);
         return result;
     }
-
-    //region SingleRunner
-
-    /**
-     * Helps with the concurrent requests to an asynchronous task that is desired to be executed only once at any given time.
-     */
-    @RequiredArgsConstructor
-    private static class SingleRunner {
-        private final AtomicReference<CompletableFuture<Void>> currentIteration = new AtomicReference<>();
-        private final Supplier<CompletableFuture<Void>> futureSupplier;
-
-        CompletableFuture<Void> runOnce() {
-            CompletableFuture<Void> result = new CompletableFuture<>();
-            boolean needsToExecute = this.currentIteration.compareAndSet(null, result);
-
-            if (needsToExecute) {
-                // Unregister the current iteration when done.
-                result.whenComplete((r, ex) -> this.currentIteration.compareAndSet(result, null));
-
-                try {
-                    CompletableFuture<Void> f = this.futureSupplier.get();
-
-                    // Async termination.
-                    f.thenAccept(result::complete);
-                    FutureHelpers.exceptionListener(f, result::completeExceptionally);
-                } catch (Throwable ex) {
-                    // Synchronous termination.
-                    result.completeExceptionally(ex);
-                    throw ex;
-                }
-            }
-
-            return result;
-        }
-    }
-
-    //endregion
 }

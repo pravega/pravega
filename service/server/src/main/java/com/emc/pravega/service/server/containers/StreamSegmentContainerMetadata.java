@@ -15,7 +15,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -239,18 +241,27 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     //region EvictableMetadata Implementation
 
     @Override
-    public Collection<SegmentMetadata> getEvictionCandidates(long sequenceNumberCutoff) {
+    public Collection<SegmentMetadata> getEvictionCandidates(long sequenceNumberCutoff, int maxCount) {
         long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
+        List<SegmentMetadata> candidates;
         synchronized (this.lock) {
             // Find those segments that have active transactions associated with them.
             Set<Long> activeTransactions = getSegmentsWithActiveTransactions(adjustedCutoff);
 
             // The result is all segments that are eligible for removal but that do not have any active transactions.
-            return this.metadataById
+            candidates = this.metadataById
                     .values().stream()
                     .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !activeTransactions.contains(m.getId()))
                     .collect(Collectors.toList());
         }
+
+        // If we have more candidates than were requested to return, then return only the ones that were not recently used.
+        if (candidates.size() > maxCount) {
+            candidates.sort(Comparator.comparingLong(SegmentMetadata::getLastUsed));
+            candidates = candidates.subList(0, maxCount);
+        }
+
+        return candidates;
     }
 
     @Override
