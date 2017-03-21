@@ -233,11 +233,11 @@ public final class ServiceStarter {
 
     //region Options
     @Builder
-    public final static class Options {
-        boolean distributedLog;
-        boolean hdfs;
-        boolean rocksDb;
-        boolean zkSegmentManager;
+    public static class Options {
+        final boolean distributedLog;
+        final boolean hdfs;
+        final boolean rocksDb;
+        final boolean zkSegmentManager;
     }
 
     //endregion
