@@ -68,7 +68,7 @@ public class YammerStatsProvider implements StatsProvider {
     public void start() {
         init();
 
-        if (!Strings.isNullOrEmpty(conf.getCsvEndpoint())) {
+        if (conf.isEnableCSVReporter()) {
             // NOTE:  metrics output files are exclusive to a given process
             File outdir;
             if (!Strings.isNullOrEmpty(conf.getMetricsPrefix())) {
@@ -83,12 +83,12 @@ public class YammerStatsProvider implements StatsProvider {
                           .convertDurationsTo(TimeUnit.MILLISECONDS)
                           .build(outdir));
         }
-        if (!Strings.isNullOrEmpty(conf.getStatsDHost())) {
+        if (conf.isEnableStatsdReporter()) {
             log.info("Configuring stats with statsD at {}:{}", conf.getStatsDHost(), conf.getStatsDPort());
             reporters.add(StatsDReporter.forRegistry(getMetrics())
                           .build(conf.getStatsDHost(), conf.getStatsDPort()));
         }
-        if (!Strings.isNullOrEmpty(conf.getGraphiteHost())) {
+        if (conf.isEnableGraphiteReporter()) {
             log.info("Configuring stats with graphite at {}:{}", conf.getGraphiteHost(), conf.getGraphitePort());
             final Graphite graphite = new Graphite(new InetSocketAddress(conf.getGraphiteHost(), conf.getGraphitePort()));
             reporters.add(GraphiteReporter.forRegistry(getMetrics())
@@ -98,7 +98,7 @@ public class YammerStatsProvider implements StatsProvider {
                 .filter(MetricFilter.ALL)
                 .build(graphite));
         }
-        if (!Strings.isNullOrEmpty(conf.getJmxDomain())) {
+        if (conf.isEnableJMXReporter()) {
             log.info("Configuring stats with jmx {}", conf.getJmxDomain());
             final JmxReporter jmx = JmxReporter.forRegistry(getMetrics())
                 .inDomain(conf.getJmxDomain())
@@ -107,7 +107,7 @@ public class YammerStatsProvider implements StatsProvider {
                 .build();
             jmx.start();
         }
-        if (!Strings.isNullOrEmpty(conf.getGangliaHost())) {
+        if (conf.isEnableGangliaReporter()) {
             try {
                 log.info("Configuring stats with ganglia at {}:{}", conf.getGangliaHost(), conf.getGangliaPort());
                 final GMetric ganglia = new GMetric(conf.getGangliaHost(), conf.getGangliaPort(), GMetric.UDPAddressingMode.MULTICAST, 1);
