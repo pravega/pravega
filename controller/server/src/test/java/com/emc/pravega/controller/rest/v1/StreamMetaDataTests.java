@@ -72,6 +72,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
+    private final String stream3 = "stream3";
     private final String scope1 = "scope1";
     private final String resourceURI = "v1/scopes/" + scope1 + "/streams/" + stream1;
     private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
@@ -80,7 +81,9 @@ public class StreamMetaDataTests extends JerseyTest {
     private final ScalingConfig scalingPolicyCommon = new ScalingConfig();
     private final RetentionConfig retentionPolicyCommon = new RetentionConfig();
     private final RetentionConfig retentionPolicyCommon2 = new RetentionConfig();
+    private final RetentionConfig retentionPolicyCommon3 = new RetentionConfig();
     private final StreamProperty streamResponseExpected = new StreamProperty();
+    private final StreamProperty streamResponseExpected2 = new StreamProperty();
     private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
             .scope(scope1)
             .streamName(stream1)
@@ -91,6 +94,7 @@ public class StreamMetaDataTests extends JerseyTest {
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest3 = new CreateStreamRequest();
+    private final CreateStreamRequest createStreamRequest4 = new CreateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest();
@@ -124,6 +128,7 @@ public class StreamMetaDataTests extends JerseyTest {
         retentionPolicyCommon.setValue(123L);
         retentionPolicyCommon2.setType(null);
         retentionPolicyCommon2.setValue(null);
+        retentionPolicyCommon3.setType(TypeEnum.INFINITE);
         streamResponseExpected.setScopeName(scope1);
         streamResponseExpected.setStreamName(stream1);
         streamResponseExpected.setScalingPolicy(scalingPolicyCommon);
@@ -140,6 +145,15 @@ public class StreamMetaDataTests extends JerseyTest {
         createStreamRequest3.setStreamName(stream1);
         createStreamRequest3.setScalingPolicy(scalingPolicyCommon);
         createStreamRequest3.setRetentionPolicy(retentionPolicyCommon);
+
+        createStreamRequest4.setStreamName(stream3);
+        createStreamRequest4.setScalingPolicy(scalingPolicyCommon);
+        createStreamRequest4.setRetentionPolicy(retentionPolicyCommon3);
+
+        streamResponseExpected2.setScopeName(scope1);
+        streamResponseExpected2.setStreamName(stream3);
+        streamResponseExpected2.setScalingPolicy(scalingPolicyCommon);
+        streamResponseExpected2.setRetentionPolicy(retentionPolicyCommon3);
 
         updateStreamRequest.setScalingPolicy(scalingPolicyCommon);
         updateStreamRequest.setRetentionPolicy(retentionPolicyCommon);
@@ -186,6 +200,13 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Create Stream Status", 201, response.get().getStatus());
         streamResponseActual = response.get().readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+
+        // Test to create a stream which doesn't exist and have Retention Policy INFINITE
+        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
+        response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest4));
+        assertEquals("Create Stream Status", 201, response.get().getStatus());
+        streamResponseActual = response.get().readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseExpected2, streamResponseActual);
 
         // Test to create a stream that already exists
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
