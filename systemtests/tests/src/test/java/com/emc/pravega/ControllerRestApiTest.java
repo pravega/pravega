@@ -156,7 +156,8 @@ public class ControllerRestApiTest {
         scalingConfig.minSegments(2);
 
         RetentionConfig retentionConfig = new RetentionConfig();
-        retentionConfig.setRetentionTimeMillis(0L);
+        retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
+        retentionConfig.setValue(123L);
 
         createStreamRequest.setStreamName(stream1);
         createStreamRequest.setScalingPolicy(scalingConfig);
