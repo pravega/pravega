@@ -57,7 +57,7 @@ class SegmentState {
      */
     public void serialize(DataOutputStream target) throws IOException {
         target.writeByte(SERIALIZATION_VERSION);
-        target.writeUTF(segmentName);
+        target.writeUTF(this.segmentName);
         AttributeSerializer.serialize(this.attributes, target);
     }
 

@@ -4,30 +4,30 @@
 
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.common.util.ConfigBuilder;
+import com.emc.pravega.testcommon.AssertExtensions;
+import java.io.File;
+import java.io.FileWriter;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import lombok.Cleanup;
+import lombok.val;
+import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.common.util.Property;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.writer.WriterConfig;
-import com.emc.pravega.testcommon.AssertExtensions;
-import java.io.File;
-import java.io.FileWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import lombok.Cleanup;
-import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 

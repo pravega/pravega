@@ -117,6 +117,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     @Override
     public void close() {
+        // Quick close (no cache cleanup) this should be used only in case of container shutdown, when the cache will
+        // be erased anyway.
+        close(false);
+    }
+
+    /**
+     * Closes the ReadIndex and optionally cleans the cache.
+     *
+     * @param cleanCache If true, the Cache will be cleaned up of all ReadIndexEntries pertaining to this ReadIndex. If
+     *                   false, the Cache will not be touched.
+     */
+    void close(boolean cleanCache) {
         if (!this.closed) {
             this.closed = true;
 
@@ -125,8 +137,39 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             // Cancel future reads.
             this.futureReads.close();
-            log.info("{}: Closed.", this.traceObjectId);
+            if (cleanCache) {
+                this.executor.execute(() -> {
+                    removeAllEntries();
+                    log.info("{}: Closed.", this.traceObjectId);
+                });
+            } else {
+                log.info("{}: Closed (no cache cleanup).", this.traceObjectId);
+            }
         }
+    }
+
+    /**
+     * Removes all entries from the cache and the SortedIndex, regardless of their state.
+     *
+     * @throws IllegalStateException If the StreamSegmentReadIndex is not closed.
+     */
+    private void removeAllEntries() {
+        // A bit unusual, but we want to make sure we do not call this while the index is active.
+        Preconditions.checkState(this.closed, "Cannot call removeAllEntries unless the ReadIndex is closed.");
+        int count;
+        synchronized (this.lock) {
+            this.indexEntries.forEach(entry -> {
+                if (entry.isDataEntry()) {
+                    CacheKey key = getCacheKey(entry);
+                    this.cache.remove(key);
+                }
+            });
+
+            count = this.indexEntries.size();
+            this.indexEntries.clear();
+        }
+
+        log.info("{}: Cleared all cache entries ({}).", this.traceObjectId, count);
     }
 
     //endregion

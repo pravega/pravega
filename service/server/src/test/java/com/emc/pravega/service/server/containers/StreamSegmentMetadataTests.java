@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import lombok.val;
+import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -81,11 +82,14 @@ public class StreamSegmentMetadataTests {
         baseMetadata.markDeleted();
         baseMetadata.markSealed();
         baseMetadata.markMerged();
+        baseMetadata.setLastUsed(1545895);
 
         // Normal metadata copy.
         StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
         newMetadata.copyFrom(baseMetadata);
-        SegmentMetadataComparer.assertEquals("Normal metadata copy:", baseMetadata, newMetadata);
+        SegmentMetadataComparer.assertEquals("Metadata copy:", baseMetadata, newMetadata);
+        Assert.assertEquals("Metadata copy: getLastUsed differs.",
+                baseMetadata.getLastUsed(), newMetadata.getLastUsed());
 
         // Verify we cannot copy from different StreamSegments.
         AssertExtensions.assertThrows(
