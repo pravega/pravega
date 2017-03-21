@@ -130,7 +130,7 @@ public class ReadWithAutoScaleTest {
 
         //create a stream
         CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(CONFIG);
-        log.debug("Create stream status for scale up stream {}", createStreamStatus.get().getStatus());
+        log.debug("Create stream status {}", createStreamStatus.get().getStatus());
         assertNotEquals(Controller.CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
     }
 
@@ -183,6 +183,7 @@ public class ReadWithAutoScaleTest {
                 eventsReadFromPravega);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
+        log.info("Increasing the number of writers to 6");
         startNewTxnWriter(data, clientFactory, stopWriteFlag);
         startNewTxnWriter(data, clientFactory, stopWriteFlag);
         startNewTxnWriter(data, clientFactory, stopWriteFlag);
@@ -192,13 +193,14 @@ public class ReadWithAutoScaleTest {
         //4 Wait until the scale operation is triggered (else time out)
         //    validate the data read by the readers ensuring all the events are read and there are no duplicates.
         return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
-                .retryingOn(NotDoneException.class)
+                .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
                         .thenAccept(x -> {
                             int currentNumOfSegments = x.getSegments().size();
                             if (currentNumOfSegments == 2) {
-                                throw new NotDoneException();
+                                //Scaling operation did not happen, retry operation.
+                                throw new ScaleOperationNotDoneException();
                             } else if (currentNumOfSegments > 2) {
                                 //scale operation successful.
                                 log.info("Current Number of segments is {}", currentNumOfSegments);
@@ -297,7 +299,9 @@ public class ReadWithAutoScaleTest {
         return clientFactoryRef.get();
     }
 
-    private class NotDoneException extends RuntimeException {
+    // Exception to indicate that the scaling operation did not happen.
+    // We need to retry operation to check scaling on this exception.
+    private class ScaleOperationNotDoneException extends RuntimeException {
     }
 
     private void recordResult(final CompletableFuture<Void> scaleTestResult, final String testName) {
