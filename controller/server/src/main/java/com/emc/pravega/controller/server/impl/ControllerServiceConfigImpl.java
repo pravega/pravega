@@ -62,6 +62,9 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         Preconditions.checkNotNull(timeoutServiceConfig, "timeoutServiceConfig");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
+        if (eventProcessorConfig.isPresent()) {
+            Preconditions.checkNotNull(eventProcessorConfig.get());
+        }
         if (grpcServerConfig.isPresent()) {
             Preconditions.checkNotNull(grpcServerConfig.get());
         }
