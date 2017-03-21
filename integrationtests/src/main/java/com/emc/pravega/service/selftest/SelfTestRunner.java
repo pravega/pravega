@@ -49,7 +49,6 @@ public class SelfTestRunner {
                                       .with(ServiceConfig.CONTAINER_COUNT, 2)
                                       .with(ServiceConfig.THREAD_POOL_SIZE, 20))
                 .include(DurableLogConfig.builder()
-                                         // TODO: consider setting the following as defaults in the DurableLogConfig class.
                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                          .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))

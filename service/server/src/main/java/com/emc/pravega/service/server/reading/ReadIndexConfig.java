@@ -17,7 +17,7 @@ public class ReadIndexConfig {
     //region Config Names
     public static final Property<Integer> STORAGE_READ_ALIGNMENT = Property.named("storageReadAlignment", 1024 * 1024);
     public static final Property<Integer> MEMORY_READ_MIN_LENGTH = Property.named("memoryReadMinLength", 4 * 1024);
-    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 4L * 1024 * 1024 * 1024);
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeMillis", 30 * 60 * 1000);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeMillis", 5 * 1000);
     private static final String COMPONENT_CODE = "readindex";
