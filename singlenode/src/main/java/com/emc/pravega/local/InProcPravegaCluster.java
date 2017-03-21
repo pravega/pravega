@@ -76,7 +76,6 @@ public class InProcPravegaCluster implements AutoCloseable {
     private int controllerCount;
     private int[] controllerPorts = null;
 
-    @Getter
     private String controllerURI = null;
     private ControllerService[] controllerServices = null;
 
@@ -111,14 +110,13 @@ public class InProcPravegaCluster implements AutoCloseable {
     @GuardedBy("$lock")
     private GRPCServer[] controllerServers;
 
-    @Getter
     private String zkUrl;
     private boolean startRestServer = false;
 
     @Builder
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
                 boolean isInProcHDFS, boolean isInProcDL, int initialBookiePort,
-                boolean isInprocController, int controllerCount,
+                boolean isInprocController, int controllerCount, String controllerURI,
                 boolean isInprocSSS, int sssCount, int containerCount, boolean startRestServer) {
 
         //Check for valid combinations of flags
@@ -147,6 +145,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.zkPort = zkPort;
         this.initialBookiePort = initialBookiePort;
         this.isInprocController = isInprocController;
+        this.controllerURI = controllerURI;
         this.controllerCount = controllerCount;
         this.isInprocSSS = isInprocSSS;
         this.sssCount = sssCount;
@@ -316,14 +315,14 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .zkSegmentManager(true);
 
             nodeServiceStarter[sssId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs(!isInMemStorage)
-                    .distributedLog(isInMemStorage).build());
+                    .distributedLog(!isInMemStorage).build());
         } catch (Exception e) {
-            log.error("Could not create a Service with default config, Aborting.", e);
             throw e;
         }
         nodeServiceStarter[sssId].start();
     }
 
+    @Synchronized
     private void startLocalControllers() {
         controllerServers = new GRPCServer[this.controllerCount];
         controllerExecutors = new ScheduledExecutorService[this.controllerCount];
@@ -418,6 +417,16 @@ public class InProcPravegaCluster implements AutoCloseable {
                 }
             }
         }
+    }
+
+    @Synchronized
+    public String getControllerURI() {
+        return controllerURI;
+    }
+
+    @Synchronized
+    public String getZkUrl() {
+        return zkUrl;
     }
 
     @Override
