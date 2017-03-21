@@ -63,8 +63,7 @@ public class ReadWithAutoScaleTest {
     private final static String READER_GROUP_NAME = "testReaderGroup" + new Random().nextInt();
 
     //Initial number of segments is 2.
-    private static final ScalingPolicy SCALING_POLICY = new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC,
-            1, 2, 2);
+    private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 2);
     private static final StreamConfiguration CONFIG = StreamConfiguration.builder().scope(SCOPE)
             .streamName(STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
 
