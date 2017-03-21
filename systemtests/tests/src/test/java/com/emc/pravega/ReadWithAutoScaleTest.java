@@ -47,7 +47,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -56,9 +55,9 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class ReadWithAutoScaleTest {
+public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
-    private final static String SCOPE = "testReadAutoScale" + new Random().nextInt();
+    private final static String SCOPE = "testReadAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
     private final static String STREAM_NAME = "testScaleUp";
     private final static String READER_GROUP_NAME = "testReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
 
@@ -68,9 +67,6 @@ public class ReadWithAutoScaleTest {
             .streamName(STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
 
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
-
-    private final AtomicReference<ClientFactory> clientFactoryRef = new AtomicReference<>();
-    private final AtomicReference<ControllerImpl> controllerRef = new AtomicReference<>();
 
     @Environment
     public static void setup() throws Exception {
@@ -119,10 +115,10 @@ public class ReadWithAutoScaleTest {
     @Before
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
-        //create a scope
         URI controllerUri = getControllerURI();
-
         com.emc.pravega.stream.impl.Controller controller = getController(controllerUri);
+
+        //create a scope
         CompletableFuture<Controller.CreateScopeStatus> createScopeStatus = controller.createScope(SCOPE);
         log.debug("Create scope status {}", createScopeStatus.get().getStatus());
         assertNotEquals(Controller.CreateScopeStatus.Status.FAILURE, createScopeStatus.get().getStatus());
@@ -136,24 +132,6 @@ public class ReadWithAutoScaleTest {
     @Test
     public void scaleTestsWithReader() throws URISyntaxException, InterruptedException {
 
-        CompletableFuture<Void> testResult = scaleUpWithTxnAndReaderGroup();
-        FutureHelpers.getAndHandleExceptions(testResult
-                .whenComplete((r, e) -> {
-                    recordResult(testResult, "ScaleUpWithTxnWithReaderGroup");
-                }), RuntimeException::new);
-    }
-
-    /**
-     * System test to test the following scenario:
-     * - One or more writers writing to a stream using transactions.
-     * - A reader group reading from the stream.
-     * - Auto scaling is exercised by inducing higher write load to the stream.
-     *
-     * @throws InterruptedException if interrupted
-     * @throws URISyntaxException   If URI is invalid
-     */
-    public CompletableFuture<Void> scaleUpWithTxnAndReaderGroup() throws InterruptedException, URISyntaxException {
-
         URI controllerUri = getControllerURI();
         ControllerImpl controller = getController(controllerUri);
         ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
@@ -162,7 +140,7 @@ public class ReadWithAutoScaleTest {
         final AtomicLong data = new AtomicLong(); //data used by each of the writers.
 
         @Cleanup
-        ClientFactory clientFactory = getClientFactory();
+        ClientFactory clientFactory = getClientFactory(SCOPE);
 
         //1. Start writing events to the Stream.
         startNewTxnWriter(data, clientFactory, stopWriteFlag);
@@ -192,7 +170,7 @@ public class ReadWithAutoScaleTest {
 
         //4 Wait until the scale operation is triggered (else time out)
         //    validate the data read by the readers ensuring all the events are read and there are no duplicates.
-        return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
+        CompletableFuture<Void> testResult = Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
                 .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
@@ -211,6 +189,11 @@ public class ReadWithAutoScaleTest {
                         }), EXECUTOR_SERVICE)
                 .thenCompose(v -> CompletableFuture.allOf(reader1, reader2))
                 .thenRun(() -> validateResults(data.get(), eventsReadFromPravega));
+
+        FutureHelpers.getAndHandleExceptions(testResult
+                .whenComplete((r, e) -> {
+                    recordResult(testResult, "ScaleUpWithTxnWithReaderGroup");
+                }), RuntimeException::new);
     }
 
     //Helper methods
@@ -275,43 +258,5 @@ public class ReadWithAutoScaleTest {
                 }
             }
         });
-    }
-
-    private ControllerImpl getController(final URI controllerUri) {
-        if (controllerRef.get() == null) {
-            log.debug("Controller uri:" + controllerUri.getHost() + ":" + controllerUri.getPort());
-
-            controllerRef.set(new ControllerImpl(controllerUri.getHost(), controllerUri.getPort()));
-        }
-        return controllerRef.get();
-    }
-
-    private URI getControllerURI() {
-        Service conService = new PravegaControllerService("controller", null);
-        List<URI> ctlURIs = conService.getServiceDetails();
-        return ctlURIs.get(0);
-    }
-
-    private ClientFactory getClientFactory() {
-        if (clientFactoryRef.get() == null) {
-            clientFactoryRef.set(ClientFactory.withScope(SCOPE, getControllerURI()));
-        }
-        return clientFactoryRef.get();
-    }
-
-    // Exception to indicate that the scaling operation did not happen.
-    // We need to retry operation to check scaling on this exception.
-    private class ScaleOperationNotDoneException extends RuntimeException {
-    }
-
-    private void recordResult(final CompletableFuture<Void> scaleTestResult, final String testName) {
-        FutureHelpers.getAndHandleExceptions(scaleTestResult.handle((r, e) -> {
-            if (e != null) {
-                log.error("test {} failed with exception {}", testName, e);
-            } else {
-                log.debug("test {} succeed", testName);
-            }
-            return null;
-        }), RuntimeException::new);
     }
 }
