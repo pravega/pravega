@@ -25,6 +25,10 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapping;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
@@ -34,12 +38,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helps assign unique Ids to StreamSegments and persists them in Metadata.
  */
 @Slf4j
+@ThreadSafe
 public class StreamSegmentMapper {
     //region Members
 
@@ -49,6 +53,7 @@ public class StreamSegmentMapper {
     private final AsyncMap<String, SegmentState> stateStore;
     private final Storage storage;
     private final Executor executor;
+    @GuardedBy("assignmentLock")
     private final HashMap<String, CompletableFuture<Long>> pendingRequests;
     private final Object assignmentLock = new Object();
 
@@ -98,9 +103,9 @@ public class StreamSegmentMapper {
      */
     public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
-        long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
-        if (isValidStreamSegmentId(streamId)) {
-            return FutureHelpers.failedFuture(new StreamSegmentExistsException("Given StreamSegmentName is already registered internally. Most likely it already exists."));
+        long segmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, true);
+        if (isValidStreamSegmentId(segmentId)) {
+            return FutureHelpers.failedFuture(new StreamSegmentExistsException(streamSegmentName));
         }
 
         // Create the StreamSegment, and then assign a Unique Internal Id to it.
@@ -139,7 +144,7 @@ public class StreamSegmentMapper {
 
         // Validate that Parent StreamSegment exists.
         CompletableFuture<Void> parentCheckFuture = null;
-        long parentStreamSegmentId = this.containerMetadata.getStreamSegmentId(parentStreamSegmentName);
+        long parentStreamSegmentId = this.containerMetadata.getStreamSegmentId(parentStreamSegmentName, true);
         if (isValidStreamSegmentId(parentStreamSegmentId)) {
             SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
             if (parentMetadata != null) {
@@ -192,7 +197,7 @@ public class StreamSegmentMapper {
      */
     public CompletableFuture<Long> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout) {
         // Check to see if the metadata already knows about this stream.
-        long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
+        long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, true);
         if (isValidStreamSegmentId(streamSegmentId)) {
             // We already have a value, just return it (but make sure the Segment has not been deleted).
             if (this.containerMetadata.getStreamSegmentMetadata(streamSegmentId).isDeleted()) {
@@ -360,7 +365,7 @@ public class StreamSegmentMapper {
             return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentInfo.getName()));
         }
 
-        long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentInfo.getName());
+        long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentInfo.getName(), true);
         if (isValidStreamSegmentId(streamSegmentId)) {
             // Looks like someone else beat us to it.
             completeAssignment(streamSegmentInfo.getName(), streamSegmentId);

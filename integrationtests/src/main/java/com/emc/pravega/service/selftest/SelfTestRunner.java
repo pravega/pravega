@@ -8,6 +8,7 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.FileAppender;
+import com.emc.pravega.service.server.containers.ContainerConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
@@ -56,6 +57,9 @@ public class SelfTestRunner {
                                         .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
                                         .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
                                         .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
+                .include(ContainerConfig.builder()
+                                        .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,
+                                                ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS))
                 .build();
     }
 

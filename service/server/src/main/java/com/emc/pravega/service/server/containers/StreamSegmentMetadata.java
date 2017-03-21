@@ -48,6 +48,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private boolean merged;
     @GuardedBy("this")
     private ImmutableDate lastModified;
+    @GuardedBy("this")
+    private long lastUsed;
 
     //endregion
 
@@ -92,6 +94,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.durableLogLength = -1;
         this.attributes = new HashMap<>();
         this.lastModified = new ImmutableDate(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
+        this.lastUsed = 0;
     }
 
     //endregion
@@ -248,7 +251,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void copyFrom(SegmentMetadata base) {
+    public synchronized void copyFrom(SegmentMetadata base) {
         Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentId).");
         Exceptions.checkArgument(this.getName().equals(base.getName()), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentName).");
         Exceptions.checkArgument(this.getParentId() == base.getParentId(), "base", "Given SegmentMetadata has a different parent StreamSegment than this one.");
@@ -273,6 +276,18 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         if (base.isDeleted()) {
             markDeleted();
         }
+
+        setLastUsed(base.getLastUsed());
+    }
+
+    @Override
+    public synchronized void setLastUsed(long value) {
+        this.lastUsed = Math.max(value, this.lastUsed);
+    }
+
+    @Override
+    public synchronized long getLastUsed() {
+        return this.lastUsed;
     }
 
     //endregion

@@ -3,88 +3,37 @@
  */
 package com.emc.pravega.local;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
-import com.emc.pravega.controller.fault.SegmentContainerMonitor;
-import com.emc.pravega.controller.fault.UniformContainerBalancer;
-import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
-import com.emc.pravega.controller.server.ControllerService;
-import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
-import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.StoreClientFactory;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.task.TaskSweeper;
-import com.emc.pravega.controller.timeout.TimeoutService;
-import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
-import com.emc.pravega.controller.util.Config;
-import com.emc.pravega.controller.util.ZKUtils;
-import com.emc.pravega.service.server.host.ServiceStarter;
-import com.emc.pravega.service.server.logs.DurableLogConfig;
-import com.emc.pravega.service.server.reading.ReadIndexConfig;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.service.server.store.ServiceConfig;
-import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
-import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.twitter.distributedlog.LocalDLMEmulator;
-import com.twitter.distributedlog.admin.DistributedLogAdmin;
-import java.io.File;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.apache.bookkeeper.util.IOUtils;
-import org.apache.commons.io.FileUtils;
-import org.slf4j.LoggerFactory;
-
-import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 
 @Slf4j
 public class LocalPravegaEmulator implements AutoCloseable {
 
-    private static final int NUM_BOOKIES = 5;
-    private static final int CONTAINER_COUNT = 2;
-    private static final int THREADPOOL_SIZE = 20;
-
-    private final AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
-
-    private final int zkPort;
-    private final int controllerPort;
-    private final int hostPort;
-    private final LocalHDFSEmulator localHdfs;
-
-    private final ScheduledExecutorService controllerExecutor;
+    private static final int NUM_BOOKIES = 3;
+    private final InProcPravegaCluster inProcPravegaCluster;
 
     @Builder
-    private LocalPravegaEmulator(int zkPort, int controllerPort, int hostPort, LocalHDFSEmulator localHdfs) {
-        this.zkPort = zkPort;
-        this.controllerPort = controllerPort;
-        this.hostPort = hostPort;
-        this.localHdfs = localHdfs;
-        this.controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
-                new ThreadFactoryBuilder().setNameFormat("taskpool-%d")
-                                          .build());
+    private LocalPravegaEmulator(int zkPort, int controllerPort, int hostPort) {
+        inProcPravegaCluster = InProcPravegaCluster
+                .builder()
+                .isInProcZK(true)
+                .zkUrl("localhost:" + zkPort)
+                .zkPort(zkPort)
+                .isInMemStorage(true)
+                .isInprocController(true)
+                .controllerCount(1)
+                .isInprocSSS(true)
+                .sssCount(1)
+                .containerCount(4)
+                .build();
+        inProcPravegaCluster.setControllerPorts(new int[] {controllerPort});
+        inProcPravegaCluster.setSssPorts(new int[] {hostPort});
     }
 
     public static void main(String[] args) {
         try {
             if (args.length < 3) {
-                System.out.println("Usage: LocalPravegaEmulator <zk_port> <controller_port> <host_port>");
+                log.warn("Usage: LocalPravegaEmulator <zk_port> <controller_port> <host_port>");
                 System.exit(-1);
             }
 
@@ -92,36 +41,21 @@ public class LocalPravegaEmulator implements AutoCloseable {
             final int controllerPort = Integer.parseInt(args[1]);
             final int hostPort = Integer.parseInt(args[2]);
 
-            final File zkDir = IOUtils.createTempDir("distrlog", "zookeeper");
-            LocalDLMEmulator localDlm = LocalDLMEmulator.newBuilder().zkPort(zkPort).numBookies(NUM_BOOKIES).build();
-
-            LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-            context.getLoggerList().get(0).setLevel(Level.OFF);
-
-            LocalHDFSEmulator localHdfs = LocalHDFSEmulator.newBuilder().baseDirName("temp").build();
-
             final LocalPravegaEmulator localPravega = LocalPravegaEmulator.builder().controllerPort(
-                    controllerPort).hostPort(hostPort).localHdfs(localHdfs).build();
-
+                    controllerPort).hostPort(hostPort).zkPort(zkPort).build();
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
                     try {
                         localPravega.close();
-                        localDlm.teardown();
-                        localHdfs.close();
-                        FileUtils.deleteDirectory(zkDir);
                         System.out.println("ByeBye!");
                     } catch (Exception e) {
                         // do nothing
-                        log.warn("Exception running local pravega emulator: " + e.getMessage());
+                        log.warn("Exception running local Pravega emulator: " + e.getMessage());
                     }
                 }
             });
 
-            localHdfs.start();
-            localDlm.start();
-            configureDLBinding(zkPort);
             localPravega.start();
 
             System.out.println(
@@ -129,20 +63,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                             controllerPort));
         } catch (Exception ex) {
             System.out.println("Exception occurred running emulator " + ex);
-            System.exit(1);
-        }
-    }
-
-    private static void configureDLBinding(int zkPort) {
-        DistributedLogAdmin admin = new DistributedLogAdmin();
-        String[] params = { "bind", "-dlzr", "localhost:" + zkPort, "-dlzw", "localhost:" + 7000, "-s", "localhost:" +
-                zkPort, "-bkzr", "localhost:" + 7000, "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
-                "distributedlog://localhost:" + zkPort + "/pravega/segmentstore/containers" };
-        try {
-            admin.run(params);
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(1);
+            ex.printStackTrace();
         }
     }
 
@@ -151,117 +72,16 @@ public class LocalPravegaEmulator implements AutoCloseable {
      */
     @Override
     public void close() {
-        localHdfs.close();
-        controllerExecutor.shutdown();
-        nodeServiceStarter.get().shutdown();
+       inProcPravegaCluster.close();
     }
 
     /**
      * Start controller and host.
      */
-    private void start() {
-        startController();
-        try {
-            Thread.sleep(10000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        startPravegaHost();
+    private void start() throws Exception {
+        inProcPravegaCluster.start();
     }
 
-    private void startPravegaHost() {
-        try {
-            val config = ServiceBuilderConfig
-                    .builder()
-                    .include("config.properties")
-                    .include(System.getProperties())
-                    .include(HDFSStorageConfig.builder()
-                                              .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort())))
-                    .include(ServiceConfig.builder()
-                                          .with(ServiceConfig.CONTAINER_COUNT, CONTAINER_COUNT)
-                                          .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
-                                          .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
-                                          .with(ServiceConfig.LISTENING_PORT, hostPort))
-                    .include(DurableLogConfig.builder()
-                                             .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
-                                             .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
-                                             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
-                    .include(ReadIndexConfig.builder()
-                                            .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
-                                            .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
-                    .include(DistributedLogConfig.builder()
-                                                 .with(DistributedLogConfig.HOSTNAME, "localhost")
-                                                 .with(DistributedLogConfig.PORT, zkPort))
-                    .build();
 
-            nodeServiceStarter.set(new ServiceStarter(config));
-        } catch (Exception e) {
-            log.error("Could not create a Service with default config, Aborting.", e);
-            System.exit(1);
-        }
-        nodeServiceStarter.get().start();
-    }
 
-    private void startController() {
-        String hostId;
-        try {
-            //On each controller report restart, it gets a fresh hostId,
-            //which is a combination of hostname and random GUID.
-            hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
-        } catch (UnknownHostException e) {
-            log.debug("Failed to get host address.", e);
-            hostId = UUID.randomUUID().toString();
-        }
-
-        //1. LOAD configuration.
-        log.info("Creating store client");
-        StoreClient storeClient = StoreClientFactory.createStoreClient(StoreClientFactory.StoreType.Zookeeper);
-
-        log.info("Creating the stream store");
-        StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper,
-                controllerExecutor);
-
-        log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
-
-        log.info("Creating the host store");
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.Zookeeper);
-
-        //Start the Segment Container Monitor.
-        log.info("Starting the segment container monitor");
-        SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, ZKUtils.getCuratorClient(),
-                new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
-        monitor.startAsync();
-
-        //2. Start the RPC server.
-        log.info("Starting RPC server");
-        SegmentHelper segmentHelper = new SegmentHelper();
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, controllerExecutor, hostId, connectionFactory);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId, connectionFactory);
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                Config.MAX_LEASE_VALUE, Config.MAX_SCALE_GRACE_PERIOD);
-
-        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerExecutor);
-        GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder()
-                                                            .port(controllerPort)
-                                                            .build();
-        new GRPCServer(controllerService, gRPCServerConfig).startAsync();
-
-        //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
-        // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
-        // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
-        // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
-        // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
-        // are processed and deleted, that failed HostId is removed from FH folder.
-        // Moreover, on controller report startup, it detects any hostIds not in the currently active set of
-        // controllers and starts sweeping tasks orphaned by those hostIds.
-        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
-                streamTransactionMetadataTasks);
-
-        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
-    }
 }

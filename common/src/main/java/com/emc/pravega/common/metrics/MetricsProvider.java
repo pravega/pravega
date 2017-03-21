@@ -7,7 +7,6 @@ package com.emc.pravega.common.metrics;
 
 import com.codahale.metrics.MetricRegistry;
 
-
 public class MetricsProvider {
     static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
     private static final StatsProviderProxy STATS_PROVIDER = new StatsProviderProxy();

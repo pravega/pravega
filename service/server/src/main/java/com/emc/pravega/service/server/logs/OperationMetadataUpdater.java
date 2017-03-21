@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
@@ -17,12 +15,12 @@ import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
-import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataOperation;
@@ -103,7 +101,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
     }
 
     @Override
-    public long getStreamSegmentId(String streamSegmentName) {
+    public long getStreamSegmentId(String streamSegmentName, boolean updateLastUsed) {
+        // We ignore the 'updateLastUsed' argument here since this is an internal call, and there is no need to update the metadata stats.
         UpdateTransaction transaction = this.currentTransaction;
         if (transaction == null) {
             return ContainerMetadata.NO_STREAM_SEGMENT_ID;
@@ -410,6 +409,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             TemporaryStreamSegmentMetadata segmentMetadata = null;
             if (operation instanceof SegmentOperation) {
                 segmentMetadata = getStreamSegmentMetadata(((SegmentOperation) operation).getStreamSegmentId());
+                segmentMetadata.setLastUsed(operation.getSequenceNumber());
             }
 
             if (operation instanceof StorageOperation) {
@@ -421,6 +421,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
                     MergeTransactionOperation mto = (MergeTransactionOperation) operation;
                     TemporaryStreamSegmentMetadata transactionMetadata = getStreamSegmentMetadata(mto.getTransactionSegmentId());
                     transactionMetadata.acceptAsTransactionSegment(mto);
+                    transactionMetadata.setLastUsed(operation.getSequenceNumber());
                     segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
                 }
             } else if (operation instanceof MetadataOperation) {
@@ -549,12 +550,12 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         private long getExistingStreamSegmentId(String streamSegmentName) {
-            long existingStreamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
-            if (existingStreamId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                existingStreamId = this.newStreamSegmentNames.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
+            long existingSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, false);
+            if (existingSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+                existingSegmentId = this.newStreamSegmentNames.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
             }
 
-            return existingStreamId;
+            return existingSegmentId;
         }
 
         private long generateUniqueStreamSegmentId() {
@@ -592,8 +593,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
             return metadata;
         }
 
-        private void copySegmentMetadataToSource(Collection<UpdateableSegmentMetadata> newStreams, Predicate<SegmentMetadata> filter) {
-            for (SegmentMetadata newMetadata : newStreams) {
+        private void copySegmentMetadataToSource(Collection<UpdateableSegmentMetadata> newSegments, Predicate<SegmentMetadata> filter) {
+            for (SegmentMetadata newMetadata : newSegments) {
                 if (!filter.test(newMetadata)) {
                     continue;
                 }
@@ -785,6 +786,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         private boolean sealed;
         private boolean merged;
         private boolean deleted;
+        private long lastUsed;
         private boolean isChanged;
 
         //endregion
@@ -806,6 +808,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.merged = this.baseMetadata.isMerged();
             this.deleted = this.baseMetadata.isDeleted();
             this.updatedAttributeValues = new HashMap<>();
+            this.lastUsed = -1;
         }
 
         //endregion
@@ -874,6 +877,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
         @Override
         public long getDurableLogLength() {
             return this.currentDurableLogLength;
+        }
+
+        @Override
+        public long getLastUsed() {
+            return this.baseMetadata.getLastUsed();
         }
 
         @Override
@@ -1218,6 +1226,15 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
         }
 
+        /**
+         * Sets the last used value to the given one.
+         *
+         * @param value The value to set.
+         */
+        void setLastUsed(long value) {
+            this.lastUsed = value;
+        }
+
         //endregion
 
         //region Operations
@@ -1232,6 +1249,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             // Apply to base metadata.
+            this.baseMetadata.setLastUsed(this.lastUsed);
             this.baseMetadata.updateAttributes(this.updatedAttributeValues);
             this.baseMetadata.setDurableLogLength(this.currentDurableLogLength);
             if (this.isSealed()) {

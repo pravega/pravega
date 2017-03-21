@@ -6,7 +6,6 @@
 package com.emc.pravega.service.storage;
 
 import com.emc.pravega.common.util.CloseableIterator;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -59,11 +58,10 @@ public interface DurableDataLog extends AutoCloseable {
      * @param upToAddress The LogAddress up to where to truncate. This is the value returned either by append() or obtained
      *                    via read().
      * @param timeout     The timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate whether any truncation completed. If anything was
-     * truncated, the result of the Future will be 'true'; if no truncation was necessary, the result of the Future will
-     * be 'false'. If the operation failed, this Future will complete with the appropriate exception.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation failed,
+     * this Future will complete with the appropriate exception.
      */
-    CompletableFuture<Boolean> truncate(LogAddress upToAddress, Duration timeout);
+    CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout);
 
     /**
      * Reads a number of entries from the log.

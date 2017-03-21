@@ -602,6 +602,10 @@ project('singlenode') {
         compile project(':service:server:host')
         compile project(':controller:server')
 
+        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
+        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
+
         compile project(':service:contracts')
         compile project(':service:storage')
         compile project(':service:storage:impl')
@@ -630,11 +634,13 @@ project('singlenode') {
     }
 
     task startSinglenode(type: JavaExec) {
+
         main = "com.emc.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-        args = ["4000", "5000", "6000"]
+        args = ["4000", "9090", "6000"]
+        environment "ZK_URL", "localhost:4000"
     }
+
     publishing {
         publications {
             maven(MavenPublication) {
@@ -644,7 +650,6 @@ project('singlenode') {
         }
     }
 }
-
 
 project('systemtests:tests') {
     dependencies {
