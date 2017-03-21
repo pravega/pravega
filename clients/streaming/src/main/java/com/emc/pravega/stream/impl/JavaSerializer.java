@@ -18,7 +18,7 @@ import com.emc.pravega.stream.Serializer;
 /**
  * An implementation of {@link Serializer} that uses Java serialization.
  */
-public class JavaSerializer<T extends Serializable> implements Serializer<T> {
+public class JavaSerializer<T extends Serializable> implements Serializer<T>, Serializable {
 
     @Override
     public ByteBuffer serialize(T value) {
