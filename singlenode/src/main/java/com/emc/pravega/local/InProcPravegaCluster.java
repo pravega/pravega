@@ -34,13 +34,13 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import lombok.Builder;
 import lombok.Cleanup;
-import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.util.IOUtils;
@@ -368,11 +368,11 @@ public class InProcPravegaCluster implements AutoCloseable {
             monitor.startAsync();
 
             SegmentHelper segmentHelper = new SegmentHelper();
-
+            ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
             StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, hostId);
+                    segmentHelper, controllerExecutor, hostId, connectionFactory);
             StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                    streamStore, hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId);
+                    streamStore, hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId, connectionFactory);
 
             TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
