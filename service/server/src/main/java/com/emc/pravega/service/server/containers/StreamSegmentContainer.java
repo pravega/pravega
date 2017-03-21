@@ -29,6 +29,7 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.UpdateAttributesOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
@@ -395,6 +396,16 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             }
         };
         component.addListener(new ServiceShutdownListener(stoppedHandler, failedHandler), this.executor);
+    }
+
+    private <T> CompletableFuture[] mapToFutureArray(Collection<T> source, Function<T, CompletableFuture> transformer) {
+        CompletableFuture[] result = new CompletableFuture[source.size()];
+        int count = 0;
+        for (T s : source) {
+            result[count++] = transformer.apply(s);
+        }
+
+        return result;
     }
 
     private <T> CompletableFuture[] mapToFutureArray(Collection<T> source, Function<T, CompletableFuture> transformer) {

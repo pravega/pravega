@@ -8,14 +8,13 @@ package com.emc.pravega.controller.server.eventProcessor;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
-import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,16 +29,20 @@ import java.util.stream.Collectors;
 public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
-    private final ConnectionFactory connectionFactory;
     private final ScheduledExecutorService executor;
+    private final SegmentHelper segmentHelper;
+    private final ConnectionFactory connectionFactory;
 
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore,
-                               final ScheduledExecutorService executor) {
+                               final ScheduledExecutorService executor,
+                               final SegmentHelper segmentHelper,
+                               final ConnectionFactory connectionFactory) {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.segmentHelper = segmentHelper;
         this.executor = executor;
+        this.connectionFactory = connectionFactory;
     }
 
     @Override
@@ -48,17 +51,18 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
         String stream = event.getStream();
         UUID txId = event.getTxid();
 
-        streamMetadataStore.getActiveSegments(event.getScope(), event.getStream())
+        OperationContext context = streamMetadataStore.createContext(scope, stream);
+        streamMetadataStore.getActiveSegments(event.getScope(), event.getStream(), context, executor)
                 .thenCompose(segments ->
                         FutureHelpers.allOfWithResults(
                                 segments.stream()
                                         .parallel()
                                         .map(segment -> notifyAbortToHost(scope, stream, segment.getNumber(), txId))
                                         .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId));
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor));
     }
 
-    private CompletableFuture<TxnStatus> notifyAbortToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<Controller.TxnStatus> notifyAbortToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         final long retryInitialDelay = 100;
         final int retryMultiplier = 10;
         final int retryMaxAttempts = 100;
@@ -67,7 +71,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
         return Retry.withExpBackoff(retryInitialDelay, retryMultiplier, retryMaxAttempts, retryMaxDelay)
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .runAsync(() -> SegmentHelper.abortTransaction(scope,
+                .runAsync(() -> segmentHelper.abortTransaction(scope,
                         stream,
                         segmentNumber,
                         txId,

@@ -7,6 +7,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;

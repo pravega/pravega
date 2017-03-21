@@ -13,26 +13,33 @@ import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.impl.JavaSerializer;
-
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * An example of how to use StateSynchronizer that coordinates the values in a set.
  * @param <T> The type of the values in the set.
  */
+@ToString
+@Slf4j
 public class SetSynchronizer<T extends Serializable> {
 
     /**
      * The Object to by synchronized.
      */
+    @ToString
     @RequiredArgsConstructor
+    @EqualsAndHashCode(callSuper = false)
     private static class UpdatableSet<T> implements Revisioned, Serializable {
+        private static final long serialVersionUID = 1L;
         private final String streamName;
         private final LinkedHashSet<T> impl;
         private final Revision currentRevision;
@@ -59,10 +66,14 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * A base class for all updates to the state. This allows for several different types of updates.
      */
+    @ToString
     private static abstract class SetUpdate<T> implements Update<UpdatableSet<T>>, Serializable {
+        private static final long serialVersionUID = 1L;
+
         @Override
         public UpdatableSet<T> applyTo(UpdatableSet<T> oldState, Revision newRevision) {
             LinkedHashSet<T> impl = new LinkedHashSet<>(oldState.impl);
+            log.trace("Applying update {} to {} ", this, oldState);
             process(impl);
             return new UpdatableSet<>(oldState.streamName, impl, newRevision);
         }
@@ -73,8 +84,11 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Add an item to the set.
      */
+    @ToString
     @RequiredArgsConstructor
+    @EqualsAndHashCode(callSuper = false)
     private static class AddToSet<T> extends SetUpdate<T> {
+        private static final long serialVersionUID = 1L;
         private final T value;
 
         @Override
@@ -86,8 +100,11 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Remove an item from the set.
      */
+    @ToString
     @RequiredArgsConstructor
+    @EqualsAndHashCode(callSuper = false)
     private static class RemoveFromSet<T> extends SetUpdate<T> {
+        private static final long serialVersionUID = 1L;
         private final T value;
 
         @Override
@@ -99,8 +116,11 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Clear the set.
      */
-    @RequiredArgsConstructor
+    @ToString
+    @EqualsAndHashCode(callSuper = false)
     private static class ClearSet<T> extends SetUpdate<T> {
+        private static final long serialVersionUID = 1L;
+
         @Override
         public void process(LinkedHashSet<T> impl) {
             impl.clear();
@@ -110,8 +130,12 @@ public class SetSynchronizer<T extends Serializable> {
     /**
      * Create a set. (This is used to initialize things)
      */
-    @RequiredArgsConstructor
+    @Data
     private static class CreateSet<T> implements InitialUpdate<UpdatableSet<T>>, Serializable {
+        /**
+         * 
+         */
+        private static final long serialVersionUID = 1L;
         private final LinkedHashSet<T> impl;
         
         @Override
@@ -210,7 +234,7 @@ public class SetSynchronizer<T extends Serializable> {
                 factory.createStateSynchronizer(streamName,
                                                 new JavaSerializer<SetUpdate<T>>(),
                                                 new JavaSerializer<CreateSet<T>>(),
-                                                new SynchronizerConfig(null, null)));
+                                                SynchronizerConfig.builder().build()));
     }
 
 }

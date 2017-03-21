@@ -1,36 +1,33 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.common.io.FileHelpers;
-import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.Storage;
-import com.emc.pravega.service.storage.mocks.StorageTestBase;
-
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.io.FileHelpers;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.StorageNotPrimaryException;
+import com.emc.pravega.service.storage.StorageTestBase;
+import com.emc.pravega.testcommon.AssertExtensions;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ForkJoinPool;
-
+import java.util.concurrent.Executor;
+import lombok.SneakyThrows;
 import lombok.val;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Test;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -64,101 +61,180 @@ public class HDFSStorageTest extends StorageTestBase {
         }
     }
 
+    //region Fencing tests
+
+    /**
+     * Tests fencing abilities. We create two different Storage objects with different owner ids.
+     * Part 1: Creation:
+     * * We create the Segment on Storage1:
+     * ** We verify that Storage1 can execute all operations.
+     * ** We verify that Storage2 can execute only read-only operations.
+     * * We open the Segment on Storage2:
+     * ** We verify that Storage1 can execute only read-only operations.
+     * ** We verify that Storage2 can execute all operations.
+     */
+    @Test
     @Override
-    protected Storage createStorage() {
-        // Create a config object, using all defaults, except for the HDFS URL.
-        // TODO: see if we can reuse ConfigHelpers from Storage Tests here, to avoid this code duplication.
-        Properties prop = new Properties();
-        prop.setProperty(
-                String.format("%s.%s", HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL),
-                String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
+    public void testFencing() throws Exception {
+        final String segmentName = "segment";
+        try (val storage1 = createStorage(0);
+             val storage2 = createStorage(1)) {
 
-        HDFSStorageConfig config = new HDFSStorageConfig(prop);
-        val storage = new HDFSStorage(config, ForkJoinPool.commonPool());
-        try {
-            storage.initialize();
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
+            // Create segment in Storage1 (thus Storage1 owns it for now).
+            storage1.create(segmentName, TIMEOUT).join();
+
+            // Storage1 should be able to execute all operations.
+            verifyWriteOperationsSucceed(segmentName, storage1);
+            verifyReadOnlyOperationsSucceed(segmentName, storage1);
+
+            // Storage2 should only be able to execute Read-Only operations.
+            verifyWriteOperationsFail(segmentName, storage2);
+            verifyReadOnlyOperationsSucceed(segmentName, storage2);
+
+            // Open the segment in Storage2 (thus Storage2 owns it for now).
+            storage2.open(segmentName).join();
+
+            // Storage1 should be able to execute only read-only operations.
+            verifyWriteOperationsFail(segmentName, storage1);
+            verifyReadOnlyOperationsSucceed(segmentName, storage1);
+
+            // Storage2 should be able to execute all operations.
+            verifyReadOnlyOperationsSucceed(segmentName, storage2);
+            verifyWriteOperationsSucceed(segmentName, storage2);
+
+            // Seal and Delete (these should be run last, otherwise we can't run our test).
+            verifyFinalWriteOperationsFail(segmentName, storage1);
+            verifyFinalWriteOperationsSucceed(segmentName, storage2);
         }
-
-        return new MiniClusterPermFixer(storage);
     }
-    
+
+    private void verifyReadOnlyOperationsSucceed(String segmentName, Storage storage) {
+        boolean exists = storage.exists(segmentName, TIMEOUT).join();
+        Assert.assertTrue("Segment does not exist.", exists);
+
+        val si = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+        Assert.assertNotNull("Unexpected response from getStreamSegmentInfo.", si);
+
+        byte[] readBuffer = new byte[(int) si.getLength()];
+        int readBytes = storage.read(segmentName, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, readBytes);
+    }
+
+    private void verifyWriteOperationsSucceed(String segmentName, Storage storage) {
+        val si = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+        final byte[] data = "hello".getBytes();
+        storage.write(segmentName, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT).join();
+
+        final String concatName = "concat";
+        storage.create(concatName, TIMEOUT).join();
+        storage.write(concatName, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
+        storage.seal(concatName, TIMEOUT).join();
+        storage.concat(segmentName, si.getLength() + data.length, concatName, TIMEOUT).join();
+    }
+
+    private void verifyWriteOperationsFail(String segmentName, Storage storage) {
+        val si = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+        final byte[] data = "hello".getBytes();
+        AssertExtensions.assertThrows(
+                "Write was not fenced out.",
+                () -> storage.write(segmentName, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+
+        // Create a second segment and try to concat it into the primary one.
+        final String concatName = "concat";
+        storage.create(concatName, TIMEOUT).join();
+        storage.write(concatName, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
+        storage.seal(concatName, TIMEOUT).join();
+        AssertExtensions.assertThrows(
+                "Concat was not fenced out.",
+                () -> storage.concat(segmentName, si.getLength() + data.length, concatName, TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+        storage.delete(concatName, TIMEOUT).join();
+    }
+
+    private void verifyFinalWriteOperationsSucceed(String segmentName, Storage storage) {
+        storage.seal(segmentName, TIMEOUT).join();
+        storage.delete(segmentName, TIMEOUT).join();
+
+        boolean exists = storage.exists(segmentName, TIMEOUT).join();
+        Assert.assertFalse("Segment still exists after deletion.", exists);
+    }
+
+    private void verifyFinalWriteOperationsFail(String segmentName, Storage storage) {
+        AssertExtensions.assertThrows(
+                "Seal was allowed on fenced Storage.",
+                () -> storage.seal(segmentName, TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+
+        val si = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+        Assert.assertFalse("Segment was sealed after rejected call to seal.", si.isSealed());
+
+        AssertExtensions.assertThrows(
+                "Delete was allowed on fenced Storage.",
+                () -> storage.delete(segmentName, TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+        boolean exists = storage.exists(segmentName, TIMEOUT).join();
+        Assert.assertTrue("Segment was deleted after rejected call to delete.", exists);
+    }
+
+    //endregion
+
+    @Override
+    @SneakyThrows(IOException.class)
+    protected Storage createStorage() {
+        return createStorage(0);
+    }
+
+    private Storage createStorage(int pravegaId) throws IOException {
+        // Create a config object, using all defaults, except for the HDFS URL.
+        HDFSStorageConfig config = HDFSStorageConfig
+                .builder()
+                .with(HDFSStorageConfig.PRAVEGA_ID, pravegaId)
+                .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
+                .build();
+        val storage = new MiniClusterPermFixer(config, executorService());
+        storage.initialize();
+        return storage;
+    }
+
     /**
      * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.
      * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
      **/
-    private static class MiniClusterPermFixer implements Storage {
-        private final HDFSStorage storage;
-        private ArrayList<String> sealedList;
-
-        public MiniClusterPermFixer(HDFSStorage storage) {
-            sealedList = new ArrayList<>();
-            this.storage = storage;
+    private static class MiniClusterPermFixer extends HDFSStorage {
+        MiniClusterPermFixer(HDFSStorageConfig config, Executor executor) {
+            super(config, executor);
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-            return storage.create(streamSegmentName, timeout);
-        }
-
-        @Override
-        public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
-                                             Duration timeout) {
-
-            if (sealedList.contains(streamSegmentName)) {
-                CompletableFuture<Void> retVal = new CompletableFuture<>();
-                retVal.completeExceptionally(new StreamSegmentSealedException(streamSegmentName));
-                return retVal;
+        public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+            if (isSealed(streamSegmentName)) {
+                return FutureHelpers.failedFuture(new StreamSegmentSealedException(streamSegmentName));
             }
-            return storage.write(streamSegmentName, offset, data, length, timeout);
-        }
 
-        @Override
-        public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-            addToSealedList(streamSegmentName);
-            return storage.seal(streamSegmentName, timeout);
-        }
-
-        private void addToSealedList(String streamSegmentName) {
-            sealedList.add(streamSegmentName);
+            return super.write(streamSegmentName, offset, data, length, timeout);
         }
 
         @Override
         public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset,
                                               String sourceStreamSegmentName, Duration timeout) {
-            return storage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
+            if (isSealed(targetStreamSegmentName)) {
+                return FutureHelpers.failedFuture(new StreamSegmentSealedException(targetStreamSegmentName));
+            }
+
+            return super.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
         }
 
-        @Override
-        public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-            return storage.delete(streamSegmentName, timeout);
-        }
-
-        @Override
-        public void close() {
-
-        }
-
-        @Override
-        public CompletableFuture<Void> open(String streamSegmentName) {
-            return storage.open(streamSegmentName);
-        }
-
-        @Override
-        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer,
-                                               int bufferOffset, int length, Duration timeout) {
-            return storage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout);
-        }
-
-        @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-            return storage.getStreamSegmentInfo(streamSegmentName, timeout);
-        }
-
-        @Override
-        public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-            return storage.exists(streamSegmentName, timeout);
+        private boolean isSealed(String streamSegmentName) {
+            // It turns out MiniHDFSCluster does not respect file attributes when it comes to writing: a R--R--R-- file
+            // will gladly be modified without throwing any sort of exception, so here we are, trying to "simulate" this.
+            // It should be noted though that a regular HDFS installation works just fine, which is why this code should
+            // not make it in the HDFSStorage class itself.
+            try {
+                return super.getStreamSegmentInfoSync(streamSegmentName).isSealed();
+            } catch (IOException ex) {
+                return false;
+            }
         }
     }
 }

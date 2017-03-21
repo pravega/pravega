@@ -9,7 +9,9 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.ConfigurationException;
-import com.emc.pravega.common.util.PropertyBag;
+import com.emc.pravega.common.util.AsyncMap;
+import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.TypedProperties;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.Attributes;
@@ -29,6 +31,7 @@ import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
+import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
@@ -42,6 +45,7 @@ import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
+import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
@@ -64,9 +68,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -74,6 +82,8 @@ import lombok.Cleanup;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -92,25 +102,30 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final Duration TIMEOUT = Duration.ofSeconds(100);
-    private static final ContainerConfig DEFAULT_CONFIG = ConfigHelpers.createContainerConfig(
-            PropertyBag.create().with(ContainerConfig.PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60));
+    private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
+            .builder()
+            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
+            .build();
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
-    private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(
-            PropertyBag.create()
-                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 10)
-                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
-                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
+    private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = DurableLogConfig
+            .builder()
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
+            .build();
 
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-            PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
+            .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
+            .build();
 
-    private static final WriterConfig DEFAULT_WRITER_CONFIG = ConfigHelpers.createWriterConfig(
-            PropertyBag.create()
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1)
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 25)
-                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
-                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
+    private static final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig
+            .builder()
+            .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
+            .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
+            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
+            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+            .build();
 
     @Override
     protected int getThreadPoolSize() {
@@ -765,13 +780,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // We need a special DL config so that we can force truncations after every operation - this will speed up metadata
         // eviction eligibility.
-        final DurableLogConfig durableLogConfig = ConfigHelpers.createDurableLogConfig(
-                PropertyBag.create()
-                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 1)
-                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 5)
-                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
-
-        final TestContainerConfig containerConfig = new TestContainerConfig(PropertyBag.create());
+        final DurableLogConfig durableLogConfig = DurableLogConfig
+                .builder()
+                .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
+                .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 5)
+                .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
+                .build();
+        final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
 
         @Cleanup
@@ -1300,8 +1315,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         @Setter
         private Duration segmentMetadataExpiration;
 
-        TestContainerConfig(Properties properties) throws ConfigurationException {
-            super(properties);
+        TestContainerConfig() throws ConfigurationException {
+            super(new TypedProperties("ns", new Properties()));
         }
     }
 

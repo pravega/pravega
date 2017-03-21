@@ -34,6 +34,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.PendingEvent;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
@@ -111,7 +112,7 @@ public class AppendTest {
 
         EmbeddedChannel channel = createChannel(store);
 
-        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment));
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment, CreateSegment.NO_SCALE, 0));
         assertEquals(segment, created.getSegment());
 
         UUID uuid = UUID.randomUUID();
@@ -168,15 +169,16 @@ public class AppendTest {
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
+        controller.createScope(scope);
         controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
 
         SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
         Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment);
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
-        out.write(ByteBuffer.wrap(testString.getBytes()), ack);
+        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
         assertTrue(ack.get(5, TimeUnit.SECONDS));
     }
 
@@ -191,16 +193,16 @@ public class AppendTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         @Cleanup
-        MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
-        @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        streamManager.createScope();
         streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test
+    @Test(timeout = 40000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -211,15 +213,18 @@ public class AppendTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         @Cleanup
-        MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
-        @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        @Cleanup
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        streamManager.createScope();
         streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         long blockingTime = timeWrites(testString, 200, producer, true);
         long nonBlockingTime = timeWrites(testString, 1000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
         System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
+        assertTrue(blockingTime < 15000);
+        assertTrue(nonBlockingTime < 15000);
     }
 
     private long timeWrites(String testString, int number, EventStreamWriter<String> producer, boolean synchronous)

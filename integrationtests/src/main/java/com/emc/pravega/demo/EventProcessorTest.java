@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.demo;
 
@@ -16,8 +14,8 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -29,21 +27,23 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.base.Preconditions;
-
-import java.io.Serializable;
-import java.util.concurrent.CompletableFuture;
-
 import lombok.AllArgsConstructor;
+import lombok.Cleanup;
 import lombok.Data;
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.Serializable;
+import java.util.concurrent.CompletableFuture;
+
 /**
  * End-to-end tests for event processor.
  */
+@Slf4j
 public class EventProcessorTest {
 
     public static class TestEventProcessor extends EventProcessor<TestEvent> {
@@ -77,24 +77,29 @@ public class EventProcessorTest {
     @Data
     @AllArgsConstructor
     public static class TestEvent implements ControllerEvent, Serializable {
+        private static final long serialVersionUID = 1L;
         int number;
     }
 
     public static void main(String[] args) throws Exception {
         new EventProcessorTest().testEventProcessor();
+        System.exit(0);
     }
-    
+
     @Test
     public void testEventProcessor() throws Exception {
+        @Cleanup
         TestingServer zkTestServer = new TestingServer();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
-
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
+        @Cleanup
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
+        Controller controller = controllerWrapper.getController();
 
         // Create controller object for testing against a separate controller process.
         // ControllerImpl controller = new ControllerImpl("localhost", 9090);
@@ -107,25 +112,28 @@ public class EventProcessorTest {
         final CompletableFuture<CreateScopeStatus> createScopeStatus = controller.createScope(scope);
         final CreateScopeStatus scopeStatus = createScopeStatus.join();
 
-        if (CreateScopeStatus.SUCCESS != scopeStatus) {
+        if (CreateScopeStatus.Status.SUCCESS != scopeStatus.getStatus()) {
             throw new RuntimeException("Error creating scope");
         }
 
         final StreamConfiguration config = StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(streamName)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1))
+                .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
         CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
-        if (createStatus.get() != CreateStreamStatus.SUCCESS) {
+        if (createStatus.get().getStatus() != CreateStreamStatus.Status.SUCCESS) {
             System.err.println("Create stream failed, exiting");
             return;
         }
 
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
+        @Cleanup
         EventStreamWriter<TestEvent> producer = clientFactory.createEventWriter(streamName,
                 new JavaSerializer<>(), EventWriterConfig.builder().build());
 
@@ -138,7 +146,7 @@ public class EventProcessorTest {
         producer.writeEvent("key", new TestEvent(-1));
         producer.flush();
 
-        EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope, controller);
+        EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope, controller, connectionFactory);
 
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()
@@ -172,11 +180,7 @@ public class EventProcessorTest {
 
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
-        System.err.println("SUCCESS: received expected sum");
-
-        producer.close();
+        log.info("SUCCESS: received expected sum = " + expectedSum);
         eventEventProcessorGroup.stopAll();
-        server.close();
-        zkTestServer.close();
     }
 }

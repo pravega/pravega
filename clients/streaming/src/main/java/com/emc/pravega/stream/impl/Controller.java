@@ -6,17 +6,18 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +37,14 @@ public interface Controller {
      * @return Status of create stream operation.
      */
     CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
+
+    /**
+     * API to delete scope.
+     *
+     * @param scopeName Scope name.
+     * @return          Status of delete scope operation.
+     */
+    CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
 
     /**
      * Api to create stream.
@@ -63,6 +72,15 @@ public interface Controller {
     CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName);
 
     /**
+     * API to delete stream. Only a sealed stream can be deleted.
+     *
+     * @param scope      Scope name.
+     * @param streamName Stream name.
+     * @return           Status of delete stream operation.
+     */
+    CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String streamName);
+
+    /**
      * API to merge or split stream segments.
      * 
      * @param stream Stream object.
@@ -87,11 +105,25 @@ public interface Controller {
     /**
      * Api to create a new transaction. The transaction timeout is relative to the creation time.
      * 
-     * @param stream Stream name
-     * @param timeout Tx timeout
-     * @return Transaction identifier.
+     * @param stream           Stream name
+     * @param lease            Time for which transaction shall remain open with sending any heartbeat.
+     * @param maxExecutionTime Maximum time for which client may extend txn lease.
+     * @param scaleGracePeriod Maximum time for which client may extend txn lease once
+     *                         the scaling operation is initiated on the txn stream.
+     * @return                 Transaction id.
      */
-    CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
+    CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+                                              final long scaleGracePeriod);
+
+    /**
+     * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.
+     *
+     * @param stream Stream name
+     * @param txId   Transaction id
+     * @param lease  Time for which transaction shall remain open with sending any heartbeat.
+     * @return       Void or PingFailedException
+     */
+    CompletableFuture<Void> pingTransaction(final Stream stream, final UUID txId, final long lease);
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the
@@ -127,15 +159,13 @@ public interface Controller {
     // Controller Apis that are called by readers
 
     /**
-     * Given a timestamp and a number of readers, returns a position object for each reader that collectively
-     * include all of the segments that exist at that time in the stream.
+     * Given a timestamp and a stream returns segments and offsets that were present at that time in the stream.
      *
-     * @param stream Name
-     * @param timestamp Timestamp for getting position objects
-     * @param count Number of position objects
-     * @return List of position objects.
+     * @param stream Name of the stream
+     * @param timestamp Timestamp for getting segments
+     * @return A map of segments to the offset within them.
      */
-    CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
+    CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(final Stream stream, final long timestamp);
 
     /**
      * Returns a Map containing each of the segments that are successors to the segment requested mapped to a
@@ -163,6 +193,14 @@ public interface Controller {
 
     // Controller Apis that are called by writers and readers
 
+    /**
+     * Checks to see if a segment exists and is not sealed.
+     * 
+     * @param segment The segment to verify.
+     * @return true if the segment exists and is open or false if it is not.
+     */
+    CompletableFuture<Boolean> isSegmentOpen(final Segment segment);
+    
     /**
      * Given a segment return the endpoint that currently is the owner of that segment.
      * <p>

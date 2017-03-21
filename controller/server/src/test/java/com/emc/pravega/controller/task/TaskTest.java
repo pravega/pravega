@@ -1,10 +1,10 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.task;
 
+import com.emc.pravega.controller.mocks.SegmentHelperMock;
+import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -16,11 +16,22 @@ import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.TestTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -35,22 +46,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.extern.slf4j.Slf4j;
-
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
 
 /**
  * Task test cases.
@@ -61,22 +59,20 @@ public class TaskTest {
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
-    private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+    private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
     private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-    private final StreamMetadataStore streamStore =
-
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
+    private final StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
 
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
-
 
     private final TaskMetadataStore taskMetadataStore;
 
     private final TestingServer zkServer;
 
     private final StreamMetadataTasks streamMetadataTasks;
+    private final SegmentHelper segmentHelperMock;
 
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
@@ -85,33 +81,38 @@ public class TaskTest {
         CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
         taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(cli), executor);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, HOSTNAME);
+
+        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
+
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
+                executor, HOSTNAME, new ConnectionFactoryImpl(false));
     }
+
 
     @Before
     public void prepareStreamStore() {
 
-        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-        final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
 
         // region createStream
         streamStore.createScope(SCOPE);
-        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
-        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis());
+        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor);
+        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null, executor);
         // endregion
 
         // region scaleSegments
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
+        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null, executor);
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
+        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null, executor);
         // endregion
     }
 
@@ -130,9 +131,9 @@ public class TaskTest {
         }
 
         streamStore.createScope(SCOPE);
-        CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
+        CreateStreamStatus.Status result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
                 System.currentTimeMillis()).join();
-        assertEquals(result, CreateStreamStatus.SUCCESS);
+        assertEquals(result, CreateStreamStatus.Status.SUCCESS);
     }
 
     @Test
@@ -166,7 +167,7 @@ public class TaskTest {
         assertFalse(child.isPresent());
 
         // ensure that the stream streamSweeper is created
-        StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream).get();
+        StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream, null, executor).get();
         assertTrue(config.getStreamName().equals(configuration.getStreamName()));
         assertTrue(config.getScope().equals(configuration.getScope()));
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
@@ -227,18 +228,17 @@ public class TaskTest {
         assertFalse(child.isPresent());
 
         // ensure that the stream streamSweeper is created
-        StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream1).get();
+        StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream1, null, executor).get();
         assertTrue(config.getStreamName().equals(stream1));
 
-        config = streamStore.getConfiguration(SCOPE, stream2).get();
+        config = streamStore.getConfiguration(SCOPE, stream2, null, executor).get();
         assertTrue(config.getStreamName().equals(stream2));
-
     }
 
     @Test
     public void testLocking() {
         TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
-        
+
         CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);
         CompletableFuture<Void> second = testTasks.testStreamLock(SCOPE, stream1);
         try {
@@ -277,3 +277,4 @@ public class TaskTest {
         }
     }
 }
+

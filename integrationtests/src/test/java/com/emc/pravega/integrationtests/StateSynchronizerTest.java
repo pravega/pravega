@@ -94,11 +94,12 @@ public class StateSynchronizerTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        streamManager.createScope();
         streamManager.createStream(stateName, null);
         JavaSerializer<TestUpdate> serializer = new JavaSerializer<TestUpdate>();
         
-        val a = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
-        val b = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
+        val a = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, SynchronizerConfig.builder().build());
+        val b = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, SynchronizerConfig.builder().build());
 
         a.initialize(new TestUpdate("init"));
         b.fetchUpdates();
@@ -146,6 +147,7 @@ public class StateSynchronizerTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        streamManager.createScope();
         streamManager.createStream(stateName, null);
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
 
@@ -172,6 +174,7 @@ public class StateSynchronizerTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        streamManager.createScope();
         streamManager.createStream(stateName, null);
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
         SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
@@ -189,5 +192,5 @@ public class StateSynchronizerTest {
         assertEquals(2, setB.getCurrentSize());
         assertTrue(setB.getCurrentValues().contains("bar"));
     }
-    
+
 }

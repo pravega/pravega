@@ -5,8 +5,6 @@
  */
 package com.emc.pravega.service.server.host;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.metrics.MetricsConfig;
@@ -14,6 +12,8 @@ import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
@@ -23,13 +23,15 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+import java.net.URI;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.slf4j.LoggerFactory;
 
 /**
  * Starts the Pravega Service.
@@ -43,21 +45,17 @@ public final class ServiceStarter {
     private final ServiceBuilder serviceBuilder;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
+    private SegmentStatsFactory segmentStatsFactory;
     private boolean closed;
 
     //endregion
 
     //region Constructor
 
-    public ServiceStarter(ServiceBuilderConfig config) {
+    public ServiceStarter(ServiceBuilderConfig config, Options options) {
         this.builderConfig = config;
-        this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
-        Options opt = new Options();
-        opt.distributedLog = true;
-        opt.hdfs = true;
-        opt.rocksDb = true;
-        opt.zkSegmentManager = true;
-        this.serviceBuilder = createServiceBuilder(opt);
+        this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::builder);
+        this.serviceBuilder = createServiceBuilder(options);
     }
 
     private ServiceBuilder createServiceBuilder(Options options) {
@@ -88,11 +86,8 @@ public final class ServiceStarter {
     public void start() {
         Exceptions.checkNotClosed(this.closed, this);
 
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        MetricsConfig metricsConfig = this.builderConfig.getConfig(MetricsConfig::new);
-        context.getLoggerList().get(0).setLevel(Level.INFO);
-
         log.info("Initializing metrics provider ...");
+        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start();
 
@@ -102,7 +97,14 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service);
+        segmentStatsFactory = new SegmentStatsFactory();
+        SegmentStatsRecorder statsRecorder = segmentStatsFactory
+                .createSegmentStatsRecorder(service,
+                this.serviceConfig.getInternalScope(),
+                this.serviceConfig.getInternalRequestStream(),
+                URI.create(this.serviceConfig.getControllerUri()));
+
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service, statsRecorder);
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");
@@ -124,6 +126,10 @@ public final class ServiceStarter {
                 log.info("Metrics statsProvider is now closed.");
             }
 
+            if (this.segmentStatsFactory != null) {
+                segmentStatsFactory.close();
+            }
+
             this.closed = true;
         }
     }
@@ -131,9 +137,9 @@ public final class ServiceStarter {
     private void attachDistributedLog(ServiceBuilder builder) {
         builder.withDataLogFactory(setup -> {
             try {
-                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
+                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::builder);
                 String clientId = String.format("%s-%s", this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort());
-                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory(clientId, dlConfig);
+                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory(clientId, dlConfig, setup.getExecutor());
                 factory.initialize();
                 return factory;
             } catch (Exception ex) {
@@ -143,13 +149,13 @@ public final class ServiceStarter {
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)));
+        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
     }
 
     private void attachHDFS(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::new);
+                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
                 HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
                 factory.initialize();
                 return factory;
@@ -186,7 +192,16 @@ public final class ServiceStarter {
     public static void main(String[] args) {
         AtomicReference<ServiceStarter> serviceStarter = new AtomicReference<>();
         try {
-            serviceStarter.set(new ServiceStarter(ServiceBuilderConfig.getConfigFromFile()));
+            // Load up the ServiceBuilderConfig, using this priority order:
+            // 1. Configuration file
+            // 2. System Properties overrides (these will be passed in via the command line or inherited from the JVM)
+            ServiceBuilderConfig config = ServiceBuilderConfig
+                    .builder()
+                    .include("config.properties")
+                    .include(System.getProperties())
+                    .build();
+            serviceStarter.set(new ServiceStarter(config, Options.builder().
+                    distributedLog(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -217,12 +232,12 @@ public final class ServiceStarter {
     //endregion
 
     //region Options
-
-    private static class Options {
-        boolean distributedLog;
-        boolean hdfs;
-        boolean rocksDb;
-        boolean zkSegmentManager;
+    @Builder
+    public static class Options {
+        final boolean distributedLog;
+        final boolean hdfs;
+        final boolean rocksDb;
+        final boolean zkSegmentManager;
     }
 
     //endregion

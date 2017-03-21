@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.rest.v1;
 
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rest.CustomObjectMapperProvider;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
@@ -12,29 +13,32 @@ import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
 import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
+import com.emc.pravega.controller.server.rest.generated.model.StreamState;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.StreamConfiguration;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-
+import java.util.concurrent.TimeUnit;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.core.Response;
-
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
@@ -43,10 +47,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
+import static com.emc.pravega.controller.server.rest.generated.model.RetentionConfig.TypeEnum;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,6 +72,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
+    private final String stream3 = "stream3";
     private final String scope1 = "scope1";
     private final String resourceURI = "v1/scopes/" + scope1 + "/streams/" + stream1;
     private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
@@ -79,24 +81,20 @@ public class StreamMetaDataTests extends JerseyTest {
     private final ScalingConfig scalingPolicyCommon = new ScalingConfig();
     private final RetentionConfig retentionPolicyCommon = new RetentionConfig();
     private final RetentionConfig retentionPolicyCommon2 = new RetentionConfig();
+    private final RetentionConfig retentionPolicyCommon3 = new RetentionConfig();
     private final StreamProperty streamResponseExpected = new StreamProperty();
+    private final StreamProperty streamResponseExpected2 = new StreamProperty();
     private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
             .scope(scope1)
             .streamName(stream1)
-            .scalingPolicy(ScalingPolicy.builder()
-                           .type(Type.BY_RATE_IN_EVENTS)
-                           .targetRate(100)
-                           .scaleFactor(2)
-                           .minNumSegments(2)
-                           .build())
-            .retentionPolicy(RetentionPolicy.builder()
-                             .retentionTimeMillis(123L)
-                             .build())
+            .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(123L)))
             .build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest3 = new CreateStreamRequest();
+    private final CreateStreamRequest createStreamRequest4 = new CreateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest();
@@ -104,30 +102,33 @@ public class StreamMetaDataTests extends JerseyTest {
     private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.
             completedFuture(streamConfiguration);
     private final CompletableFuture<CreateStreamStatus> createStreamStatus = CompletableFuture.
-            completedFuture(CreateStreamStatus.SUCCESS);
+            completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.SUCCESS).build());
     private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.
-            completedFuture(CreateStreamStatus.STREAM_EXISTS);
+            completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
     private final CompletableFuture<CreateStreamStatus> createStreamStatus3 = CompletableFuture.
-            completedFuture(CreateStreamStatus.FAILURE);
+            completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.FAILURE).build());
     private final CompletableFuture<CreateStreamStatus> createStreamStatus4 = CompletableFuture.
-            completedFuture(CreateStreamStatus.SCOPE_NOT_FOUND);
+            completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.SCOPE_NOT_FOUND).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.
-            completedFuture(UpdateStreamStatus.SUCCESS);
+            completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SUCCESS).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.
-            completedFuture(UpdateStreamStatus.STREAM_NOT_FOUND);
+            completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus3 = CompletableFuture.
-            completedFuture(UpdateStreamStatus.FAILURE);
+            completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus4 = CompletableFuture.
-            completedFuture(UpdateStreamStatus.SCOPE_NOT_FOUND);
+            completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build());
 
     @Before
     public void initialize() {
-        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS);
+        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC);
         scalingPolicyCommon.setTargetRate(100L);
         scalingPolicyCommon.setScaleFactor(2);
         scalingPolicyCommon.setMinSegments(2);
-        retentionPolicyCommon.setRetentionTimeMillis(123L);
-        retentionPolicyCommon2.setRetentionTimeMillis(null);
+        retentionPolicyCommon.setType(TypeEnum.LIMITED_DAYS);
+        retentionPolicyCommon.setValue(123L);
+        retentionPolicyCommon2.setType(null);
+        retentionPolicyCommon2.setValue(null);
+        retentionPolicyCommon3.setType(TypeEnum.INFINITE);
         streamResponseExpected.setScopeName(scope1);
         streamResponseExpected.setStreamName(stream1);
         streamResponseExpected.setScalingPolicy(scalingPolicyCommon);
@@ -144,6 +145,15 @@ public class StreamMetaDataTests extends JerseyTest {
         createStreamRequest3.setStreamName(stream1);
         createStreamRequest3.setScalingPolicy(scalingPolicyCommon);
         createStreamRequest3.setRetentionPolicy(retentionPolicyCommon);
+
+        createStreamRequest4.setStreamName(stream3);
+        createStreamRequest4.setScalingPolicy(scalingPolicyCommon);
+        createStreamRequest4.setRetentionPolicy(retentionPolicyCommon3);
+
+        streamResponseExpected2.setScopeName(scope1);
+        streamResponseExpected2.setStreamName(stream3);
+        streamResponseExpected2.setScalingPolicy(scalingPolicyCommon);
+        streamResponseExpected2.setRetentionPolicy(retentionPolicyCommon3);
 
         updateStreamRequest.setScalingPolicy(scalingPolicyCommon);
         updateStreamRequest.setRetentionPolicy(retentionPolicyCommon);
@@ -190,6 +200,13 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Create Stream Status", 201, response.get().getStatus());
         streamResponseActual = response.get().readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+
+        // Test to create a stream which doesn't exist and have Retention Policy INFINITE
+        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
+        response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest4));
+        assertEquals("Create Stream Status", 201, response.get().getStatus());
+        streamResponseActual = response.get().readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseExpected2, streamResponseActual);
 
         // Test to create a stream that already exists
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
@@ -274,6 +291,40 @@ public class StreamMetaDataTests extends JerseyTest {
     }
 
     /**
+     * Test for deleteStream REST API
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testDeleteStream() throws Exception {
+        final String resourceURI = "v1/scopes/scope1/streams/stream1";
+
+        // Test to delete a sealed stream
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.SUCCESS).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 204, response.get().getStatus());
+
+        // Test to delete a unsealed stream
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.STREAM_NOT_SEALED).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 412, response.get().getStatus());
+
+        // Test to delete a non existent stream
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.STREAM_NOT_FOUND).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 404, response.get().getStatus());
+
+        // Test to delete a stream giving an internal server error
+        when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.FAILURE).build()));
+        response = target(resourceURI).request().async().delete();
+        assertEquals("Delete Stream response code", 500, response.get().getStatus());
+    }
+
+    /**
      * Test for createScope REST API
      *
      * @throws ExecutionException
@@ -286,19 +337,19 @@ public class StreamMetaDataTests extends JerseyTest {
 
         // Test to create a new scope.
         when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                CreateScopeStatus.SUCCESS));
+                CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build()));
         response = target(resourceURI).request().async().post(Entity.json(createScopeRequest));
         assertEquals("Create Scope response code", 201, response.get().getStatus());
 
         // Test to create an existing scope.
         when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                CreateScopeStatus.SCOPE_EXISTS));
+                CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build()));
         response = target(resourceURI).request().async().post(Entity.json(createScopeRequest));
         assertEquals("Create Scope response code", 409, response.get().getStatus());
 
         // create scope failure.
         when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                CreateScopeStatus.FAILURE));
+                CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build()));
         response = target(resourceURI).request().async().post(Entity.json(createScopeRequest));
         assertEquals("Create Scope response code", 500, response.get().getStatus());
     }
@@ -315,27 +366,58 @@ public class StreamMetaDataTests extends JerseyTest {
 
         // Test to delete a scope.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                DeleteScopeStatus.SUCCESS));
+                DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build()));
         response = target(resourceURI).request().async().delete();
         assertEquals("Delete Scope response code", 204, response.get().getStatus());
 
         // Test to delete scope with existing streams.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                DeleteScopeStatus.SCOPE_NOT_EMPTY));
+                DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build()));
         response = target(resourceURI).request().async().delete();
         assertEquals("Delete Scope response code", 412, response.get().getStatus());
 
         // Test to delete non-existing scope.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                DeleteScopeStatus.SCOPE_NOT_FOUND));
+                DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build()));
         response = target(resourceURI).request().async().delete();
         assertEquals("Delete Scope response code", 404, response.get().getStatus());
 
         // Test delete scope failure.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                DeleteScopeStatus.FAILURE));
+                DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build()));
         response = target(resourceURI).request().async().delete();
         assertEquals("Delete Scope response code", 500, response.get().getStatus());
+    }
+
+    /**
+     * Test to retrieve a scope.
+     *
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
+    @Test
+    public void testGetScope() throws ExecutionException, InterruptedException {
+        final String resourceURI = "v1/scopes/scope1";
+        final String resourceURI2 = "v1/scopes/scope2";
+
+        // Test to get existent scope
+        when(mockControllerService.getScope(scope1)).thenReturn(CompletableFuture.completedFuture("scope1"));
+        response = target(resourceURI).request().async().get();
+        assertEquals("Get existent scope", 200, response.get().getStatus());
+
+        // Test to get non-existent scope
+        when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.supplyAsync(() -> {
+            throw new StoreException.NodeNotFoundException();
+        }));
+        response = target(resourceURI2).request().async().get();
+        assertEquals("Get non existent scope", 404, response.get().getStatus());
+
+        //Test for get scope failure.
+        final CompletableFuture<String> completableFuture2 = new CompletableFuture<>();
+        completableFuture2.completeExceptionally(new Exception());
+        when(mockControllerService.getScope(scope1)).thenReturn(completableFuture2);
+        response = target(resourceURI).request().async().get();
+        assertEquals("Get scope fail test", 500, response.get().getStatus());
     }
 
     /**
@@ -379,29 +461,15 @@ public class StreamMetaDataTests extends JerseyTest {
         final StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(stream1)
-                .scalingPolicy(ScalingPolicy.builder()
-                                       .type(Type.BY_RATE_IN_EVENTS)
-                                       .targetRate(100)
-                                       .scaleFactor(2)
-                                       .minNumSegments(2)
-                                       .build())
-                .retentionPolicy(RetentionPolicy.builder()
-                                         .retentionTimeMillis(123L)
-                                         .build())
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         final StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(stream2)
-                .scalingPolicy(ScalingPolicy.builder()
-                                       .type(Type.BY_RATE_IN_EVENTS)
-                                       .targetRate(100)
-                                       .scaleFactor(2)
-                                       .minNumSegments(2)
-                                       .build())
-                .retentionPolicy(RetentionPolicy.builder()
-                                         .retentionTimeMillis(123L)
-                                         .build())
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         // Test to list streams.
@@ -430,6 +498,42 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("List Streams response code", 500, response.get().getStatus());
     }
 
+    /**
+     * Test for updateStreamState REST API.
+     */
+    @Test
+    public void testUpdateStreamState() throws Exception {
+        final String resourceURI = "v1/scopes/scope1/streams/stream1/state";
+
+        // Test to seal a stream.
+        when(mockControllerService.sealStream("scope1", "stream1")).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SUCCESS).build()));
+        StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 200, response.get().getStatus());
+
+        // Test to seal a non existent scope.
+        when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build()));
+        streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 404, response.get().getStatus());
+
+        // Test to seal a non existent stream.
+        when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND).build()));
+        streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 404, response.get().getStatus());
+
+        // Test to check failure.
+        when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
+                UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build()));
+        streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
+        response = target(resourceURI).request().async().put(Entity.json(streamState));
+        assertEquals("Update Stream State response code", 500, response.get().getStatus());
+    }
+
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
         assertNotNull(expected);
         assertNotNull(actual);
@@ -447,9 +551,12 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("StreamConfig: Scaling Policy: MinNumSegments",
                 expected.getScalingPolicy().getMinSegments(),
                 actual.getScalingPolicy().getMinSegments());
-        assertEquals("StreamConfig: Retention Policy: MinNumSegments",
-                expected.getRetentionPolicy().getRetentionTimeMillis(),
-                actual.getRetentionPolicy().getRetentionTimeMillis());
+        assertEquals("StreamConfig: Retention Policy: type",
+                expected.getRetentionPolicy().getType(),
+                actual.getRetentionPolicy().getType());
+        assertEquals("StreamConfig: Retention Policy: value",
+                expected.getRetentionPolicy().getValue(),
+                actual.getRetentionPolicy().getValue());
     }
 }
 

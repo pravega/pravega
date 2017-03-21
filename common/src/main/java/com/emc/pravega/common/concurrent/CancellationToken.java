@@ -9,18 +9,23 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 
 /**
  * Represents a token that can be passed around to various services or components to indicate when a task should be cancelled.
  */
+@ThreadSafe
 public class CancellationToken {
     /**
      * A CancellationToken that can be used as a placeholder for "no token to pass". This token instance cannot be cancelled.
      */
     public static final CancellationToken NONE = new NonCancellableToken();
+    @GuardedBy("futures")
     private final Collection<CompletableFuture> futures;
     @Getter
+    @GuardedBy("futures")
     private boolean cancellationRequested;
 
     /**
@@ -74,7 +79,9 @@ public class CancellationToken {
 
     @Override
     public String toString() {
-        return "Cancelled = " + Boolean.toString(this.cancellationRequested);
+        synchronized (this.futures) {
+            return "Cancelled = " + Boolean.toString(this.cancellationRequested);
+        }
     }
 
     private static final class NonCancellableToken extends CancellationToken {

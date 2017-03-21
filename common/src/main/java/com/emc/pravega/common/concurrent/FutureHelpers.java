@@ -43,16 +43,30 @@ public final class FutureHelpers {
     /**
      * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
      *
-     * @param f   The future to wait for.
+     * @param f The future to wait for.
      * @param <T> The Type of the future's result.
      */
-    public static <T> boolean await(Future<T> f) {
-        try {
-            Exceptions.handleInterrupted(() -> f.get());
-            return true;
-        } catch (ExecutionException e) {
-            return false;
-        }
+    public static <T> boolean await(CompletableFuture<T> f) {
+        return await(f, Long.MAX_VALUE);
+    }
+
+    /**
+     * Waits for the provided future to be complete, and returns true if it was successful, false if it failed
+     * or did not complete.
+     *
+     * @param timeout The maximum number of milliseconds to block
+     * @param f The future to wait for.
+     * @param <T> The Type of the future's result.
+     */
+    public static <T> boolean await(CompletableFuture<T> f, long timeout) {
+        Exceptions.handleInterrupted(() -> {
+            try {
+                f.get(timeout, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException | ExecutionException e) {
+                // Not handled here.
+            }
+        });
+        return isSuccessful(f);
     }
 
     /**

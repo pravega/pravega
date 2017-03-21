@@ -25,6 +25,10 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapping;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;

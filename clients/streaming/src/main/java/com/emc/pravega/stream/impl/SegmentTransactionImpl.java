@@ -29,7 +29,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     public void writeEvent(Type event) throws TxnFailedException {
         try {
             ByteBuffer buffer = serializer.serialize(event);
-            out.write(buffer, CompletableFuture.completedFuture(null));
+            out.write(new PendingEvent(null, buffer,  CompletableFuture.completedFuture(null)));
         } catch (SegmentSealedException e) {
             throw new TxnFailedException(e);
         }

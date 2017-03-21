@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.selftest;
 
@@ -12,11 +10,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.FileAppender;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.containers.ContainerConfig;
+import com.emc.pravega.service.server.containers.ContainerConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
@@ -48,28 +46,25 @@ public class SelfTestRunner {
     }
 
     private static ServiceBuilderConfig getBuilderConfig() {
-        Properties p = new Properties();
-
-        // Change Number of containers and Thread Pool Size for each test.
-        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "2");
-        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "20");
-
-        // TODO: consider setting the following as defaults in their config classes.
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, "100");
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, "104857600");
-
-        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(60 * 1000));
-        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
-        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, Integer.toString(128 * 1024));
-
-        ServiceBuilderConfig.set(p, ContainerConfig.COMPONENT_CODE, ContainerConfig.PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS,
-                Integer.toString(ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS));
-        ServiceBuilderConfig.set(p, ContainerConfig.COMPONENT_CODE, ContainerConfig.PROPERTY_MAX_ACTIVE_SEGMENT_COUNT,
-                Integer.toString(500));
-
-        // All component configs should have defaults built-in, so no need to override them here
-        return new ServiceBuilderConfig(p);
+        return ServiceBuilderConfig
+                .builder()
+                .include(ServiceConfig.builder()
+                                      .with(ServiceConfig.CONTAINER_COUNT, 2)
+                                      .with(ServiceConfig.THREAD_POOL_SIZE, 20))
+                .include(DurableLogConfig.builder()
+                                         // TODO: consider setting the following as defaults in the DurableLogConfig class.
+                                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+                                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
+                                         .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
+                .include(ReadIndexConfig.builder()
+                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
+                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
+                                        .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
+                .include(ContainerConfig.builder()
+                                        .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,
+                                                ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS)
+                                        .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 500))
+                .build();
     }
 
     private static TestConfig getTestConfig() {
@@ -77,33 +72,33 @@ public class SelfTestRunner {
         final boolean useClient = false;
 
         final int testThreadPoolAddition = useClient ? producers : 0;
-        return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
-                PropertyBag.create()
-                           // Test params.
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 2000000)
-                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
-                           .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
-                           .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 100)
+        return TestConfig
+                .builder()
+                // Test params.
+                .with(TestConfig.OPERATION_COUNT, 2000000)
+                .with(TestConfig.SEGMENT_COUNT, 1)
+                .with(TestConfig.MIN_APPEND_SIZE, 100)
+                .with(TestConfig.MAX_APPEND_SIZE, 100)
 
-                           // Transaction setup.
-                           .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
-                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
-                           //.with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 100)
+                // Transaction setup.
+                .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
+                .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
 
-                           // Test setup.
-                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50 + testThreadPoolAddition)
-                           .with(TestConfig.PROPERTY_DATA_LOG_APPEND_DELAY, 0)
-                           .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)
-                           .with(TestConfig.PROPERTY_VERBOSE_LOGGING, false)
+                // Test setup.
+                .with(TestConfig.THREAD_POOL_SIZE, 50 + testThreadPoolAddition)
+                .with(TestConfig.DATA_LOG_APPEND_DELAY, 0)
+                .with(TestConfig.TIMEOUT_MILLIS, 3000)
+                .with(TestConfig.VERBOSE_LOGGING, false)
 
-                           // Client-specific settings.
-                           .with(TestConfig.PROPERTY_CLIENT_AUTO_FLUSH, false)
-                           .with(TestConfig.PROPERTY_CLIENT_PORT, 9876)
+                // Client-specific settings.
+                .with(TestConfig.CLIENT_AUTO_FLUSH, false)
+                .with(TestConfig.CLIENT_PORT, 9876)
 
-                           // Settings set via variables (see above).
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, producers)
-                           .with(TestConfig.PROPERTY_USE_CLIENT, useClient)
-                           .with(TestConfig.PROPERTY_CLIENT_WRITER_COUNT, producers)));
+                // Settings set via variables (see above).
+                .with(TestConfig.PRODUCER_COUNT, producers)
+                .with(TestConfig.USE_CLIENT, useClient)
+                .with(TestConfig.CLIENT_WRITER_COUNT, producers)
+                .build();
     }
 
     private static void setupLogging() {

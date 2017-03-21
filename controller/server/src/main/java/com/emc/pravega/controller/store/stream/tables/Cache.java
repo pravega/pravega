@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream.tables;
 
@@ -25,22 +23,19 @@ public class Cache<T> {
 
     public Cache(final Loader<T> loader) {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
-                .refreshAfterWrite(10, TimeUnit.MINUTES)
+                .maximumSize(10000)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(
-                        new CacheLoader<String, CompletableFuture<Data<T>>>() {
-                            @ParametersAreNonnullByDefault
-                            public CompletableFuture<Data<T>> load(final String key) {
-                                try {
-                                    return loader.get(key);
-                                } catch (DataNotFoundException d) {
-                                    throw d;
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
+                .build(new CacheLoader<String, CompletableFuture<Data<T>>>() {
+                    @ParametersAreNonnullByDefault
+                    public CompletableFuture<Data<T>> load(final String key) {
+                        CompletableFuture<Data<T>> result = loader.get(key);
+                        result.exceptionally(ex -> {
+                            invalidateCache(key);
+                            return null;
                         });
+                        return result;
+                    }
+                });
     }
 
     public CompletableFuture<Data<T>> getCachedData(final String key) {
@@ -54,12 +49,6 @@ public class Cache<T> {
 
     public Void invalidateAll() {
         cache.invalidateAll();
-        return null;
-    }
-
-
-    public Void invalidateAll(final Iterable<String> keys) {
-        cache.invalidateAll(keys);
         return null;
     }
 }

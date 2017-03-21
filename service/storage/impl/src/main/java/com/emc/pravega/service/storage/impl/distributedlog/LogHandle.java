@@ -1,13 +1,11 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.SegmentStoreMetricsNames;
+import com.emc.pravega.common.MetricsNames;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
@@ -39,6 +37,7 @@ import com.twitter.distributedlog.exceptions.LogRecordTooLongException;
 import com.twitter.distributedlog.exceptions.OwnershipAcquireFailedException;
 import com.twitter.distributedlog.exceptions.StreamNotReadyException;
 import com.twitter.distributedlog.exceptions.WriteCancelledException;
+import com.twitter.distributedlog.io.AsyncCloseable;
 import com.twitter.distributedlog.namespace.DistributedLogNamespace;
 import com.twitter.distributedlog.util.FutureUtils;
 import com.twitter.util.Future;
@@ -67,6 +66,7 @@ class LogHandle implements AutoCloseable {
      * Maximum append length, as specified by DistributedLog (this is hardcoded inside DLog's code).
      */
     static final int MAX_APPEND_LENGTH = 1024 * 1024 - 8 * 1024 - 20;
+    static final long START_TRANSACTION_ID = 0;
 
     private final AtomicLong lastTransactionId;
     private final String logName;
@@ -93,7 +93,7 @@ class LogHandle implements AutoCloseable {
 
         this.logName = logName;
         this.handleClosedCallback = handleClosedCallback;
-        this.lastTransactionId = new AtomicLong(0);
+        this.lastTransactionId = new AtomicLong(START_TRANSACTION_ID);
         this.activeReaders = new HashSet<>();
     }
 
@@ -104,22 +104,8 @@ class LogHandle implements AutoCloseable {
     @Override
     public void close() {
         if (!this.closed) {
-            try {
-                // Check for null for each of these components since we may be attempting to close them from the constructor
-                // due to an initialization failure.
-                if (this.logWriter != null) {
-                    FutureUtils.result(this.logWriter.asyncClose());
-                    log.debug("{}: Closed LogWriter.", this.logName);
-                }
-
-                if (this.logManager != null) {
-                    FutureUtils.result(this.logManager.asyncClose());
-                    log.debug("{}: Closed LogManager.", this.logName);
-                }
-            } catch (IOException ex) {
-                //TODO: retry policy.
-                log.error("{}: Unable to close LogHandle. {}", this.logName, ex);
-            }
+            tryClose(this.logWriter, "LogWriter");
+            tryClose(this.logManager, "LogManager");
 
             this.closed = true;
 
@@ -133,6 +119,17 @@ class LogHandle implements AutoCloseable {
 
             log.info("{}: Closed (LastTransactionId = {}).", this.logName, this.lastTransactionId);
             CallbackHelpers.invokeSafely(this.handleClosedCallback, this, null);
+        }
+    }
+
+    private void tryClose(AsyncCloseable closeable, String name) {
+        try {
+            if (closeable != null) {
+                FutureUtils.result(closeable.asyncClose());
+                log.debug("{}: Closed {}.", this.logName, name);
+            }
+        } catch (IOException ex) {
+            log.error("{}: Unable to close {}.", this.logName, name, ex);
         }
     }
 
@@ -187,7 +184,7 @@ class LogHandle implements AutoCloseable {
         try {
             this.lastTransactionId.set(this.logManager.getLastTxId());
         } catch (LogEmptyException ex) {
-            this.lastTransactionId.set(0);
+            this.lastTransactionId.set(START_TRANSACTION_ID);
         } catch (Exception ex) {
             throw new DataLogInitializationException(String.format("Unable to determine last transaction Id for log '%s'.", logName), ex);
         }
@@ -215,12 +212,11 @@ class LogHandle implements AutoCloseable {
     /**
      * Appends the given data at the end of the Log.
      *
-     * @param data    An InputStream representing the data to append.
-     * @param timeout Timeout for the operation.
+     * @param data An InputStream representing the data to append.
      * @return A CompletableFuture that, when completed, will contain the TransactionId of the append. If the append
      * failed, it will contain the exception that caused it to fail.
      */
-    CompletableFuture<LogAddress> append(InputStream data, java.time.Duration timeout) {
+    CompletableFuture<LogAddress> append(InputStream data) {
         ensureNotClosed();
         Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
         Preconditions.checkNotNull(data, "data");
@@ -247,9 +243,10 @@ class LogHandle implements AutoCloseable {
         // Send the write to DistributedLog.
         log.debug("{}: LogWriter.write (TransactionId = {}, Length = {}).", this.logName, transactionId, buffer.length);
         Timer timer = new Timer();
+
         Future<DLSN> writeFuture = this.logWriter.write(new LogRecord(transactionId, buffer));
         CompletableFuture<LogAddress> result = toCompletableFuture(writeFuture, dlsn -> new DLSNAddress(transactionId, dlsn));
-        result.thenRunAsync( () -> {
+        result.thenRunAsync(() -> {
             Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
             Metrics.WRITE_BYTES.add(buffer.length);
         });
@@ -295,11 +292,10 @@ class LogHandle implements AutoCloseable {
      * Truncates the DistributedLog log up to (and including) the given DLSNAddress.
      *
      * @param upToAddress The DLSNAddress to truncate to.
-     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the outcome of the operation. If the operation failed,
      * the Future will be completed with the appropriate exception.
      */
-    CompletableFuture<Void> truncate(DLSNAddress upToAddress, java.time.Duration timeout) {
+    CompletableFuture<Void> truncate(DLSNAddress upToAddress) {
         ensureNotClosed();
         Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
         final long traceId = LoggerHelpers.traceEnter(log, this.logName, "truncate");
@@ -386,7 +382,8 @@ class LogHandle implements AutoCloseable {
             this.traceObjectId = String.format("%s@%d", logManager.getStreamName(), afterTransactionId);
             this.logManager = logManager;
             this.lastTransactionId = afterTransactionId;
-            this.baseReader = this.logManager.getInputStream(afterTransactionId);
+            // Add 1 to the transaction id because of different contracts; ours is read after, DL's is read at and after.
+            this.baseReader = this.logManager.getInputStream(afterTransactionId + 1);
             this.closeCallback = closeCallback;
         }
 
@@ -459,14 +456,13 @@ class LogHandle implements AutoCloseable {
 
     //endregion
 
-
     //region Metrics
 
     private static class Metrics {
-        private static final StatsLogger DURABLE_DATALOG_LOGGER = MetricsProvider.createStatsLogger("DURABLEDATALOG");
-        private static final OpStatsLogger WRITE_LATENCY = DURABLE_DATALOG_LOGGER.createStats(SegmentStoreMetricsNames
+        private static final StatsLogger DURABLE_DATALOG_LOGGER = MetricsProvider.createStatsLogger("durablelog");
+        private static final OpStatsLogger WRITE_LATENCY = DURABLE_DATALOG_LOGGER.createStats(MetricsNames
                 .DURABLE_DATALOG_WRITE_LATENCY);
-        private static final Counter WRITE_BYTES = DURABLE_DATALOG_LOGGER.createCounter(SegmentStoreMetricsNames
+        private static final Counter WRITE_BYTES = DURABLE_DATALOG_LOGGER.createCounter(MetricsNames
                 .DURABLE_DATALOG_WRITE_BYTES);
     }
 

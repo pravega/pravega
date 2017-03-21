@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
@@ -64,5 +62,10 @@ public class InMemoryScope implements Scope {
     @Synchronized
     public void addStreamToScope(String stream) {
         this.streamsInScope.add(stream);
+    }
+
+    @Synchronized
+    public void removeStreamFromScope(String stream) {
+        this.streamsInScope.remove(stream);
     }
 }

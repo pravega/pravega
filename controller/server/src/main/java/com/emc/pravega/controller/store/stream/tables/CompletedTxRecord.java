@@ -1,16 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream.tables;
 
-import com.emc.pravega.stream.impl.TxnStatus;
-import lombok.Data;
-import org.apache.commons.lang.ArrayUtils;
 
+import com.emc.pravega.common.util.BitConverter;
+import com.emc.pravega.controller.store.stream.TxnStatus;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import lombok.Data;
 
 @Data
 public class CompletedTxRecord {
@@ -18,9 +16,9 @@ public class CompletedTxRecord {
     private final TxnStatus completionStatus;
 
     public static CompletedTxRecord parse(final byte[] bytes) {
-        final long completeTimeStamp = Utilities.toLong(ArrayUtils.subarray(bytes, 0, Long.SIZE / 8));
+        final long completeTimeStamp = BitConverter.readLong(bytes, 0);
 
-        final TxnStatus status = TxnStatus.values()[Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length))];
+        final TxnStatus status = TxnStatus.values()[BitConverter.readInt(bytes, Long.BYTES)];
 
         return new CompletedTxRecord(completeTimeStamp, status);
     }

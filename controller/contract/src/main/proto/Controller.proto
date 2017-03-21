@@ -1,0 +1,232 @@
+/**
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ */
+syntax = "proto3";
+package com.emc.pravega.controller.stream.api.grpc.v1;
+
+option optimize_for = SPEED;
+
+/*
+ * Producer, Consumer and Admin APIs supported by Stream Controller Service
+ */
+service ControllerService {
+    rpc createStream(StreamConfig) returns (CreateStreamStatus);
+    rpc alterStream(StreamConfig) returns (UpdateStreamStatus);
+    rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
+    rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
+    rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
+    rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
+    rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
+    rpc scale(ScaleRequest) returns (ScaleResponse);
+    rpc getURI(SegmentId) returns (NodeUri);
+    rpc isSegmentValid(SegmentId) returns (SegmentValidityResponse);
+    rpc createTransaction(CreateTxnRequest) returns (TxnId);
+    rpc commitTransaction(TxnRequest) returns (TxnStatus);
+    rpc abortTransaction(TxnRequest) returns (TxnStatus);
+    rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
+    rpc checkTransactionState(TxnRequest) returns (TxnState);
+    rpc createScope(ScopeInfo) returns (CreateScopeStatus);
+    rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
+}
+
+message CreateStreamStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_EXISTS = 2;
+        SCOPE_NOT_FOUND = 3;
+        INVALID_STREAM_NAME = 4;
+    }
+    Status status = 1;
+}
+
+message UpdateStreamStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_NOT_FOUND = 2;
+        SCOPE_NOT_FOUND = 3;
+    }
+    Status status = 1;
+}
+
+message DeleteStreamStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_NOT_FOUND = 2;
+        STREAM_NOT_SEALED = 3;
+    }
+    Status status = 1;
+}
+
+message CreateScopeStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_EXISTS = 2;
+        INVALID_SCOPE_NAME = 3;
+    }
+    Status status = 1;
+}
+
+message DeleteScopeStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+        SCOPE_NOT_EMPTY = 3;
+    }
+    Status status = 1;
+}
+
+message TxnStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_NOT_FOUND = 2;
+        TRANSACTION_NOT_FOUND = 3;
+    }
+    Status status = 1;
+}
+
+message PingTxnStatus {
+    enum Status {
+        OK = 0;
+        LEASE_TOO_LARGE = 1;
+        MAX_EXECUTION_TIME_EXCEEDED = 2;
+        SCALE_GRACE_TIME_EXCEEDED = 3;
+        DISCONNECTED = 4;
+    }
+    Status status = 1;
+}
+
+message TxnState {
+    enum State {
+        UNKNOWN = 0;
+        OPEN = 1;
+        COMMITTING = 2;
+        COMMITTED = 3;
+        ABORTING = 4;
+        ABORTED = 5;
+    }
+    State state = 1;
+}
+
+message ScopeInfo {
+    string scope = 1;
+}
+
+message StreamInfo {
+    string scope = 1;
+    string stream = 2;
+}
+
+message ScalingPolicy {
+    enum ScalingPolicyType {
+        FIXED_NUM_SEGMENTS = 0;
+        BY_RATE_IN_KBYTES_PER_SEC = 1;
+        BY_RATE_IN_EVENTS_PER_SEC = 2;
+    }
+    ScalingPolicyType type = 1;
+    int32 targetRate = 2;
+    int32 scaleFactor = 3;
+    int32 minNumSegments = 4;
+}
+
+message StreamConfig {
+    StreamInfo streamInfo = 1;
+    ScalingPolicy policy = 2;
+}
+
+message SegmentId {
+    StreamInfo streamInfo = 1;
+    int32 segmentNumber = 2;
+}
+
+message SegmentRange {
+    SegmentId segmentId = 1;
+    double minKey = 2;
+    double maxKey = 3;
+}
+
+message NodeUri {
+    string endpoint = 1;
+    int32 port = 2;
+}
+
+message SegmentsAtTime {
+    message SegmentLocation {
+        SegmentId segmentId = 1;
+        int64 offset = 2;
+    }
+    repeated SegmentLocation segments = 1;
+}
+
+message TxnId {
+    int64 highBits = 1;
+    int64 lowBits = 2;
+}
+
+message CreateTxnRequest {
+    StreamInfo streamInfo = 1;
+    int64 lease = 2;
+    int64 maxExecutionTime = 3;
+    int64 scaleGracePeriod = 4;
+}
+
+message TxnRequest {
+    StreamInfo streamInfo = 1;
+    TxnId txnId = 2;
+}
+
+message PingTxnRequest {
+    StreamInfo streamInfo = 1;
+    TxnId txnId = 2;
+    int64 lease = 3;
+}
+
+message SuccessorResponse {
+    message SegmentEntry {
+        SegmentId segmentId = 1;
+        repeated int32 value = 2;
+    }
+    repeated SegmentEntry segments = 1;
+}
+
+message ScaleRequest {
+    StreamInfo streamInfo = 1;
+    repeated int32 sealedSegments = 2;
+    message KeyRangeEntry {
+        double start = 1;
+        double end = 2;
+    }
+    repeated KeyRangeEntry newKeyRanges = 3;
+    int64 scaleTimestamp = 4;
+}
+
+message ScaleResponse {
+    enum ScaleStreamStatus {
+        SUCCESS = 0;
+        FAILURE = 1;
+        PRECONDITION_FAILED = 2;
+        TXN_CONFLICT = 3;
+    }
+    ScaleStreamStatus status = 1;
+    repeated SegmentRange segments = 2;
+}
+
+message SegmentRanges {
+    repeated SegmentRange segmentRanges = 1;
+}
+
+message GetSegmentsRequest {
+    StreamInfo streamInfo = 1;
+    int64 timestamp = 2;
+}
+
+message SegmentValidityResponse {
+    bool response = 1;
+}

@@ -13,30 +13,23 @@ import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.ReaderGroupImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
-
 import lombok.Getter;
-
 import org.apache.commons.lang.NotImplementedException;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     private final String scope;
     private final ConnectionFactoryImpl connectionFactory;
-    private final Controller controller;
+    private final MockController controller;
     @Getter
     private final MockClientFactory clientFactory;
 
@@ -44,7 +37,19 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         this.scope = scope;
         this.connectionFactory = new ConnectionFactoryImpl(false);
         this.controller = new MockController(endpoint, port, connectionFactory);
-        this.clientFactory = new MockClientFactory(scope, endpoint, port);
+        this.clientFactory = new MockClientFactory(scope, controller);
+    }
+
+    @Override
+    public void createScope() {
+        FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
+                RuntimeException::new);
+    }
+
+    @Override
+    public void deleteScope() {
+        FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
+                RuntimeException::new);
     }
 
     @Override
@@ -66,10 +71,10 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
         FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                        .scope(scope)
-                                                                                        .streamName(streamName)
-                                                                                        .scalingPolicy(config.getScalingPolicy())
-                                                                                        .build()),
+                                                                     .scope(scope)
+                                                                     .streamName(streamName)
+                                                                     .scalingPolicy(config.getScalingPolicy())
+                                                                     .build()),
                                              RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
@@ -86,29 +91,28 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames) {
+    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames) {
         createStreamHelper(groupName,
                            StreamConfiguration.builder()
                                               .scope(scope)
                                               .streamName(groupName)
                                               .scalingPolicy(ScalingPolicy.fixed(1)).build());
-        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
-                groupName,
-                streamNames,
-                config,
-                synchronizerConfig,
-                new JavaSerializer<>(),
-                new JavaSerializer<>(),
-                clientFactory);
-        Map<Segment, Long> segments = streamNames.stream()
-                .collect(Collectors.toMap((String name) -> new Segment(scope, name, 0), name -> Long.valueOf(0)));
-        result.initializeGroup(segments);
+                                                     groupName,
+                                                     synchronizerConfig,
+                                                     new JavaSerializer<>(),
+                                                     new JavaSerializer<>(),
+                                                     clientFactory,
+                                                     controller);
+        result.initializeGroup(config, streamNames);
         return result;
     }
 
     public Position getInitialPosition(String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L));
+        return new PositionImpl(controller.getSegmentsForStream(new StreamImpl(scope, stream))
+                                          .stream()
+                                          .collect(Collectors.toMap(segment -> segment, segment -> 0L)));
     }
 
     @Override

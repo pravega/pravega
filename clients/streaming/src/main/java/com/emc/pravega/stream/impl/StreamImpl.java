@@ -8,16 +8,15 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.stream.Stream;
 import com.google.common.base.Preconditions;
 
-import lombok.Getter;
+import lombok.Data;
 
 /**
  * An implementation of a stream for the special case where the stream is only ever composed of one segment.
  */
+@Data
 public class StreamImpl implements Stream {
 
-    @Getter
     private final String scope;
-    @Getter
     private final String streamName;
 
     /**

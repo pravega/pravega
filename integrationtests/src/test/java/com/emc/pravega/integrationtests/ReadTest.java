@@ -28,11 +28,11 @@ import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.PendingEvent;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.NoSuchEventException;
-import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
@@ -159,6 +159,7 @@ public class ReadTest {
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
+        controller.createScope(scope);
         controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
 
         SegmentOutputStreamFactoryImpl segmentproducerClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
@@ -169,12 +170,12 @@ public class ReadTest {
                                        .getSegments().iterator().next();
 
         @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, null);
-        out.write(ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>());
+        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment);
+        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
         @Cleanup("close")
-        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment, new SegmentInputConfiguration());
+        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
     }
@@ -196,8 +197,9 @@ public class ReadTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        streamManager.createScope();
         streamManager.createStream(streamName, null);
-        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singletonList(streamName));
+        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
@@ -228,8 +230,9 @@ public class ReadTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        streamManager.createScope();
         streamManager.createStream(streamName, null);
-        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singletonList(streamName));
+        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 

@@ -6,7 +6,7 @@
 package com.emc.pravega.stream;
 
 import java.io.Serializable;
-
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -15,9 +15,11 @@ import lombok.RequiredArgsConstructor;
  * A policy that specifies how the number of segments in a stream should scale over time.
  */
 @Data
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-@RequiredArgsConstructor
 public class ScalingPolicy implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     public enum Type {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.
@@ -26,19 +28,27 @@ public class ScalingPolicy implements Serializable {
         /**
          * Scale based on the rate in bytes specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_BYTES,
+        BY_RATE_IN_KBYTES_PER_SEC,
         /**
          * Scale based on the rate in events specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_EVENTS,
+        BY_RATE_IN_EVENTS_PER_SEC,
     }
 
     private final Type type;
-    private final long targetRate;
+    private final int targetRate;
     private final int scaleFactor;
     private final int minNumSegments;
     
     public static ScalingPolicy fixed(int numSegments) {
         return new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, numSegments);
+    }
+    
+    public static ScalingPolicy byEventRate(int targetRate, int scaleFactor, int minNumSegments) {
+        return new ScalingPolicy(Type.BY_RATE_IN_EVENTS_PER_SEC, targetRate, scaleFactor, minNumSegments);
+    }
+    
+    public static ScalingPolicy byDataRate(int targetKBps, int scaleFactor, int minNumSegments) {
+        return new ScalingPolicy(Type.BY_RATE_IN_KBYTES_PER_SEC, targetKBps, scaleFactor, minNumSegments);
     }
 }

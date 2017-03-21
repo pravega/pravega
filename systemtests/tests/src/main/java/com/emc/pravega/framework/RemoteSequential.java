@@ -25,6 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static com.emc.pravega.framework.LoginClient.MESOS_MASTER;
+import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 
 /**
@@ -103,9 +104,10 @@ public class RemoteSequential implements TestExecutor {
         Run run = new Run();
         run.setArtifacts(Collections.singletonList(art));
 
-        run.setCmd("docker run --rm --name=\"testCase-1\" -v $(pwd):/data asdrepo.isus.emc.com:8103/java:8 java" +
+        run.setCmd("docker run --rm -v $(pwd):/data " + System.getProperty("dockerImageRegistry")+"/java:8 java" +
                 " -DmasterIP=" + MESOS_MASTER +
-                " -cp /data/systemtests-0.1.jar com.emc.pravega.SingleJUnitTestRunner " +
+                " -DskipServiceInstallation=" + isSkipServiceInstallationEnabled() +
+                " -cp /data/pravega-systemtests-"+System.getProperty("testVersion")+".jar com.emc.pravega.SingleJUnitTestRunner " +
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
 

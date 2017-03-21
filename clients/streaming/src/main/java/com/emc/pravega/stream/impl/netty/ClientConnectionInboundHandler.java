@@ -78,7 +78,12 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         if (cmd instanceof DataAppended) {
             batchSizeTracker.recordAck(((DataAppended) cmd).getEventNumber());
         }
-        cmd.process(processor);
+        try {
+            cmd.process(processor);
+        } catch (RuntimeException e) {
+            log.warn("Closing connection " + connectionName + " due to exception durring processing. ", e);
+            ctx.close();
+        }
     }
 
     @Override

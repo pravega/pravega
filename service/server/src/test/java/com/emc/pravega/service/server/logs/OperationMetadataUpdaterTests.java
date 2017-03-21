@@ -16,6 +16,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.TooManyActiveSegmentsException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.MetadataBuilder;
+import com.emc.pravega.service.server.ManualTimer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -45,6 +46,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -64,6 +66,12 @@ public class OperationMetadataUpdaterTests {
     private static final AttributeUpdateType[] ATTRIBUTE_UPDATE_TYPES = new AttributeUpdateType[]{
             AttributeUpdateType.Replace, AttributeUpdateType.Accumulate};
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
+    private ManualTimer timeProvider;
+
+    @Before
+    public void before() {
+        this.timeProvider = new ManualTimer();
+    }
 
     //region StreamSegmentAppendOperation
 
@@ -748,6 +756,7 @@ public class OperationMetadataUpdaterTests {
         AtomicLong seqNo = new AtomicLong();
 
         // Create a non-empty metadata.
+        this.timeProvider.setElapsedMillis(1234);
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
 

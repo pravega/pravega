@@ -8,16 +8,18 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
+import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.impl.ReaderGroupState.AddReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.AcquireSegment;
+import com.emc.pravega.stream.impl.ReaderGroupState.AddReader;
+import com.emc.pravega.stream.impl.ReaderGroupState.CheckpointReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReleaseSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.RemoveReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.SegmentCompleted;
 import com.emc.pravega.stream.impl.ReaderGroupState.UpdateDistanceToTail;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,12 +29,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import lombok.val;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
-
-import lombok.val;
 
 /**
  * Manages the state of the reader group on behalf of a reader.
@@ -80,21 +82,28 @@ public class ReaderGroupStateManager {
         acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
     
-    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync, Map<Segment, Long> segments) {
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(segments));
+    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
+            ReaderGroupConfig config, Map<Segment, Long> segments) {
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
     }
     
     /**
      * Add this reader to the reader group so that it is able to acquire segments
      */
     void initializeReader() {
+        AtomicBoolean alreadyAdded = new AtomicBoolean(false);
         sync.updateState(state -> {
             if (state.getSegments(readerId) == null) {
                 return Collections.singletonList(new AddReader(readerId));
             } else {
+                alreadyAdded.set(true);
                 return null;
             }
         });
+        if (alreadyAdded.get()) {
+            throw new IllegalStateException("The requested reader: " + readerId
+                    + " cannot be added to the group because it is already in the group. Perhaps close() was not called?");
+        }
         acquireTimer.zero();
     }
     
@@ -128,13 +137,25 @@ public class ReaderGroupStateManager {
     /**
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
-    void handleEndOfSegment(Segment segmentCompleted) {
+    void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
         val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted),
                                                 RuntimeException::new);
+        AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
+            if (!state.isReaderOnline(readerId)) {
+                reinitRequired.set(true);
+                return null;
+            }
             return Collections.singletonList(new SegmentCompleted(readerId, segmentCompleted, successors));
         });
+        if (reinitRequired.get()) {
+            throw new ReinitializationRequiredException();
+        }
         acquireTimer.zero();
+    }
+
+    private void checkStillAlive(ReaderGroupState state) throws ReinitializationRequiredException {
+
     }
 
     /**
@@ -214,7 +235,7 @@ public class ReaderGroupStateManager {
      * If there are unassigned segments and this host has not acquired one in a while, acquires them.
      * @return A map from the new segment that was acquired to the offset to begin reading from within the segment.
      */
-    Map<Segment, Long> acquireNewSegmentsIfNeeded(long timeLag) {
+    Map<Segment, Long> acquireNewSegmentsIfNeeded(long timeLag) throws ReinitializationRequiredException {
         if (!acquireTimer.hasRemaining()) {
             sync.fetchUpdates();
         }
@@ -225,8 +246,11 @@ public class ReaderGroupStateManager {
         }
     }
     
-    private boolean shouldAcquireSegment() {
+    private boolean shouldAcquireSegment() throws ReinitializationRequiredException {
         synchronized (decisionLock) {
+            if (!sync.getState().isReaderOnline(readerId)) {
+                throw new ReinitializationRequiredException();
+            }
             if (acquireTimer.hasRemaining()) {
                 return false;
             }
@@ -238,11 +262,17 @@ public class ReaderGroupStateManager {
         }
     }
 
-    private Map<Segment, Long> acquireSegment(long timeLag) {
+    private Map<Segment, Long> acquireSegment(long timeLag) throws ReinitializationRequiredException {
         AtomicReference<Map<Segment, Long>> result = new AtomicReference<>();
+        AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
+            if (!state.isReaderOnline(readerId)) {
+                reinitRequired.set(true);
+                return null;
+            }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
+                result.set(Collections.emptyMap());
                 return null;
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
@@ -259,6 +289,9 @@ public class ReaderGroupStateManager {
             result.set(acquired);
             return updates;
         });
+        if (reinitRequired.get()) {
+            throw new ReinitializationRequiredException();
+        }
         acquireTimer.reset(calculateAcquireTime(sync.getState()));
         return result.get();
     }
@@ -271,13 +304,34 @@ public class ReaderGroupStateManager {
         int numSegments = state.getNumberOfSegments();
         int segmentsOwned = state.getSegments(readerId).size();
         int numReaders = state.getNumberOfReaders();
-        return Math.max(Math.max(
-                                 1,
-                                 Math.round(numSegments / (float) numReaders) - segmentsOwned),
-                                 unassignedSegments / numReaders);
+        int equallyDistributed = unassignedSegments / numReaders;
+        int fairlyDistributed = Math.min(unassignedSegments, Math.round(numSegments / (float) numReaders) - segmentsOwned);
+        return Math.max(Math.max(equallyDistributed, fairlyDistributed), 1);
     }
 
     private Duration calculateAcquireTime(ReaderGroupState state) {
         return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
+    }
+    
+    String getCheckpoint() throws ReinitializationRequiredException {
+        ReaderGroupState state = sync.getState();
+        if (!state.isReaderOnline(readerId)) {
+            throw new ReinitializationRequiredException();
+        }
+        return state.getCheckpointsForReader(readerId);
+    }
+    
+    void checkpoint(String checkpointName, PositionInternal lastPosition) throws ReinitializationRequiredException {
+        AtomicBoolean reinitRequired = new AtomicBoolean(false);
+        sync.updateState(state -> {
+            if (!state.isReaderOnline(readerId)) {
+                reinitRequired.set(true);
+                return null;
+            }
+            return Collections.singletonList(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
+        });
+        if (reinitRequired.get()) {
+            throw new ReinitializationRequiredException();
+        }
     }
 }

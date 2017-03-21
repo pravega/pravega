@@ -23,7 +23,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * failures. Internal retries will not violate the exactly once semantic so it is better to rely on them
      * than to wrap this with custom retry logic.
      * 
-     * @param event The event to be written to the stream
+     * @param event The event to be written to the stream (Null is disallowed)
      * @return A future that will complete when the event has been durably stored on the configured number of
      *         replicas, and is available for readers to see. This future may complete exceptionally if this
      *         cannot happen, however these exceptions are not transient failures. Failures that occur as a
@@ -45,7 +45,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * @param routingKey A free form string that is used to route messages to readers. Two events written with
      *        the same routingKey are guaranteed to be read in order. Two events with different routing keys
      *        may be read in parallel. 
-     * @param event The event to be written to the stream
+     * @param event The event to be written to the stream (Null is disallowed)
      * @return A future that will complete when the event has been durably stored on the configured number of
      *         replicas, and is available for readers to see. This future may complete exceptionally if this
      *         cannot happen, however these exceptions are not transient failures. Failures that occur as a
@@ -61,10 +61,14 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *            transaction may be aborted. Note that this should not be set unnecessarily high, as having long running
      *            transactions may interfere with a streams to scale in response to a change in rate. For this reason
      *            streams may configure an upper limit to this value.
+     * @param maxExecutionTime The maximum amount of time, in milliseconds, until which transaction timeout may be
+     *                         increased via the pingTransaction API.
+     * @param scaleGracePeriod The maximum amount of time, in milliseconds, until which transacition may remain active,
+     *                         after a scale operation has been initiated on the underlying stream.
      * @return A transaction through which multiple events can be written atomically.
      */
-    Transaction<Type> beginTxn(long transactionTimeout);
-    
+    Transaction<Type> beginTxn(long transactionTimeout, long maxExecutionTime, long scaleGracePeriod);
+
     /**
      * Returns a previously created transaction.
      * 

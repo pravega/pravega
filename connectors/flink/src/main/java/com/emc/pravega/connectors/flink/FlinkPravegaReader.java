@@ -13,7 +13,17 @@ import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Serializer;
 import com.google.common.base.Preconditions;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.net.URI;
+import java.nio.ByteBuffer;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.flink.api.common.functions.StoppableFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -21,13 +31,6 @@ import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.util.serialization.DeserializationSchema;
-
-import java.io.IOException;
-import java.io.Serializable;
-import java.net.URI;
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Flink source implementation for reading from pravega storage.
@@ -72,7 +75,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
      *                              Use 0 to read all stream events from the beginning.
      * @param deserializationSchema The implementation to deserialize events from pravega streams.
      */
-    public FlinkPravegaReader(final URI controllerURI, final String scope, final List<String> streamNames,
+    public FlinkPravegaReader(final URI controllerURI, final String scope, final Set<String> streamNames,
             final long startTime, final DeserializationSchema<T> deserializationSchema) {
         Preconditions.checkNotNull(controllerURI);
         Preconditions.checkNotNull(scope);
@@ -83,7 +86,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
         this.controllerURI = controllerURI;
         this.scopeName = scope;
         this.deserializationSchema = deserializationSchema;
-        this.readerGroupName = "flink" + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
+        this.readerGroupName = "flink" + RandomStringUtils.randomAlphanumeric(20).toLowerCase();
 
         // TODO: This will require the client to have access to the pravega controller and handle any temporary errors.
         //       See https://github.com/pravega/pravega/issues/553.
@@ -119,6 +122,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
 
     @Override
     public void open(Configuration parameters) throws Exception {
+        this.isRunning = new AtomicBoolean(true);
         final Serializer<T> deserializer = new Serializer<T>() {
             @Override
             public ByteBuffer serialize(final T event) {
@@ -135,10 +139,9 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
                 }
             }
         };
-        this.readerId = getRuntimeContext().getTaskNameWithSubtasks();
+        this.readerId = "flink-reader-" + UUID.randomUUID();
         this.pravegaReader = ClientFactory.withScope(this.scopeName, this.controllerURI)
                 .createReader(this.readerId, this.readerGroupName, deserializer, ReaderConfig.builder().build());
-        this.isRunning = new AtomicBoolean(true);
 
         log.info("Initialized pravega reader with controller URI: {}", this.controllerURI);
     }

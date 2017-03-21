@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.task;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -14,8 +15,11 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -61,14 +65,21 @@ public abstract class TaskBase {
 
     protected final TaskMetadataStore taskMetadataStore;
 
-    public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor, final String hostId) {
+    private volatile boolean ready;
+    private final CountDownLatch readyLatch;
+
+    public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
+                    final String hostId) {
         this(taskMetadataStore, executor, new Context(hostId));
     }
 
-    protected TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor, Context context) {
+    protected TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
+                       final Context context) {
         this.taskMetadataStore = taskMetadataStore;
         this.executor = executor;
         this.context = context;
+        this.ready = false;
+        readyLatch = new CountDownLatch(1);
     }
     
     public abstract TaskBase copyWithContext(Context context);
@@ -87,6 +98,9 @@ public abstract class TaskBase {
      * @return return value of task execution.
      */
     public <T> CompletableFuture<T> execute(final Resource resource, final Serializable[] parameters, final FutureOperation<T> operation) {
+        if (!ready) {
+            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
+        }
         final String tag = UUID.randomUUID().toString();
         final TaskData taskData = getTaskData(parameters);
         final CompletableFuture<T> result = new CompletableFuture<>();
@@ -115,6 +129,16 @@ public abstract class TaskBase {
                         executor);
 
         return result;
+    }
+
+    protected void setReady() {
+        ready = true;
+        readyLatch.countDown();
+    }
+
+    @VisibleForTesting
+    public boolean awaitInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        return readyLatch.await(timeout, timeUnit);
     }
 
     private <T> CompletableFuture<T> executeTask(final Resource resource,

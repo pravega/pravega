@@ -9,29 +9,33 @@ import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
+import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
-import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.google.common.util.concurrent.AbstractService;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
 @Slf4j
-public class ControllerEventProcessors {
+public class ControllerEventProcessors extends AbstractService {
 
     public static final String CONTROLLER_SCOPE = "system";
     public static final String COMMIT_STREAM = "commitStream";
@@ -39,83 +43,136 @@ public class ControllerEventProcessors {
     public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
     public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
 
-    private final Controller controller;
+    // Retry configuration
+    private static final long DELAY = 100;
+    private static final int MULTIPLIER = 10;
+    private static final long MAX_DELAY = 10000;
+
     private final CuratorFramework client;
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
+    private final SegmentHelper segmentHelper;
+    private final ConnectionFactory connectionFactory;
+    private final ScheduledExecutorService executor;
+
+    private EventProcessorGroup<CommitEvent> commitEventEventProcessors;
+    private EventProcessorGroup<AbortEvent> abortEventEventProcessors;
 
     public ControllerEventProcessors(final String host,
                                      final Controller controller,
                                      final CuratorFramework client,
                                      final StreamMetadataStore streamMetadataStore,
-                                     final HostControllerStore hostControllerStore) {
-        this.controller = controller;
+                                     final HostControllerStore hostControllerStore,
+                                     final SegmentHelper segmentHelper,
+                                     final ConnectionFactory connectionFactory,
+                                     final ScheduledExecutorService executor) {
         this.client = client;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
-        this.system = new EventProcessorSystemImpl("Controller", host, CONTROLLER_SCOPE, controller);
+        this.segmentHelper = segmentHelper;
+        this.connectionFactory = connectionFactory;
+        this.system = new EventProcessorSystemImpl("Controller", host, CONTROLLER_SCOPE, controller, connectionFactory);
+        this.executor = executor;
     }
 
-    public void initialize() throws Exception {
+    @Override
+    protected void doStart() {
+        try {
+            log.info("Starting controller event processors.");
+            initialize();
+            notifyStarted();
+        } catch (Exception e) {
+            log.error("Error starting controller event processors.", e);
+            // Throwing this error will mark the service as FAILED.
+            throw Lombok.sneakyThrow(e);
+        }
+    }
 
-        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    @Override
+    protected void doStop() {
+        try {
+            log.info("Stopping controller event processors.");
+            stopEventProcessors();
+        } catch (CheckpointStoreException e) {
+            log.error("Error stopping controller event processors.", e);
+        }
+    }
 
-        // Commit event processor configuration
-        final String commitStreamReaderGroup = "commitStreamReaders";
-        final int commitReaderGroupSize = 5;
-        final int commitPositionPersistenceFrequency = 10;
-
-        // Abort event processor configuration
-        final String abortStreamReaderGroup = "abortStreamReaders";
-        final int abortReaderGroupSize = 5;
-        final int abortPositionPersistenceFrequency = 10;
-
-        // Retry configuration
-        final long delay = 100;
-        final int multiplier = 10;
-        final int attempts = 5;
-        final long maxDelay = 10000;
-
-        // region Create commit and abort streams
-
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
+    private static CompletableFuture<Void> createStreams(final Controller controller,
+                                                         final ScheduledExecutorService executor) {
         StreamConfiguration commitStreamConfig =
                 StreamConfiguration.builder()
                         .scope(CONTROLLER_SCOPE)
                         .streamName(COMMIT_STREAM)
-                        .scalingPolicy(policy)
+                        .scalingPolicy(ScalingPolicy.fixed(2))
                         .build();
 
         StreamConfiguration abortStreamConfig =
                 StreamConfiguration.builder()
                         .scope(CONTROLLER_SCOPE)
                         .streamName(ABORT_STREAM)
-                        .scalingPolicy(policy)
+                        .scalingPolicy(ScalingPolicy.fixed(2))
                         .build();
 
-        CompletableFuture<CreateScopeStatus> createScopeStatus = controller.createScope(CONTROLLER_SCOPE);
-        CreateScopeStatus scopeStatus = createScopeStatus.join();
+        return createScope(controller, CONTROLLER_SCOPE, executor)
+                .thenCompose(ignore ->
+                        CompletableFuture.allOf(createStream(controller, commitStreamConfig, executor),
+                                createStream(controller, abortStreamConfig, executor)));
+    }
 
-        if (CreateScopeStatus.FAILURE == scopeStatus) {
-            throw new RuntimeException("Error creating scope");
-        }
+    private static CompletableFuture<Void> createScope(final Controller controller,
+                                                       final String scopeName,
+                                                       final ScheduledExecutorService executor) {
+        return Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+                e -> log.warn("Error creating event processor scope " + scopeName, e))
+                .runAsync(() -> controller.createScope(scopeName)
+                        .thenApply(result -> {
+                                    if (CreateScopeStatus.Status.FAILURE == result.getStatus()) {
+                                        throw new RuntimeException("Error creating scope " + scopeName);
+                                    } else {
+                                        return null;
+                                    }
+                                }
+                        ), executor);
+    }
 
-        CompletableFuture<CreateStreamStatus> createCommitStreamStatus = controller.createStream(commitStreamConfig);
-        CompletableFuture<CreateStreamStatus> createAbortStreamStatus = controller.createStream(abortStreamConfig);
+    private static CompletableFuture<Void> createStream(final Controller controller,
+                                                        final StreamConfiguration streamConfig,
+                                                        final ScheduledExecutorService executor) {
+        return Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+                e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
+                .runAsync(() -> controller.createStream(streamConfig)
+                        .thenApply(result -> {
+                            if (CreateStreamStatus.Status.FAILURE == result.getStatus()) {
+                                throw new RuntimeException("Error creating stream " +
+                                        streamConfig.getScope() + "/" + streamConfig.getStreamName());
+                            } else {
+                                return null;
+                            }
+                        }), executor);
+    }
 
-        CreateStreamStatus commitStreamStatus = createCommitStreamStatus.join();
-        CreateStreamStatus abortStreamStatus = createAbortStreamStatus.join();
 
-        if (CreateStreamStatus.FAILURE == commitStreamStatus) {
-            throw new RuntimeException("Error creating commitStream");
-        }
+    public static CompletableFuture<Void> bootstrap(final Controller localController,
+                                                    final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                                    final ScheduledExecutorService executor) {
+        return ControllerEventProcessors.createStreams(localController, executor)
+                .thenAcceptAsync(x -> streamTransactionMetadataTasks.initializeStreamWriters(localController),
+                        executor);
+    }
 
-        if (CreateStreamStatus.FAILURE == abortStreamStatus) {
-            throw new RuntimeException("Error creating abortStream");
-        }
+    private void initialize() throws Exception {
 
-        // endregion
+        // Commit event processor configuration
+        final String commitStreamReaderGroup = "commitStreamReaders";
+        final int commitReaderGroupSize = 1;
+        final int commitPositionPersistenceFrequency = 10;
+
+        // Abort event processor configuration
+        final String abortStreamReaderGroup = "abortStreamReaders";
+        final int abortReaderGroupSize = 1;
+        final int abortPositionPersistenceFrequency = 10;
 
         // region Create commit event processor
 
@@ -144,14 +201,13 @@ public class ControllerEventProcessors {
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
-                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor))
+                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
-        Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
-                .retryingOn(CheckpointStoreException.class)
-                .throwingOn(Exception.class)
+        Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+                e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    system.createEventProcessorGroup(commitConfig).getWriter();
+                    commitEventEventProcessors = system.createEventProcessorGroup(commitConfig);
                     return null;
                 });
 
@@ -184,17 +240,25 @@ public class ControllerEventProcessors {
                         .config(abortReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(ABORT_EVENT_SERIALIZER)
-                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor))
+                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
-        Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
-                .retryingOn(CheckpointStoreException.class)
-                .throwingOn(Exception.class)
+        Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+                e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    system.createEventProcessorGroup(abortConfig).getWriter();
+                    abortEventEventProcessors = system.createEventProcessorGroup(abortConfig);
                     return null;
                 });
 
         // endregion
+    }
+
+    private void stopEventProcessors() throws CheckpointStoreException {
+        if (commitEventEventProcessors != null) {
+            commitEventEventProcessors.stopAll();
+        }
+        if (abortEventEventProcessors != null) {
+            abortEventEventProcessors.stopAll();
+        }
     }
 }

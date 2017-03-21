@@ -1,29 +1,32 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
+import lombok.AllArgsConstructor;
+import org.apache.commons.lang.NotImplementedException;
 
+import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
-import org.apache.commons.lang.NotImplementedException;
-
 /**
  * Stream properties
+ * <p>
+ * This class is no longer consistent and mostly not Implemented. Deprecating it.
  */
 class InMemoryStream implements Stream {
     private final String streamName;
@@ -43,6 +46,169 @@ class InMemoryStream implements Stream {
      * It enables efficient access to current segments needed by producers and tailing consumers.
      */
     private final List<Integer> currentSegments = new ArrayList<>();
+
+    @AllArgsConstructor
+    static class NonExistentStream implements Stream {
+
+        private String scope;
+        private String stream;
+
+        @Override
+        public String getScope() {
+            return scope;
+        }
+
+        @Override
+        public String getName() {
+            return stream;
+        }
+
+        @Override
+        public String getScopeName() {
+            return scope;
+        }
+
+        @Override
+        public CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp) {
+            return FutureHelpers.failedFuture(new IllegalStateException("Cannot create non-existent stream"));
+        }
+
+        @Override
+        public CompletableFuture<Void> delete() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<StreamConfiguration> getConfiguration() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Boolean> updateState(final State state) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<State> getState() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Segment> getSegment(final int number) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Integer> getSegmentCount() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<List<Integer>> getSuccessors(final int number) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<List<Integer>> getPredecessors(final int number) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<List<Integer>> getActiveSegments() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<List<Integer>> getActiveSegments(final long timestamp) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<List<Segment>> scale(final List<Integer> sealedSegments,
+                                                      final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                      final long scaleTimestamp) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Void> setColdMarker(final int segmentNumber, final long timestamp) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Long> getColdMarker(final int segmentNumber) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Void> removeColdMarker(final int segmentNumber) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<VersionedTransactionData> createTransaction(final long lease,
+                                                                             final long maxExecutionTime,
+                                                                             final long scaleGracePeriod) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId,
+                                                                           final long lease) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<VersionedTransactionData> getTransactionData(final UUID txId) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<TxnStatus> sealTransaction(final UUID txId,
+                                                            final boolean commit,
+                                                            final Optional<Integer> version) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<TxnStatus> commitTransaction(final UUID txId) throws OperationOnTxNotAllowedException {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public void refresh() {
+        }
+    }
 
     InMemoryStream(final String scopeName, final String streamName) {
         this.scopeName = scopeName;
@@ -64,6 +230,16 @@ class InMemoryStream implements Stream {
                         }
                 );
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public CompletableFuture<Void> delete() {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public String getScope() {
+        return this.scopeName;
     }
 
     @Override
@@ -104,6 +280,11 @@ class InMemoryStream implements Stream {
     }
 
     @Override
+    public synchronized CompletableFuture<Integer> getSegmentCount() {
+        return CompletableFuture.completedFuture(segments.size());
+    }
+
+    @Override
     public CompletableFuture<List<Integer>> getSuccessors(int number) {
         return CompletableFuture.completedFuture(segments.get(number).getSuccessors());
     }
@@ -116,7 +297,7 @@ class InMemoryStream implements Stream {
         }
         return CompletableFuture.completedFuture(result);
     }
-    
+
     @Override
     public CompletableFuture<List<Integer>> getPredecessors(int number) {
         return CompletableFuture.completedFuture(segments.get(number).getPredecessors());
@@ -204,12 +385,38 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction() {
+    public CompletableFuture<Void> setColdMarker(int segmentNumber, long timestamp) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit) {
+    public CompletableFuture<Long> getColdMarker(int segmentNumber) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Void> removeColdMarker(int segmentNumber) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> createTransaction(final long lease, final long maxExecutionTime,
+                                                                         final long scaleGracePeriod) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> pingTransaction(UUID txId, long lease) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit, Optional<Integer> version) {
         throw new NotImplementedException();
     }
 
@@ -231,6 +438,11 @@ class InMemoryStream implements Stream {
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
         return CompletableFuture.completedFuture(0); //Transactions are not supported in this implementation.
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+        return null;
     }
 
     @Override
