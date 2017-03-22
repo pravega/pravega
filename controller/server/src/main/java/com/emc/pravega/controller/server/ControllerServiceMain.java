@@ -17,9 +17,9 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * ControllerServiceMonitor, entry point into the controller service.
@@ -31,15 +31,16 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     private final ControllerServiceConfig serviceConfig;
     private ControllerServiceStarter starter;
     private final CountDownLatch staterInitialized;
+    private final CompletableFuture<Void> serviceStopFuture;
 
     @AllArgsConstructor
     static class ZKWatcher implements Watcher {
-        private final CountDownLatch latch;
+        private final CompletableFuture<Void> sessionExpiryFuture;
 
         @Override
         public void process(WatchedEvent event) {
             if (event.getState() == Event.KeeperState.Expired) {
-                latch.countDown();
+                sessionExpiryFuture.complete(null);
             }
         }
     }
@@ -48,14 +49,18 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         this.objectId = "ControllerServiceMain";
         this.serviceConfig = serviceConfig;
         this.staterInitialized = new CountDownLatch(1);
+        this.serviceStopFuture = new CompletableFuture<>();
+    }
+
+    @Override
+    protected void triggerShutdown() {
+        this.serviceStopFuture.complete(null);
     }
 
     @Override
     protected void run() throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, this.objectId, "run");
         try {
-            CountDownLatch sessionExpiryLatch = new CountDownLatch(1);
-
             if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
 
                 // Controller cluster feature is enabled.
@@ -78,16 +83,14 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
                     // Await ZK session expiry.
                     log.info("Awaiting ZK session expiry or termination of ControllerServiceMain");
-                    client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpiryLatch));
+                    CompletableFuture<Void> sessionExpiryFuture = new CompletableFuture<>();
+                    client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpiryFuture));
 
                     // At this point, wait until either of the two things happen
-                    // 1. ZK session expires, or
-                    // isRunning() is false, which happens when this service is stopped by invoking stopAsync()
-                    //             method.
-                    boolean expired = false;
-                    while (isRunning() && !expired) {
-                        expired = sessionExpiryLatch.await(1500, TimeUnit.MILLISECONDS);
-                    }
+                    // 1. ZK session expires, i.e., sessionExpiryFuture completes, or
+                    // 2. This ControllerServiceMain instance is stopped by invoking stopAsync() method,
+                    //    i.e., serviceStopFuture completes.
+                    CompletableFuture.anyOf(sessionExpiryFuture, this.serviceStopFuture).join();
 
                     // Problem of curator automatically recreating ZK client on session expiry is mitigated by
                     // employing a custom ZookeeperFactory that always returns the same ZK client to curator
@@ -101,7 +104,6 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                     starter.awaitTerminated();
                 }
             } else {
-
                 // Create store client.
                 log.info("Creating store client");
                 StoreClient storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
@@ -112,21 +114,16 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 starter.startAsync();
                 staterInitialized.countDown();
 
-                // Await termination of controller services.
-                log.info("Awaiting termination of ControllerServiceStarter or termination of ControllerServiceMain");
-                boolean terminated;
-                do {
-                    terminated = awaitStarterTerminated(1500, TimeUnit.MILLISECONDS);
-                } while (isRunning() && !terminated);
+                // Await termination of this ControllerServiceMain service.
+                log.info("Awaiting termination of ControllerServiceMain");
+                this.serviceStopFuture.join();
 
-                if (!isRunning()) {
-                    // Initiate termination of controller services.
-                    log.info("Stopping controller services");
-                    starter.stopAsync();
+                // Initiate termination of controller services.
+                log.info("Stopping controller services");
+                starter.stopAsync();
 
-                    log.info("Awaiting termination of controller services");
-                    starter.awaitTerminated();
-                }
+                log.info("Awaiting termination of controller services");
+                starter.awaitTerminated();
             }
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "run", traceId);
@@ -155,15 +152,5 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     public void awaitStarterRunning() throws InterruptedException {
         staterInitialized.await();
         this.starter.awaitRunning();
-    }
-
-    private boolean awaitStarterTerminated(long time, TimeUnit timeUnit) {
-        try {
-            starter.awaitTerminated(time, timeUnit);
-            return true;
-        } catch (TimeoutException te) {
-            // ignore timeout exception
-            return false;
-        }
     }
 }
