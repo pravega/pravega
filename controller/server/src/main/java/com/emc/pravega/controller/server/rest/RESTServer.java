@@ -60,7 +60,7 @@ public class RESTServer extends AbstractIdleService {
      */
     @Override
     protected void startUp() {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
             channel = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
@@ -74,7 +74,7 @@ public class RESTServer extends AbstractIdleService {
      */
     @Override
     protected void shutDown() throws Exception {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "shutDown");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
         try {
             log.info("Stopping REST server listening on port: {}", this.restServerConfig.getPort());
             channel.close();

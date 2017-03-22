@@ -78,7 +78,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     @Override
     protected void startUp() throws Exception {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting controller event processors");
             initialize();
@@ -89,7 +89,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     @Override
     protected void shutDown() {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "shutDown");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
         try {
             log.info("Stopping controller event processors.");
             stopEventProcessors();
