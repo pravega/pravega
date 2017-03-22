@@ -213,9 +213,9 @@ public class AutoScaleTest extends AbstractScaleTests {
      * The test will periodically check if a scale event has occured by talking to controller via
      * controller client.
      *
+     * @param controllerUri Controller URI
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
-     * @param controllerUri Controller URI
      */
     private CompletableFuture<Void> scaleDownTest(final URI controllerUri) throws InterruptedException, URISyntaxException {
 
@@ -246,9 +246,9 @@ public class AutoScaleTest extends AbstractScaleTests {
      * The test will periodically check if a scale event has occured by talking to controller via
      * controller client.
      *
+     * @param controllerUri Controller URI
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
-     * @param controllerUri Controller URI
      */
     private CompletableFuture<Void> scaleUpTxnTest(final URI controllerUri) throws InterruptedException,
             URISyntaxException {

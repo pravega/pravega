@@ -25,18 +25,47 @@ public class AutoScalerConfig {
 
     private static final String COMPONENT_CODE = "autoScale";
 
+    /**
+     * Uri for controller.
+     */
     @Getter
     private final URI controllerUri;
+    /**
+     * Scope name for request stream.
+     */
     @Getter
     private final String internalScope;
+    /**
+     * Stream on which scale requests have to be posted.
+     */
     @Getter
     private final String internalRequestStream;
+    /**
+     * Duration for which no scale operation is attempted on a segment after its creation.
+     */
     @Getter
     private final Duration cooldownDuration;
+    /**
+     * Duration for which scale requests for a segment are to be muted.
+     * Mute duration is per request type (scale up and scale down). It means if a scale down request was posted
+     * for a segment, we will wait until the mute duration before posting the request for the same segment
+     * again in the request stream.
+     */
     @Getter
     private final Duration muteDuration;
+    /**
+     * Duration for which a segment lives in auto scaler cache, after which it is expired and a scale down request with
+     * silent flag is sent for the segment.
+     */
     @Getter
     private final Duration cacheExpiry;
+    /**
+     * Periodic time period for scheduling auto-scaler cache clean up. Since guava cache does not maintain its own executor,
+     * we need to keep performing periodic cache maintenance activities otherwise caller's thread using the cache will be used
+     * for cache maintenance.
+     * This also ensures that if there is no traffic in the cluster, all segments that have expired are cleaned up from the cache
+     * and their respective removal code is invoked.
+     */
     @Getter
     private final Duration cacheCleanup;
 

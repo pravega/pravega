@@ -28,6 +28,7 @@ import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.service.server.host.ServiceStarter;
+import com.emc.pravega.service.server.host.stat.AutoScalerConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
@@ -290,15 +291,15 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                                           .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
-                                          .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId])
-                                          .with(ServiceConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]))
+                                          .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId]))
                     .include(DurableLogConfig.builder()
                                           .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                           .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
                                           .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                     .include(ReadIndexConfig.builder()
                                           .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
-                                          .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L));
+                                          .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
+                    .include(AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]));
 
             if ( !isInMemStorage ) {
                     configBuilder = configBuilder.include(HDFSStorageConfig.builder()
