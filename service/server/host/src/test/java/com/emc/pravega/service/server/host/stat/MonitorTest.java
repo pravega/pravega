@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.service.server.host.stat;
 
-import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.stream.AckFuture;
