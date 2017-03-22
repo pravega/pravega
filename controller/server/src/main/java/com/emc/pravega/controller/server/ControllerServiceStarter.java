@@ -82,7 +82,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
      * ControllerReadyLatch is released once localController, streamTransactionMetadataTasks and controllerService
      * variables are initialized in the startUp method.
      */
-    private CountDownLatch controllerReadyLatch;
+    private final CountDownLatch controllerReadyLatch;
 
     private GRPCServer grpcServer;
     private RESTServer restServer;
