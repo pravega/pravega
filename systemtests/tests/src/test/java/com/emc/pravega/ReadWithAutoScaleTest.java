@@ -177,6 +177,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                         .thenAccept(x -> {
                             int currentNumOfSegments = x.getSegments().size();
                             if (currentNumOfSegments == 2) {
+                                log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
                                 //Scaling operation did not happen, retry operation.
                                 throw new ScaleOperationNotDoneException();
                             } else if (currentNumOfSegments > 2) {
@@ -228,7 +229,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                         break;
                     }
                 } catch (ReinitializationRequiredException e) {
-                    log.warn("Test Exeception while reading from the stream", e);
+                    log.warn("Test Exception while reading from the stream", e);
                     break;
                 }
             }
@@ -245,7 +246,11 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
             while (!exitFlag.get()) {
                 try {
                     //create a transaction with 10 events.
-                    Transaction<Long> transaction = writer.beginTxn(5000, 3600000, 29000); //Default max scale grace period is 30000
+                    Transaction<Long> transaction = Retry.withExpBackoff(10, 10, 20, Duration.ofSeconds(10).toMillis())
+                            .retryingOn(TxnCreationFailedException.class)
+                            .throwingOn(RuntimeException.class)
+                            .run(() -> createTransaction(writer));
+
                     for (int i = 0; i < 10; i++) {
                         long value = data.incrementAndGet();
                         transaction.writeEvent(String.valueOf(value), value);
@@ -258,5 +263,25 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                 }
             }
         });
+    }
+
+    private Transaction<Long> createTransaction(EventStreamWriter<Long> writer) {
+        Transaction<Long> txn = null;
+        try {
+            //Default max scale grace period is 30000
+            txn = writer.beginTxn(5000, 3600000, 29000);
+        } catch (RuntimeException ex) {
+            log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
+            if (ex.getCause().getClass().equals(io.grpc.StatusRuntimeException.class)) {
+                log.debug("Cause for failure is due to io.grpc.StatusRuntimeException");
+                throw new TxnCreationFailedException();
+            } else {
+                throw ex;
+            }
+        }
+        return txn;
+    }
+
+    private class TxnCreationFailedException extends RuntimeException {
     }
 }
