@@ -130,7 +130,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
 
     private CompletableFuture<Void> runOnceInternal() {
         long lastSeqNo = this.lastIterationSequenceNumber.getAndSet(this.metadata.getOperationSequenceNumber());
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "metadataCleanup", lastSeqNo);
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "metadataCleanup", lastSeqNo);
 
         // Get candidates.
         Collection<SegmentMetadata> cleanupCandidates = this.metadata.getEvictionCandidates(lastSeqNo, this.config.getMaxConcurrentSegmentEvictionCount());

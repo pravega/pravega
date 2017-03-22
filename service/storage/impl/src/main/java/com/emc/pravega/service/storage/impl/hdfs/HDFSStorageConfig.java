@@ -19,10 +19,10 @@ import lombok.extern.slf4j.Slf4j;
 public class HDFSStorageConfig {
     //region Config Names
 
-    public static final Property<String> URL = Property.named("fs.default.name", "localhost:9000");
+    public static final Property<String> URL = Property.named("hdfsUrl", "localhost:9000");
     public static final Property<String> ROOT = Property.named("hdfsRoot", "");
     public static final Property<Integer> PRAVEGA_ID = Property.named("pravegaId", -1);
-    public static final Property<Integer> REPLICATION = Property.named("replication", 1);
+    public static final Property<Integer> REPLICATION = Property.named("replication", 3);
     public static final Property<Integer> BLOCK_SIZE = Property.named("blockSize", 1024 * 1024);
     private static final String COMPONENT_CODE = "hdfs";
 

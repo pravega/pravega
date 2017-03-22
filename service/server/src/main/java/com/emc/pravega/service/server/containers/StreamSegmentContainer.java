@@ -131,7 +131,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @Override
     protected void doStart() {
-        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
 
         this.durableLog.startAsync();
@@ -153,7 +153,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @Override
     protected void doStop() {
-        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
         this.metadataCleaner.stopAsync();
         this.writer.stopAsync();
@@ -372,7 +372,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private void logRequest(String requestName, Object... args) {
-        log.info("{}: {} {}", this.traceObjectId, requestName, args);
+        log.debug("{}: {} {}", this.traceObjectId, requestName, args);
     }
 
     private void shutdownWhenStopped(Service component, String componentName) {

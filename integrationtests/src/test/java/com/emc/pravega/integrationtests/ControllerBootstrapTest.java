@@ -67,6 +67,7 @@ public class ControllerBootstrapTest {
     public void cleanup() throws Exception {
         if (controllerWrapper != null) {
             controllerWrapper.close();
+            controllerWrapper.awaitTerminated();
         }
         if (server != null) {
             server.close();
@@ -76,7 +77,7 @@ public class ControllerBootstrapTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 20000)
     public void bootstrapTest() throws Exception {
         Controller controller = controllerWrapper.getController();
 
@@ -135,5 +136,7 @@ public class ControllerBootstrapTest {
         } catch (CompletionException ce) {
             Assert.fail();
         }
+
+        controllerWrapper.awaitRunning();
     }
 }

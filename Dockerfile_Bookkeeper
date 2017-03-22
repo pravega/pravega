@@ -1,5 +1,8 @@
-FROM java:8
+#
+#  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+#
 
+FROM java:8
 MAINTAINER Jia Zhai <jia.zhai@emc.com>
 
 RUN apt-get update \

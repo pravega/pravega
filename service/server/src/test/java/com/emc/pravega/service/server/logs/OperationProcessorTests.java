@@ -35,6 +35,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
+import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -45,7 +46,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import lombok.Cleanup;
@@ -493,10 +493,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, Long.MAX_VALUE)
                 .build();
 
-        return new MetadataCheckpointPolicy(
-                dlConfig,
-                () -> {
-                }, ForkJoinPool.commonPool());
+        return new MetadataCheckpointPolicy(dlConfig, Runnables.doNothing(), executorService());
     }
 
     private class TestContext implements AutoCloseable {

@@ -108,7 +108,7 @@ public class StreamSegmentMapper {
      * If the operation failed, this will contain the exception that caused the failure.
      */
     public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
+        long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
         long segmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, true);
         if (isValidStreamSegmentId(segmentId)) {
             // Quick fail: see if this is an active Segment, and if so, don't bother with anything else.
@@ -135,7 +135,7 @@ public class StreamSegmentMapper {
      */
     public CompletableFuture<String> createNewTransactionStreamSegment(String parentStreamSegmentName, UUID transactionId,
                                                                        Collection<AttributeUpdate> attributes, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewTransactionStreamSegment", parentStreamSegmentName);
+        long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "createNewTransactionStreamSegment", parentStreamSegmentName);
 
         // We cannot create a Transaction StreamSegment for a what looks like another Transaction.
         Exceptions.checkArgument(

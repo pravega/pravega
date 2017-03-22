@@ -8,12 +8,12 @@ import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
+import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -74,11 +74,11 @@ public class RequestTest {
             hostId = UUID.randomUUID().toString();
         }
 
-        streamStore = new ZKStreamMetadataStore(zkClient, executor);
+        streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
 
-        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(zkClient), executor);
+        taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
 
-        hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
