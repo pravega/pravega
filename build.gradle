@@ -180,6 +180,7 @@ project('clients:streaming') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+	compile group: 'net.sf.jopt-simple', name: 'jopt-simple', version: '5.0.3'
         compile project(':common')
         compile project(":controller:contract")
         testCompile project(':testcommon')

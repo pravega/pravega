@@ -4,7 +4,6 @@
 .project
 build
 .classpath
-bin/
 classes/
 .settings
 .gradle
