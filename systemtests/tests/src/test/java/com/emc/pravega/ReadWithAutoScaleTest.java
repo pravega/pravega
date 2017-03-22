@@ -35,7 +35,6 @@ import org.junit.runner.RunWith;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -49,6 +48,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static java.time.Duration.ofSeconds;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -171,7 +171,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //4 Wait until the scale operation is triggered (else time out)
         //    validate the data read by the readers ensuring all the events are read and there are no duplicates.
-        CompletableFuture<Void> testResult = Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
+        CompletableFuture<Void> testResult = Retry.withExpBackoff(10, 10, 200, ofSeconds(10).toMillis())
                 .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
@@ -220,7 +220,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
             while (true) {
                 final Long longEvent;
                 try {
-                    longEvent = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
+                    longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
                     // result is null if no events present/ all events consumed.
                     if (longEvent != null) {
                         result.add(longEvent);
@@ -247,7 +247,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
             while (!exitFlag.get()) {
                 try {
                     //create a transaction with 10 events.
-                    Transaction<Long> transaction = Retry.withExpBackoff(10, 10, 20, Duration.ofSeconds(10).toMillis())
+                    Transaction<Long> transaction = Retry.withExpBackoff(10, 10, 20, ofSeconds(1).toMillis())
                             .retryingOn(TxnCreationFailedException.class)
                             .throwingOn(RuntimeException.class)
                             .run(() -> createTransaction(writer));
