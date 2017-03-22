@@ -32,6 +32,16 @@ public interface EventStreamReader<T> extends AutoCloseable {
      */
     EventRead<T> readNextEvent(long timeout) throws ReinitializationRequiredException;
 
+
+    /**
+     * The position in the stream that represents where the reader is right now.
+     * This is useful to store this so that
+     * {@link ReaderGroup#readerOffline(String, Position)} can be called if the reader dies.
+     *
+     * @return The current position in the stream
+     */
+    Position getPosition();
+    
     /**
      * Gets the configuration that this reader was created with.
      *

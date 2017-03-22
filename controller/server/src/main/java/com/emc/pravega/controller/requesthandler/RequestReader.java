@@ -148,7 +148,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                         }
 
                         request = event.getEvent();
-                        pc = new PositionCounter(event.getPosition(), next);
+                        pc = new PositionCounter(reader.getPosition(), next);
                         running.add(pc);
                     } catch (Exception e) {
                         semaphore.release();

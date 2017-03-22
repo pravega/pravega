@@ -32,25 +32,22 @@ import java.net.URI;
  * 
  * Events that are written to a stream can be read by a reader. All events can be processed with
  * exactly once semantics provided the reader has the ability to restore to the correct position
- * upon failure. See {@link EventRead#getPosition()}
+ * upon failure. See {@link EventStreamReader#getPosition()}
  * <p>
  * A note on ordering: Events inside of a stream have a strict order, but may need to be divided
  * between multiple readers for scaling. In order to process events in parallel on different hosts
- * and still have some ordering guarentees; events written to a stream have a routingKey see
+ * and still have some ordering guarantees; events written to a stream have a routingKey see
  * {@link EventStreamWriter#writeEvent(String, Object)}. Events within a routing key are strictly
  * ordered (i.e. They must go the the same reader or its replacement). However because
  * {@link ReaderGroup}s process events in parallel there is no ordering between different readers.
  * 
  * <p>
- * A note on scaling: Because a stream can grow in its event rate, streams are divided into
- * Segments. For the most part this is an implementation detail. However its worth understanding
- * that the way a stream is divided between multiple readers in a group that wish to split the
- * messages between them is by giving different segments to different readers. For this reason when
- * creating a reader a notification is provided. {@link EventRead#isRoutingRebalance()} In the case
- * of a reader group, this is automated.
- * 
- * Otherwise this can be done by creating new reader by calling:
- * {@link RebalancerUtils#rebalance(java.util.Collection, int)} .
+ * Checkpoints: Events are divided between multiple readers. And as the stream grows the number of
+ * readers may change over time. To ensure consistency and ordering
+ * {@link ReaderGroup#initiateCheckpoint(String, java.util.concurrent.ScheduledExecutorService)}
+ * should be called periodically. This provides an opportunity for readers to persist to durable
+ * storage so data can be redistributed across the readers. The reader will receive a notification
+ * is provided. {@link EventRead#isCheckpoint()}
  */
 public interface ClientFactory extends AutoCloseable {
 
