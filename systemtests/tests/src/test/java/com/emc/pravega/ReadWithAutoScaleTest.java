@@ -221,14 +221,16 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
-
-            while (!exitFlag.get()) {
+            boolean isLastEventNull = false;
+            while (!(exitFlag.get() && isLastEventNull)) { // exit only if exitFlag and isLastEventNull are true
                 final Long longEvent;
                 try {
                     longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
                     if (longEvent != null) {
                         //update if event read is not null.
                         result.add(longEvent);
+                    } else {
+                        isLastEventNull = true;
                     }
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
