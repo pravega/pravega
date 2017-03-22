@@ -12,7 +12,6 @@ import java.util.Set;
 
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
-import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 
@@ -31,10 +30,10 @@ public class InMemoryHostStore implements HostControllerStore {
      *
      * @param hostContainerMap      The initial Host to container ownership information.
      */
-    public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
+    InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap, int containerCount) {
         Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
         this.hostContainerMap = hostContainerMap;
-        segmentMapper = new SegmentToContainerMapper(Config.HOST_STORE_CONTAINER_COUNT);
+        segmentMapper = new SegmentToContainerMapper(containerCount);
     }
 
     @Override

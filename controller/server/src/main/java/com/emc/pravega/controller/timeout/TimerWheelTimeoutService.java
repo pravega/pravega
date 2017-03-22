@@ -130,22 +130,20 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     public TimerWheelTimeoutService(final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                    final long maxLeaseValue,
-                                    final long maxScaleGracePeriod) {
-        this(streamTransactionMetadataTasks, maxLeaseValue, maxScaleGracePeriod, null);
+                                    final TimeoutServiceConfig timeoutServiceConfig) {
+        this(streamTransactionMetadataTasks, timeoutServiceConfig, null);
     }
 
     @VisibleForTesting
     TimerWheelTimeoutService(final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                             final long maxLeaseValue,
-                             final long maxScaleGracePeriod,
+                             final TimeoutServiceConfig timeoutServiceConfig,
                              final BlockingQueue<Optional<Throwable>> taskCompletionQueue) {
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.hashedWheelTimer = new HashedWheelTimer(THREAD_FACTORY, TICK_DURATION, TIME_UNIT, TICKS_PER_WHEEL,
                 LEAK_DETECTION);
         this.map = new ConcurrentHashMap<>();
-        this.maxLeaseValue = maxLeaseValue;
-        this.maxScaleGracePeriod = maxScaleGracePeriod;
+        this.maxLeaseValue = timeoutServiceConfig.getMaxLeaseValue();
+        this.maxScaleGracePeriod = timeoutServiceConfig.getMaxScaleGracePeriod();
         this.taskCompletionQueue = taskCompletionQueue;
         this.startAsync();
     }

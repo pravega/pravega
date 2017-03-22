@@ -13,16 +13,10 @@ import lombok.Data;
  * Configuration for event processor's position object persistence configuration.
  */
 @Data
-@Builder
 public class CheckpointConfig {
     public enum Type {
         None,
         Periodic
-    }
-
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
     }
 
     @Data
@@ -40,7 +34,18 @@ public class CheckpointConfig {
     }
 
     private final Type type;
-    private final StoreType storeType;
     private final CheckpointPeriod checkpointPeriod;
-    private final Object checkpointStoreClient;
+
+    @Builder
+    CheckpointConfig(final Type type, final CheckpointPeriod checkpointPeriod) {
+        Preconditions.checkNotNull(type);
+        Preconditions.checkNotNull(checkpointPeriod);
+
+        this.type = type;
+        this.checkpointPeriod = checkpointPeriod;
+    }
+
+    public static CheckpointConfig periodic(final int numEvents, final int numSeconds) {
+        return new CheckpointConfig(Type.Periodic, new CheckpointPeriod(numEvents, numSeconds));
+    }
 }

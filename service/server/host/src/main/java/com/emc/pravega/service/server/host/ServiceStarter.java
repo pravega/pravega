@@ -12,6 +12,7 @@ import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.host.stat.AutoScalerConfig;
 import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -23,15 +24,15 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
-import java.net.URI;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Starts the Pravega Service.
@@ -97,12 +98,10 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
+        log.info("Creating Segment Stats recoder ...");
         segmentStatsFactory = new SegmentStatsFactory();
         SegmentStatsRecorder statsRecorder = segmentStatsFactory
-                .createSegmentStatsRecorder(service,
-                this.serviceConfig.getInternalScope(),
-                this.serviceConfig.getInternalRequestStream(),
-                URI.create(this.serviceConfig.getControllerUri()));
+                .createSegmentStatsRecorder(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
         this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service, statsRecorder);
         this.listener.startListening();

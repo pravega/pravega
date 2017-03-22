@@ -6,13 +6,14 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
-import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
@@ -24,6 +25,7 @@ import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -77,6 +79,32 @@ public class EventProcessorTest {
                     throw new IllegalArgumentException();
                 }
             }
+        }
+    }
+
+    public static class StartFailingEventProcessor extends EventProcessor<TestEvent> {
+        long sum;
+
+        @Override
+        protected void beforeStart() {
+            throw new RuntimeException("startup failed");
+        }
+
+        @Override
+        protected void process(TestEvent event) {
+            sum += event.getNumber();
+        }
+    }
+
+    public static class RestartFailingEventProcessor extends TestEventProcessor {
+
+        public RestartFailingEventProcessor(Boolean throwErrors) {
+            super(throwErrors);
+        }
+
+        @Override
+        protected void beforeRestart(Throwable t, TestEvent event) {
+            throw new RuntimeException("startup failed");
         }
     }
 
@@ -139,7 +167,7 @@ public class EventProcessorTest {
 
     @Test(timeout = 10000)
     public void testEventProcessorCell() throws CheckpointStoreException, ReinitializationRequiredException {
-        CheckpointStore checkpointStore = new InMemoryCheckpointStore();
+        CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
 
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()
@@ -150,7 +178,6 @@ public class EventProcessorTest {
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
                         .type(CheckpointConfig.Type.Periodic)
-                        .storeType(CheckpointConfig.StoreType.InMemory)
                         .checkpointPeriod(period)
                         .build();
 
@@ -212,6 +239,32 @@ public class EventProcessorTest {
                 .config(config)
                 .build();
         testEventProcessor(system, eventProcessorConfig, reader, READER_ID, checkpointStore, 0);
+
+        // Test case 3. Actor throws an error during normal operation, and Directive is to Restart on error.
+        Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
+
+        eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new RestartFailingEventProcessor(true))
+                .serializer(new JavaSerializer<>())
+                .decider((Throwable e) ->
+                        (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Restart : ExceptionHandler.Directive.Stop)
+                .config(config)
+                .build();
+        testEventProcessor(system, eventProcessorConfig, reader, READER_ID, checkpointStore, 3);
+
+        // Test case 5. startup fails for an event processor
+        eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new StartFailingEventProcessor())
+                .serializer(new JavaSerializer<>())
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(config)
+                .build();
+        checkpointStore.addReader(PROCESS, READER_GROUP, READER_ID);
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(),
+                READER_ID, 0, checkpointStore);
+        cell.startAsync();
+        cell.awaitTerminated();
+        Assert.assertTrue(true);
     }
 
     private void testEventProcessor(final EventProcessorSystem system,
@@ -221,12 +274,12 @@ public class EventProcessorTest {
                                     final CheckpointStore checkpointStore,
                                     final int expectedSum) throws CheckpointStoreException {
         checkpointStore.addReader(PROCESS, READER_GROUP, readerId);
-        EventProcessorCell<TestEvent> cell =
-                new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(), readerId, checkpointStore);
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(),
+                readerId, 0, checkpointStore);
 
         cell.startAsync();
 
-        cell.awaitStopped();
+        cell.awaitTerminated();
 
         TestEventProcessor actor = (TestEventProcessor) cell.getActor();
         assertEquals(expectedSum, actor.sum);

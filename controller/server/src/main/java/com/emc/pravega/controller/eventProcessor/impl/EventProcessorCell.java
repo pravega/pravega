@@ -5,9 +5,10 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
-import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;
@@ -42,6 +43,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 class EventProcessorCell<T extends ControllerEvent> {
 
     private final EventStreamReader<T> reader;
+    private final String objectId;
 
     @VisibleForTesting
     @Getter(value = AccessLevel.PACKAGE)
@@ -56,7 +58,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
     private class Delegate extends AbstractExecutionThreadService {
 
-        private final long defaultTimeout = 4000L;
+        private final long defaultTimeout = 2000L;
         private final EventProcessorConfig<T> eventProcessorConfig;
         private EventRead<T> event;
         private final CheckpointState state;
@@ -71,18 +73,18 @@ class EventProcessorCell<T extends ControllerEvent> {
 
         @Override
         protected final void startUp() {
-            log.debug("Event processor STARTUP " + this.serviceName());
+            log.debug("Event processor STARTUP {}, state={}", objectId, state());
             try {
                 actor.beforeStart();
             } catch (Exception e) {
-                log.warn("Failed while executing preStart for event processor " + this, e);
+                log.warn(String.format("Failed while executing preStart for event processor %s", objectId), e);
                 handleException(new EventProcessorInitException(e));
             }
         }
 
         @Override
         protected final void run() throws Exception {
-            log.debug("Event processor RUN " + this.serviceName());
+            log.debug("Event processor RUN {}, state={}", objectId, state());
 
             while (isRunning()) {
                 try {
@@ -95,7 +97,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                         state.store(event.getPosition());
                     }
                 } catch (Exception e) {
-                    log.warn("Failed in run method of event processor " + this, e);
+                    log.warn(String.format("Failed in run method of event processor %s", objectId), e);
                     handleException(e);
                 }
             }
@@ -104,13 +106,13 @@ class EventProcessorCell<T extends ControllerEvent> {
 
         @Override
         protected final void shutDown() throws Exception {
-            log.debug("Event processor SHUTDOWN " + this.serviceName());
+            log.debug("Event processor SHUTDOWN {}, state={}", objectId, state());
             try {
                 actor.afterStop();
             } catch (Exception e) {
                 // Error encountered while cleanup is just logged.
                 // AbstractExecutionThreadService shall transition the service to failed state.
-                log.warn("Failed while executing afterStop for event processor " + this, e);
+                log.warn(String.format("Failed while executing afterStop for event processor %s", objectId), e);
                 throw e;
             } finally {
 
@@ -126,7 +128,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         }
 
         private void restart(Throwable error, T event) {
-            log.debug("Event processor RESTART " + this.serviceName());
+            log.debug("Event processor RESTART {}, state={}", objectId, state());
             try {
 
                 actor.beforeRestart(error, event);
@@ -137,7 +139,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                 startUp();
 
             } catch (Exception e) {
-                log.warn("Failed while executing preRestart for event processor " + this, e);
+                log.warn(String.format("Failed while executing preRestart for event processor %s", objectId), e);
                 handleException(new EventProcessorReinitException(e));
             }
         }
@@ -210,7 +212,8 @@ class EventProcessorCell<T extends ControllerEvent> {
                 } catch (CheckpointStoreException cse) {
                     // Log the exception, without updating previous checkpoint index or timestamp.
                     // So that persisting checkpoint shall be attempted again after processing next message.
-                    log.warn("Failed persisting checkpoint", cse.getCause());
+                    log.warn(String.format("Failed persisting checkpoint for event processor %s", objectId),
+                            cse.getCause());
                 }
             }
         }
@@ -224,32 +227,47 @@ class EventProcessorCell<T extends ControllerEvent> {
                        final EventStreamReader<T> reader,
                        final String process,
                        final String readerId,
+                       final int index,
                        final CheckpointStore checkpointStore) {
-
+        this.objectId = String.format("EventProcessor[%s:%s]", eventProcessorConfig.getConfig().getReaderGroupName(),
+                index);
         this.reader = reader;
         this.actor = createEventProcessor(eventProcessorConfig);
         this.delegate = new Delegate(process, readerId, eventProcessorConfig, checkpointStore);
     }
 
     final void startAsync() {
-        delegate.startAsync();
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startAsync");
+        try {
+            delegate.startAsync();
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "startAsync", traceId);
+        }
     }
 
     final void stopAsync() {
-        delegate.stopAsync();
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "stopAsync");
+        try {
+            delegate.stopAsync();
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "stopAsync", traceId);
+        }
     }
 
-    final void awaitStopped() {
-        try {
-            delegate.awaitTerminated();
-        } catch (IllegalStateException e) {
-            // This exception means that the delegate failed.
-            log.warn("Event processor terminated with failure ", e);
-        }
+    final void awaitRunning() {
+        delegate.awaitRunning();
+    }
+
+    final void awaitTerminated() {
+        delegate.awaitTerminated();
     }
 
     private EventProcessor<T> createEventProcessor(final EventProcessorConfig<T> eventProcessorConfig) {
         return eventProcessorConfig.getSupplier().get();
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s[%s]", objectId, this.delegate.state());
+    }
 }

@@ -12,6 +12,7 @@ buildscript {
     dependencies {
         classpath group: 'com.bmuschko', name :'gradle-docker-plugin', version: gradleDockerPlugin
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
+        classpath group: 'com.github.jengelman.gradle.plugins', name:'shadow', version: shadowGradlePlugin
     }
 }
 
@@ -27,7 +28,6 @@ allprojects {
     apply plugin: 'checkstyle'
     apply plugin: 'findbugs'
     apply plugin: 'maven-publish'
-
     apply plugin: 'jacoco'
 
     checkstyle {
@@ -86,7 +86,6 @@ allprojects {
     dependencies {
         // The production code uses the SLF4J logging API at compile time
         compile group: 'org.slf4j', name:'slf4j-api', version: slf4jApiVersion
-        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile group: 'junit', name:'junit', version: junitVersion
         testCompile "org.mockito:mockito-core:${mockitoVersion}"
     }
@@ -269,6 +268,7 @@ project('service:storage:impl') {
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         compile project(':common')
         compile project(':service:storage')
@@ -330,6 +330,7 @@ project('service:server:host') {
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
@@ -371,6 +372,7 @@ project('integrationtests') {
         compile project(':testcommon')
         compile group: 'junit', name:'junit', version: junitVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile group: 'org.apache.flink', name: 'flink-tests_2.11', version: flinkVersion
         testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: flinkVersion
         testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: flinkVersion
@@ -530,6 +532,7 @@ project('controller:server') {
         compile project(':common')
         compile project(":controller:contract")
         compile project(":clients:streaming")
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
@@ -576,15 +579,70 @@ project('controller:server') {
 }
 
 project('connectors:flink') {
+    apply plugin: 'com.github.johnrengelman.shadow'
+
     dependencies {
         compile project(":clients:streaming")
-        compile group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
+        compileOnly group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
+
+        //  configuring the shaded pom dependencies
+        shadow group: 'org.slf4j', name:'slf4j-api', version: slf4jApiVersion
+        shadow group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
     }
+
+    shadowJar {
+        dependencies {
+            // 'include' specific dependencies in the shadow jar
+            include dependency("com.google.guava:guava")
+            include dependency("commons-lang:commons-lang")
+            include dependency("org.apache.commons:commons-lang3")
+            include dependency("commons-io:commons-io")
+            include dependency("io.netty:netty-common")
+            include dependency("io.netty:netty-buffer")
+            include dependency("io.netty:netty-resolver")
+            include dependency("io.netty:netty-transport")
+            include dependency("io.netty:netty-codec")
+            include dependency("io.netty:netty-codec-http")
+            include dependency("io.netty:netty-codec-http2")
+            include dependency("io.netty:netty-codec-socks")
+            include dependency("io.netty:netty-handler")
+            include dependency("io.netty:netty-handler-proxy")
+            include dependency("io.grpc:grpc-core")
+            include dependency("io.grpc:grpc-protobuf")
+            include dependency("io.grpc:grpc-stub")
+            include dependency("io.grpc:grpc-context")
+            include dependency("io.grpc:grpc-netty")
+            include dependency("io.grpc:grpc-protobuf-lite")
+            include dependency("com.google.protobuf:protobuf-java-util")
+            include dependency("com.google.protobuf:protobuf-java")
+            include dependency("com.google.code.gson:gson")
+            include dependency("com.google.instrumentation:instrumentation-api")
+            include(project(":common"))
+            include(project(":controller:contract"))
+            include(project(":clients:streaming"))
+        }
+
+        // Shading the libraries which could cause potential version conflicts with flink.
+        relocate "com.google", "com.emc.pravega.shaded.com.google"
+        relocate "org.apache.commons", "com.emc.pravega.shaded.org.apache.commons"
+        relocate "io.grpc", "com.emc.pravega.shaded.io.grpc"
+        relocate "io.netty", "com.emc.pravega.shaded.io.netty"
+
+        mergeServiceFiles()
+    }
+
+    // Publishing both shaded and non-shaded versions of the flink connector.
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-connectors-flink'
+                artifactId 'pravega-connectors-flink_2.11'
                 from components.java
+            }
+            shadow(MavenPublication) {
+                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "com.emc.pravega"
+                version = pravegaVersion
+                artifactId 'pravega-connectors-flink-shaded_2.11'
+                from components.shadow
             }
         }
     }
@@ -601,22 +659,15 @@ project('singlenode') {
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
-
-        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
-        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
-
         compile project(':service:contracts')
         compile project(':service:storage')
         compile project(':service:storage:impl')
 
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion
-
-        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion
-
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
 
         compile(group: 'com.twitter', name:'distributedlog-core', version: distributedlogVersion) {
@@ -654,6 +705,7 @@ project('singlenode') {
 project('systemtests:tests') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
         compile project(':controller:server')
         compile project(":clients:streaming")

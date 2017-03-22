@@ -81,7 +81,4 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private void start() throws Exception {
         inProcPravegaCluster.start();
     }
-
-
-
 }

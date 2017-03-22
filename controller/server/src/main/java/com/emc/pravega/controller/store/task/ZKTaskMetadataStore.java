@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.controller.store.task;
 
-import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.task.TaskData;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -32,9 +31,9 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
     private final String hostRoot = "/hostIndex";
     private final String taskRoot = "/taskIndex";
 
-    public ZKTaskMetadataStore(ZKStoreClient storeClient, ScheduledExecutorService executor) {
+    ZKTaskMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         super(executor);
-        this.client = storeClient.getClient();
+        this.client = client;
     }
 
     @Override

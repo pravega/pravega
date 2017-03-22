@@ -8,9 +8,11 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.ZKHostStore;
+import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.util.Config;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -61,13 +63,26 @@ public class SegmentContainerMonitorTest {
 
     @Test
     public void testMonitorWithZKStore() throws Exception {
-        HostControllerStore hostStore = new ZKHostStore(zkClient);
+        HostMonitorConfig config = HostMonitorConfigImpl.builder()
+                .hostMonitorEnabled(true)
+                .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
+                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
+                .build();
+        HostControllerStore hostStore = HostStoreFactory.createStore(config,
+                StoreClientFactory.createZKStoreClient(zkClient));
         testMonitor(hostStore);
     }
 
     @Test
     public void testMonitorWithInMemoryStore() throws Exception {
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+        HostMonitorConfig config = HostMonitorConfigImpl.builder()
+                .hostMonitorEnabled(false)
+                .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
+                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
+                .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(Config.SERVICE_HOST,
+                        Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT))
+                .build();
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(config);
         testMonitor(hostStore);
     }
 

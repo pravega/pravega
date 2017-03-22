@@ -7,7 +7,6 @@ package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
-import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
@@ -45,12 +44,12 @@ public class ZKHostStore implements HostControllerStore {
      *
      * @param client                    The curator client instance.
      */
-    public ZKHostStore(CuratorFramework client) {
+    ZKHostStore(CuratorFramework client, int containerCount) {
         Preconditions.checkNotNull(client, "client");
 
         zkClient = client;
         zkPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
-        segmentMapper = new SegmentToContainerMapper(Config.HOST_STORE_CONTAINER_COUNT);
+        segmentMapper = new SegmentToContainerMapper(containerCount);
     }
 
     //Ensure required zk node is present in zookeeper.

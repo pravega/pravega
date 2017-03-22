@@ -10,8 +10,6 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.KeeperException;
 
 /**
@@ -19,30 +17,6 @@ import org.apache.zookeeper.KeeperException;
  */
 @Slf4j
 public final class ZKUtils {
-
-    /**
-     * Helper utility to lazily create and fetch only one instance of the Curator client to be used by the controller.
-     */
-    private enum CuratorSingleton {
-        CURATOR_INSTANCE;
-
-        //Single instance of the curator client which we want to be used in all of the controller code.
-        private final CuratorFramework zkClient;
-
-        CuratorSingleton() {
-            //Create and initialize the curator client framework.
-            zkClient = CuratorFrameworkFactory.builder()
-                    .connectString(Config.ZK_URL)
-                    .namespace("pravega/" + Config.CLUSTER_NAME)
-                    .retryPolicy(new ExponentialBackoffRetry(Config.ZK_RETRY_SLEEP_MS, Config.ZK_MAX_RETRIES))
-                    .build();
-            zkClient.start();
-        }
-    }
-    
-    public static CuratorFramework getCuratorClient() {
-        return CuratorSingleton.CURATOR_INSTANCE.zkClient;
-    }
 
     /**
      * Creates the znode if is doesn't already exist in zookeeper.
