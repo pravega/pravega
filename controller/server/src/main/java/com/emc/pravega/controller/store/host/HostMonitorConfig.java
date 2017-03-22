@@ -27,6 +27,13 @@ public interface HostMonitorConfig {
     int getHostMonitorMinRebalanceInterval();
 
     /**
+     * Fetches the maximum number of segment containers.
+     *
+     * @return The maximum number of segment containers.
+     */
+    int getContainerCount();
+
+    /**
      * Fetches the host to container mapping, which is required for creating in-memory map.
      *
      * @return The host to container mapping, which is required for creating in-memory map.

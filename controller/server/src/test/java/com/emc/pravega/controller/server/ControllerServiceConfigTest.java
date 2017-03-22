@@ -55,6 +55,7 @@ public class ControllerServiceConfigTest {
                 () -> HostMonitorConfigImpl.builder()
                         .hostMonitorEnabled(false)
                         .hostContainerMap(null)
+                        .containerCount(10)
                         .hostMonitorMinRebalanceInterval(10).build());
 
         // Port should be positive integer
@@ -75,6 +76,7 @@ public class ControllerServiceConfigTest {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
                 .hostContainerMap(null)
+                .containerCount(10)
                 .hostMonitorMinRebalanceInterval(10).build();
 
         // Values should be specified

@@ -25,7 +25,7 @@ public class HostStoreFactory {
             Preconditions.checkArgument(storeClient.getType() == StoreType.Zookeeper,
                     "If host monitor is enabled then the store type should be Zookeeper");
             log.info("Creating Zookeeper based host store");
-            return new ZKHostStore((CuratorFramework) storeClient.getClient());
+            return new ZKHostStore((CuratorFramework) storeClient.getClient(), hostMonitorConfig.getContainerCount());
         } else {
             // We create an in-memory host store using the configuration passed in hostMonitorConfig.
             log.info("Creating in-memory host store");
@@ -36,6 +36,6 @@ public class HostStoreFactory {
     @VisibleForTesting
     public static HostControllerStore createInMemoryStore(HostMonitorConfig hostMonitorConfig) {
         log.info("Creating in-memory host store");
-        return new InMemoryHostStore(hostMonitorConfig.getHostContainerMap());
+        return new InMemoryHostStore(hostMonitorConfig.getHostContainerMap(), hostMonitorConfig.getContainerCount());
     }
 }

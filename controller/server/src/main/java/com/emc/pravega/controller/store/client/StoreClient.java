@@ -8,7 +8,7 @@ package com.emc.pravega.controller.store.client;
 /**
  * Base class for store client.
  */
-public interface StoreClient {
+public interface StoreClient extends AutoCloseable {
 
     Object getClient();
 

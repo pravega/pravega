@@ -24,19 +24,26 @@ import java.util.stream.IntStream;
 public class HostMonitorConfigImpl implements HostMonitorConfig {
     private final boolean hostMonitorEnabled;
     private final int hostMonitorMinRebalanceInterval;
+    private final int containerCount;
     private final Map<Host, Set<Integer>> hostContainerMap;
 
     @Builder
     HostMonitorConfigImpl(final boolean hostMonitorEnabled,
                           final int hostMonitorMinRebalanceInterval,
+                          final int containerCount,
                           final Map<Host, Set<Integer>> hostContainerMap) {
         Exceptions.checkArgument(hostMonitorMinRebalanceInterval > 0, "hostMonitorMinRebalanceInterval",
                 "Should be positive integer");
+        Preconditions.checkArgument(containerCount > 0, "containerCount should be positive integer");
         if (!hostMonitorEnabled) {
             Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
+            int containerCountInMap = hostContainerMap.values().stream().map(x -> x.size()).reduce(0, (x, y) -> x + y);
+            Preconditions.checkArgument(containerCount == containerCountInMap,
+                    "containerCount should equal the containers present in hostContainerMap");
         }
         this.hostMonitorEnabled = hostMonitorEnabled;
         this.hostMonitorMinRebalanceInterval = hostMonitorMinRebalanceInterval;
+        this.containerCount = containerCount;
         this.hostContainerMap = hostContainerMap;
     }
 
@@ -48,7 +55,7 @@ public class HostMonitorConfigImpl implements HostMonitorConfig {
      */
     @VisibleForTesting
     public static HostMonitorConfig dummyConfig() {
-        return new HostMonitorConfigImpl(false, 10, getHostContainerMap("localhost", 12345, 4));
+        return new HostMonitorConfigImpl(false, 10, 4, getHostContainerMap("localhost", 12345, 4));
     }
 
     public static Map<Host, Set<Integer>> getHostContainerMap(String host, int port, int containerCount) {

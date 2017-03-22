@@ -10,9 +10,6 @@ package com.emc.pravega.controller.store.client;
  */
 class InMemoryStoreClient implements StoreClient {
 
-    InMemoryStoreClient() {
-    }
-
     @Override
     public Object getClient() {
         return null;
@@ -21,5 +18,10 @@ class InMemoryStoreClient implements StoreClient {
     @Override
     public StoreType getType() {
         return StoreType.InMemory;
+    }
+
+    @Override
+    public void close() throws Exception {
+
     }
 }

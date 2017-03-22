@@ -329,6 +329,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
+                .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
                 .build();
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
