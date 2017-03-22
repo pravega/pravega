@@ -9,13 +9,8 @@ import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-
-import java.net.URI;
-
 import com.google.common.annotations.VisibleForTesting;
+import java.net.URI;
 import org.apache.commons.lang.NotImplementedException;
 
 /**
@@ -69,13 +64,14 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public void createScope() {
-        CreateScopeStatus status = FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
+        Boolean status = FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
                 RuntimeException::new);
+        
     }
 
     @Override
     public void deleteScope() {
-        DeleteScopeStatus status = FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
+        Boolean status = FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
                 RuntimeException::new);
     }
 

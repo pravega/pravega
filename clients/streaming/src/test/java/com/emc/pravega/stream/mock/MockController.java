@@ -19,12 +19,6 @@ import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
@@ -69,46 +63,39 @@ public class MockController implements Controller {
     
     @Override
     @Synchronized
-    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+    public CompletableFuture<Boolean> createScope(final String scopeName) {
         if (createdScopes.get(scopeName) != null) {
-            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder()
-                                                .setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build());
+            return CompletableFuture.completedFuture(false);
         }
         createdScopes.put(scopeName, new HashSet<>());
-        return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder()
-                                                    .setStatus(CreateScopeStatus.Status.SUCCESS).build());
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
     @Synchronized
-    public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
+    public CompletableFuture<Boolean> deleteScope(String scopeName) {
         if (createdScopes.get(scopeName) == null) {
-            return CompletableFuture.completedFuture(DeleteScopeStatus.newBuilder()
-                                                        .setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build());
+            return CompletableFuture.completedFuture(false);
         }
 
         if (!createdScopes.get(scopeName).isEmpty()) {
-            return CompletableFuture.completedFuture(DeleteScopeStatus.newBuilder()
-                                                        .setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build());
+            return FutureHelpers.failedFuture(new IllegalStateException("Scope is not empty."));
         }
 
         createdScopes.remove(scopeName);
-        return CompletableFuture.completedFuture(DeleteScopeStatus.newBuilder()
-                                                        .setStatus(DeleteScopeStatus.Status.SUCCESS).build());
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
     @Synchronized
-    public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> createStream(StreamConfiguration streamConfig) {
         Stream stream = new StreamImpl(streamConfig.getScope(), streamConfig.getStreamName());
         if (createdStreams.get(stream) != null) {
-            return CompletableFuture.completedFuture(CreateStreamStatus.newBuilder()
-                                                      .setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
+            return CompletableFuture.completedFuture(false);
         }
 
         if (createdScopes.get(streamConfig.getScope()) == null) {
-            return CompletableFuture.completedFuture(CreateStreamStatus.newBuilder()
-                                                       .setStatus(CreateStreamStatus.Status.SCOPE_NOT_FOUND).build());
+            return FutureHelpers.failedFuture(new IllegalArgumentException("Scope does not exit."));
         }
 
         createdStreams.put(stream, streamConfig);
@@ -116,8 +103,7 @@ public class MockController implements Controller {
         for (Segment segment : getSegmentsForStream(stream)) {
             createSegment(segment.getScopedName(), new PravegaNodeUri(endpoint, port));
         }
-        return CompletableFuture.completedFuture(CreateStreamStatus.newBuilder()
-                                                         .setStatus(CreateStreamStatus.Status.SUCCESS).build());
+        return CompletableFuture.completedFuture(true);
     }
     
     @Synchronized
@@ -136,22 +122,22 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> alterStream(StreamConfiguration streamConfig) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<ScaleResponse> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
+    public CompletableFuture<Boolean> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
+    public CompletableFuture<Boolean> sealStream(String scope, String streamName) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<DeleteStreamStatus> deleteStream(String scope, String streamName) {
+    public CompletableFuture<Boolean> deleteStream(String scope, String streamName) {
         throw new NotImplementedException();
     }
 

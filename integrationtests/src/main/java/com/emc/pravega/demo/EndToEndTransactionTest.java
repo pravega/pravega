@@ -3,8 +3,7 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -18,13 +17,12 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
+import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertTrue;
 
@@ -42,22 +40,19 @@ public class EndToEndTransactionTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
+        int port = Config.SERVICE_PORT;
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
         Thread.sleep(1000);
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
         Controller controller = controllerWrapper.getController();
 
         final String testScope = "testScope";
         final String testStream = "testStream";
 
-        CompletableFuture<CreateScopeStatus> futureScopeStatus = controller.createScope(testScope);
-        CreateScopeStatus scopeStatus = futureScopeStatus.join();
-
-        if (scopeStatus.getStatus() != CreateScopeStatus.Status.SUCCESS) {
+        if (!controller.createScope(testScope).get()) {
             log.error("FAILURE: Error creating test scope");
             return;
         }
@@ -70,10 +65,7 @@ public class EndToEndTransactionTest {
                         .scalingPolicy(policy)
                         .build();
 
-        CompletableFuture<CreateStreamStatus> futureStatus = controller.createStream(streamConfig);
-        CreateStreamStatus status = futureStatus.join();
-
-        if (status.getStatus() != CreateStreamStatus.Status.SUCCESS) {
+        if (!controller.createStream(streamConfig).get()) {
             log.error("FAILURE: Error creating test stream");
             return;
         }
