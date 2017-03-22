@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -39,13 +40,13 @@ public class EndToEndTransactionTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
+        int port = Config.SERVICE_PORT;
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
         Thread.sleep(1000);
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
         Controller controller = controllerWrapper.getController();
 
         final String testScope = "testScope";

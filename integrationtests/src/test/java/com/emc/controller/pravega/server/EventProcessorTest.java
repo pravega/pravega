@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.demo;
+package com.emc.controller.pravega.server;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
@@ -14,6 +14,7 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -26,6 +27,7 @@ import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import com.emc.pravega.testcommon.TestUtils;
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
@@ -83,7 +85,7 @@ public class EventProcessorTest {
         System.exit(0);
     }
 
-    @Test
+    @Test(timeout = 60000)
     public void testEventProcessor() throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
@@ -91,11 +93,12 @@ public class EventProcessorTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        int port = TestUtils.randomPort();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         @Cleanup
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
         Controller controller = controllerWrapper.getController();
 
         // Create controller object for testing against a separate controller process.
