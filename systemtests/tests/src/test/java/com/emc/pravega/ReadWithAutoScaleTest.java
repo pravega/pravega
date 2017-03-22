@@ -138,13 +138,14 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
 
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
+        final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
         final AtomicLong data = new AtomicLong(); //data used by each of the writers.
 
         @Cleanup
         ClientFactory clientFactory = getClientFactory(SCOPE);
 
         //1. Start writing events to the Stream.
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer1 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
 
         //2. Start a reader group with 2 readers (The stream is configured with 2 segments.)
 
@@ -157,17 +158,17 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //2.2 Create readers.
         CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega);
+                eventsReadFromPravega, stopReadFlag );
         CompletableFuture<Void> reader2 = startReader("reader2", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega);
+                eventsReadFromPravega, stopWriteFlag);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer2 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer3 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer4 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer5 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer6 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
 
         //4 Wait until the scale operation is triggered (else time out)
         //    validate the data read by the readers ensuring all the events are read and there are no duplicates.
@@ -189,7 +190,11 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                                 Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
                             }
                         }), EXECUTOR_SERVICE)
-                .thenCompose(v -> CompletableFuture.allOf(reader1, reader2))
+                .thenCompose(v -> CompletableFuture.allOf(writer1, writer2, writer3, writer4, writer5, writer6))
+                .thenCompose(v -> {
+                    stopReadFlag.set(true);
+                    return CompletableFuture.allOf(reader1, reader2);
+                })
                 .thenRun(() -> validateResults(data.get(), eventsReadFromPravega));
 
         FutureHelpers.getAndHandleExceptions(testResult
@@ -208,7 +213,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     }
 
     private CompletableFuture<Void> startReader(final String id, final ClientFactory clientFactory, final String
-            readerGroupName, ConcurrentLinkedQueue<Long> result) {
+            readerGroupName, ConcurrentLinkedQueue<Long> result, final AtomicBoolean exitFlag) {
 
         return CompletableFuture.runAsync(() -> {
             @Cleanup
@@ -217,17 +222,13 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
 
-            while (true) {
+            while (!exitFlag.get()) {
                 final Long longEvent;
                 try {
                     longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
-                    // result is null if no events present/ all events consumed.
                     if (longEvent != null) {
+                        //update if event read is not null.
                         result.add(longEvent);
-                    } else {
-                        //null returned indicates nothing to read.
-                        log.info("Stopping reader with ID: {} has nothing to read", id);
-                        break;
                     }
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
@@ -237,9 +238,9 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         });
     }
 
-    private void startNewTxnWriter(final AtomicLong data, final ClientFactory clientFactory, final AtomicBoolean
-            exitFlag) {
-        CompletableFuture.runAsync(() -> {
+    private CompletableFuture<Void> startNewTxnWriter(final AtomicLong data, final ClientFactory clientFactory,
+                                                      final AtomicBoolean exitFlag) {
+        return CompletableFuture.runAsync(() -> {
             @Cleanup
             EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
