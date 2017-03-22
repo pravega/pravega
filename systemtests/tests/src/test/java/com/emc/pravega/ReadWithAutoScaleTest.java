@@ -6,7 +6,6 @@ package com.emc.pravega;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.BookkeeperService;
@@ -25,13 +24,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -47,10 +39,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -119,14 +116,12 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         com.emc.pravega.stream.impl.Controller controller = getController(controllerUri);
 
         //create a scope
-        CompletableFuture<Controller.CreateScopeStatus> createScopeStatus = controller.createScope(SCOPE);
-        log.debug("Create scope status {}", createScopeStatus.get().getStatus());
-        assertNotEquals(Controller.CreateScopeStatus.Status.FAILURE, createScopeStatus.get().getStatus());
+        Boolean createScopeStatus = controller.createScope(SCOPE).get();
+        log.debug("Create scope status {}", createScopeStatus);
 
         //create a stream
-        CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(CONFIG);
-        log.debug("Create stream status {}", createStreamStatus.get().getStatus());
-        assertNotEquals(Controller.CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
+        Boolean createStreamStatus = controller.createStream(CONFIG).get();
+        log.debug("Create stream status {}", createStreamStatus);
     }
 
     @Test

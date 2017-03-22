@@ -4,7 +4,6 @@
 
 package com.emc.pravega;
 
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.BookkeeperService;
@@ -22,6 +21,14 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import java.io.Serializable;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
@@ -30,17 +37,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.Serializable;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
-
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -122,12 +119,9 @@ public class PravegaTest {
         URI controllerUri = ctlURIs.get(0);
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
-        //create a scope
-        CompletableFuture<Controller.CreateScopeStatus> createScopeStatus = controller.createScope(STREAM_SCOPE);
-        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.get().getStatus());
-        //create a stream
-        CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(config);
-        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStreamStatus.get().getStatus());
+
+        assertTrue(controller.createScope(STREAM_SCOPE).get());
+        assertTrue(controller.createStream(config).get());
     }
 
     /**
