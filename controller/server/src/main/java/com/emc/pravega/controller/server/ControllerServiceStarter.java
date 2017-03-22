@@ -88,7 +88,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
 
     @Override
     protected void startUp() {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         log.info("Initiating controller service startUp");
         log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
         log.info("Request handlers enabled = {}", serviceConfig.isRequestHandlersEnabled());
@@ -218,7 +218,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
 
     @Override
     protected void shutDown() throws Exception {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "shutDown");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
         log.info("Initiating controller service shutDown");
 
         try {

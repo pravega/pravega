@@ -346,7 +346,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *                                  StreamSegment than the current index's one.
      */
     void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a StreamSegment into a child StreamSegment.");
         Exceptions.checkArgument(!sourceStreamSegmentIndex.isMerged(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged.");
@@ -397,7 +397,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param sourceStreamSegmentId The Id of the StreamSegment that was merged into this one.
      */
     void completeMerge(long sourceStreamSegmentId) {
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "completeMerge", sourceStreamSegmentId);
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "completeMerge", sourceStreamSegmentId);
         Exceptions.checkNotClosed(this.closed, this);
 
         // Find the appropriate redirect entry.

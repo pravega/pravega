@@ -126,7 +126,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     @Override
     protected void startUp() {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Attempting to start all event processors in {}", this.toString());
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
@@ -139,7 +139,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     @Override
     protected void shutDown() {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "shutDown");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
         // If any of the following operations error out, the fact is just logged.
         // Some other controller process is responsible for cleaning up the reader group,
         // its readers and their position objects from checkpoint store.
