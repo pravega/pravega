@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.service.server.host.stat;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.stream.AckFuture;
@@ -69,8 +70,7 @@ public class MonitorTest {
         };
 
         AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
-                new AutoScalerConfig(Duration.ofMinutes(10), Duration.ofMinutes(10), Duration.ofMinutes(10),
-                        Duration.ofMinutes(10), "pravega", "requeststream", null),
+                AutoScalerConfig.builder().build(),
                 Executors.newFixedThreadPool(10), Executors.newSingleThreadScheduledExecutor());
 
         String streamSegmentName = Segment.getScopedName(SCOPE, STREAM, 0);

@@ -37,26 +37,15 @@ public class SegmentStatsFactory implements AutoCloseable {
 
     @VisibleForTesting
     public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
-                                                           String scope,
-                                                           String requestStream,
                                                            ClientFactory clientFactory,
-                                                           Duration cooldown,
-                                                           Duration mute,
-                                                           Duration cacheCleanup,
-                                                           Duration cacheExpiry) {
-        AutoScalerConfig configuration = new AutoScalerConfig(cooldown, mute, cacheCleanup, cacheExpiry,
-                scope, requestStream, null);
+                                                           AutoScalerConfig configuration) {
         AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, clientFactory,
                 executor, maintenanceExecutor);
         return new SegmentStatsRecorderImpl(monitor, store,
                 executor, maintenanceExecutor);
     }
 
-    public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
-                                                           String scope,
-                                                           String requestStream,
-                                                           URI controllerUri) {
-        AutoScalerConfig configuration = new AutoScalerConfig(scope, requestStream, controllerUri);
+    public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store, AutoScalerConfig configuration) {
         AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, executor, maintenanceExecutor);
         return new SegmentStatsRecorderImpl(monitor, store, executor, maintenanceExecutor);
     }
