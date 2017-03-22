@@ -443,6 +443,56 @@ public class StreamSegmentContainerMetadataTests {
     }
 
     /**
+     * Tests the ability to identify Segment Metadatas that are not in use anymore and are eligible for eviction when
+     * there is an upper limit on how many such segments can be evicted at once.
+     */
+    @Test
+    public void testGetEvictionCandidatesCapped() {
+        final int maxEvictionCount = SEGMENT_COUNT / 10;
+        final ArrayList<Long> segments = new ArrayList<>();
+        final StreamSegmentContainerMetadata m = new MetadataBuilder(CONTAINER_ID).buildAs();
+        for (int i = 0; i < SEGMENT_COUNT; i++) {
+            long segmentId = SEGMENT_COUNT - segments.size();
+            m.mapStreamSegmentId(getName(segmentId), segmentId);
+            segments.add(segmentId);
+        }
+
+        for (int i = 0; i < segments.size(); i++) {
+            UpdateableSegmentMetadata segmentMetadata = m.getStreamSegmentMetadata(segments.get(i));
+            segmentMetadata.setLastUsed(i);
+            m.removeTruncationMarkers(i + 1);
+        }
+
+        // Verify that not-yet-truncated operations will not be selected for truncation.
+        Collection<SegmentMetadata> evictionCandidates;
+
+        // Expire all segments, one by one, and verify that only at most maxEvictionCount are returned, and when they are
+        // capped, only the oldest-used segments are returned, in order.
+        for (int i = 0; i < SEGMENT_COUNT; i++) {
+            int requestedCount = i + 1;
+            evictionCandidates = m.getEvictionCandidates(requestedCount, maxEvictionCount);
+            int expectedCount = Math.min(maxEvictionCount, requestedCount);
+            Assert.assertEquals("Unexpected number of segments eligible for eviction.", expectedCount, evictionCandidates.size());
+            if (requestedCount <= maxEvictionCount) {
+                int expectedSegmentIndex = expectedCount - 1;
+                for (SegmentMetadata candidate : evictionCandidates) {
+                    Assert.assertEquals("Unexpected segment id chosen for eviction when less than Max.",
+                            (long) segments.get(expectedSegmentIndex), candidate.getId());
+                    expectedSegmentIndex--;
+                }
+            } else {
+                // We were capped - make sure only the oldest-used segments are returned, in order.
+                int expectedSegmentIndex = 0;
+                for (SegmentMetadata candidate : evictionCandidates) {
+                    Assert.assertEquals("Unexpected segment id chosen for eviction when more than Max.",
+                            (long) segments.get(expectedSegmentIndex), candidate.getId());
+                    expectedSegmentIndex++;
+                }
+            }
+        }
+    }
+
+    /**
      * Tests the ability to evict Segment Metadatas that are not in use anymore.
      * 1. Creates a number of segment, and 1/4 of them have transactions.
      * 2. All transactions are set to expire at a particular time and the segments expire in two separate stages.
