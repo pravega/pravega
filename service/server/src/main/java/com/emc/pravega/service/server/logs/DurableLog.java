@@ -129,7 +129,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     @Override
     protected void doStart() {
-        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
 
         this.executor.execute(() -> {
@@ -159,7 +159,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     @Override
     protected void doStop() {
-        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
         this.operationProcessor.stopAsync();
 
@@ -294,7 +294,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "performRecovery");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "performRecovery");
         TimeoutTimer timer = new TimeoutTimer(RECOVERY_TIMEOUT);
         log.info("{} Recovery started.", this.traceObjectId);
 
@@ -338,7 +338,7 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @return True if any operations were recovered, false otherwise.
      */
     private boolean recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "recoverFromDataFrameLog");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "recoverFromDataFrameLog");
         int skippedOperationCount = 0;
         int skippedDataFramesCount = 0;
         int recoveredItemCount = 0;
