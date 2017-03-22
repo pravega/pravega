@@ -10,6 +10,7 @@ import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Serializer;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
-        implements Serializer<UpdateOrInit<StateT>> {
+        implements Serializer<UpdateOrInit<StateT>>, Serializable {
     private static final int INITIALIZATION = 1;
     private static final int UPDATE = 2;
     private final Serializer<UpdateT> updateSerializer;
