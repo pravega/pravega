@@ -237,7 +237,7 @@ class EventProcessorCell<T extends ControllerEvent> {
     }
 
     final void startAsync() {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startAsync");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startAsync");
         try {
             delegate.startAsync();
         } finally {
@@ -246,7 +246,7 @@ class EventProcessorCell<T extends ControllerEvent> {
     }
 
     final void stopAsync() {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "stopAsync");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "stopAsync");
         try {
             delegate.stopAsync();
         } finally {

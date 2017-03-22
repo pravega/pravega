@@ -43,7 +43,7 @@ public class GRPCServer extends AbstractIdleService {
      */
     @Override
     protected void startUp() throws Exception {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting gRPC server listening on port: {}", this.config.getPort());
             this.server.start();
@@ -57,7 +57,7 @@ public class GRPCServer extends AbstractIdleService {
      */
     @Override
     protected void shutDown() throws Exception {
-        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "shutDown");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
         try {
             log.info("Stopping gRPC server listening on port: {}", this.config.getPort());
             this.server.shutdown();
