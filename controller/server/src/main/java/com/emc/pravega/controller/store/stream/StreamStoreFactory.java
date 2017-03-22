@@ -5,30 +5,33 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.client.StoreClient;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang.NotImplementedException;
+import org.apache.curator.framework.CuratorFramework;
 
 import java.util.concurrent.ScheduledExecutorService;
 
 public class StreamStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
-    }
-
-    public static StreamMetadataStore createStore(final StoreType type, ScheduledExecutorService executor) {
-        switch (type) {
+    public static StreamMetadataStore createStore(final StoreClient storeClient, final ScheduledExecutorService executor) {
+        switch (storeClient.getType()) {
             case InMemory:
                 return new InMemoryStreamMetadataStore(executor);
             case Zookeeper:
-                return new ZKStreamMetadataStore(executor);
-            case ECS:
-            case S3:
-            case HDFS:
+                return new ZKStreamMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             default:
                 throw new NotImplementedException();
         }
+    }
+
+    @VisibleForTesting
+    public static StreamMetadataStore createZKStore(final CuratorFramework client,
+                                                    final ScheduledExecutorService executor) {
+        return new ZKStreamMetadataStore(client, executor);
+    }
+
+    @VisibleForTesting
+    public static StreamMetadataStore createInMemoryStore(final ScheduledExecutorService executor) {
+        return new InMemoryStreamMetadataStore(executor);
     }
 }

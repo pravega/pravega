@@ -6,8 +6,9 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ReaderGroupManager;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
-import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
@@ -20,7 +21,7 @@ import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Sequence;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -33,7 +34,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-public final class EventProcessorGroupImpl<T extends ControllerEvent> extends AbstractService implements EventProcessorGroup<T> {
+public final class EventProcessorGroupImpl<T extends ControllerEvent> extends AbstractIdleService
+        implements EventProcessorGroup<T> {
+
+    private final String objectId;
 
     private final EventProcessorSystemImpl actorSystem;
 
@@ -47,7 +51,10 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     private final CheckpointStore checkpointStore;
 
-    EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem, final EventProcessorConfig<T> eventProcessorConfig) {
+    EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem,
+                            final EventProcessorConfig<T> eventProcessorConfig,
+                            final CheckpointStore checkpointStore) {
+        this.objectId = String.format("EventProcessorGroup[%s]", eventProcessorConfig.getConfig().getReaderGroupName());
         this.actorSystem = actorSystem;
         this.eventProcessorConfig = eventProcessorConfig;
         this.eventProcessorMap = new ConcurrentHashMap<>();
@@ -56,8 +63,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 .createEventWriter(eventProcessorConfig.getConfig().getStreamName(),
                         eventProcessorConfig.getSerializer(),
                         EventWriterConfig.builder().build());
-
-        this.checkpointStore = CheckpointStoreFactory.create(eventProcessorConfig.getConfig().getCheckpointConfig());
+        this.checkpointStore = checkpointStore;
     }
 
     void initialize() throws CheckpointStoreException {
@@ -107,8 +113,9 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                             ReaderConfig.builder().build());
 
             // Create event processor, and add it to the actors list.
-            EventProcessorCell<T> actorCell =
-                    new EventProcessorCell<>(eventProcessorConfig, reader, actorSystem.getProcess(), readerId, checkpointStore);
+            EventProcessorCell<T> actorCell = new EventProcessorCell<>(eventProcessorConfig, reader,
+                    actorSystem.getProcess(), readerId, i, checkpointStore);
+            log.info("Created event processor {}, id={}", i, actorCell.toString());
 
             // Add new event processors to the map
             eventProcessorMap.put(readerId, actorCell);
@@ -118,48 +125,66 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
     }
 
     @Override
-    final protected void doStart() {
-        eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
-        notifyStarted();
-    }
-
-    @Override
-    final protected void doStop() {
+    protected void startUp() {
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
         try {
-            checkpointStore.sealReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName())
-                    .entrySet()
-                    .forEach(entry -> {
-                        if (eventProcessorMap.containsKey(entry.getKey())) {
-                            eventProcessorMap.get(entry.getKey()).stopAsync();
-                        } else {
-                            // 1. Notify reader group about stopped reader.
-                            readerGroup.readerOffline(entry.getKey(), entry.getValue());
-
-                            // 2. Clean up reader from checkpoint store.
-                            try {
-                                checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
-                            } catch (CheckpointStoreException e) {
-                                log.warn("Error removing reader " + entry.getKey() + " from reader group "
-                                        + readerGroup.getGroupName(), e);
-                            }
-                        }
-                    });
-        } catch (CheckpointStoreException e) {
-            log.warn("Error sealing reader group " + this.readerGroup, e);
+            log.info("Attempting to start all event processors in {}", this.toString());
+            eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
+            log.info("Waiting for all all event processors in {} to start", this.toString());
+            eventProcessorMap.entrySet().forEach(entry -> entry.getValue().awaitRunning());
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
     }
 
-    final protected void awaitStopped() throws CheckpointStoreException {
-        // If exception is thrown in any of the following operations, it is just logged.
-        // Some other controller process is responsible for cleaning up reader group, its
-        // readers and their position objects from checkpoint store.
+    @Override
+    protected void shutDown() {
+        long traceId = LoggerHelpers.traceEnter(log, this.objectId, "shutDown");
+        // If any of the following operations error out, the fact is just logged.
+        // Some other controller process is responsible for cleaning up the reader group,
+        // its readers and their position objects from checkpoint store.
+        try {
+            log.info("Attempting to seal the reader group entry from checkpoint store");
+            Map<String, Position> readerPositions =
+                    checkpointStore.sealReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
 
-        // First, wait for all event processors to stop.
-        eventProcessorMap.entrySet()
-                .forEach(entry -> entry.getValue().awaitStopped());
+            // First, stop all event processors asynchronously.
+            log.info("Initiating stop on all event processors of {}", this.toString());
+            readerPositions.entrySet().forEach(entry -> {
+                if (eventProcessorMap.containsKey(entry.getKey())) {
+                    eventProcessorMap.get(entry.getKey()).stopAsync();
+                } else {
+                    // 1. Notify reader group about stopped reader.
+                    readerGroup.readerOffline(entry.getKey(), entry.getValue());
 
-        // Next, clean up reader group from checkpoint store.
-        checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
+                    // 2. Clean up reader from checkpoint store.
+                    try {
+                        checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
+                    } catch (CheckpointStoreException e) {
+                        log.warn("Error removing reader " + entry.getKey() + " from reader group "
+                                + readerGroup.getGroupName(), e);
+                    }
+                }
+            });
+
+            // Next, wait for all event processors to stop.
+            log.info("Awaiting stop of all event processors of {}", this.toString());
+            readerPositions.entrySet().forEach(entry -> {
+                if (eventProcessorMap.containsKey(entry.getKey())) {
+                    eventProcessorMap.get(entry.getKey()).awaitTerminated();
+                }
+            });
+
+            // Finally, clean up reader group from checkpoint store.
+            log.info("Attempting to clean up reader group entry from checkpoint store");
+            checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
+
+            log.info("Shutdown of {} complete", this.toString());
+        } catch (CheckpointStoreException e) {
+            log.warn("Error sealing reader group " + this.readerGroup, e);
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
+        }
     }
 
     @Override
@@ -213,8 +238,13 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         return readerGroup.getOnlineReaders();
     }
 
-    public void stopAll() throws CheckpointStoreException {
+    @Override
+    public void close() throws Exception {
         this.stopAsync();
-        this.awaitStopped();
+    }
+
+    @Override
+    public String toString() {
+        return this.objectId;
     }
 }

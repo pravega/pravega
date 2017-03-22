@@ -3,7 +3,7 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package com.emc.pravega.controller.eventProcessor;
+package com.emc.pravega.controller.store.checkpoint;
 
 import com.emc.pravega.stream.Position;
 

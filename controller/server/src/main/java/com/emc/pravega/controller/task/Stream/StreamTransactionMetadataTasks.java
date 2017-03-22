@@ -8,6 +8,7 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
 import com.emc.pravega.controller.server.eventProcessor.CommitEvent;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.OperationContext;
@@ -79,18 +80,19 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * This method should be called immediately after creating StreamTransactionMetadataTasks object.
      *
      * @param controller Local controller reference
+     * @param config Controller event processor configuration.
      */
-    public Void initializeStreamWriters(Controller controller) {
+    public Void initializeStreamWriters(Controller controller, ControllerEventProcessorConfig config) {
 
-        ClientFactory clientFactory = new ClientFactoryImpl(ControllerEventProcessors.CONTROLLER_SCOPE, controller);
+        ClientFactory clientFactory = new ClientFactoryImpl(config.getScopeName(), controller);
 
         this.commitEventEventStreamWriter = clientFactory.createEventWriter(
-                ControllerEventProcessors.COMMIT_STREAM,
+                config.getCommitStreamName(),
                 ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
         this.abortEventEventStreamWriter = clientFactory.createEventWriter(
-                ControllerEventProcessors.ABORT_STREAM,
+                config.getAbortStreamName(),
                 ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
