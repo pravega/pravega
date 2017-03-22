@@ -43,7 +43,13 @@ public class HostStoreTest {
                 .containerCount(containerCount)
                 .build();
 
+        // Create a host store
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(hostMonitorConfig);
+
+        validateStore(hostStore);
+
+        // Create a host store via other factory method
+        hostStore = HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createInMemoryStoreClient());
 
         validateStore(hostStore);
     }
