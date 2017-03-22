@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+
 @Slf4j
 public class ControllerWrapper implements AutoCloseable {
 
@@ -60,9 +61,8 @@ public class ControllerWrapper implements AutoCloseable {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(false)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
-                .sssHost(serviceHost)
-                .sssPort(servicePort)
                 .containerCount(containerCount)
+                .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(serviceHost, servicePort, containerCount))
                 .build();
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
@@ -92,14 +92,14 @@ public class ControllerWrapper implements AutoCloseable {
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder().port(controllerPort).build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .serviceThreadPoolSize(2)
-                .taskThreadPoolSize(4)
-                .storeThreadPoolSize(2)
-                .eventProcThreadPoolSize(4)
-                .requestHandlerThreadPoolSize(4)
+                .serviceThreadPoolSize(3)
+                .taskThreadPoolSize(3)
+                .storeThreadPoolSize(3)
+                .eventProcThreadPoolSize(3)
+                .requestHandlerThreadPoolSize(3)
                 .storeClientConfig(storeClientConfig)
-                .hostMonitorConfig(hostMonitorConfig)
                 .controllerClusterListenerConfig(Optional.<ControllerClusterListenerConfig>empty())
+                .hostMonitorConfig(hostMonitorConfig)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(eventProcessorConfig)
                 .requestHandlersEnabled(!disableRequestHandler)

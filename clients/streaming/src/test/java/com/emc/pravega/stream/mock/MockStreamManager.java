@@ -99,13 +99,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                               .scalingPolicy(ScalingPolicy.fixed(1)).build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
-                groupName,
-                streamNames,
-                synchronizerConfig,
-                new JavaSerializer<>(),
-                new JavaSerializer<>(),
-                clientFactory,
-                controller);
+                                                     groupName,
+                                                     synchronizerConfig,
+                                                     new JavaSerializer<>(),
+                                                     new JavaSerializer<>(),
+                                                     clientFactory,
+                                                     controller);
         result.initializeGroup(config, streamNames);
         return result;
     }

@@ -28,6 +28,8 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -49,7 +51,7 @@ import java.util.concurrent.TimeUnit;
  * Creates the controller service, given the service configuration.
  */
 @Slf4j
-public class ControllerServiceStarter extends AbstractIdleService {
+public final class ControllerServiceStarter extends AbstractIdleService {
     private final ControllerServiceConfig serviceConfig;
     private final StoreClient storeClient;
     private final String objectId;
@@ -75,8 +77,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ControllerService controllerService;
 
     private LocalController localController;
-    private CountDownLatch controllerReadyLatch;
     private ControllerEventProcessors controllerEventProcessors;
+    /**
+     * ControllerReadyLatch is released once localController, streamTransactionMetadataTasks and controllerService
+     * variables are initialized in the startUp method.
+     */
+    private CountDownLatch controllerReadyLatch;
 
     private GRPCServer grpcServer;
     private RESTServer restServer;
@@ -92,6 +98,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
     protected void startUp() {
         long traceId = LoggerHelpers.traceEnter(log, this.objectId, "startUp");
         log.info("Initiating controller service startUp");
+        log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
+        log.info("Request handlers enabled = {}", serviceConfig.isRequestHandlersEnabled());
+        log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
+        log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
 
         try {
             //Initialize the executor service.
@@ -142,11 +152,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
+            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
             SegmentHelper segmentHelper = new SegmentHelper();
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, taskExecutor, host.toString());
+                    segmentHelper, taskExecutor, host.toString(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, taskMetadataStore, segmentHelper, taskExecutor, host.toString());
+                    hostStore, taskMetadataStore, segmentHelper, taskExecutor, host.toString(), connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
@@ -184,9 +195,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.toString(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        hostStore, segmentHelper, eventProcExecutor);
+                        hostStore, segmentHelper, connectionFactory, eventProcExecutor);
 
                 // Bootstrap and start it asynchronously.
+                log.info("Starting event processors");
                 ControllerEventProcessors.bootstrap(localController, serviceConfig.getEventProcessorConfig().get(),
                         streamTransactionMetadataTasks, eventProcExecutor)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
@@ -194,6 +206,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Start request handlers
             if (serviceConfig.isRequestHandlersEnabled()) {
+                log.info("Starting request handlers");
                 RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
             }
 
@@ -311,11 +324,13 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     @VisibleForTesting
     public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        controllerReadyLatch.await();
         return this.streamTransactionMetadataTasks.awaitInitialization(timeout, timeUnit);
     }
 
     @VisibleForTesting
-    public ControllerService getControllerService() {
+    public ControllerService getControllerService() throws InterruptedException {
+        controllerReadyLatch.await();
         return this.controllerService;
     }
 

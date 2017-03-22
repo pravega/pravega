@@ -23,9 +23,6 @@ public class TaskStoreFactory {
                 return new ZKTaskMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             case InMemory:
                 return new InMemoryTaskMetadataStore(executor);
-            case ECS:
-            case S3:
-            case HDFS:
             default:
                 throw new NotImplementedException();
         }

@@ -71,6 +71,9 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
             Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper,
                     "If controllerCluster is enabled, store type should be Zookeeper");
         }
+        if (eventProcessorConfig.isPresent()) {
+            Preconditions.checkNotNull(eventProcessorConfig.get());
+        }
         if (grpcServerConfig.isPresent()) {
             Preconditions.checkNotNull(grpcServerConfig.get());
         }

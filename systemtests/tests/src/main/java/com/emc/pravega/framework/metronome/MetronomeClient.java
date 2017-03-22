@@ -1,23 +1,29 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
 package com.emc.pravega.framework.metronome;
 
 import feign.Feign;
+import feign.Logger;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import feign.Response;
+import feign.RetryableException;
+import feign.Retryer;
 import feign.auth.BasicAuthRequestInterceptor;
 import feign.codec.ErrorDecoder;
 import feign.gson.GsonDecoder;
 import feign.gson.GsonEncoder;
 import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 
+import java.util.Calendar;
+
 import static com.emc.pravega.framework.LoginClient.getClientHostVerificationDisabled;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.SERVICE_UNAVAILABLE;
 import static java.util.Arrays.asList;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class MetronomeClient {
     private static class MetronomeHeadersInterceptor implements RequestInterceptor {
@@ -27,10 +33,20 @@ public class MetronomeClient {
         }
     }
 
-    private static class MetronomeErrorDecoder implements ErrorDecoder {
+    static class MetronomeErrorDecoder implements ErrorDecoder {
         @Override
         public Exception decode(String methodKey, Response response) {
-            return new MetronomeException(response.status(), response.reason());
+            //Retry in case Metronome service returns 503 or 500
+            if (response.status() == SERVICE_UNAVAILABLE.code() || response.status() ==
+                    INTERNAL_SERVER_ERROR.code()) {
+                //retry after 5 seconds.
+                Calendar retryAfter = Calendar.getInstance();
+                retryAfter.add(Calendar.SECOND, 5);
+
+                return new RetryableException("Received response code: " + response.status(), retryAfter.getTime());
+            } else {
+                return new MetronomeException(response.status(), response.reason());
+            }
         }
     }
 
@@ -46,9 +62,13 @@ public class MetronomeClient {
      */
     public static Metronome getInstance(String endpoint, RequestInterceptor... interceptors) {
         Feign.Builder b = Feign.builder().client(getClientHostVerificationDisabled())
+                .logger(new Logger.ErrorLogger())
+                .logLevel(Logger.Level.BASIC)
                 .encoder(new GsonEncoder(mesosphere.marathon.client.utils.ModelUtils.GSON))
                 .decoder(new GsonDecoder(mesosphere.marathon.client.utils.ModelUtils.GSON))
-                .errorDecoder(new MetronomeClient.MetronomeErrorDecoder());
+                //max wait period = 5 seconds ; max attempts = 5
+                .retryer(new Retryer.Default(SECONDS.toMillis(1), SECONDS.toMillis(5), 5))
+                .errorDecoder(new MetronomeErrorDecoder());
         if (interceptors != null) {
             b.requestInterceptors(asList(interceptors));
         }

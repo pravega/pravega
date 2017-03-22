@@ -20,6 +20,7 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -41,7 +42,7 @@ public class RequestTest {
     private final String scope = "scope";
     private final String stream = "stream";
     StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 0, 2, 3)).build();
+            ScalingPolicy.byEventRate(0, 2, 3)).build();
 
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(100);
     private StreamMetadataStore streamStore;
@@ -77,13 +78,14 @@ public class RequestTest {
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
 
-        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.defaultConfig());
+        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executor, hostId);
+                executor, hostId, connectionFactory);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, executor, hostId);
+                segmentHelper, executor, hostId, connectionFactory);
 
         long createTimestamp = System.currentTimeMillis();
 

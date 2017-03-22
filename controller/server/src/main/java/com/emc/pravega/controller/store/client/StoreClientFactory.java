@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.store.client;
 
+
 import com.emc.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -28,9 +29,6 @@ public class StoreClientFactory {
                 return new ZKStoreClient(createZKClient(storeClientConfig.getZkClientConfig().get()));
             case InMemory:
                 return new InMemoryStoreClient();
-            case ECS:
-            case S3:
-            case HDFS:
             default:
                 throw new NotImplementedException();
         }

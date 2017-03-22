@@ -16,6 +16,7 @@ import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -30,14 +31,14 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
 
     private final String scope;
 
-    public EventProcessorSystemImpl(String name, String process, String scope, Controller controller) {
+    public EventProcessorSystemImpl(String name, String process, String scope, Controller controller, ConnectionFactory connectionFactory) {
         this.name = name;
         this.process = process;
 
         this.scope = scope;
         this.controller = controller;
-        this.clientFactory = new ClientFactoryImpl(scope, controller);
-        this.readerGroupManager = new ReaderGroupManagerImpl(scope, controller);
+        this.clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        this.readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
     }
 
     @Override

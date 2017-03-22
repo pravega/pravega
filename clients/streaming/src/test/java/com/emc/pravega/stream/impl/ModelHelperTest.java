@@ -6,17 +6,13 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
-import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-
 import java.util.HashMap;
 import java.util.Map;
-
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -25,20 +21,6 @@ public class ModelHelperTest {
 
     private static Segment createSegmentId(String streamName, int number) {
         return new Segment("scope", streamName, number);
-    }
-
-    private static ScalingPolicy createScalingPolicy() {
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
-        return policy;
-    }
-
-    private static StreamConfiguration createStreamConfig(String name) {
-        return StreamConfiguration.builder()
-                                  .scope("scope")
-                                  .streamName(name)
-                                  .scalingPolicy(createScalingPolicy())
-                                  .retentionPolicy(RetentionPolicy.builder().build())
-                                  .build();
     }
 
     private static PositionInternal createPosition() {
@@ -83,8 +65,8 @@ public class ModelHelperTest {
 
     @Test
     public void decodeScalingPolicy() {
-        Controller.ScalingPolicy policy = ModelHelper.decode(createScalingPolicy());
-        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
+        Controller.ScalingPolicy policy = ModelHelper.decode(ScalingPolicy.byEventRate(100, 2, 3));
+        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -97,8 +79,8 @@ public class ModelHelperTest {
 
     @Test
     public void encodeScalingPolicy() {
-        ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(createScalingPolicy()));
-        assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
+        ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(ScalingPolicy.byEventRate(100, 2, 3)));
+        assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -111,10 +93,14 @@ public class ModelHelperTest {
 
     @Test
     public void decodeStreamConfig() {
-        StreamConfig config = ModelHelper.decode(createStreamConfig("test"));
+        StreamConfig config = ModelHelper.decode(StreamConfiguration.builder()
+                                                 .scope("scope")
+                                                 .streamName("test")
+                                                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
+                                                 .build());
         assertEquals("test", config.getStreamInfo().getStream());
         Controller.ScalingPolicy policy = config.getPolicy();
-        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
+        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -127,39 +113,17 @@ public class ModelHelperTest {
 
     @Test
     public void encodeStreamConfig() {
-        StreamConfiguration config = ModelHelper.encode(ModelHelper.decode(createStreamConfig("test")));
+        StreamConfiguration config = ModelHelper.encode(ModelHelper.decode(StreamConfiguration.builder()
+          .scope("scope")
+          .streamName("test")
+          .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
+          .build()));
         assertEquals("test", config.getStreamName());
         ScalingPolicy policy = config.getScalingPolicy();
-        assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
+        assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
     }
 
-    @Test(expected = NullPointerException.class)
-    public void decodePositionNullInput() {
-        ModelHelper.decode((PositionInternal) null);
-    }
-
-    @Test
-    public void decodePosition() {
-        Position position = ModelHelper.decode(createPosition());
-        assertEquals(2, position.getOwnedSegmentsCount());
-        assertEquals(1L, position.getOwnedSegments(0).getValue());
-        assertEquals(2L, position.getOwnedSegments(1).getValue());
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void encodePositionNullInput() {
-        ModelHelper.encode((Position) null);
-    }
-
-    @Test
-    public void encodePosition() {
-        PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition()));
-        Map<Segment, Long> ownedLogs = position.getOwnedSegmentsWithOffsets();
-        assertEquals(2, ownedLogs.size());
-        assertEquals(1L, ownedLogs.get(createSegmentId("stream", 1)).longValue());
-        assertEquals(2L, ownedLogs.get(createSegmentId("stream", 2)).longValue());
-    }
 }

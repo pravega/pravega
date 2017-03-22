@@ -7,8 +7,6 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import java.net.URI;
-import java.time.Duration;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,26 +35,15 @@ public class SegmentStatsFactory implements AutoCloseable {
 
     @VisibleForTesting
     public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
-                                                           String scope,
-                                                           String requestStream,
                                                            ClientFactory clientFactory,
-                                                           Duration cooldown,
-                                                           Duration mute,
-                                                           Duration cacheCleanup,
-                                                           Duration cacheExpiry) {
-        AutoScalerConfig configuration = new AutoScalerConfig(cooldown, mute, cacheCleanup, cacheExpiry,
-                scope, requestStream, null);
+                                                           AutoScalerConfig configuration) {
         AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, clientFactory,
                 executor, maintenanceExecutor);
         return new SegmentStatsRecorderImpl(monitor, store,
                 executor, maintenanceExecutor);
     }
 
-    public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
-                                                           String scope,
-                                                           String requestStream,
-                                                           URI controllerUri) {
-        AutoScalerConfig configuration = new AutoScalerConfig(scope, requestStream, controllerUri);
+    public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store, AutoScalerConfig configuration) {
         AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, executor, maintenanceExecutor);
         return new SegmentStatsRecorderImpl(monitor, store, executor, maintenanceExecutor);
     }

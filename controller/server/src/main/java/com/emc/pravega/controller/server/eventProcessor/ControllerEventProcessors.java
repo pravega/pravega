@@ -11,9 +11,9 @@ import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
+import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
-import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -26,6 +26,7 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,6 +51,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
     private final SegmentHelper segmentHelper;
+    private final ConnectionFactory connectionFactory;
     private final ScheduledExecutorService executor;
 
     private EventProcessorGroup<CommitEvent> commitEventEventProcessors;
@@ -62,6 +64,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                                      final StreamMetadataStore streamMetadataStore,
                                      final HostControllerStore hostControllerStore,
                                      final SegmentHelper segmentHelper,
+                                     final ConnectionFactory connectionFactory,
                                      final ScheduledExecutorService executor) {
         this.objectId  = "ControllerEventProcessors";
         this.config = config;
@@ -69,8 +72,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
+        this.connectionFactory = connectionFactory;
+        this.system = new EventProcessorSystemImpl("Controller", host, config.getScopeName(), controller, connectionFactory);
         this.executor = executor;
-        this.system = new EventProcessorSystemImpl("Controller", host, config.getScopeName(), controller);
     }
 
     public void notifyProcessFailure(String process) {
@@ -189,7 +193,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
-                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper))
+                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
         log.info("Creating commit event processors");
@@ -217,7 +221,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .config(abortReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(ABORT_EVENT_SERIALIZER)
-                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper))
+                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
         log.info("Creating abort event processors");

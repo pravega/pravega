@@ -27,4 +27,9 @@ class ZKStoreClient implements StoreClient {
     public StoreType getType() {
         return StoreType.Zookeeper;
     }
+
+    @Override
+    public void close() throws Exception {
+        client.close();
+    }
 }

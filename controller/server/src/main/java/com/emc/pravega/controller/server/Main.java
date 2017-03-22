@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
+import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
 import com.emc.pravega.controller.fault.impl.ControllerClusterListenerConfigImpl;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -21,7 +21,6 @@ import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
-import com.emc.pravega.stream.ScalingPolicy;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -35,6 +34,9 @@ public class Main {
 
     public static void main(String[] args) {
 
+        //0. Initialize metrics provider
+        MetricsProvider.initialize(Config.getMetricsConfig());
+
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                 .connectionString(Config.ZK_URL)
                 .namespace("pravega/" + Config.CLUSTER_NAME)
@@ -47,9 +49,9 @@ public class Main {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(Config.HOST_MONITOR_ENABLED)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
-                .sssHost(Config.SERVICE_HOST)
-                .sssPort(Config.SERVICE_PORT)
                 .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
+                .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(Config.SERVICE_HOST,
+                        Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT))
                 .build();
 
         ControllerClusterListenerConfig controllerClusterListenerConfig = ControllerClusterListenerConfigImpl.builder()
@@ -65,19 +67,7 @@ public class Main {
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
-        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.builder()
-                .scopeName("system")
-                .commitStreamName("commitStream")
-                .abortStreamName("abortStream")
-                .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
-                .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
-                .commitReaderGroupName("commitStreamReaders")
-                .commitReaderGroupSize(1)
-                .abortReaderGrouopName("abortStreamReaders")
-                .abortReaderGroupSize(1)
-                .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
-                .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
-                .build();
+        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
                 .port(Config.RPC_SERVER_PORT)

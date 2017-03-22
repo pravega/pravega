@@ -4,8 +4,10 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.host.stat.AutoScalerConfig;
 import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -17,7 +19,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import lombok.Cleanup;
@@ -27,12 +28,13 @@ import org.apache.curator.test.TestingServer;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 
 @Slf4j
 public class EndToEndAutoScaleUpTest {
     static final StreamConfiguration CONFIG =
             StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 3)).build();
+                    ScalingPolicy.byEventRate(10, 2, 3)).build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -48,9 +50,10 @@ public class EndToEndAutoScaleUpTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            SegmentStatsRecorder statsRecorder = new SegmentStatsFactory().createSegmentStatsRecorder(store, "pravega", "requeststream",
-                    internalCF, Duration.ofMinutes(0),
-                    Duration.ofMinutes(0), Duration.ofMinutes(10), Duration.ofMinutes(10));
+            SegmentStatsRecorder statsRecorder = new SegmentStatsFactory().createSegmentStatsRecorder(store,
+                    internalCF,
+                    AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store, statsRecorder);
@@ -83,15 +86,26 @@ public class EndToEndAutoScaleUpTest {
                 }
             });
 
-            Thread.sleep(130 * 1000);
+            Retry.withExpBackoff(10, 10, 100, 10000)
+                    .retryingOn(NotDoneException.class)
+                    .throwingOn(RuntimeException.class)
+                    .runAsync(() -> controller.getCurrentSegments("test", "test")
+                            .thenAccept(streamSegments -> {
+                                if (streamSegments.getSegments().size() > 3) {
+                                    System.err.println("Success");
+                                    log.info("Success");
+                                    System.exit(0);
+                                } else {
+                                    throw new NotDoneException();
+                                }
+                            }), Executors.newSingleThreadScheduledExecutor())
+                    .exceptionally(e -> {
+                        System.err.println("Failure");
+                        log.error("Failure");
+                        System.exit(1);
+                        return null;
+                    }).get();
 
-            StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
-            if (streamSegments.getSegments().size() > 3) {
-                System.err.println("Success scale up");
-            } else {
-                System.err.println("Failure");
-                System.exit(1);
-            }
         } catch (Throwable e) {
             System.err.print("Test failed with exception: " + e.getMessage());
             System.exit(-1);

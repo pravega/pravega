@@ -1,14 +1,11 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -21,9 +18,10 @@ import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
-import com.emc.pravega.service.storage.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
@@ -59,10 +57,12 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int CONTAINER_ID = 123;
-    private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-            PropertyBag.create()
-                       .with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
-                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
+
+    private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers
+            .withInfiniteCachePolicy(ReadIndexConfig.builder()
+                                                    .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
+                                                    .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
+            .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     @Override
@@ -106,8 +106,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final Random rnd = new Random(0);
         rnd.nextBytes(segmentData);
 
-        final ReadIndexConfig config = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-                PropertyBag.create().with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, minReadLength));
+        final ReadIndexConfig config = ConfigHelpers
+                .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, minReadLength))
+                .build();
 
         @Cleanup
         TestContext context = new TestContext(config, config.getCachePolicy());
@@ -652,13 +653,16 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final int postStorageEntryCount = entriesPerSegment / 4; // 25% of the entries are beyond the StorageOffset
         final int preStorageEntryCount = entriesPerSegment - postStorageEntryCount; // 75% of the entries are before the StorageOffset.
         CachePolicy cachePolicy = new CachePolicy(cacheMaxSize, Duration.ofMillis(1000 * 2 * entriesPerSegment), Duration.ofMillis(1000));
-        ReadIndexConfig config = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-                PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, appendSize)); // To properly test this, we want predictable storage reads.
+
+        // To properly test this, we want predictable storage reads.
+        ReadIndexConfig config = ConfigHelpers
+                .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, appendSize))
+                .build();
 
         ArrayList<CacheKey> removedKeys = new ArrayList<>();
         @Cleanup
         TestContext context = new TestContext(config, cachePolicy);
-        context.cache.removeCallback = removedKeys::add; // Record every cache removal.
+        context.cacheFactory.cache.removeCallback = removedKeys::add; // Record every cache removal.
 
         // Create the segments (metadata + storage).
         ArrayList<Long> segmentIds = createSegments(context);
@@ -1165,7 +1169,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final UpdateableContainerMetadata metadata;
         final ContainerReadIndex readIndex;
         final TestCacheManager cacheManager;
-        final TestCache cache;
+        final TestCacheFactory cacheFactory;
         final Storage storage;
 
         TestContext() {
@@ -1173,17 +1177,17 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
-            this.cache = new TestCache(Integer.toString(CONTAINER_ID));
+            this.cacheFactory = new TestCacheFactory();
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new InMemoryStorage();
             this.cacheManager = new TestCacheManager(cachePolicy, executorService());
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, executorService());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
         }
 
         @Override
         public void close() {
             this.readIndex.close();
-            this.cache.close();
+            this.cacheFactory.close();
             this.storage.close();
             this.cacheManager.close();
         }
@@ -1208,6 +1212,20 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             super.remove(key);
+        }
+    }
+
+    private static class TestCacheFactory implements CacheFactory {
+        final TestCache cache = new TestCache("Test");
+
+        @Override
+        public Cache getCache(String id) {
+            return this.cache;
+        }
+
+        @Override
+        public void close() {
+            this.cache.close();
         }
     }
 

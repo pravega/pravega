@@ -4,7 +4,6 @@
 
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogTestBase;
@@ -18,12 +17,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Properties;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
-import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.bookkeeper.util.ReflectionUtils;
@@ -95,10 +92,12 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
                 "-c", String.format("distributedlog://%s:%s/%s", DLOG_HOST, DLOG_PORT.get(), namespace)});
 
         // Setup config to use the port and namespace.
-        this.config.set(new TestConfig()
-                .withDistributedLogHost(DLOG_HOST)
-                .withDistributedLogPort(DLOG_PORT.get())
-                .withDistributedLogNamespace(namespace));
+        this.config.set(DistributedLogConfig
+                .builder()
+                .with(DistributedLogConfig.HOSTNAME, DLOG_HOST)
+                .with(DistributedLogConfig.PORT, DLOG_PORT.get())
+                .with(DistributedLogConfig.NAMESPACE, namespace)
+                .build());
 
         // Create default factory.
         val factory = new DistributedLogDataLogFactory(CLIENT_ID, this.config.get(), executorService());
@@ -223,38 +222,6 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
             // Verify we can still append and read to/from the first log.
             TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForWrites());
             verifyReads(log, createLogAddress(-1), writeData);
-        }
-    }
-
-    //endregion
-
-    //region TestConfig
-
-    private static class TestConfig extends DistributedLogConfig {
-        @Getter
-        private String distributedLogHost;
-        @Getter
-        private int distributedLogPort;
-        @Getter
-        private String distributedLogNamespace;
-
-        TestConfig() throws ConfigurationException {
-            super(new Properties());
-        }
-
-        TestConfig withDistributedLogHost(String value) {
-            this.distributedLogHost = value;
-            return this;
-        }
-
-        TestConfig withDistributedLogPort(int value) {
-            this.distributedLogPort = value;
-            return this;
-        }
-
-        TestConfig withDistributedLogNamespace(String value) {
-            this.distributedLogNamespace = value;
-            return this;
         }
     }
 

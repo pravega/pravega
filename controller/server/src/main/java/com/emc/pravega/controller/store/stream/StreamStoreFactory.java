@@ -19,9 +19,6 @@ public class StreamStoreFactory {
                 return new InMemoryStreamMetadataStore(executor);
             case Zookeeper:
                 return new ZKStreamMetadataStore((CuratorFramework) storeClient.getClient(), executor);
-            case ECS:
-            case S3:
-            case HDFS:
             default:
                 throw new NotImplementedException();
         }

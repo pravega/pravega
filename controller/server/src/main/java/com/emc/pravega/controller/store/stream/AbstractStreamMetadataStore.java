@@ -15,18 +15,11 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,6 +28,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import javax.annotation.ParametersAreNonnullByDefault;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import static com.emc.pravega.common.MetricsNames.ABORT_TRANSACTION;
 import static com.emc.pravega.common.MetricsNames.COMMIT_TRANSACTION;
@@ -159,28 +156,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             log.error("Create scope failed due to invalid scope name {}", scopeName);
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
-        } else {
-            return getScope(scopeName).createScope()
-                    .handle((result, ex) -> {
-                        if (ex != null) {
-                            if (ex.getCause() instanceof StoreException &&
-                                    ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
-                                return CreateScopeStatus.newBuilder().setStatus(
-                                        CreateScopeStatus.Status.SCOPE_EXISTS).build();
-                            } else if (ex instanceof StoreException &&
-                                    ((StoreException) ex).getType() == NODE_EXISTS) {
-                                return CreateScopeStatus.newBuilder().setStatus(
-                                        CreateScopeStatus.Status.SCOPE_EXISTS).build();
-                            } else {
-                                log.debug("Create scope failed due to ", ex);
-                                return CreateScopeStatus.newBuilder().setStatus(
-                                        CreateScopeStatus.Status.FAILURE).build();
-                            }
-                        } else {
-                            return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
-                        }
-                    });
         }
+        return getScope(scopeName).createScope().handle((result, ex) -> {
+            if (ex == null) {
+                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
+            }
+            if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
+            } else if (ex instanceof StoreException && ((StoreException) ex).getType() == NODE_EXISTS) {
+                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
+            } else {
+                log.debug("Create scope failed due to ", ex);
+                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build();
+            }
+        });
     }
 
     /**
@@ -191,28 +180,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      */
     @Override
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
-        return getScope(scopeName).deleteScope()
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        if ((ex.getCause() instanceof StoreException &&
-                                ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) ||
-                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_FOUND))) {
-                            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND)
-                                    .build();
-                        } else if (ex.getCause() instanceof StoreException &&
-                                ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY ||
-                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_EMPTY))) {
-                            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY)
-                                    .build();
-                        } else {
-                            log.debug("DeleteScope failed due to {} ", ex);
-                            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE)
-                                    .build();
-                        }
-                    } else {
-                        return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
-                    }
-                });
+        return getScope(scopeName).deleteScope().handle((result, ex) -> {
+            if (ex == null) {
+                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
+            }
+            if ((ex.getCause() instanceof StoreException
+                    && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND)
+                    || (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_FOUND))) {
+                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
+            } else if (ex.getCause() instanceof StoreException
+                    && ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY
+                    || (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_EMPTY))) {
+                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
+            } else {
+                log.debug("DeleteScope failed due to {} ", ex);
+                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
+            }
+        });
     }
 
 
@@ -310,11 +294,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
 
     @Override
-    public CompletableFuture<SegmentFutures> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor) {
+    public CompletableFuture<List<Integer>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.getActiveSegments(timestamp)
-                        .thenComposeAsync(activeSegments -> constructSegmentFutures(stream, activeSegments, executor), executor),
-                executor);
+        return withCompletion(stream.getActiveSegments(timestamp), executor);
     }
 
     @Override
@@ -482,41 +464,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return scope;
     }
 
-    private CompletableFuture<SegmentFutures> constructSegmentFutures(final Stream stream, final List<Integer> activeSegments, final Executor executor) {
-        Map<Integer, Integer> futureSegments = new HashMap<>();
-        List<CompletableFuture<List<Integer>>> list =
-                activeSegments.stream().map(number -> getDefaultFutures(stream, number, executor)).collect(Collectors.toList());
-
-        CompletableFuture<List<List<Integer>>> futureDefaultFutures = FutureHelpers.allOfWithResults(list);
-        return futureDefaultFutures
-                .thenApplyAsync(futureList -> {
-                    for (int i = 0; i < futureList.size(); i++) {
-                        for (Integer future : futureList.get(i)) {
-                            futureSegments.put(future, activeSegments.get(i));
-                        }
-                    }
-                    return new SegmentFutures(activeSegments, futureSegments);
-                }, executor);
-    }
-
-    /**
-     * Finds all successors of a given segment, that have exactly one predecessor,
-     * and hence can be included in the futures of the given segment.
-     *
-     * @param stream input stream
-     * @param number segment number for which default futures are sought.
-     * @return the list of successors of specified segment who have only one predecessor.
-     * <p>
-     * return stream.getSuccessors(number).stream()
-     * .filter(x -> stream.getPredecessors(x).size() == 1)
-     * .*                collect(Collectors.toList());
-     */
-    private CompletableFuture<List<Integer>> getDefaultFutures(final Stream stream, final int number, final Executor executor) {
-        CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);
-        return futureSuccessors.thenComposeAsync(
-                list -> FutureHelpers.filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)), executor);
-    }
-
     private <T> CompletableFuture<T> withCompletion(CompletableFuture<T> future, final Executor executor) {
 
         // Following makes sure that the result future given out to caller is actually completed on
@@ -543,7 +490,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                                              final Executor executor) {
         return FutureHelpers.allOfWithResults(
                 sealedSegments.stream()
-                        .map(value ->
+                        .map((Integer value) ->
                                 getSegment(scopeName, streamName, value, context, executor).thenApply(segment ->
                                         new AbstractMap.SimpleEntry<>(
                                                 segment.getKeyStart(),

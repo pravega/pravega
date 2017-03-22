@@ -21,6 +21,7 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -60,15 +61,16 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         executorService = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
         taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
-        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.defaultConfig());
+        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executorService, "host");
+                executorService, "host", connectionFactory);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
+                streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host", connectionFactory);
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 

@@ -3,6 +3,11 @@
  */
 package com.emc.pravega.controller.store.host;
 
+import com.emc.pravega.common.cluster.Host;
+
+import java.util.Map;
+import java.util.Set;
+
 /**
  * Configuration for controller's host monitor module.
  */
@@ -22,23 +27,16 @@ public interface HostMonitorConfig {
     int getHostMonitorMinRebalanceInterval();
 
     /**
-     * Fetches the hostname of SSS.
+     * Fetches the maximum number of segment containers.
      *
-     * @return The hostname of SSS.
-     */
-    String getSssHost();
-
-    /**
-     * Fetches the port on which SSS listens.
-     *
-     * @return The port on which SSS listens.
-     */
-    int getSssPort();
-
-    /**
-     * Fetches the total number of stream segment containers configured in the system.
-     *
-     * @return The total number of stream segment containers configured in the system.
+     * @return The maximum number of segment containers.
      */
     int getContainerCount();
+
+    /**
+     * Fetches the host to container mapping, which is required for creating in-memory map.
+     *
+     * @return The host to container mapping, which is required for creating in-memory map.
+     */
+    Map<Host, Set<Integer>> getHostContainerMap();
 }
