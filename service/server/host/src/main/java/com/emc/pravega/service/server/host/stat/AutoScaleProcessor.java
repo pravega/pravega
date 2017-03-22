@@ -17,6 +17,11 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalListeners;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -26,9 +31,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * This looks at segment aggregates and determines if a scale operation has to be triggered.
@@ -58,22 +60,24 @@ public class AutoScaleProcessor {
                        Executor executor,
                        ScheduledExecutorService maintenanceExecutor) {
         this.configuration = configuration;
+        this.maintenanceExecutor = maintenanceExecutor;
+        this.executor = executor;
+
+        serializer = new JavaSerializer<>();
+        writerConfig = EventWriterConfig.builder().build();
+        writer = new AtomicReference<>();
 
         cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
                 .maximumSize(MAX_CACHE_SIZE)
                 .expireAfterAccess(configuration.getCacheExpiry().getSeconds(), TimeUnit.SECONDS)
-                .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
+                .removalListener(RemovalListeners.asynchronous((RemovalListener<String, Pair<Long, Long>>) notification -> {
                     if (notification.getCause().equals(RemovalCause.EXPIRED)) {
                         triggerScaleDown(notification.getKey(), true);
                     }
-                })
+                }, maintenanceExecutor))
                 .build();
-        this.executor = executor;
-        this.maintenanceExecutor = maintenanceExecutor;
-        serializer = new JavaSerializer<>();
-        writerConfig = EventWriterConfig.builder().build();
-        writer = new AtomicReference<>();
+
         CompletableFuture.runAsync(this::bootstrapRequestWriters, maintenanceExecutor);
     }
 
@@ -104,10 +108,10 @@ public class AutoScaleProcessor {
                 e -> log.error("error while creating writer for requeststream {}", e))
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
-                        clientFactory.compareAndSet(null, ClientFactory.withScope(configuration.getInternalScope(), configuration.getConrollerUri()));
+                        clientFactory.compareAndSet(null, ClientFactory.withScope(configuration.getInternalScope(), configuration.getControllerUri()));
                     }
 
-                    this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalStream(),
+                    this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalRequestStream(),
                             serializer,
                             writerConfig));
                     initialized.set(true);
@@ -194,7 +198,7 @@ public class AutoScaleProcessor {
             // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'
             if (type != WireCommands.CreateSegment.NO_SCALE) {
                 long currentTime = System.currentTimeMillis();
-                if (currentTime - startTime > configuration.getCooldownPeriod().toMillis()) {
+                if (currentTime - startTime > configuration.getCooldownDuration().toMillis()) {
                     log.debug("cool down period elapsed for {}", streamSegmentName);
 
                     // report to see if a scale operation needs to be performed.
