@@ -201,7 +201,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     //Helper methods
     private void validateResults(final long lastEventCount, final Collection<Long> readEvents) {
         log.info("Last Event Count is {}", lastEventCount);
-        assertTrue("Overflow in the number of event published ", lastEventCount > 0);
+        assertTrue("Overflow in the number of events published ", lastEventCount > 0);
         assertEquals(lastEventCount, readEvents.size()); // Number of event read should be equal to number of events
         // published.
         assertEquals(lastEventCount, new TreeSet<>(readEvents).size()); //check unique events.
@@ -274,8 +274,8 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
             final Class<? extends Throwable> exceptionClass = ex.getCause().getClass();
-            if (exceptionClass.equals(io.grpc.StatusRuntimeException.class) || exceptionClass.equals
-                    (ConnectionClosedException.class)) {
+            if (exceptionClass.equals(io.grpc.StatusRuntimeException.class) || exceptionClass.equals(
+                    ConnectionClosedException.class)) {
                 log.debug("Cause for failure is {} and we need to retry", exceptionClass.getName());
                 throw new TxnCreationFailedException(); // we can retry on this exception.
             } else {
