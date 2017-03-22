@@ -22,11 +22,11 @@ import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -46,6 +46,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import static java.time.Duration.ofSeconds;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -132,13 +133,14 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
 
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
+        final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
         final AtomicLong data = new AtomicLong(); //data used by each of the writers.
 
         @Cleanup
         ClientFactory clientFactory = getClientFactory(SCOPE);
 
         //1. Start writing events to the Stream.
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer1 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
 
         //2. Start a reader group with 2 readers (The stream is configured with 2 segments.)
 
@@ -151,27 +153,28 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //2.2 Create readers.
         CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega);
+                eventsReadFromPravega, stopReadFlag );
         CompletableFuture<Void> reader2 = startReader("reader2", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega);
+                eventsReadFromPravega, stopWriteFlag);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer2 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer3 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer4 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer5 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer6 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
 
         //4 Wait until the scale operation is triggered (else time out)
         //    validate the data read by the readers ensuring all the events are read and there are no duplicates.
-        CompletableFuture<Void> testResult = Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
+        CompletableFuture<Void> testResult = Retry.withExpBackoff(10, 10, 200, ofSeconds(10).toMillis())
                 .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
                         .thenAccept(x -> {
                             int currentNumOfSegments = x.getSegments().size();
                             if (currentNumOfSegments == 2) {
+                                log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
                                 //Scaling operation did not happen, retry operation.
                                 throw new ScaleOperationNotDoneException();
                             } else if (currentNumOfSegments > 2) {
@@ -182,7 +185,11 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                                 Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
                             }
                         }), EXECUTOR_SERVICE)
-                .thenCompose(v -> CompletableFuture.allOf(reader1, reader2))
+                .thenCompose(v -> CompletableFuture.allOf(writer1, writer2, writer3, writer4, writer5, writer6))
+                .thenCompose(v -> {
+                    stopReadFlag.set(true);
+                    return CompletableFuture.allOf(reader1, reader2);
+                })
                 .thenRun(() -> validateResults(data.get(), eventsReadFromPravega));
 
         FutureHelpers.getAndHandleExceptions(testResult
@@ -194,14 +201,14 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     //Helper methods
     private void validateResults(final long lastEventCount, final Collection<Long> readEvents) {
         log.info("Last Event Count is {}", lastEventCount);
-        assertTrue("Overflow in the number of event published ", lastEventCount > 0);
+        assertTrue("Overflow in the number of events published ", lastEventCount > 0);
         assertEquals(lastEventCount, readEvents.size()); // Number of event read should be equal to number of events
         // published.
         assertEquals(lastEventCount, new TreeSet<>(readEvents).size()); //check unique events.
     }
 
     private CompletableFuture<Void> startReader(final String id, final ClientFactory clientFactory, final String
-            readerGroupName, ConcurrentLinkedQueue<Long> result) {
+            readerGroupName, ConcurrentLinkedQueue<Long> result, final AtomicBoolean exitFlag) {
 
         return CompletableFuture.runAsync(() -> {
             @Cleanup
@@ -209,30 +216,28 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
-
-            while (true) {
+            boolean isLastEventNull = false;
+            while (!(exitFlag.get() && isLastEventNull)) { // exit only if exitFlag and isLastEventNull are true
                 final Long longEvent;
                 try {
-                    longEvent = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
-                    // result is null if no events present/ all events consumed.
+                    longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
                     if (longEvent != null) {
+                        //update if event read is not null.
                         result.add(longEvent);
                     } else {
-                        //null returned indicates nothing to read.
-                        log.info("Stopping reader with ID: {} has nothing to read", id);
-                        break;
+                        isLastEventNull = true;
                     }
                 } catch (ReinitializationRequiredException e) {
-                    log.warn("Test Exeception while reading from the stream", e);
+                    log.warn("Test Exception while reading from the stream", e);
                     break;
                 }
             }
         });
     }
 
-    private void startNewTxnWriter(final AtomicLong data, final ClientFactory clientFactory, final AtomicBoolean
-            exitFlag) {
-        CompletableFuture.runAsync(() -> {
+    private CompletableFuture<Void> startNewTxnWriter(final AtomicLong data, final ClientFactory clientFactory,
+                                                      final AtomicBoolean exitFlag) {
+        return CompletableFuture.runAsync(() -> {
             @Cleanup
             EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
@@ -240,7 +245,11 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
             while (!exitFlag.get()) {
                 try {
                     //create a transaction with 10 events.
-                    Transaction<Long> transaction = writer.beginTxn(5000, 3600000, 29000); //Default max scale grace period is 30000
+                    Transaction<Long> transaction = Retry.withExpBackoff(10, 10, 20, ofSeconds(1).toMillis())
+                            .retryingOn(TxnCreationFailedException.class)
+                            .throwingOn(RuntimeException.class)
+                            .run(() -> createTransaction(writer));
+
                     for (int i = 0; i < 10; i++) {
                         long value = data.incrementAndGet();
                         transaction.writeEvent(String.valueOf(value), value);
@@ -253,5 +262,27 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                 }
             }
         });
+    }
+
+    private Transaction<Long> createTransaction(EventStreamWriter<Long> writer) {
+        Transaction<Long> txn = null;
+        try {
+            //Default max scale grace period is 30000
+            txn = writer.beginTxn(5000, 3600000, 29000);
+        } catch (RuntimeException ex) {
+            log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
+            final Class<? extends Throwable> exceptionClass = ex.getCause().getClass();
+            if (exceptionClass.equals(io.grpc.StatusRuntimeException.class) || exceptionClass.equals(
+                    ConnectionClosedException.class)) {
+                log.debug("Cause for failure is {} and we need to retry", exceptionClass.getName());
+                throw new TxnCreationFailedException(); // we can retry on this exception.
+            } else {
+                throw ex;
+            }
+        }
+        return txn;
+    }
+
+    private class TxnCreationFailedException extends RuntimeException {
     }
 }
