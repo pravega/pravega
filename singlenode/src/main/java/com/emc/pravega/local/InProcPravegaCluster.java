@@ -60,7 +60,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private final boolean isInMemStorage;
 
     /* Cluster name */
-    private String clusterName = "singlenode-" + UUID.randomUUID();
+    private final String clusterName = "singlenode-" + UUID.randomUUID();
 
     /*Controller related variables*/
     private boolean isInprocController;
