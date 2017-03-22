@@ -5,18 +5,11 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
-import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.ControllerService;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.PingFailedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
@@ -65,7 +58,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> deleteScope(String scopeName) {
         return this.controller.deleteScope(scopeName).thenApply(x -> {
-            switch(x.getStatus()) {
+            switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to delete scope: " + scopeName);
             case SCOPE_NOT_EMPTY:
@@ -84,7 +77,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
         return this.controller.createStream(streamConfig, System.currentTimeMillis()).thenApply(x -> {
-            switch(x.getStatus()) {
+            switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
             case INVALID_STREAM_NAME:
@@ -105,7 +98,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> alterStream(final StreamConfiguration streamConfig) {
         return this.controller.alterStream(streamConfig).thenApply(x -> {
-            switch(x.getStatus()) {
+            switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to altering stream: " + streamConfig);
             case SCOPE_NOT_FOUND:

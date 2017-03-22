@@ -95,7 +95,7 @@ public class ControllerImpl implements Controller {
         return callback.getFuture()
                 .thenApply(x -> {
                     LoggerHelpers.traceLeave(log, "createScope", traceId);
-                    switch(x.getStatus()) {
+                    switch (x.getStatus()) {
                     case FAILURE:
                         throw new ControllerFailureException("Failed to create scope: " + scopeName);
                     case INVALID_SCOPE_NAME:
@@ -121,7 +121,7 @@ public class ControllerImpl implements Controller {
         return callback.getFuture()
                 .thenApply(x -> {
                     LoggerHelpers.traceLeave(log, "deleteScope", traceId);
-                    switch(x.getStatus()) {
+                    switch (x.getStatus()) {
                     case FAILURE:
                         throw new ControllerFailureException("Failed to delete scope: " + scopeName);
                     case SCOPE_NOT_EMPTY:
@@ -146,7 +146,7 @@ public class ControllerImpl implements Controller {
         client.createStream(ModelHelper.decode(streamConfig), callback);
         return callback.getFuture().thenApply(x -> {
             LoggerHelpers.traceLeave(log, "createStream", traceId);
-            switch(x.getStatus()) {
+            switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
             case INVALID_STREAM_NAME:
@@ -173,7 +173,7 @@ public class ControllerImpl implements Controller {
         client.alterStream(ModelHelper.decode(streamConfig), callback);
         return callback.getFuture().thenApply(x -> {
             LoggerHelpers.traceLeave(log, "alterStream", traceId);
-            switch(x.getStatus()) {
+            switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to altering stream: " + streamConfig);
             case SCOPE_NOT_FOUND:
