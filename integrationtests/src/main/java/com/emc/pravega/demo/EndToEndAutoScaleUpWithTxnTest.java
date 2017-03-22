@@ -54,8 +54,8 @@ public class EndToEndAutoScaleUpWithTxnTest {
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
             SegmentStatsRecorder statsRecorder = new SegmentStatsFactory().createSegmentStatsRecorder(store,
                     internalCF,
-                    AutoScalerConfig.builder().with(AutoScalerConfig.SCALE_MUTE_IN_SECONDS, 0)
-                            .with(AutoScalerConfig.SCALE_COOLDOWN_IN_SECONDS, 0).build());
+                    AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store, statsRecorder);
@@ -109,9 +109,10 @@ public class EndToEndAutoScaleUpWithTxnTest {
                 try {
                     Transaction<String> transaction = test.beginTxn(5000, 3600000, 60000);
 
-                    for (int i = 0; i < 10000; i++) {
+                    for (int i = 0; i < 1000; i++) {
                         transaction.writeEvent("0", "txntest");
                     }
+                    Thread.sleep(900);
                     transaction.commit();
                 } catch (Throwable e) {
                     System.err.println("test exception writing events " + e.getMessage());

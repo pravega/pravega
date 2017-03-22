@@ -202,8 +202,8 @@ public class AutoScaleTest {
         startNewWriter(clientFactory, exit);
         startNewWriter(clientFactory, exit);
 
-        // overall wait for test to complete in 1500 seconds (25 minutes) or scale up, whichever happens first.
-        return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
+        // overall wait for test to complete in 260 seconds (4.5 minutes) or scale up, whichever happens first.
+        return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
                 .retryingOn(NotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_UP_STREAM_NAME)
@@ -233,8 +233,8 @@ public class AutoScaleTest {
 
         final AtomicBoolean exit = new AtomicBoolean(false);
 
-        // overall wait for test to complete in 1500 seconds (25 minutes) or scale down, whichever happens first.
-        return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
+        // overall wait for test to complete in 260 seconds (4.5 minutes) or scale down, whichever happens first.
+        return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
                 .retryingOn(NotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_DOWN_STREAM_NAME)
@@ -273,8 +273,8 @@ public class AutoScaleTest {
         startNewTxnWriter(clientFactory, exit);
         startNewTxnWriter(clientFactory, exit);
 
-        // overall wait for test to complete in 1500 seconds (25 minutes) or scale up, whichever happens first.
-        return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
+        // overall wait for test to complete in 260 seconds (4.5 minutes) or scale up, whichever happens first.
+        return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
                 .retryingOn(NotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_UP_TXN_STREAM_NAME)

@@ -9,7 +9,6 @@ import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.TypedProperties;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
-import java.time.Duration;
 
 import lombok.Getter;
 import lombok.SneakyThrows;

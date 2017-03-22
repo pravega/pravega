@@ -51,10 +51,10 @@ public class EndToEndAutoScaleDownTest {
 
             SegmentStatsRecorder statsRecorder = new SegmentStatsFactory().createSegmentStatsRecorder(store,
                     internalCF,
-                    AutoScalerConfig.builder().with(AutoScalerConfig.SCALE_MUTE_IN_SECONDS, 0)
-                            .with(AutoScalerConfig.SCALE_COOLDOWN_IN_SECONDS, 0)
-                            .with(AutoScalerConfig.SCALE_CACHE_CLEANUP_IN_SECONDS, 5)
-                            .with(AutoScalerConfig.SCALE_CACHE_EXPIRY_IN_SECONDS, 30).build());
+                    AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                            .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 5)
+                            .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 30).build());
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store, statsRecorder);
