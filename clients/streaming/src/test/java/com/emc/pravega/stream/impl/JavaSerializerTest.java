@@ -33,6 +33,14 @@ public class JavaSerializerTest {
     }
 
     @Test
+    public void testSelf() {
+        JavaSerializer<JavaSerializer<String>> serializer = new JavaSerializer<>();
+        JavaSerializer<String> one = new JavaSerializer<String>();
+        JavaSerializer<String> result = serializer.deserialize(serializer.serialize(one));
+        assertEquals(one, result);
+    }
+    
+    @Test
     public void testMap() {
         JavaSerializer<HashMap<Integer, Integer>> serializer = new JavaSerializer<>();
         HashMap<Integer, Integer> in = new HashMap<>();

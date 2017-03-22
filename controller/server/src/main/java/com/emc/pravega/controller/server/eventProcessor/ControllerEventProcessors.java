@@ -6,9 +6,9 @@
 package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -20,25 +20,20 @@ import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.AbstractIdleService;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import lombok.Lombok;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
 
 @Slf4j
-public class ControllerEventProcessors extends AbstractService {
+public class ControllerEventProcessors extends AbstractIdleService {
 
-    public static final String CONTROLLER_SCOPE = "system";
-    public static final String COMMIT_STREAM = "commitStream";
-    public static final String ABORT_STREAM = "abortStream";
     public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
     public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
 
@@ -47,7 +42,9 @@ public class ControllerEventProcessors extends AbstractService {
     private static final int MULTIPLIER = 10;
     private static final long MAX_DELAY = 10000;
 
-    private final CuratorFramework client;
+    private final String objectId;
+    private final ControllerEventProcessorConfig config;
+    private final CheckpointStore checkpointStore;
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
@@ -59,62 +56,65 @@ public class ControllerEventProcessors extends AbstractService {
     private EventProcessorGroup<AbortEvent> abortEventEventProcessors;
 
     public ControllerEventProcessors(final String host,
+                                     final ControllerEventProcessorConfig config,
                                      final Controller controller,
-                                     final CuratorFramework client,
+                                     final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
                                      final HostControllerStore hostControllerStore,
                                      final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
                                      final ScheduledExecutorService executor) {
-        this.client = client;
+        this.objectId  = "ControllerEventProcessors";
+        this.config = config;
+        this.checkpointStore = checkpointStore;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
-        this.system = new EventProcessorSystemImpl("Controller", host, CONTROLLER_SCOPE, controller, connectionFactory);
+        this.system = new EventProcessorSystemImpl("Controller", host, config.getScopeName(), controller, connectionFactory);
         this.executor = executor;
     }
 
     @Override
-    protected void doStart() {
+    protected void startUp() throws Exception {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
-            log.info("Starting controller event processors.");
+            log.info("Starting controller event processors");
             initialize();
-            notifyStarted();
-        } catch (Exception e) {
-            log.error("Error starting controller event processors.", e);
-            // Throwing this error will mark the service as FAILED.
-            throw Lombok.sneakyThrow(e);
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
     }
 
     @Override
-    protected void doStop() {
+    protected void shutDown() {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
         try {
             log.info("Stopping controller event processors.");
             stopEventProcessors();
-        } catch (CheckpointStoreException e) {
-            log.error("Error stopping controller event processors.", e);
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
     }
 
     private static CompletableFuture<Void> createStreams(final Controller controller,
+                                                         final ControllerEventProcessorConfig config,
                                                          final ScheduledExecutorService executor) {
         StreamConfiguration commitStreamConfig =
                 StreamConfiguration.builder()
-                        .scope(CONTROLLER_SCOPE)
-                        .streamName(COMMIT_STREAM)
-                        .scalingPolicy(ScalingPolicy.fixed(2))
+                        .scope(config.getScopeName())
+                        .streamName(config.getCommitStreamName())
+                        .scalingPolicy(config.getCommitStreamScalingPolicy())
                         .build();
 
         StreamConfiguration abortStreamConfig =
                 StreamConfiguration.builder()
-                        .scope(CONTROLLER_SCOPE)
-                        .streamName(ABORT_STREAM)
-                        .scalingPolicy(ScalingPolicy.fixed(2))
+                        .scope(config.getScopeName())
+                        .streamName(config.getAbortStreamName())
+                        .scalingPolicy(config.getAbortStreamScalingPolicy())
                         .build();
 
-        return createScope(controller, CONTROLLER_SCOPE, executor)
+        return createScope(controller, config.getScopeName(), executor)
                 .thenCompose(ignore ->
                         CompletableFuture.allOf(createStream(controller, commitStreamConfig, executor),
                                 createStream(controller, abortStreamConfig, executor)));
@@ -138,45 +138,24 @@ public class ControllerEventProcessors extends AbstractService {
 
 
     public static CompletableFuture<Void> bootstrap(final Controller localController,
+                                                    final ControllerEventProcessorConfig config,
                                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                                     final ScheduledExecutorService executor) {
-        return ControllerEventProcessors.createStreams(localController, executor)
-                .thenAcceptAsync(x -> streamTransactionMetadataTasks.initializeStreamWriters(localController),
+        return ControllerEventProcessors.createStreams(localController, config, executor)
+                .thenAcceptAsync(x -> streamTransactionMetadataTasks.initializeStreamWriters(localController, config),
                         executor);
     }
 
     private void initialize() throws Exception {
 
-        // Commit event processor configuration
-        final String commitStreamReaderGroup = "commitStreamReaders";
-        final int commitReaderGroupSize = 1;
-        final int commitPositionPersistenceFrequency = 10;
-
-        // Abort event processor configuration
-        final String abortStreamReaderGroup = "abortStreamReaders";
-        final int abortReaderGroupSize = 1;
-        final int abortPositionPersistenceFrequency = 10;
-
         // region Create commit event processor
-
-        CheckpointConfig commitEventCheckpointConfig =
-                CheckpointConfig.builder()
-                        .type(CheckpointConfig.Type.Periodic)
-                        .checkpointPeriod(
-                                CheckpointConfig.CheckpointPeriod.builder()
-                                        .numEvents(commitPositionPersistenceFrequency)
-                                        .numSeconds(commitPositionPersistenceFrequency)
-                                        .build())
-                        .storeType(CheckpointConfig.StoreType.Zookeeper)
-                        .checkpointStoreClient(client)
-                        .build();
 
         EventProcessorGroupConfig commitReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .streamName(COMMIT_STREAM)
-                        .readerGroupName(commitStreamReaderGroup)
-                        .eventProcessorCount(commitReaderGroupSize)
-                        .checkpointConfig(commitEventCheckpointConfig)
+                        .streamName(config.getCommitStreamName())
+                        .readerGroupName(config.getCommitReaderGroupName())
+                        .eventProcessorCount(config.getCommitReaderGroupSize())
+                        .checkpointConfig(config.getCommitCheckpointConfig())
                         .build();
 
         EventProcessorConfig<CommitEvent> commitConfig =
@@ -187,10 +166,11 @@ public class ControllerEventProcessors extends AbstractService {
                         .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
+        log.info("Creating commit event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    commitEventEventProcessors = system.createEventProcessorGroup(commitConfig);
+                    commitEventEventProcessors = system.createEventProcessorGroup(commitConfig, checkpointStore);
                     return null;
                 });
 
@@ -198,24 +178,12 @@ public class ControllerEventProcessors extends AbstractService {
 
         // region Create abort event processor
 
-        CheckpointConfig abortEventCheckpointConfig =
-                CheckpointConfig.builder()
-                        .type(CheckpointConfig.Type.Periodic)
-                        .checkpointPeriod(
-                                CheckpointConfig.CheckpointPeriod.builder()
-                                        .numEvents(abortPositionPersistenceFrequency)
-                                        .numSeconds(abortPositionPersistenceFrequency)
-                                        .build())
-                        .storeType(CheckpointConfig.StoreType.Zookeeper)
-                        .checkpointStoreClient(client)
-                        .build();
-
         EventProcessorGroupConfig abortReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .streamName(ABORT_STREAM)
-                        .readerGroupName(abortStreamReaderGroup)
-                        .eventProcessorCount(abortReaderGroupSize)
-                        .checkpointConfig(abortEventCheckpointConfig)
+                        .streamName(config.getAbortStreamName())
+                        .readerGroupName(config.getAbortReaderGrouopName())
+                        .eventProcessorCount(config.getAbortReaderGroupSize())
+                        .checkpointConfig(config.getAbortCheckpointConfig())
                         .build();
 
         EventProcessorConfig<AbortEvent> abortConfig =
@@ -226,22 +194,38 @@ public class ControllerEventProcessors extends AbstractService {
                         .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
+        log.info("Creating abort event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    abortEventEventProcessors = system.createEventProcessorGroup(abortConfig);
+                    abortEventEventProcessors = system.createEventProcessorGroup(abortConfig, checkpointStore);
                     return null;
                 });
 
         // endregion
+
+        log.info("Awaiting start of commit event processors");
+        commitEventEventProcessors.awaitRunning();
+        log.info("Awaiting start of abort event processors");
+        abortEventEventProcessors.awaitRunning();
     }
 
-    private void stopEventProcessors() throws CheckpointStoreException {
+    private void stopEventProcessors() {
         if (commitEventEventProcessors != null) {
-            commitEventEventProcessors.stopAll();
+            log.info("Stopping commit event processors");
+            commitEventEventProcessors.stopAsync();
         }
         if (abortEventEventProcessors != null) {
-            abortEventEventProcessors.stopAll();
+            log.info("Stopping abort event processors");
+            abortEventEventProcessors.stopAsync();
+        }
+        if (commitEventEventProcessors != null) {
+            log.info("Awaiting termination of commit event processors");
+            commitEventEventProcessors.awaitTerminated();
+        }
+        if (abortEventEventProcessors != null) {
+            log.info("Awaiting termination of abort event processors");
+            abortEventEventProcessors.awaitTerminated();
         }
     }
 }

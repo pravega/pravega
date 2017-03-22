@@ -3,11 +3,9 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package com.emc.pravega.controller.eventProcessor.impl;
+package com.emc.pravega.controller.store.checkpoint;
 
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
-import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import lombok.AllArgsConstructor;

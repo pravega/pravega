@@ -12,13 +12,14 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-
+import lombok.EqualsAndHashCode;
 import com.emc.pravega.stream.Serializer;
 
 /**
  * An implementation of {@link Serializer} that uses Java serialization.
  */
-public class JavaSerializer<T extends Serializable> implements Serializer<T> {
+@EqualsAndHashCode
+public class JavaSerializer<T extends Serializable> implements Serializer<T>, Serializable {
 
     @Override
     public ByteBuffer serialize(T value) {

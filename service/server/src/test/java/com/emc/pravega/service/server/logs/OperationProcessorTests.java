@@ -12,11 +12,11 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TruncationMarkerRepository;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
-import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.OperationFactory;
@@ -35,6 +35,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
+import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -45,7 +46,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import lombok.Cleanup;
@@ -493,10 +493,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, Long.MAX_VALUE)
                 .build();
 
-        return new MetadataCheckpointPolicy(
-                dlConfig,
-                () -> {
-                }, ForkJoinPool.commonPool());
+        return new MetadataCheckpointPolicy(dlConfig, Runnables.doNothing(), executorService());
     }
 
     private class TestContext implements AutoCloseable {
@@ -511,11 +508,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestContext() {
             this.cacheFactory = new InMemoryCacheFactory();
             this.storage = new InMemoryStorage(executorService());
-            this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+            this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             ReadIndexConfig readIndexConfig = ConfigHelpers
                     .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
                     .build();
-
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
             this.memoryLog = new SequencedItemList<>();

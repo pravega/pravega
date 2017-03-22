@@ -153,7 +153,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * @return A CompletableFuture that, when complete, will indicate that the read has been performed in its entirety.
      */
     private CompletableFuture<Iterator<Operation>> readData(Void ignored) {
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "readData");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "readData");
         try {
             Duration readTimeout = getReadTimeout();
             return this.dataSource
@@ -193,7 +193,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      */
     @SneakyThrows(DataCorruptionException.class)
     private void processReadResult(Iterator<Operation> readResult) {
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "processReadResult");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "processReadResult");
         InputReadStageResult result = new InputReadStageResult(this.state);
         if (readResult == null) {
             // This happens when we get a TimeoutException from the read operation.
@@ -256,7 +256,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      */
     private CompletableFuture<Void> flush(Void ignored) {
         checkRunning();
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flush");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flush");
 
         // Flush everything we can flush.
         val flushFutures = this.aggregators.values().stream()
@@ -281,7 +281,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * Cleans up all SegmentAggregators that are currently closed.
      */
     private void cleanup() {
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "cleanup");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "cleanup");
         val toRemove = this.aggregators.values().stream()
                                        .map(this::closeIfNecessary)
                                        .filter(SegmentAggregator::isClosed)
@@ -311,7 +311,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      */
     private CompletableFuture<Void> acknowledge(Void ignored) {
         checkRunning();
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "acknowledge");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "acknowledge");
 
         long highestCommittedSeqNo = this.ackCalculator.getHighestCommittedSequenceNumber(this.aggregators.values());
         long ackSequenceNumber = this.dataSource.getClosestValidTruncationPoint(highestCommittedSeqNo);

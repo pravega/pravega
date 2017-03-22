@@ -128,8 +128,12 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         //System properties to configure SS service.
         String hostSystemProperties = setSystemProperty("pravegaservice.zkURL", zk) +
                 setSystemProperty("dlog.hostname", zkUri.getHost()) +
-                setSystemProperty("hdfs.fs.default.name", "namenode-0.hdfs.mesos:9001") +
-                setSystemProperty("pravegaservice.controllerUri", conUri.toString());
+                setSystemProperty("hdfs.hdfsUrl", "namenode-0.hdfs.mesos:9001") +
+                setSystemProperty("autoScale.muteInSeconds", "120") +
+                setSystemProperty("autoScale.cooldownInSeconds", "120") +
+                setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
+                setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
+                setSystemProperty("autoScale.controllerUri", conUri.toString());
 
         Map<String, String> map = new HashMap<>();
         map.put("HOST_OPTS", hostSystemProperties);

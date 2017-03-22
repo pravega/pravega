@@ -5,38 +5,30 @@
  */
 package com.emc.pravega.local;
 
-import com.emc.pravega.controller.fault.SegmentContainerMonitor;
-import com.emc.pravega.controller.fault.UniformContainerBalancer;
-import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
-import com.emc.pravega.controller.server.ControllerService;
-import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.server.rest.RESTServer;
-import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
+import com.emc.pravega.controller.server.ControllerServiceConfig;
+import com.emc.pravega.controller.server.ControllerServiceStarter;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
+import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
+import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.ZKStoreClient;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.task.TaskSweeper;
-import com.emc.pravega.controller.timeout.TimeoutService;
-import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import com.emc.pravega.controller.store.client.StoreClientConfig;
+import com.emc.pravega.controller.store.client.ZKClientConfig;
+import com.emc.pravega.controller.store.client.impl.StoreClientConfigImpl;
+import com.emc.pravega.controller.store.client.impl.ZKClientConfigImpl;
+import com.emc.pravega.controller.store.host.HostMonitorConfig;
+import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
-import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.service.server.host.ServiceStarter;
+import com.emc.pravega.service.server.host.stat.AutoScalerConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import lombok.Builder;
@@ -49,20 +41,16 @@ import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.retry.RetryOneTime;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.URI;
-import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 import static org.apache.bookkeeper.util.LocalBookKeeper.runZookeeper;
 
 @Slf4j
@@ -71,13 +59,15 @@ public class InProcPravegaCluster implements AutoCloseable {
     private static final int THREADPOOL_SIZE = 20;
     private final boolean isInMemStorage;
 
+    /* Cluster name */
+    private final String clusterName = "singlenode-" + UUID.randomUUID();
+
     /*Controller related variables*/
     private boolean isInprocController;
     private int controllerCount;
     private int[] controllerPorts = null;
 
     private String controllerURI = null;
-    private ControllerService[] controllerServices = null;
 
     /*SSS related variables*/
     private boolean isInprocSSS;
@@ -108,7 +98,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private LocalDLMEmulator localDlm;
     private ScheduledExecutorService[] controllerExecutors;
     @GuardedBy("$lock")
-    private GRPCServer[] controllerServers;
+    private ControllerServiceStarter[] controllerServers;
 
     private String zkUrl;
     private boolean startRestServer = false;
@@ -195,7 +185,6 @@ public class InProcPravegaCluster implements AutoCloseable {
         configureDLBinding(this.zkUrl);
 
         if (isInprocController) {
-            controllerServices = new ControllerService[controllerCount];
             startLocalControllers();
         }
 
@@ -246,7 +235,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         DistributedLogAdmin admin = new DistributedLogAdmin();
         String[] params = {"bind", "-dlzr", zkUrl, "-dlzw", zkUrl, "-s", zkUrl, "-bkzr", zkUrl,
                 "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
-                "distributedlog://" + zkUrl + "/pravega/segmentstore/containers"};
+                "distributedlog://" + zkUrl  + "/pravega/" + clusterName + "/segmentstore/containers"};
         try {
             admin.run(params);
         } catch (Exception e) {
@@ -291,14 +280,15 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                                           .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId])
-                                          .with(ServiceConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]))
+                                          .with(ServiceConfig.CLUSTER_NAME, this.clusterName))
                     .include(DurableLogConfig.builder()
                                           .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                           .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
                                           .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                     .include(ReadIndexConfig.builder()
                                           .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
-                                          .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L));
+                                          .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
+                    .include(AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]));
 
             if ( !isInMemStorage ) {
                     configBuilder = configBuilder.include(HDFSStorageConfig.builder()
@@ -306,7 +296,10 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 localHdfs.getNameNodePort())))
                             .include(DistributedLogConfig.builder()
                                     .with(DistributedLogConfig.HOSTNAME, "localhost")
-                                    .with(DistributedLogConfig.PORT, zkPort));
+                                    .with(DistributedLogConfig.PORT, zkPort)
+                                    .with(DistributedLogConfig.NAMESPACE, "/pravega/"
+                                                                            + clusterName
+                                                                            + "/segmentstore/containers"));
             }
 
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
@@ -321,98 +314,60 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalControllers() {
-        controllerServers = new GRPCServer[this.controllerCount];
-        controllerExecutors = new ScheduledExecutorService[this.controllerCount];
+        controllerServers = new ControllerServiceStarter[this.controllerCount];
 
         for (int i = 0; i < this.controllerCount; i++) {
-            startLocalController(i);
+            controllerServers[i] = startLocalController(i);
         }
         controllerURI = "localhost:" + controllerPorts[0];
 
     }
 
-    private void startLocalController(int controllerId) {
+    private ControllerServiceStarter startLocalController(int controllerId) {
+        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
+                .connectionString(zkUrl)
+                .namespace("pravega/" + clusterName)
+                .initialSleepInterval(2000)
+                .maxRetries(1)
+                .build();
 
-        ScheduledExecutorService controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
-                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
-        if ( this.controllerServers[controllerId] == null || !this.controllerServers[controllerId].isRunning()) {
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
 
-            String hostId;
-            try {
-                //On each controller report restart, it gets a fresh hostId,
-                //which is a combination of hostname and random GUID.
-                hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
-            } catch (UnknownHostException e) {
-                log.debug("Failed to get host address.", e);
-                hostId = UUID.randomUUID().toString();
-            }
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
+                .hostMonitorEnabled(true)
+                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
+                .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
+                .build();
 
-            //1. LOAD configuration.
-            CuratorFramework client = CuratorFrameworkFactory.newClient(zkUrl, new RetryOneTime(2000));
-            client.start();
+        TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
+                .maxLeaseValue(Config.MAX_LEASE_VALUE)
+                .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
+                .build();
 
-            StoreClient storeClient = new ZKStoreClient(client);
+        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
-            ZKStreamMetadataStore streamStore = new ZKStreamMetadataStore(client, controllerExecutor);
+        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
+                .port(this.controllerPorts[controllerId])
+                .build();
 
-            HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.Zookeeper);
+        ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
+                .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
+                .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
+                .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
+                .eventProcThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .storeClientConfig(storeClientConfig)
+                .hostMonitorConfig(hostMonitorConfig)
+                .timeoutServiceConfig(timeoutServiceConfig)
+                .eventProcessorConfig(Optional.of(eventProcessorConfig))
+                .requestHandlersEnabled(true)
+                .grpcServerConfig(Optional.of(grpcServerConfig))
+                .restServerConfig(Optional.empty())
+                .build();
 
-            TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
-
-            SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, ZKUtils.getCuratorClient(),
-                    new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
-            monitor.startAsync();
-
-            SegmentHelper segmentHelper = new SegmentHelper();
-            ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
-            StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, hostId, connectionFactory);
-            StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                    streamStore, hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId, connectionFactory);
-
-            TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
-
-            ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, timeoutService, segmentHelper, controllerExecutor);
-
-            // Start the RPC server.
-            log.info("Starting gRPC server");
-            GRPCServerConfig gRPCServerConfig = GRPCServerConfig.builder().port(this.controllerPorts[controllerId])
-                    .build();
-            GRPCServer server = new GRPCServer(controllerService, gRPCServerConfig);
-            server.startAsync();
-
-            this.controllerServers[controllerId] = server;
-            this.controllerExecutors[controllerId] = controllerExecutor;
-            // After completion of startAsync method, server is expected to be in RUNNING state.
-            // If it is not in running state, we return.
-            if (!server.isRunning()) {
-                log.error("RPC server failed to start, state = {} ", server.state());
-                return;
-            }
-
-            // Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
-            // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
-            // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
-            // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
-            // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
-            // are processed and deleted, that failed HostId is removed from FH folder.
-            // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
-            // controllers and starts sweeping tasks orphaned by those hostIds.
-            TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
-                    streamTransactionMetadataTasks);
-
-            RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
-            // 4. Start the REST server.
-            if ( this.startRestServer ) {
-                try {
-                    log.info("Starting Pravega REST Service");
-                    RESTServer.start(controllerService);
-                } catch (Exception e) {
-                    log.warn("Exception {} while starting REST server", e);
-                }
-            }
-        }
+        ControllerServiceStarter controllerServiceStarter = new ControllerServiceStarter(serviceConfig);
+        controllerServiceStarter.startAsync();
+        return controllerServiceStarter;
     }
 
     @Synchronized
@@ -434,7 +389,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             }
         }
         if (isInprocController) {
-            for ( GRPCServer controller : this.controllerServers ) {
+            for ( ControllerServiceStarter controller : this.controllerServers ) {
                     controller.stopAsync();
                 }
         }

@@ -69,8 +69,7 @@ public class MonitorTest {
         };
 
         AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
-                new AutoScalerConfig(Duration.ofMinutes(10), Duration.ofMinutes(10), Duration.ofMinutes(10),
-                        Duration.ofMinutes(10), "pravega", "requeststream", null),
+                AutoScalerConfig.builder().build(),
                 Executors.newFixedThreadPool(10), Executors.newSingleThreadScheduledExecutor());
 
         String streamSegmentName = Segment.getScopedName(SCOPE, STREAM, 0);

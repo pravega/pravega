@@ -5,8 +5,10 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.host.stat.AutoScalerConfig;
 import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -19,15 +21,14 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
@@ -52,9 +53,10 @@ public class EndToEndAutoScaleUpWithTxnTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            SegmentStatsRecorder statsRecorder = new SegmentStatsFactory().createSegmentStatsRecorder(store, "pravega", "requeststream",
-                    internalCF, Duration.ofMinutes(0),
-                    Duration.ofMinutes(0), Duration.ofMinutes(10), Duration.ofMinutes(10));
+            SegmentStatsRecorder statsRecorder = new SegmentStatsFactory().createSegmentStatsRecorder(store,
+                    internalCF,
+                    AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store, statsRecorder);
@@ -73,21 +75,26 @@ public class EndToEndAutoScaleUpWithTxnTest {
 
             startWriter(test, done);
 
-            for (int i = 0; i < 15; i++) {
-                try {
-                    StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
-                    if (streamSegments.getSegments().size() > 3) {
-                        System.err.println("Success scale up");
-                        log.debug("Success scale up");
-                        done.set(true);
-                    } else {
-                        Thread.sleep(10000);
-                    }
+            Retry.withExpBackoff(10, 10, 100, 10000)
+                    .retryingOn(NotDoneException.class)
+                    .throwingOn(RuntimeException.class)
+                    .runAsync(() -> controller.getCurrentSegments("test", "test")
+                            .thenAccept(streamSegments -> {
+                                if (streamSegments.getSegments().size() > 3) {
+                                    System.err.println("Success");
+                                    log.info("Success");
+                                    System.exit(0);
+                                } else {
+                                    throw new NotDoneException();
+                                }
+                            }), Executors.newSingleThreadScheduledExecutor())
+                    .exceptionally(e -> {
+                        System.err.println("Failure");
+                        log.error("Failure");
+                        System.exit(1);
+                        return null;
+                    }).get();
 
-                } catch (Throwable e) {
-                    e.printStackTrace();
-                }
-            }
         } catch (Throwable e) {
             System.err.print("Test failed with exception: " + e.getMessage());
             log.error("Test failed with exception: {}", e);
@@ -103,9 +110,10 @@ public class EndToEndAutoScaleUpWithTxnTest {
                 try {
                     Transaction<String> transaction = test.beginTxn(5000, 3600000, 60000);
 
-                    for (int i = 0; i < 10000; i++) {
+                    for (int i = 0; i < 1000; i++) {
                         transaction.writeEvent("0", "txntest");
                     }
+                    Thread.sleep(900);
                     transaction.commit();
                 } catch (Throwable e) {
                     System.err.println("test exception writing events " + e.getMessage());

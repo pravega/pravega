@@ -14,6 +14,7 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -156,7 +157,6 @@ public class EventProcessorTest {
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
                         .type(CheckpointConfig.Type.Periodic)
-                        .storeType(CheckpointConfig.StoreType.InMemory)
                         .checkpointPeriod(period)
                         .build();
 
@@ -175,11 +175,12 @@ public class EventProcessorTest {
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(eventProcessorGroupConfig)
                 .build();
-        EventProcessorGroup<TestEvent> eventEventProcessorGroup = system.createEventProcessorGroup(eventProcessorConfig);
+        @Cleanup
+        EventProcessorGroup<TestEvent> eventProcessorGroup =
+                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore());
 
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
         log.info("SUCCESS: received expected sum = " + expectedSum);
-        eventEventProcessorGroup.stopAll();
     }
 }

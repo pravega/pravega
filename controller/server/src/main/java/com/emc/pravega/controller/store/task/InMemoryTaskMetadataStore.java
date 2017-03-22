@@ -30,7 +30,7 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     @GuardedBy("itself")
     private final Map<String, Set<TaggedResource>> hostTable;
 
-    public InMemoryTaskMetadataStore(ScheduledExecutorService executor) {
+    InMemoryTaskMetadataStore(ScheduledExecutorService executor) {
         super(executor);
         lockTable = new HashMap<>();
         hostTable = new HashMap<>();

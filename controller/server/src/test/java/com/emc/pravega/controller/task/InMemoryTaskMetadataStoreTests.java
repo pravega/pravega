@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.controller.store.InMemoryStoreClient;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 
 import java.io.IOException;
@@ -20,7 +19,7 @@ public class InMemoryTaskMetadataStoreTests extends TaskMetadataStoreTests {
     @Override
     public void setupTaskStore() throws Exception {
         final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
-        taskMetadataStore = TaskStoreFactory.createStore(new InMemoryStoreClient(), executor);
+        taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor);
     }
 
     @Override

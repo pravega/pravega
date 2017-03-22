@@ -149,7 +149,7 @@ class LogHandle implements AutoCloseable {
     void initialize(DistributedLogNamespace namespace) throws DurableDataLogException {
         Preconditions.checkNotNull(namespace, "namespace");
         Preconditions.checkState(this.logManager == null, "LogHandle is already initialized.");
-        final long traceId = LoggerHelpers.traceEnter(log, this.logName, "initialize");
+        final long traceId = LoggerHelpers.traceEnterWithContext(log, this.logName, "initialize");
 
         // Initialize Log Manager and Log Writer.
         boolean success = false;
@@ -220,7 +220,7 @@ class LogHandle implements AutoCloseable {
         ensureNotClosed();
         Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
         Preconditions.checkNotNull(data, "data");
-        final long traceId = LoggerHelpers.traceEnter(log, this.logName, "append");
+        final long traceId = LoggerHelpers.traceEnterWithContext(log, this.logName, "append");
 
         final long transactionId = this.lastTransactionId.incrementAndGet();
 
@@ -270,7 +270,7 @@ class LogHandle implements AutoCloseable {
     CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> getReader(long afterTransactionId) throws DurableDataLogException {
         ensureNotClosed();
         Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
-        final long traceId = LoggerHelpers.traceEnter(log, this.logName, "getReader", afterTransactionId);
+        final long traceId = LoggerHelpers.traceEnterWithContext(log, this.logName, "getReader", afterTransactionId);
 
         DistributedLogReader reader;
         try {
@@ -298,7 +298,7 @@ class LogHandle implements AutoCloseable {
     CompletableFuture<Void> truncate(DLSNAddress upToAddress) {
         ensureNotClosed();
         Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
-        final long traceId = LoggerHelpers.traceEnter(log, this.logName, "truncate");
+        final long traceId = LoggerHelpers.traceEnterWithContext(log, this.logName, "truncate");
 
         log.info("{}: Truncate (LogAddress = {}).", this.logName, upToAddress);
         Future<Boolean> truncateFuture = this.logWriter.truncate(upToAddress.getDLSN());
@@ -393,7 +393,7 @@ class LogHandle implements AutoCloseable {
 
         @Override
         public synchronized DurableDataLog.ReadItem getNext() throws DurableDataLogException {
-            final long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "getNext");
+            final long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "getNext");
             try {
                 LogRecordWithDLSN baseRecord = this.baseReader.readNext(false); // NonBlocking == false -> Blocking read
                 if (baseRecord == null) {

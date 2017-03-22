@@ -184,8 +184,8 @@ public class AutoScaleTest extends AbstractScaleTests {
         startNewWriter(clientFactory, exit);
         startNewWriter(clientFactory, exit);
 
-        // overall wait for test to complete in 1500 seconds (25 minutes) or scale up, whichever happens first.
-        return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
+        // overall wait for test to complete in 260 seconds (4.2 minutes) or scale up, whichever happens first.
+        return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
                 .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_UP_STREAM_NAME)
@@ -206,9 +206,9 @@ public class AutoScaleTest extends AbstractScaleTests {
      * The test will periodically check if a scale event has occured by talking to controller via
      * controller client.
      *
+     * @param controllerUri Controller URI
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
-     * @param controllerUri Controller URI
      */
     private CompletableFuture<Void> scaleDownTest(final URI controllerUri) throws InterruptedException, URISyntaxException {
 
@@ -216,8 +216,8 @@ public class AutoScaleTest extends AbstractScaleTests {
 
         final AtomicBoolean exit = new AtomicBoolean(false);
 
-        // overall wait for test to complete in 1500 seconds (25 minutes) or scale down, whichever happens first.
-        return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
+        // overall wait for test to complete in 260 seconds (4.2 minutes) or scale down, whichever happens first.
+        return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
                 .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_DOWN_STREAM_NAME)
@@ -239,9 +239,9 @@ public class AutoScaleTest extends AbstractScaleTests {
      * The test will periodically check if a scale event has occured by talking to controller via
      * controller client.
      *
+     * @param controllerUri Controller URI
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
-     * @param controllerUri Controller URI
      */
     private CompletableFuture<Void> scaleUpTxnTest(final URI controllerUri) throws InterruptedException,
             URISyntaxException {
@@ -258,8 +258,8 @@ public class AutoScaleTest extends AbstractScaleTests {
         startNewTxnWriter(clientFactory, exit);
         startNewTxnWriter(clientFactory, exit);
 
-        // overall wait for test to complete in 1500 seconds (25 minutes) or scale up, whichever happens first.
-        return Retry.withExpBackoff(10, 10, 200, Duration.ofSeconds(10).toMillis())
+        // overall wait for test to complete in 260 seconds (4.2 minutes) or scale up, whichever happens first.
+        return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
                 .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, SCALE_UP_TXN_STREAM_NAME)

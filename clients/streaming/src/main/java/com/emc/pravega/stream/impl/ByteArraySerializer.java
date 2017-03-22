@@ -7,12 +7,13 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Serializer;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 /**
  * An implementation of {@link Serializer} that converts byte arrays.
  */
-public class ByteArraySerializer implements Serializer<byte[]> {
+public class ByteArraySerializer implements Serializer<byte[]>, Serializable {
     @Override
     public ByteBuffer serialize(byte[] value) {
         return ByteBuffer.wrap(value);

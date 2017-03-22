@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+#  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+#
+
 PORT0=${PORT0:-$bookiePort}
 PORT0=${PORT0:-3181}
 ZK_URL=${ZK_URL:-127.0.0.1:2181}
