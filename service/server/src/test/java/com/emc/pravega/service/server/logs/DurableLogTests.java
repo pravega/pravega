@@ -51,7 +51,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -1151,7 +1150,6 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         static DurableLogConfig createDurableLogConfig(Integer checkpointMinCommitCount, Long checkpointMinTotalCommitLength) {
-            Properties p = new Properties();
             if (checkpointMinCommitCount == null) {
                 checkpointMinCommitCount = Integer.MAX_VALUE;
             }
@@ -1162,6 +1160,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             return DurableLogConfig
                     .builder()
+                    .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
                     .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, checkpointMinCommitCount)
                     .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, checkpointMinTotalCommitLength)
                     .build();

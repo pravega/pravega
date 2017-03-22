@@ -190,6 +190,7 @@ public class HDFSStorageTest extends StorageTestBase {
         HDFSStorageConfig config = HDFSStorageConfig
                 .builder()
                 .with(HDFSStorageConfig.PRAVEGA_ID, pravegaId)
+                .with(HDFSStorageConfig.REPLICATION, 1)
                 .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
                 .build();
         val storage = new MiniClusterPermFixer(config, executorService());
