@@ -4,6 +4,8 @@
 
 package com.emc.pravega.common.util;
 
+import com.emc.pravega.common.Exceptions;
+import com.google.common.base.Preconditions;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -40,7 +42,9 @@ public class TypedProperties {
      * @param properties The java.util.Properties to wrap.
      * @param namespace  The namespace of this instance.
      */
-    TypedProperties(Properties properties, String namespace) {
+    public TypedProperties(Properties properties, String namespace) {
+        Preconditions.checkNotNull(properties, "properties");
+        Exceptions.checkNotNullOrEmpty(namespace, "namespace");
         this.properties = properties;
         this.keyPrefix = namespace + SEPARATOR;
     }

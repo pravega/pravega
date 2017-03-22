@@ -51,12 +51,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Read/Write handle for a particular DistributedLog Stream.
  */
 @Slf4j
+@ThreadSafe
 class LogHandle implements AutoCloseable {
     //region Members
     /**
@@ -67,6 +70,7 @@ class LogHandle implements AutoCloseable {
 
     private final AtomicLong lastTransactionId;
     private final String logName;
+    @GuardedBy("activeReaders")
     private final HashSet<DistributedLogReader> activeReaders;
     private final Consumer<LogHandle> handleClosedCallback;
     private DistributedLogManager logManager;
@@ -112,7 +116,6 @@ class LogHandle implements AutoCloseable {
             }
 
             readersToClose.forEach(DistributedLogReader::close);
-            assert this.activeReaders.size() == 0 : "Not all readers were closed.";
 
             log.info("{}: Closed (LastTransactionId = {}).", this.logName, this.lastTransactionId);
             CallbackHelpers.invokeSafely(this.handleClosedCallback, this, null);
@@ -292,19 +295,16 @@ class LogHandle implements AutoCloseable {
      * @return A CompletableFuture that, when completed, will indicate the outcome of the operation. If the operation failed,
      * the Future will be completed with the appropriate exception.
      */
-    CompletableFuture<Boolean> truncate(DLSNAddress upToAddress) {
+    CompletableFuture<Void> truncate(DLSNAddress upToAddress) {
         ensureNotClosed();
         Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
         final long traceId = LoggerHelpers.traceEnter(log, this.logName, "truncate");
 
         log.info("{}: Truncate (LogAddress = {}).", this.logName, upToAddress);
         Future<Boolean> truncateFuture = this.logWriter.truncate(upToAddress.getDLSN());
-        CompletableFuture<Boolean> result = toCompletableFuture(truncateFuture, b -> b);
+        CompletableFuture<Void> result = toCompletableFuture(truncateFuture, b -> null);
         if (log.isTraceEnabled()) {
-            result = result.thenApply(r -> {
-                LoggerHelpers.traceLeave(log, this.logName, "truncate", traceId);
-                return r;
-            });
+            result = result.thenRun(() -> LoggerHelpers.traceLeave(log, this.logName, "truncate", traceId));
         }
 
         return result;

@@ -42,7 +42,6 @@ public class ReaderGroupImpl implements ReaderGroup {
 
     private final String scope;
     private final String groupName;
-    private final Set<String> streamNames;
     private final SynchronizerConfig synchronizerConfig;
     private final Serializer<ReaderGroupStateInit> initSerializer;
     private final Serializer<ReaderGroupStateUpdate> updateSerializer;
@@ -52,22 +51,19 @@ public class ReaderGroupImpl implements ReaderGroup {
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
      * @param  config The configuration for the reader group.
-     * @param streams The streams to use.
+     * @param streams The segments to use and where to start from.
      */
     @VisibleForTesting
     public void initializeGroup(ReaderGroupConfig config, Set<String> streams) {
-        Map<Segment, Long> segments = getSegmentsForStreams(streams);
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        Map<Segment, Long> segments = getSegmentsForStreams(streams);
         ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
     }
-
+    
     private Map<Segment, Long> getSegmentsForStreams(Set<String> streams) {
         List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streams.size());
         for (String stream : streams) {
-            CompletableFuture<List<PositionInternal>> future = controller.getPositions(new StreamImpl(scope, stream), 0, 1);
-            futures.add(future.thenApply(list -> list.stream()
-                                                     .flatMap(pos -> pos.getOwnedSegmentsWithOffsets().entrySet().stream())
-                                                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
+            futures.add(controller.getSegmentsAtTime(new StreamImpl(scope, stream), 0L));
         }
         return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
             return listOfMaps.stream()

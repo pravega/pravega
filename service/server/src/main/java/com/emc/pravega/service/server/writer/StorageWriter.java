@@ -5,10 +5,10 @@
  */
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.MathHelpers;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.AbstractThreadPoolService;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -20,7 +20,6 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -30,10 +29,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-
 import lombok.SneakyThrows;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Storage Writer. Applies operations from Operation Log to Storage.
@@ -47,7 +45,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private final Storage storage;
     private final HashMap<Long, SegmentAggregator> aggregators;
     private final WriterState state;
-    private final AutoStopwatch stopwatch;
+    private final Timer timer;
     private final AckCalculator ackCalculator;
 
     //endregion
@@ -74,7 +72,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         this.storage = storage;
         this.aggregators = new HashMap<>();
         this.state = new WriterState();
-        this.stopwatch = new AutoStopwatch();
+        this.timer = new Timer();
         this.ackCalculator = new AckCalculator(this.state);
     }
 
@@ -114,21 +112,17 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     }
 
     private void beginIteration() {
-        this.state.recordIterationStarted(this.stopwatch);
+        this.state.recordIterationStarted(this.timer);
         logStageEvent("Start", null);
     }
 
     private void endIteration() {
-        logStageEvent("Finish", "Elapsed " + this.state.getElapsedSinceIterationStart(this.stopwatch).toMillis() + "ms");
+        // Perform internal cleanup (get rid of those SegmentAggregators that are closed).
+        cleanup();
+        logStageEvent("Finish", "Elapsed " + this.state.getElapsedSinceIterationStart(this.timer).toMillis() + "ms");
     }
 
     private Void iterationErrorHandler(Throwable ex) {
-        boolean critical = isCriticalError(ex);
-        if (!critical) {
-            // Perform internal cleanup (get rid of those SegmentAggregators that are closed).
-            cleanup();
-        }
-
         if (ExceptionHelpers.getRealException(ex) instanceof CancellationException && !canRun()) {
             // Writer is not running and we caught a CancellationException.
             // This is a normal behavior and it is triggered by stopAsync(); just exit without logging or triggering anything else.
@@ -136,6 +130,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             return null;
         }
 
+        boolean critical = isCriticalError(ex);
         logError(ex, critical);
         if (critical) {
             // Setting a stop exception guarantees the main Writer loop will not continue running again.
@@ -288,11 +283,27 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private void cleanup() {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "cleanup");
         val toRemove = this.aggregators.values().stream()
+                                       .map(this::closeIfNecessary)
                                        .filter(SegmentAggregator::isClosed)
                                        .map(a -> a.getMetadata().getId())
                                        .collect(Collectors.toList());
         toRemove.forEach(this.aggregators::remove);
         LoggerHelpers.traceLeave(log, this.traceObjectId, "cleanup", traceId, toRemove.size());
+    }
+
+    /**
+     * Closes the given SegmentAggregator if it is deleted in Storage or inexistent in the Container Metadata.
+     *
+     * @param aggregator The SegmentAggregator to test (and close if needed).
+     * @return The same SegmentAggregator.
+     */
+    private SegmentAggregator closeIfNecessary(SegmentAggregator aggregator) {
+        if (aggregator.getMetadata().isDeleted()
+                || this.dataSource.getStreamSegmentMetadata(aggregator.getMetadata().getId()) == null) {
+            aggregator.close();
+        }
+
+        return aggregator;
     }
 
     /**
@@ -341,7 +352,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             }
 
             // Then create the aggregator.
-            result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.stopwatch);
+            result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer);
             this.aggregators.put(streamSegmentId, result);
             result.initialize(this.config.getFlushTimeout()).join();
         }

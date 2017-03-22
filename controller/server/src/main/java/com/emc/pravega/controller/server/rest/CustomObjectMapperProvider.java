@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.server.rest;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -34,6 +35,8 @@ public class CustomObjectMapperProvider implements ContextResolver<ObjectMapper>
 
         // Allow extra unknown fields in the JSON objects.
         result.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        result.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
         return result;
     }
 }

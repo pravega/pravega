@@ -11,6 +11,7 @@ import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamReques
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+
 import java.time.Duration;
 
 /**
@@ -27,6 +28,15 @@ public class ModelHelper {
      */
     public static final StreamConfiguration getCreateStreamConfig(final CreateStreamRequest createStreamRequest,
                                                                   final String scope) {
+        RetentionPolicy retentionPolicy;
+        if (createStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.INFINITE) {
+            retentionPolicy = RetentionPolicy.INFINITE;
+        } else if (createStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.LIMITED_DAYS) {
+            retentionPolicy = RetentionPolicy.byTime(Duration.ofDays(createStreamRequest.getRetentionPolicy().getValue()));
+        } else {
+            retentionPolicy = RetentionPolicy.bySizeBytes(createStreamRequest.getRetentionPolicy().getValue());
+        }
+
         return StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(createStreamRequest.getStreamName())
@@ -36,7 +46,7 @@ public class ModelHelper {
                                .scaleFactor(createStreamRequest.getScalingPolicy().getScaleFactor())
                                .minNumSegments(createStreamRequest.getScalingPolicy().getMinSegments())
                                .build())
-                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(createStreamRequest.getRetentionPolicy().getRetentionTimeMillis())))
+                .retentionPolicy(retentionPolicy)
                 .build();
     }
 
@@ -50,6 +60,15 @@ public class ModelHelper {
      */
     public static final StreamConfiguration getUpdateStreamConfig(final UpdateStreamRequest updateStreamRequest,
                                                                   final String scope, final String stream) {
+        RetentionPolicy retentionPolicy;
+        if (updateStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.INFINITE) {
+            retentionPolicy = RetentionPolicy.INFINITE;
+        } else if (updateStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.LIMITED_DAYS) {
+            retentionPolicy = RetentionPolicy.byTime(Duration.ofDays(updateStreamRequest.getRetentionPolicy().getValue()));
+        } else {
+            retentionPolicy = RetentionPolicy.bySizeBytes(updateStreamRequest.getRetentionPolicy().getValue());
+        }
+
         return StreamConfiguration.builder()
                                   .scope(scope)
                                   .streamName(stream)
@@ -60,8 +79,7 @@ public class ModelHelper {
                                           updateStreamRequest.getScalingPolicy().getTargetRate().intValue()).scaleFactor(
                                           updateStreamRequest.getScalingPolicy().getScaleFactor()).minNumSegments(
                                           updateStreamRequest.getScalingPolicy().getMinSegments()).build())
-                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(updateStreamRequest.getRetentionPolicy()
-                                .getRetentionTimeMillis())))
+                                  .retentionPolicy(retentionPolicy)
                                   .build();
     }
 
@@ -79,18 +97,24 @@ public class ModelHelper {
         scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
         scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
 
-        RetentionConfig retentionPolicy = new RetentionConfig();
+        RetentionConfig retentionConfig = new RetentionConfig();
         if (streamConfiguration.getRetentionPolicy().getType() == RetentionPolicy.Type.TIME) {
-            retentionPolicy.setRetentionTimeMillis(streamConfiguration.getRetentionPolicy().getValue());
+            if (streamConfiguration.getRetentionPolicy().getValue() == Long.MAX_VALUE) {
+                retentionConfig.setType(RetentionConfig.TypeEnum.INFINITE);
+            } else {
+                retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
+                retentionConfig.setValue(Duration.ofMillis(streamConfiguration.getRetentionPolicy().getValue()).toDays());
+            }
         } else {
-            throw new UnsupportedOperationException("Only time based retention is supported at the moment.");
+            retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
+            retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
         }
 
         StreamProperty streamProperty = new StreamProperty();
         streamProperty.setStreamName(streamConfiguration.getStreamName());
         streamProperty.setScopeName(streamConfiguration.getScope());
         streamProperty.setScalingPolicy(scalingPolicy);
-        streamProperty.setRetentionPolicy(retentionPolicy);
+        streamProperty.setRetentionPolicy(retentionConfig);
 
         return streamProperty;
     }

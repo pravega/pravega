@@ -41,5 +41,6 @@
     <allow pkg="mesosphere.marathon"/>
     <allow pkg="feign"/>
     <allow pkg="io.grpc" />
+    <allow pkg="info.ganglia" />
 
 </import-control>

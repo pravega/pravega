@@ -24,6 +24,8 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+
+import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -51,15 +53,10 @@ public final class ServiceStarter {
 
     //region Constructor
 
-    public ServiceStarter(ServiceBuilderConfig config) {
+    public ServiceStarter(ServiceBuilderConfig config, Options options) {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::builder);
-        Options opt = new Options();
-        opt.distributedLog = true;
-        opt.hdfs = true;
-        opt.rocksDb = true;
-        opt.zkSegmentManager = true;
-        this.serviceBuilder = createServiceBuilder(opt);
+        this.serviceBuilder = createServiceBuilder(options);
     }
 
     private ServiceBuilder createServiceBuilder(Options options) {
@@ -202,7 +199,8 @@ public final class ServiceStarter {
                     .include("config.properties")
                     .include(System.getProperties())
                     .build();
-            serviceStarter.set(new ServiceStarter(config));
+            serviceStarter.set(new ServiceStarter(config, Options.builder().
+                    distributedLog(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -233,12 +231,12 @@ public final class ServiceStarter {
     //endregion
 
     //region Options
-
-    private static class Options {
-        boolean distributedLog;
-        boolean hdfs;
-        boolean rocksDb;
-        boolean zkSegmentManager;
+    @Builder
+    public static class Options {
+        final boolean distributedLog;
+        final boolean hdfs;
+        final boolean rocksDb;
+        final boolean zkSegmentManager;
     }
 
     //endregion

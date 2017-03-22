@@ -17,6 +17,7 @@ import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
+import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
@@ -33,6 +34,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -150,6 +153,13 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 },
                 ex -> ex instanceof IllegalStateException);
 
+        // The previous error could be thrown either while starting or while shutting down. In case of the former,
+        // we should wait until the writer is properly terminated.
+        AssertExtensions.assertThrows(
+                "StorageWriter did not fail when a fatal data retrieval error occurred.",
+                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                ex -> ex instanceof IllegalStateException);
+
         Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
     }
 
@@ -252,8 +262,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
             if (writeCount.incrementAndGet() % failWriteEvery == 0) {
                 return storage.write(segmentName, offset, data, length, TIMEOUT)
-                              .thenAccept(v -> {
-                                  long segmentId = context.metadata.getStreamSegmentId(segmentName);
+                              .thenRun(() -> {
                                   writeFailCount.incrementAndGet();
                                   throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
                               });
@@ -268,7 +277,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.storage.setSealInterceptor((segmentName, storage) -> {
             if (sealCount.incrementAndGet() % failSealEvery == 0) {
                 return storage.seal(segmentName, TIMEOUT)
-                              .thenAccept(v -> {
+                              .thenRun(() -> {
                                   sealFailCount.incrementAndGet();
                                   throw new IntentionalException(String.format("S=%s", segmentName));
                               });
@@ -283,7 +292,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
             if (mergeCount.incrementAndGet() % failMergeEvery == 0) {
                 return storage.concat(targetSegment, offset, sourceSegment, TIMEOUT)
-                              .thenAccept(v -> {
+                              .thenRun(() -> {
                                   mergeFailCount.incrementAndGet();
                                   throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
                               });
@@ -385,6 +394,92 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         // Verify final output.
         verifyFinalOutput(segmentContents, transactionIds, context);
+    }
+
+    /**
+     * Tests the ability of the StorageWriter to cleanup SegmentAggregators that have been deleted in Storage or are
+     * gone from the Metadata.
+     * 1. Creates 3 segments, and adds an append for each of them.
+     * 2. Marks segment 2 as deleted (in metadata) and evicts segment 3 from metadata (no deletion).
+     * 3. Runs one more Writer cycle (to clean up).
+     * 4. Reinstates the missing segment metadatas and adds appends for each of them, verifying that the Writer re-requests
+     * the metadata for those two.
+     */
+    @Test
+    public void testCleanup() throws Exception {
+        final WriterConfig config = WriterConfig.builder()
+                                                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1) // This differs from DEFAULT_CONFIG.
+                                                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 1000L)
+                                                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
+                                                .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+                                                .with(WriterConfig.MAX_ITEMS_TO_READ_AT_ONCE, 100)
+                                                .with(WriterConfig.ERROR_SLEEP_MILLIS, 0L)
+                                                .build();
+        @Cleanup
+        final TestContext context = new TestContext(config);
+        context.writer.startAsync();
+
+        // Create a bunch of segments and Transaction.
+        final ArrayList<Long> segmentIds = createSegments(context);
+        final UpdateableSegmentMetadata segment1 = context.metadata.getStreamSegmentMetadata(segmentIds.get(0));
+        final UpdateableSegmentMetadata segment2 = context.metadata.getStreamSegmentMetadata(segmentIds.get(1));
+        final UpdateableSegmentMetadata segment3 = context.metadata.getStreamSegmentMetadata(segmentIds.get(2));
+        final byte[] data = new byte[1];
+
+        Function<UpdateableSegmentMetadata, Operation> createAppend = segment -> {
+            StreamSegmentAppendOperation append = new StreamSegmentAppendOperation(segment.getId(), data, null);
+            append.setStreamSegmentOffset(segment.getDurableLogLength());
+            context.dataSource.recordAppend(append);
+            segment.setDurableLogLength(segment.getDurableLogLength() + data.length);
+            return new CachedStreamSegmentAppendOperation(append);
+        };
+
+        // Process an append for each segment, to make sure the writer has knowledge of those segments.
+        context.dataSource.add(createAppend.apply(segment1));
+        context.dataSource.add(createAppend.apply(segment2));
+        context.dataSource.add(createAppend.apply(segment3));
+        metadataCheckpoint(context);
+        context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Delete segment2 (markDeleted) and evict segment3 (by forcing the metadata to forget about it).
+        long evictionCutoff = context.metadata.nextOperationSequenceNumber() + 1;
+        context.metadata.getStreamSegmentId(segment1.getName(), true);
+        context.metadata.getStreamSegmentId(segment2.getName(), true);
+        segment2.markDeleted();
+        Collection<Long> evictedSegments = evictSegments(evictionCutoff, context);
+
+        // Make sure the right segment is evicted, and not the other two ones (there are other segments in this system which we don't care about).
+        Assert.assertTrue("Expected segment was not evicted.", evictedSegments.contains(segment3.getId()));
+        Assert.assertFalse("Unexpected segments were not evicted.", evictedSegments.contains(segment1.getId()) && evictedSegments.contains(segment3.getId()));
+
+        // Add one more append to Segment1 - this will force the writer to go on a full iteration and thus invoke cleanup.
+        context.dataSource.add(createAppend.apply(segment1));
+        metadataCheckpoint(context);
+        context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Get rid of Segment2 from the metadata.
+        evictionCutoff = context.metadata.nextOperationSequenceNumber() + 1;
+        context.metadata.getStreamSegmentId(segment1.getName(), true);
+        evictedSegments = evictSegments(evictionCutoff, context);
+        Assert.assertTrue("Expected segment was not evicted.", evictedSegments.contains(segment2.getId()));
+
+        // Repopulate the metadata.
+        val segment2Take2 = context.metadata.mapStreamSegmentId(segment2.getName(), segment2.getId());
+        val segment3Take2 = context.metadata.mapStreamSegmentId(segment3.getName(), segment3.getId());
+        segment2Take2.copyFrom(segment2);
+        segment3Take2.copyFrom(segment3);
+
+        // Add an append for each of the re-added segments and verify that the Writer re-requested the metadata, which
+        // indicates it had to recreate their SegmentAggregators.
+        HashSet<Long> requestedSegmentIds = new HashSet<>();
+        context.dataSource.setSegmentMetadataRequested(requestedSegmentIds::add);
+        context.dataSource.add(createAppend.apply(segment2Take2));
+        context.dataSource.add(createAppend.apply(segment3Take2));
+        metadataCheckpoint(context);
+        context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        Assert.assertTrue("The deleted segments did not have their metadata requested.",
+                requestedSegmentIds.contains(segment2.getId()) && requestedSegmentIds.contains(segment3.getId()));
     }
 
     /**
@@ -598,6 +693,15 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         return transactions;
     }
 
+    private Collection<Long> evictSegments(long cutoffSeqNo, TestContext context) {
+        Collection<SegmentMetadata> evictionCandidates = context.metadata.getEvictionCandidates(cutoffSeqNo);
+        context.metadata.cleanup(evictionCandidates, cutoffSeqNo);
+        return evictionCandidates
+                .stream()
+                .map(SegmentMetadata::getId)
+                .collect(Collectors.toSet());
+    }
+
     private void initializeSegment(long segmentId, TestContext context) {
         UpdateableSegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
         metadata.setDurableLogLength(0);
@@ -646,8 +750,8 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         @Override
         public void close() {
-            this.writer.close();
             this.dataSource.close();
+            this.writer.close();
             this.storage.close(); // This also closes the baseStorage.
         }
     }
