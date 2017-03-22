@@ -604,11 +604,6 @@ project('singlenode') {
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
-
-        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
-        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
-
         compile project(':service:contracts')
         compile project(':service:storage')
         compile project(':service:storage:impl')
@@ -616,10 +611,7 @@ project('singlenode') {
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion
-
-        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion
-
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
 
         compile(group: 'com.twitter', name:'distributedlog-core', version: distributedlogVersion) {
