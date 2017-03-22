@@ -703,6 +703,16 @@ project('singlenode') {
     }
 }
 
+task consoleWriter(type: JavaExec) {
+    dependencies {
+        compile project(':clients:streaming')
+    }
+
+    main = "com.emc.pravega.console.ConsoleWriter"
+    classpath = sourceSets.main.runtimeClasspath
+    args = ["--scope=myScope", "--stream=myTest", "--controller=localhost:6000"]
+}
+
 project('systemtests:tests') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client

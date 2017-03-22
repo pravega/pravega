@@ -16,8 +16,12 @@ import com.emc.pravega.stream.impl.JavaSerializer;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
-import java.net.URI;
+import lombok.extern.slf4j.Slf4j;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+
+@Slf4j
 public class ConsoleWriter {
     static volatile boolean stop = false;
 
@@ -36,7 +40,7 @@ public class ConsoleWriter {
         this.clientFactory = ClientFactory.withScope(scope, controller);
         this.writer = clientFactory.createEventWriter(stream,
                                                         new JavaSerializer<String>(),
-                                                        new EventWriterConfig.builder().build());
+                                                        EventWriterConfig.builder().build());
     }
 
     void write(String message) {
@@ -60,25 +64,29 @@ public class ConsoleWriter {
                 accepts("stream").withRequiredArg().ofType(String.class).required();
                 accepts("controller").withRequiredArg().ofType(String.class).required();
                 accepts("fixed");
-                accepts("segments").requiredIf("fixed").withRequiredArg().ofType(Integer.class);
-                accepts("scaleByEvents");
-                accepts("rate").requiredIf("scaleByEvents").withRequiredArg().ofType(Integer.class);
-                accepts("scaleByBytes");
-                accepts("rate").requiredIf("scaleBybytes").withRequiredArg().ofType(Integer.class);
-                accepts("help").forHelp();
+                //accepts("segments").requiredIf("fixed").withRequiredArg().ofType(Integer.class);
+                //accepts("scaleByEvents");
+                //accepts("rate").requiredIf("scaleByEvents").withRequiredArg().ofType(Integer.class);
+                //accepts("scaleByBytes");
+                //accepts("rate").requiredIf("scaleBybytes").withRequiredArg().ofType(Integer.class);
+                //accepts("help").forHelp();
             }
         };
 
         OptionSet options = parser.parse(args);
 
-        scope = (String) options.valueOf("scope");
-        stream = (String) options.valueOf("stream");
-        controller = new URI((String) options.valueOf("controller"));
+        try {
+            scope = (String) options.valueOf("scope");
+            stream = (String) options.valueOf("stream");
+            controller = new URI((String) options.valueOf("controller"));
 
-        // Create console writer
-        ConsoleWriter writer = new ConsoleWriter(scope, stream, controller);
-        while(!stop) {
-            writer.write(System.console().readLine());
+            // Create console writer
+            ConsoleWriter writer = new ConsoleWriter(scope, stream, controller);
+            while (!stop) {
+                writer.write(System.console().readLine());
+            }
+        } catch (URISyntaxException e) {
+            log.error("Failied to get controler URI", e);
         }
     }
 }
