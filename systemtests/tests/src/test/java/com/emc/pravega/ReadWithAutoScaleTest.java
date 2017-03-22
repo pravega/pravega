@@ -23,6 +23,7 @@ import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import lombok.Cleanup;
@@ -272,9 +273,11 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
             txn = writer.beginTxn(5000, 3600000, 29000);
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
-            if (ex.getCause().getClass().equals(io.grpc.StatusRuntimeException.class)) {
-                log.debug("Cause for failure is due to io.grpc.StatusRuntimeException");
-                throw new TxnCreationFailedException();
+            final Class<? extends Throwable> exceptionClass = ex.getCause().getClass();
+            if (exceptionClass.equals(io.grpc.StatusRuntimeException.class) || exceptionClass.equals
+                    (ConnectionClosedException.class)) {
+                log.debug("Cause for failure is {} and we need to retry", exceptionClass.getName());
+                throw new TxnCreationFailedException(); // we can retry on this exception.
             } else {
                 throw ex;
             }
