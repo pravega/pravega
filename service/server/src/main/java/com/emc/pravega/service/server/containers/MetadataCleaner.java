@@ -9,9 +9,8 @@ import com.emc.pravega.common.concurrent.AbstractThreadPoolService;
 import com.emc.pravega.common.concurrent.CancellationToken;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.AsyncMap;
+import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.UpdateableContainerMetadata;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.Collection;
@@ -20,6 +19,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -27,15 +28,19 @@ import lombok.val;
  * Utility Service that performs ContainerMetadata cleanup on a periodic basis.
  */
 @Slf4j
+@ThreadSafe
 class MetadataCleaner extends AbstractThreadPoolService {
     //region Private
 
     private final ContainerConfig config;
-    private final UpdateableContainerMetadata metadata;
+    private final EvictableMetadata metadata;
     private final AsyncMap<String, SegmentState> stateStore;
     private final Consumer<Collection<SegmentMetadata>> cleanupCallback;
     private final AtomicLong lastIterationSequenceNumber;
     private final CancellationToken stopToken;
+    private final Object singleRunLock = new Object();
+    @GuardedBy("singleRunLock")
+    private CompletableFuture<Void> currentIteration = null;
 
     //endregion
 
@@ -44,11 +49,15 @@ class MetadataCleaner extends AbstractThreadPoolService {
     /**
      * Creates a new instance of the MetadataCleaner class.
      *
-     * @param traceObjectId An identifier to use for logging purposes. This will be included at the beginning of all
-     *                      log calls initiated by this Service.
-     * @param executor      The Executor to use for async callbacks and operations.
+     * @param config          Container Configuration to use.
+     * @param metadata        An EvictableMetadata to operate on.
+     * @param stateStore      SegmentStateStore to serialize SegmentState in.
+     * @param cleanupCallback A callback to invoke every time cleanup happened.
+     * @param traceObjectId   An identifier to use for logging purposes. This will be included at the beginning of all
+     *                        log calls initiated by this Service.
+     * @param executor        The Executor to use for async callbacks and operations.
      */
-    MetadataCleaner(ContainerConfig config, UpdateableContainerMetadata metadata, AsyncMap<String, SegmentState> stateStore,
+    MetadataCleaner(ContainerConfig config, EvictableMetadata metadata, AsyncMap<String, SegmentState> stateStore,
                     Consumer<Collection<SegmentMetadata>> cleanupCallback, ScheduledExecutorService executor, String traceObjectId) {
         super(traceObjectId, executor);
         Preconditions.checkNotNull(metadata, "metadata");
@@ -76,7 +85,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
     protected CompletableFuture<Void> doRun() {
         return FutureHelpers.loop(
                 () -> !this.stopToken.isCancellationRequested(),
-                () -> delay().thenCompose(this::runOnce),
+                () -> delay().thenCompose(v -> runOnce()),
                 this.executor);
     }
 
@@ -88,13 +97,43 @@ class MetadataCleaner extends AbstractThreadPoolService {
 
     //endregion
 
-    @VisibleForTesting
-    protected CompletableFuture<Void> runOnce(Void ignored) {
+    /**
+     * Executes one iteration of the MetadataCleaner. This ensures that there cannot be more than one concurrent executions of
+     * such an iteration (whether it's from this direct call or from the regular MetadataCleaner invocation). If concurrent
+     * invocations are made, then subsequent calls will be tied to the execution of the first, and will all complete at
+     * the same time (even though there's only one executing).
+     *
+     * @return A CompletableFuture that, when completed, indicates that the operation completed (successfully or not).
+     */
+    CompletableFuture<Void> runOnce() {
+        CompletableFuture<Void> result;
+        synchronized (this.singleRunLock) {
+            if (this.currentIteration != null) {
+                // Some other iteration is in progress. Piggyback on that one and return when it is done.
+                return this.currentIteration;
+            } else {
+                // No other iteration is running.
+                this.currentIteration = new CompletableFuture<>();
+                this.currentIteration.whenComplete((r, ex) -> {
+                    // Unregister the current iteration when done.
+                    synchronized (this.singleRunLock) {
+                        this.currentIteration = null;
+                    }
+                });
+                result = this.currentIteration;
+            }
+        }
+
+        FutureHelpers.completeAfter(this::runOnceInternal, result);
+        return result;
+    }
+
+    private CompletableFuture<Void> runOnceInternal() {
         long lastSeqNo = this.lastIterationSequenceNumber.getAndSet(this.metadata.getOperationSequenceNumber());
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "metadataCleanup", lastSeqNo);
 
         // Get candidates.
-        Collection<SegmentMetadata> cleanupCandidates = this.metadata.getEvictionCandidates(lastSeqNo);
+        Collection<SegmentMetadata> cleanupCandidates = this.metadata.getEvictionCandidates(lastSeqNo, this.config.getMaxConcurrentSegmentEvictionCount());
 
         // Serialize only those segments that are still alive (not deleted or merged - those will get removed anyway).
         val cleanupTasks = cleanupCandidates

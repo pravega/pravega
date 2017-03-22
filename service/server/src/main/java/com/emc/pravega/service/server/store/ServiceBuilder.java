@@ -16,7 +16,6 @@ import com.emc.pravega.service.server.containers.ContainerConfig;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
-import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.mocks.LocalSegmentContainerManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
@@ -25,6 +24,7 @@ import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
+import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
@@ -359,7 +359,7 @@ public final class ServiceBuilder implements AutoCloseable {
          * Gets the Configuration with specified constructor from the ServiceBuilder's config.
          *
          * @param builderConstructor A Supplier that creates a ConfigBuilder for the desired configuration type.
-         * @param <T>         The type of the Configuration to instantiate.
+         * @param <T>                The type of the Configuration to instantiate.
          */
         public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> builderConstructor) {
             return this.builder.serviceBuilderConfig.getConfig(builderConstructor);

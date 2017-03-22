@@ -68,7 +68,7 @@ class LogClient implements AutoCloseable {
 
     @Override
     public void close() {
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "close", this.closed);
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "close", this.closed);
         if (!this.closed) {
             ArrayList<LogHandle> handlesToClose;
             synchronized (this.handles) {
@@ -108,7 +108,7 @@ class LogClient implements AutoCloseable {
      *                                 the failure reason.
      */
     public void initialize() throws DurableDataLogException {
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "initialize");
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.namespace == null, "LogClient is already initialized.");
 

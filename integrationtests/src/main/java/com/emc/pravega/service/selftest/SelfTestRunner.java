@@ -33,7 +33,7 @@ public class SelfTestRunner {
         @Cleanup
         SelfTest test = new SelfTest(testConfig, builderConfig);
 
-        // Star the test.
+        // Start the test.
         test.startAsync().awaitRunning(testConfig.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 
         // Wait for the test to finish.
@@ -59,7 +59,8 @@ public class SelfTestRunner {
                                         .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
                 .include(ContainerConfig.builder()
                                         .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,
-                                                ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS))
+                                                ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS)
+                                        .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 500))
                 .build();
     }
 

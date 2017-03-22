@@ -4,6 +4,7 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -35,7 +36,7 @@ public class StreamSegmentContainerMetadataTests {
      */
     @Test
     public void testSequenceNumber() {
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
         for (long expectedSeqNo = 1; expectedSeqNo < 100; expectedSeqNo++) {
             long actualSeqNo = m.nextOperationSequenceNumber();
             Assert.assertEquals("Unexpected result from nextOperationSequenceNumber.", expectedSeqNo, actualSeqNo);
@@ -70,7 +71,7 @@ public class StreamSegmentContainerMetadataTests {
      */
     @Test
     public void testMapStreamSegment() {
-        final StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
         final HashMap<Long, Long> segmentIds = new HashMap<>();
         for (long i = 0; i < SEGMENT_COUNT; i++) {
             final long segmentId = segmentIds.size();
@@ -141,12 +142,46 @@ public class StreamSegmentContainerMetadataTests {
     }
 
     /**
+     * Tests the ability of the metadata to enforce the Maximum Active Segment Count rule.
+     */
+    @Test
+    public void testMaxActiveSegmentCount() {
+        final int maxCount = 2;
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID)
+                .withMaxActiveSegmentCount(maxCount)
+                .build();
+
+        // Map 1 segment + 1 transactions. These should fill up the capacity.
+        m.mapStreamSegmentId("1", 1);
+        m.mapStreamSegmentId("2", 2, 1);
+
+        // Verify we cannot map anything now.
+        AssertExtensions.assertThrows(
+                "Metadata allowed mapping more segments than indicated (segment).",
+                () -> m.mapStreamSegmentId("3", 3),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertThrows(
+                "Metadata allowed mapping more segments than indicated (transaction).",
+                () -> m.mapStreamSegmentId("3", 3, 1),
+                ex -> ex instanceof IllegalStateException);
+
+        // Verify we are allowed to do this in recovery mode.
+        m.enterRecoveryMode();
+        m.mapStreamSegmentId("3", 3);
+        m.mapStreamSegmentId("4", 4, 3);
+        m.exitRecoveryMode();
+        Assert.assertNotNull("Metadata did not map new segment that exceeded the quota in recovery mode.", m.getStreamSegmentMetadata(3));
+        Assert.assertNotNull("Metadata did not map new transaction that exceeded the quota in recovery mode.", m.getStreamSegmentMetadata(4));
+    }
+
+    /**
      * Tests the ability to delete a StreamSegment from the metadata, as well as any dependent (Transaction) StreamSegments.
      */
     @Test
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testDeleteStreamSegment() {
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
         ArrayList<Long> segmentIds = new ArrayList<>();
         for (long i = 0; i < SEGMENT_COUNT; i++) {
             final long segmentId = segmentIds.size();
@@ -226,7 +261,7 @@ public class StreamSegmentContainerMetadataTests {
     @Test
     public void testReset() {
         // Segments, Sequence Number + Truncation markers
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
 
         // Set a high Sequence Number
         m.enterRecoveryMode();
@@ -281,7 +316,7 @@ public class StreamSegmentContainerMetadataTests {
         final long maxSeqNo = 1000;
         final int markerFrequency = 13;
         Function<Long, LogAddress> getFrameAddress = seqNo -> new TestLogAddress(Integer.MAX_VALUE + seqNo * seqNo);
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
 
         // Record some truncation markers, starting a few steps after initial.
         for (long seqNo = markerFrequency; seqNo <= maxSeqNo; seqNo += markerFrequency) {
@@ -329,7 +364,7 @@ public class StreamSegmentContainerMetadataTests {
      */
     @Test
     public void testValidTruncationPoints() {
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
         for (int i = 0; i < 100; i += 2) {
             m.setValidTruncationPoint(i);
         }
@@ -349,7 +384,7 @@ public class StreamSegmentContainerMetadataTests {
      * 5. "Expires" all segments and verifies they are all identified as candidates.
      */
     @Test
-    public void testGetCleanupCandidates() {
+    public void testGetEvictionCandidates() {
         // Expire each segment at a different stage.
         final long firstStageExpiration = SEGMENT_COUNT;
         final long transactionExpiration = firstStageExpiration + SEGMENT_COUNT;
@@ -359,7 +394,7 @@ public class StreamSegmentContainerMetadataTests {
         // Each segment has a 'LastKnownSequenceNumber' set in incremental order.
         final ArrayList<Long> segments = new ArrayList<>();
         final HashMap<Long, Long> transactions = new HashMap<>();
-        final StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final StreamSegmentContainerMetadata m = new MetadataBuilder(CONTAINER_ID).buildAs();
         populateSegmentsForEviction(segments, transactions, m);
 
         for (int i = 0; i < segments.size(); i++) {
@@ -376,6 +411,13 @@ public class StreamSegmentContainerMetadataTests {
             }
         }
 
+        // Add one segment that will be deleted. This should be evicted as soon as its LastUsed is before the truncation point.
+        final long deletedSegmentId = segments.size();
+        UpdateableSegmentMetadata deletedSegment = m.mapStreamSegmentId(getName(deletedSegmentId), deletedSegmentId);
+        deletedSegment.markDeleted();
+        deletedSegment.setLastUsed(firstStageExpiration);
+        segments.add(deletedSegmentId);
+
         // Verify that not-yet-truncated operations will not be selected for truncation.
         val truncationPoints = Arrays.asList(0L, firstStageExpiration, transactionExpiration, finalExpiration, finalExpiration + 1);
         Collection<SegmentMetadata> evictionCandidates;
@@ -384,20 +426,70 @@ public class StreamSegmentContainerMetadataTests {
             m.removeTruncationMarkers(truncatedSeqNo);
 
             // Try to evict everything.
-            evictionCandidates = m.getEvictionCandidates(finalExpiration + 1);
+            evictionCandidates = m.getEvictionCandidates(finalExpiration + 1, Integer.MAX_VALUE);
             checkEvictedSegmentCandidates(evictionCandidates, transactions, m, finalExpiration + 1, truncatedSeqNo);
         }
 
         // Now we expire transactions.
-        evictionCandidates = m.getEvictionCandidates(transactionExpiration + 1);
+        evictionCandidates = m.getEvictionCandidates(transactionExpiration + 1, Integer.MAX_VALUE);
         checkEvictedSegmentCandidates(evictionCandidates, transactions, m, transactionExpiration + 1, Long.MAX_VALUE);
 
         // Now we expire all segments.
-        evictionCandidates = m.getEvictionCandidates(finalExpiration + 1);
+        evictionCandidates = m.getEvictionCandidates(finalExpiration + 1, Integer.MAX_VALUE);
         checkEvictedSegmentCandidates(evictionCandidates, transactions, m, finalExpiration + 1, Long.MAX_VALUE);
 
         // Check that, in the end, all segments in the metadata have been selected for eviction.
         Assert.assertEquals("Not all segments were evicted.", segments.size(), evictionCandidates.size());
+    }
+
+    /**
+     * Tests the ability to identify Segment Metadatas that are not in use anymore and are eligible for eviction when
+     * there is an upper limit on how many such segments can be evicted at once.
+     */
+    @Test
+    public void testGetEvictionCandidatesCapped() {
+        final int maxEvictionCount = SEGMENT_COUNT / 10;
+        final ArrayList<Long> segments = new ArrayList<>();
+        final StreamSegmentContainerMetadata m = new MetadataBuilder(CONTAINER_ID).buildAs();
+        for (int i = 0; i < SEGMENT_COUNT; i++) {
+            long segmentId = SEGMENT_COUNT - segments.size();
+            m.mapStreamSegmentId(getName(segmentId), segmentId);
+            segments.add(segmentId);
+        }
+
+        for (int i = 0; i < segments.size(); i++) {
+            UpdateableSegmentMetadata segmentMetadata = m.getStreamSegmentMetadata(segments.get(i));
+            segmentMetadata.setLastUsed(i);
+            m.removeTruncationMarkers(i + 1);
+        }
+
+        // Verify that not-yet-truncated operations will not be selected for truncation.
+        Collection<SegmentMetadata> evictionCandidates;
+
+        // Expire all segments, one by one, and verify that only at most maxEvictionCount are returned, and when they are
+        // capped, only the oldest-used segments are returned, in order.
+        for (int i = 0; i < SEGMENT_COUNT; i++) {
+            int requestedCount = i + 1;
+            evictionCandidates = m.getEvictionCandidates(requestedCount, maxEvictionCount);
+            int expectedCount = Math.min(maxEvictionCount, requestedCount);
+            Assert.assertEquals("Unexpected number of segments eligible for eviction.", expectedCount, evictionCandidates.size());
+            if (requestedCount <= maxEvictionCount) {
+                int expectedSegmentIndex = expectedCount - 1;
+                for (SegmentMetadata candidate : evictionCandidates) {
+                    Assert.assertEquals("Unexpected segment id chosen for eviction when less than Max.",
+                            (long) segments.get(expectedSegmentIndex), candidate.getId());
+                    expectedSegmentIndex--;
+                }
+            } else {
+                // We were capped - make sure only the oldest-used segments are returned, in order.
+                int expectedSegmentIndex = 0;
+                for (SegmentMetadata candidate : evictionCandidates) {
+                    Assert.assertEquals("Unexpected segment id chosen for eviction when more than Max.",
+                            (long) segments.get(expectedSegmentIndex), candidate.getId());
+                    expectedSegmentIndex++;
+                }
+            }
+        }
     }
 
     /**
@@ -411,7 +503,7 @@ public class StreamSegmentContainerMetadataTests {
     @Test
     public void testCleanup() {
         // Expire each Segment at a different stage.
-        final StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final StreamSegmentContainerMetadata m = new MetadataBuilder(CONTAINER_ID).buildAs();
 
         // Create a number of segments, out of which every 4th one has a transaction (25%).
         // Each segment has a 'LastUsed' set in incremental order.
@@ -430,7 +522,7 @@ public class StreamSegmentContainerMetadataTests {
 
         // Truncate everything and expire all segments.
         m.removeTruncationMarkers(maxLastUsed);
-        Collection<SegmentMetadata> evictionCandidates = m.getEvictionCandidates(maxLastUsed);
+        Collection<SegmentMetadata> evictionCandidates = m.getEvictionCandidates(maxLastUsed, Integer.MAX_VALUE);
 
         // Pick a Transaction and a non-related Segment and touch them. Then verify all but the three involved Segments are evicted.
         final long touchedSeqNo = maxLastUsed + 10;
@@ -459,7 +551,7 @@ public class StreamSegmentContainerMetadataTests {
         }
 
         // Now expire the remaining segments and verify.
-        evictionCandidates = m.getEvictionCandidates(touchedSeqNo + 1);
+        evictionCandidates = m.getEvictionCandidates(touchedSeqNo + 1, Integer.MAX_VALUE);
         evictedSegments = m.cleanup(evictionCandidates, touchedSeqNo + 1);
 
         Assert.assertEquals("Unexpected number of segments were evicted (second-cleanup).",
@@ -489,7 +581,7 @@ public class StreamSegmentContainerMetadataTests {
         HashSet<Long> candidateIds = new HashSet<>();
         for (SegmentMetadata candidate : candidates) {
             // Check that all segments in candidates are actually eligible for removal.
-            boolean isEligible = shouldExpectRemoval(candidate.getId(), metadata, transactions, cutoffSeqNo);
+            boolean isEligible = shouldExpectRemoval(candidate.getId(), metadata, transactions, cutoffSeqNo, truncatedSeqNo);
             Assert.assertTrue("Unexpected eviction candidate in segment " + candidate.getId(), isEligible);
 
             // Check that all segments in candidates are not actually removed from the metadata.
@@ -503,14 +595,19 @@ public class StreamSegmentContainerMetadataTests {
         // Check that all segments remaining in the metadata are still eligible to remain there.
         for (long segmentId : metadata.getAllStreamSegmentIds()) {
             if (!candidateIds.contains(segmentId)) {
-                boolean expectedRemoved = shouldExpectRemoval(segmentId, metadata, transactions, cutoffSeqNo);
+                boolean expectedRemoved = shouldExpectRemoval(segmentId, metadata, transactions, cutoffSeqNo, truncatedSeqNo);
                 Assert.assertFalse("Unexpected non-eviction for segment " + segmentId, expectedRemoved);
             }
         }
     }
 
-    private boolean shouldExpectRemoval(long segmentId, ContainerMetadata m, Map<Long, Long> transactions, long cutoffSeqNo) {
+    private boolean shouldExpectRemoval(long segmentId, ContainerMetadata m, Map<Long, Long> transactions, long cutoffSeqNo, long truncatedSeqNo) {
         SegmentMetadata segmentMetadata = m.getStreamSegmentMetadata(segmentId);
+        if (segmentMetadata.isDeleted()) {
+            // Deleted segments are immediately eligible for eviction as soon as their last op is truncated out.
+            return segmentMetadata.getLastUsed() <= truncatedSeqNo;
+        }
+
         SegmentMetadata transactionMetadata = null;
         if (transactions.containsKey(segmentId)) {
             transactionMetadata = m.getStreamSegmentMetadata(transactions.get(segmentId));
