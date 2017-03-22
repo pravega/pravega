@@ -59,6 +59,9 @@ public class InProcPravegaCluster implements AutoCloseable {
     private static final int THREADPOOL_SIZE = 20;
     private final boolean isInMemStorage;
 
+    /* Cluster name */
+    private String clusterName = "singlenode-" + UUID.randomUUID();
+
     /*Controller related variables*/
     private boolean isInprocController;
     private int controllerCount;
@@ -232,7 +235,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         DistributedLogAdmin admin = new DistributedLogAdmin();
         String[] params = {"bind", "-dlzr", zkUrl, "-dlzw", zkUrl, "-s", zkUrl, "-bkzr", zkUrl,
                 "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
-                "distributedlog://" + zkUrl + "/pravega/segmentstore/containers"};
+                "distributedlog://" + zkUrl  + "/pravega/" + clusterName + "/segmentstore/containers"};
         try {
             admin.run(params);
         } catch (Exception e) {
@@ -276,7 +279,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                                           .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
-                                          .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId]))
+                                          .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId])
+                                          .with(ServiceConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0])
+                                          .with(ServiceConfig.CLUSTER_NAME, this.clusterName))
                     .include(DurableLogConfig.builder()
                                           .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                           .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
@@ -292,7 +297,10 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 localHdfs.getNameNodePort())))
                             .include(DistributedLogConfig.builder()
                                     .with(DistributedLogConfig.HOSTNAME, "localhost")
-                                    .with(DistributedLogConfig.PORT, zkPort));
+                                    .with(DistributedLogConfig.PORT, zkPort)
+                                    .with(DistributedLogConfig.NAMESPACE, "/pravega/"
+                                                                            + clusterName
+                                                                            + "/segmentstore/containers"));
             }
 
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
@@ -317,10 +325,9 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private ControllerServiceStarter startLocalController(int controllerId) {
-
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                 .connectionString(zkUrl)
-                .namespace("pravega/" + UUID.randomUUID())
+                .namespace("pravega/" + clusterName)
                 .initialSleepInterval(2000)
                 .maxRetries(1)
                 .build();
