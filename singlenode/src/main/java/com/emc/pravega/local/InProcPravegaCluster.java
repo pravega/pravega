@@ -280,7 +280,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                                           .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId])
-                                          .with(ServiceConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0])
                                           .with(ServiceConfig.CLUSTER_NAME, this.clusterName))
                     .include(DurableLogConfig.builder()
                                           .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
