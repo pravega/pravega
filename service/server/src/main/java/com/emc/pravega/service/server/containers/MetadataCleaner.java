@@ -114,29 +114,17 @@ class MetadataCleaner extends AbstractThreadPoolService {
             } else {
                 // No other iteration is running.
                 this.currentIteration = new CompletableFuture<>();
-                result = this.currentIteration;
-
-                // Unregister the current iteration when done.
                 this.currentIteration.whenComplete((r, ex) -> {
+                    // Unregister the current iteration when done.
                     synchronized (this.singleRunLock) {
                         this.currentIteration = null;
                     }
                 });
+                result = this.currentIteration;
             }
         }
 
-        try {
-            CompletableFuture<Void> f = runOnceInternal();
-
-            // Async termination.
-            f.thenAccept(result::complete);
-            FutureHelpers.exceptionListener(f, result::completeExceptionally);
-        } catch (Throwable ex) {
-            // Synchronous termination.
-            result.completeExceptionally(ex);
-            throw ex;
-        }
-
+        FutureHelpers.completeAfter(this::runOnceInternal, result);
         return result;
     }
 

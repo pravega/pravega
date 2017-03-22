@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.concurrent;
 
@@ -22,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -224,6 +223,57 @@ public class FutureHelpersTests {
                 "Unexpected behavior when filter threw an exception.",
                 () -> FutureHelpers.filter(list, futureEvenFilter),
                 ex -> ex instanceof IntentionalException);
+    }
+
+    @Test
+    public void testCompleteAfter() {
+        // Async exceptions (before call to completeAfter).
+        val toFail1 = new CompletableFuture<Integer>();
+        FutureHelpers.completeAfter(() -> FutureHelpers.failedFuture(new IntentionalException()), toFail1);
+        Assert.assertTrue("Async exceptions were not propagated properly (before).", toFail1.isCompletedExceptionally());
+        AssertExtensions.assertThrows(
+                "Unexpected async exception got propagated (before).",
+                toFail1::join,
+                ex -> ex instanceof IntentionalException);
+
+        // Async exceptions (after call to completeAfter).
+        val sourceToFail2 = new CompletableFuture<Integer>();
+        val toFail2 = new CompletableFuture<Integer>();
+        FutureHelpers.completeAfter(() -> sourceToFail2, toFail2);
+        sourceToFail2.completeExceptionally(new IntentionalException());
+        Assert.assertTrue("Async exceptions were not propagated properly (after).", toFail2.isCompletedExceptionally());
+        AssertExtensions.assertThrows(
+                "Unexpected async exception got propagated (after).",
+                toFail2::join,
+                ex -> ex instanceof IntentionalException);
+
+        // Sync exceptions.
+        val toFail3 = new CompletableFuture<Integer>();
+        AssertExtensions.assertThrows(
+                "Sync exception did not get rethrown.",
+                () -> FutureHelpers.completeAfter(() -> {
+                    throw new IntentionalException();
+                }, toFail3),
+                ex -> ex instanceof IntentionalException);
+        Assert.assertTrue("Sync exceptions were not propagated properly.", toFail3.isCompletedExceptionally());
+        AssertExtensions.assertThrows(
+                "Unexpected sync exception got propagated.",
+                toFail3::join,
+                ex -> ex instanceof IntentionalException);
+
+        // Normal completion (before call to completeAfter).
+        val toComplete1 = new CompletableFuture<Integer>();
+        FutureHelpers.completeAfter(() -> CompletableFuture.completedFuture(1), toComplete1);
+        Assert.assertTrue("Normal completion did not happen (before).", FutureHelpers.isSuccessful(toComplete1));
+        Assert.assertEquals("Unexpected value from normal completion (before).", 1, (int) toComplete1.join());
+
+        // Normal completion (after call to completeAfter).
+        val sourceToComplete2 = new CompletableFuture<Integer>();
+        val toComplete2 = new CompletableFuture<Integer>();
+        FutureHelpers.completeAfter(() -> sourceToComplete2, toComplete2);
+        sourceToComplete2.complete(2);
+        Assert.assertTrue("Normal completion did not happen (after).", FutureHelpers.isSuccessful(toComplete2));
+        Assert.assertEquals("Unexpected value from normal completion (after).", 2, (int) toComplete2.join());
     }
 
     @Test
