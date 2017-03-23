@@ -241,7 +241,6 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 monitor.stopAsync();
             }
             timeoutService.stopAsync();
-            connectionFactory.close();
             streamMetadataTasks.close();
             streamTransactionMetadataTasks.close();
 
@@ -273,6 +272,9 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting termination of segment container monitor");
                 monitor.awaitTerminated();
             }
+
+            log.info("Closing connection factory");
+            connectionFactory.close();
 
             log.info("Awaiting termination of eventProc executor");
             eventProcExecutor.awaitTermination(5, TimeUnit.SECONDS);

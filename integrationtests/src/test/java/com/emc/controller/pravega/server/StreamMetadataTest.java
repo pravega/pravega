@@ -3,7 +3,6 @@
  */
 package com.emc.controller.pravega.server;
 
-import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -50,7 +49,7 @@ public class StreamMetadataTest {
                 controllerPort,
                 "localhost",
                 servicePort,
-                Config.HOST_STORE_CONTAINER_COUNT);
+                4);
         controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
