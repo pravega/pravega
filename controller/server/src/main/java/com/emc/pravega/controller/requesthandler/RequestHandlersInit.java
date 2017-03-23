@@ -78,10 +78,10 @@ public class RequestHandlersInit {
                 .thenCompose(z -> SCALE_REQUEST_READER_REF.get().run());
     }
 
-    public static void shutdownRequestHandlers() {
+    public static void shutdownRequestHandlers() throws Exception {
         final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = SCALE_REQUEST_READER_REF.getAndSet(null);
         if (prevHandler != null) {
-            prevHandler.stop();
+            prevHandler.close();
         }
     }
 
