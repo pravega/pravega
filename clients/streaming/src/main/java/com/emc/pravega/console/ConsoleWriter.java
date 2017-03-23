@@ -36,10 +36,7 @@ public class ConsoleWriter {
     private ClientFactory clientFactory;
     private EventStreamWriter writer;
 
-    ConsoleWriter() { }
-
-    void configure(OptionSet options)
-    throws URISyntaxException {
+    void configure(OptionSet options) throws URISyntaxException {
         this.scope = (String) options.valueOf("scope");
         this.stream = (String) options.valueOf("stream");
         this.controller = new URI((String) options.valueOf("controller"));
@@ -54,6 +51,7 @@ public class ConsoleWriter {
             ScalingPolicy.byDataRate((Integer) options.valueOf("byteRate"), 1, 1);
         }
 
+        this.manager.createScope();
         this.manager.createStream(stream, StreamConfiguration.builder()
                                                              .scope(this.scope)
                                                              .streamName(this.stream)
@@ -67,6 +65,7 @@ public class ConsoleWriter {
 
     void write(String message) {
         this.writer.writeEvent(message);
+        this.writer.flush();
     }
 
     public static void main(String[] args) {
