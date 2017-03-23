@@ -33,6 +33,7 @@ import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -144,6 +145,7 @@ public class TimeoutServiceTest {
         final String hostId = "host";
 
         // Instantiate test ZK service.
+        @Cleanup
         TestingServer zkTestServer = new TestingServer();
         String connectionString = zkTestServer.getConnectString();
 
