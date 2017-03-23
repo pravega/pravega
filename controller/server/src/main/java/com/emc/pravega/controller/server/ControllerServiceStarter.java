@@ -273,9 +273,6 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 monitor.awaitTerminated();
             }
 
-            log.info("Closing connection factory");
-            connectionFactory.close();
-
             log.info("Awaiting termination of eventProc executor");
             eventProcExecutor.awaitTermination(5, TimeUnit.SECONDS);
 
@@ -290,6 +287,9 @@ public final class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Awaiting termination of controllerService executor");
             controllerServiceExecutor.awaitTermination(5, TimeUnit.SECONDS);
+
+            log.info("Closing connection factory");
+            connectionFactory.close();
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
