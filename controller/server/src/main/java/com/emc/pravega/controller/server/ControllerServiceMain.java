@@ -6,7 +6,6 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.google.common.annotations.VisibleForTesting;
@@ -19,7 +18,6 @@ import org.apache.zookeeper.Watcher;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * ControllerServiceMonitor, entry point into the controller service.
@@ -30,8 +28,9 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     private final String objectId;
     private final ControllerServiceConfig serviceConfig;
     private ControllerServiceStarter starter;
-    private final CountDownLatch staterInitialized;
+    private CountDownLatch staterInitialized;
     private final CompletableFuture<Void> serviceStopFuture;
+    private StoreClient storeClient;
 
     @AllArgsConstructor
     static class ZKWatcher implements Watcher {
@@ -54,6 +53,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
     @Override
     protected void triggerShutdown() {
+        log.info("Shutting down ControllerServiceMain");
         this.serviceStopFuture.complete(null);
     }
 
@@ -67,7 +67,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 while (isRunning()) {
                     // Create store client.
                     log.info("Creating store client");
-                    StoreClient storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
+                    storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
 
                     // Client should be ZK if controller cluster is enabled.
                     CuratorFramework client = (CuratorFramework) storeClient.getClient();
@@ -97,16 +97,20 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
                     // Once ZK session expires or once ControllerServiceMain is externally stopped,
                     // stop ControllerServiceStarter.
+                    if (sessionExpiryFuture.isDone()) {
+                        storeClient.close();
+                    }
                     log.info("Stopping ControllerServiceStarter");
                     starter.stopAsync();
 
+                    staterInitialized = new CountDownLatch(1);
                     log.info("Awaiting termination of ControllerServiceStarter");
                     starter.awaitTerminated();
                 }
             } else {
                 // Create store client.
                 log.info("Creating store client");
-                StoreClient storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
+                storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
 
                 // Start controller services.
                 log.info("Starting controller services");
@@ -122,6 +126,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 log.info("Stopping controller services");
                 starter.stopAsync();
 
+                staterInitialized = new CountDownLatch(1);
                 log.info("Awaiting termination of controller services");
                 starter.awaitTerminated();
             }
@@ -131,26 +136,14 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     }
 
     @VisibleForTesting
-    public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
+    public StoreClient getStoreClient() throws InterruptedException {
         staterInitialized.await();
-        return this.starter.awaitTasksModuleInitialization(timeout, timeUnit);
+        return this.storeClient;
     }
 
     @VisibleForTesting
-    public ControllerService getControllerService() throws InterruptedException {
+    public ControllerServiceStarter getStarter() throws InterruptedException {
         staterInitialized.await();
-        return this.starter.getControllerService();
-    }
-
-    @VisibleForTesting
-    public LocalController getController() throws InterruptedException {
-        staterInitialized.await();
-        return this.starter.getController();
-    }
-
-    @VisibleForTesting
-    public void awaitStarterRunning() throws InterruptedException {
-        staterInitialized.await();
-        this.starter.awaitRunning();
+        return this.starter;
     }
 }

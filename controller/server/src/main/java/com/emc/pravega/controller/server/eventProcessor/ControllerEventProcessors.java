@@ -7,6 +7,7 @@ package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -30,6 +31,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -96,6 +98,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
         try {
             log.info("Starting controller event processors");
             initialize();
+            log.info("Controller event processors startUp complete");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
@@ -105,8 +108,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
     protected void shutDown() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
         try {
-            log.info("Stopping controller event processors.");
+            log.info("Stopping controller event processors");
             stopEventProcessors();
+            log.info("Controller event processors shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
@@ -130,14 +134,15 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .build();
 
         return createScope(controller, config.getScopeName(), executor)
-                .thenCompose(ignore ->
+                .thenComposeAsync(ignore ->
                         CompletableFuture.allOf(createStream(controller, commitStreamConfig, executor),
-                                createStream(controller, abortStreamConfig, executor)));
+                                createStream(controller, abortStreamConfig, executor)), executor);
     }
 
     private static CompletableFuture<Void> createScope(final Controller controller,
                                                        final String scopeName,
                                                        final ScheduledExecutorService executor) {
+        log.info("Creating controller scope {}", scopeName);
         return Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor scope " + scopeName, e))
                 .runAsync(() -> controller.createScope(scopeName)
@@ -154,6 +159,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private static CompletableFuture<Void> createStream(final Controller controller,
                                                         final StreamConfiguration streamConfig,
                                                         final ScheduledExecutorService executor) {
+        log.info("Creating controller stream {}/{}", streamConfig.getScope(), streamConfig.getStreamName());
         return Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
                 .runAsync(() -> controller.createStream(streamConfig)
@@ -171,9 +177,41 @@ public class ControllerEventProcessors extends AbstractIdleService {
                                                     final ControllerEventProcessorConfig config,
                                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                                     final ScheduledExecutorService executor) {
+        log.info("Bootstrapping controller event processors");
         return ControllerEventProcessors.createStreams(localController, config, executor)
                 .thenAcceptAsync(x -> streamTransactionMetadataTasks.initializeStreamWriters(localController, config),
                         executor);
+    }
+
+    public void handleOrphanedReaders(final Set<String> activeProcesses) {
+        log.info("Handling orphaned readers from processes {}", activeProcesses);
+        if (this.commitEventEventProcessors != null) {
+            handleOrphanedReaders(this.commitEventEventProcessors, activeProcesses);
+        }
+        if (this.abortEventEventProcessors != null) {
+            handleOrphanedReaders(this.abortEventEventProcessors, activeProcesses);
+        }
+    }
+
+    private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
+                                       final Set<String> activeProcesses) {
+        Set<String> registeredProcesses = null;
+        try {
+            registeredProcesses = group.getProcesses();
+        } catch (CheckpointStoreException e) {
+            log.error(String.format("Error fetching processes registered in event processor group %s", group.toString()), e);
+            return;
+        }
+        registeredProcesses.removeAll(activeProcesses);
+        // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
+        for (String process : registeredProcesses) {
+            try {
+                group.notifyProcessFailure(process);
+            } catch (CheckpointStoreException | NullPointerException e) {
+                log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
+                        group.toString()), e);
+            }
+        }
     }
 
     private void initialize() throws Exception {

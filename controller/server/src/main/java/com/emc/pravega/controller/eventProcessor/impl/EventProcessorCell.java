@@ -73,7 +73,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
         @Override
         protected final void startUp() {
-            log.debug("Event processor STARTUP {}, state={}", objectId, state());
+            log.info("Event processor STARTUP {}, state={}", objectId, state());
             try {
                 actor.beforeStart();
             } catch (Exception e) {
@@ -106,7 +106,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
         @Override
         protected final void shutDown() throws Exception {
-            log.debug("Event processor SHUTDOWN {}, state={}", objectId, state());
+            log.info("Event processor SHUTDOWN {}, state={}", objectId, state());
             try {
                 actor.afterStop();
             } catch (Exception e) {
@@ -120,9 +120,11 @@ class EventProcessorCell<T extends ControllerEvent> {
                 // Some other controller process is responsible for cleaning up reader and its position object
 
                 // First close the reader, which implicitly notifies reader position to the reader group
+                log.info("Closing reader for {}", objectId);
                 reader.close();
 
                 // Next, clean up the reader and its position from checkpoint store
+                log.info("Cleaning up checkpoint store for {}", objectId);
                 state.stop();
             }
         }

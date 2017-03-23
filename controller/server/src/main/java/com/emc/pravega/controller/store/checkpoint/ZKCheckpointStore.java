@@ -24,7 +24,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Zookeeper based checkpoint store.
@@ -32,6 +34,7 @@ import java.util.function.Function;
 @Slf4j
 class ZKCheckpointStore implements CheckpointStore {
 
+    private static final String ROOT = "eventProcessors";
     private final CuratorFramework client;
     private final JavaSerializer<Position> positionSerializer;
     private final JavaSerializer<ReaderGroupData> groupDataSerializer;
@@ -176,16 +179,25 @@ class ZKCheckpointStore implements CheckpointStore {
         }
     }
 
+    @Override
+    public Set<String> getProcesses() throws CheckpointStoreException {
+        return getChildren(getRootPath()).stream().collect(Collectors.toSet());
+    }
+
     private String getReaderPath(String process, String readerGroup, String readerId) {
-        return String.format("/%s/%s/%s", process, readerGroup, readerId);
+        return String.format("/%s/%s/%s/%s", ROOT, process, readerGroup, readerId);
     }
 
     private String getReaderGroupPath(String process, String readerGroup) {
-        return String.format("/%s/%s", process, readerGroup);
+        return String.format("/%s/%s/%s", ROOT, process, readerGroup);
     }
 
     private String getProcessPath(String process) {
-        return String.format("/%s", process);
+        return String.format("/%s/%s", ROOT, process);
+    }
+
+    private String getRootPath() {
+        return String.format("/%s", ROOT);
     }
 
     /**

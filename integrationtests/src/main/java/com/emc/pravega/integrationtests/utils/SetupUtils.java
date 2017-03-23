@@ -86,6 +86,7 @@ public final class SetupUtils {
                 Config.HOST_STORE_CONTAINER_COUNT);
         this.controllerWrapper.getController().createScope(this.scope).get();
         this.controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
+        this.controllerWrapper.awaitRunning();
         log.info("Initialized Pravega Controller");
     }
 

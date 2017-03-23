@@ -38,6 +38,7 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -100,6 +101,8 @@ public final class ControllerServiceStarter extends AbstractIdleService {
         log.info("Initiating controller service startUp");
         log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
         log.info("Request handlers enabled = {}", serviceConfig.isRequestHandlersEnabled());
+        log.info("Cluster listener enabled = {}", serviceConfig.getControllerClusterListenerConfig().isPresent());
+        log.info("    Host monitor enabled = {}", serviceConfig.getHostMonitorConfig().isHostMonitorEnabled());
         log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
         log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
 
@@ -172,22 +175,6 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.toString(), streamMetadataTasks,
                     streamTransactionMetadataTasks);
 
-            // Setup and start controller cluster listener.
-            if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
-                ControllerClusterListenerConfig controllerClusterListenerConfig = serviceConfig.getControllerClusterListenerConfig().get();
-                clusterListenerExecutor = new ThreadPoolExecutor(controllerClusterListenerConfig.getMinThreads(),
-                        controllerClusterListenerConfig.getMaxThreads(), controllerClusterListenerConfig.getIdleTime(),
-                        controllerClusterListenerConfig.getIdleTimeUnit(),
-                        new ArrayBlockingQueue<>(controllerClusterListenerConfig.getMaxQueueSize()),
-                        new ThreadFactoryBuilder().setNameFormat("clusterlistenerpool-%d").build());
-
-                controllerClusterListener = new ControllerClusterListener(host, (CuratorFramework) storeClient.getClient(),
-                        controllerEventProcessors, taskSweeper, clusterListenerExecutor);
-
-                log.info("Starting controller cluster listener");
-                controllerClusterListener.startAsync();
-            }
-
             // Setup event processors.
             setController(new LocalController(controllerService));
 
@@ -210,6 +197,23 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
             }
 
+            // Setup and start controller cluster listener.
+            if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
+                ControllerClusterListenerConfig controllerClusterListenerConfig = serviceConfig.getControllerClusterListenerConfig().get();
+                clusterListenerExecutor = new ThreadPoolExecutor(controllerClusterListenerConfig.getMinThreads(),
+                        controllerClusterListenerConfig.getMaxThreads(), controllerClusterListenerConfig.getIdleTime(),
+                        controllerClusterListenerConfig.getIdleTimeUnit(),
+                        new ArrayBlockingQueue<>(controllerClusterListenerConfig.getMaxQueueSize()),
+                        new ThreadFactoryBuilder().setNameFormat("clusterlistenerpool-%d").build());
+
+                controllerClusterListener = new ControllerClusterListener(host, (CuratorFramework) storeClient.getClient(),
+                        controllerEventProcessors == null ? Optional.empty() : Optional.of(controllerEventProcessors),
+                        taskSweeper, clusterListenerExecutor);
+
+                log.info("Starting controller cluster listener");
+                controllerClusterListener.startAsync();
+            }
+
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
                 grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get());
@@ -230,6 +234,10 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 log.info("Awaiting start of controller event processors");
                 controllerEventProcessors.awaitRunning();
+            }
+            if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
+                log.info("Awaiting start of controller cluster listener");
+                controllerClusterListener.awaitRunning();
             }
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);

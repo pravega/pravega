@@ -9,6 +9,7 @@ import com.emc.pravega.stream.Position;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Store maintains the following two mappings
@@ -107,4 +108,6 @@ public interface CheckpointStore {
      */
     void removeReader(final String process, final String readerGroup, final String readerId)
             throws CheckpointStoreException;
+
+    Set<String> getProcesses() throws CheckpointStoreException;
 }

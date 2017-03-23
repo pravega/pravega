@@ -16,7 +16,6 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatu
 import java.net.URI;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.commons.lang.NotImplementedException;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -63,8 +62,8 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public void deleteStream(String toDelete) {
-        throw new NotImplementedException();
+    public void deleteStream(String streamName) {
+        FutureHelpers.getAndHandleExceptions(controller.deleteStream(scope, streamName), RuntimeException::new);
     }
 
     @Override

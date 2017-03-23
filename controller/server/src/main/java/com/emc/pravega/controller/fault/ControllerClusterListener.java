@@ -16,7 +16,10 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 /**
  * Controller cluster listener service. This service when started, starts listening to
@@ -32,24 +35,24 @@ public class ControllerClusterListener extends AbstractIdleService {
     private final String objectId;
     private final Host host;
     private final ExecutorService executor;
-    private final ControllerEventProcessors eventProcessors;
+    private final Optional<ControllerEventProcessors> eventProcessorsOpt;
     private final TaskSweeper taskSweeper;
     private final ClusterZKImpl clusterZK;
 
     public ControllerClusterListener(final Host host, final CuratorFramework client,
-                                     final ControllerEventProcessors eventProcessors,
+                                     final Optional<ControllerEventProcessors> eventProcessorsOpt,
                                      final TaskSweeper taskSweeper,
                                      final ExecutorService executor) {
         Preconditions.checkNotNull(host, "host");
         Preconditions.checkNotNull(client, "client");
         Preconditions.checkNotNull(executor, "executor");
-        Preconditions.checkNotNull(eventProcessors, "eventProcessors");
+        Preconditions.checkNotNull(eventProcessorsOpt, "eventProcessorsOpt");
         Preconditions.checkNotNull(taskSweeper, "taskSweeper");
 
         this.objectId = "ControllerClusterListener";
         this.host = host;
         this.executor = executor;
-        this.eventProcessors = eventProcessors;
+        this.eventProcessorsOpt = eventProcessorsOpt;
         this.taskSweeper = taskSweeper;
         this.clusterZK = new ClusterZKImpl(client, ClusterType.Controller.toString());
     }
@@ -64,8 +67,16 @@ public class ControllerClusterListener extends AbstractIdleService {
             // TODO: At startup find old failures that haven't been handled yet and handle them.
 
             // Await initialization of components
-            log.info("Awaiting controller event processors' start");
-            eventProcessors.awaitRunning();
+            if (eventProcessorsOpt.isPresent()) {
+                log.info("Awaiting controller event processors' start");
+                eventProcessorsOpt.get().awaitRunning();
+
+                Set<String> activeProcesses = clusterZK.getClusterMembers()
+                        .stream()
+                        .map(Host::toString)
+                        .collect(Collectors.toSet());
+                eventProcessorsOpt.get().handleOrphanedReaders(activeProcesses);
+            }
 
             log.info("Awaiting taskSweeper to become ready");
             taskSweeper.awaitReady();
@@ -81,7 +92,9 @@ public class ControllerClusterListener extends AbstractIdleService {
                         // TODO: Since events could be lost, find the correct diff and notify host failures accordingly.
                         log.info("Received controller cluster event: {} for host: {}", type, host);
                         taskSweeper.sweepOrphanedTasks(host.toString());
-                        eventProcessors.notifyProcessFailure(host.toString());
+                        if (eventProcessorsOpt.isPresent()) {
+                            eventProcessorsOpt.get().notifyProcessFailure(host.toString());
+                        }
                         break;
                     case ERROR:
                         // This event should be due to ZK connection errors. If it is session lost error then
@@ -91,6 +104,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                         break;
                 }
             }, executor);
+            log.info("Controller cluster listener startUp complete");
         } finally {
             LoggerHelpers.traceLeave(log, objectId, "startUp", traceId);
         }
@@ -102,6 +116,7 @@ public class ControllerClusterListener extends AbstractIdleService {
         try {
             log.info("Deregistering host {} from controller cluster", host);
             clusterZK.deregisterHost(host);
+            log.info("Controller cluster listener shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, objectId, "shutDown", traceId);
         }
