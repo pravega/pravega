@@ -111,10 +111,10 @@ public class ControllerFailoverTest {
         }
 
         URI controllerURI = URI.create("tcp://localhost:" + controllerPort);
-        StreamManager streamManager = StreamManager.withScope(SCOPE, controllerURI);
+        StreamManager streamManager = StreamManager.create(controllerURI);
 
         // Create scope
-        streamManager.createScope();
+        streamManager.createScope(SCOPE);
 
         // Create stream
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
@@ -122,13 +122,13 @@ public class ControllerFailoverTest {
                 .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        streamManager.createStream(STREAM, streamConfiguration);
+        streamManager.createStream(SCOPE, STREAM, streamConfiguration);
 
-        streamManager.sealStream(STREAM);
+        streamManager.sealStream(SCOPE, STREAM);
 
-        streamManager.deleteStream(STREAM);
+        streamManager.deleteStream(SCOPE, STREAM);
 
-        streamManager.deleteScope();
+        streamManager.deleteScope(SCOPE);
 
         try {
             controllerWrapper.close();
