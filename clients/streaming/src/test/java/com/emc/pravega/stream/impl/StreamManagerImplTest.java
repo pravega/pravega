@@ -11,6 +11,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -26,25 +27,21 @@ public class StreamManagerImplTest {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         this.controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
-        this.streamManager = new StreamManagerImpl(defaultScope, controller);
+        this.streamManager = new StreamManagerImpl(controller);
     }
 
     @Test
     public void testCreateAndDeleteScope() {
         // Create and delete immediately
-        streamManager.createScope();
-        streamManager.deleteScope();
+        Assert.assertTrue(streamManager.createScope(defaultScope));
+        Assert.assertTrue(streamManager.deleteScope(defaultScope));
 
-        // According to the service mock implementation,
-        // these calls should fail
-        streamManager.createScope();
-        // This call should actually fail
-        // TODO: https://github.com/pravega/pravega/issues/743
-        streamManager.createScope();
-        streamManager.deleteScope();
+        // Create twice
+        Assert.assertTrue(streamManager.createScope(defaultScope));
+        Assert.assertFalse(streamManager.createScope(defaultScope));
+        Assert.assertTrue(streamManager.deleteScope(defaultScope));
 
         // This call should actually fail
-        // TODO: https://github.com/pravega/pravega/issues/743
-        streamManager.deleteScope();
+        Assert.assertFalse(streamManager.deleteScope(defaultScope));
     }
 }
