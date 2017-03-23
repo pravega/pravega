@@ -18,11 +18,9 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
-import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import java.net.URI;
@@ -167,7 +165,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //4 Wait until the scale operation is triggered (else time out)
         //    validate the data read by the readers ensuring all the events are read and there are no duplicates.
-        CompletableFuture<Void> testResult = Retry.withExpBackoff(10, 10, 200, ofSeconds(10).toMillis())
+        CompletableFuture<Void> testResult = Retry.withExpBackoff(10, 10, 40, ofSeconds(10).toMillis())
                 .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
@@ -227,7 +225,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     } else {
                         isLastEventNull = true;
                     }
-                } catch (ReinitializationRequiredException e) {
+                } catch (Throwable e) {
                     log.warn("Test Exception while reading from the stream", e);
                     break;
                 }
@@ -248,7 +246,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     Transaction<Long> transaction = Retry.withExpBackoff(10, 10, 20, ofSeconds(1).toMillis())
                             .retryingOn(TxnCreationFailedException.class)
                             .throwingOn(RuntimeException.class)
-                            .run(() -> createTransaction(writer));
+                            .run(() -> createTransaction(writer, exitFlag));
 
                     for (int i = 0; i < 10; i++) {
                         long value = data.incrementAndGet();
@@ -264,7 +262,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         });
     }
 
-    private Transaction<Long> createTransaction(EventStreamWriter<Long> writer) {
+    private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final AtomicBoolean exitFlag) {
         Transaction<Long> txn = null;
         try {
             //Default max scale grace period is 30000
@@ -272,8 +270,8 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
             final Class<? extends Throwable> exceptionClass = ex.getCause().getClass();
-            if (exceptionClass.equals(io.grpc.StatusRuntimeException.class) || exceptionClass.equals(
-                    ConnectionClosedException.class)) {
+            if (exceptionClass.equals(io.grpc.StatusRuntimeException.class) && !exitFlag.get())  {
+                //Exit flag is true no need to retry.
                 log.debug("Cause for failure is {} and we need to retry", exceptionClass.getName());
                 throw new TxnCreationFailedException(); // we can retry on this exception.
             } else {
