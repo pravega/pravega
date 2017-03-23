@@ -61,6 +61,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
     private HostControllerStore hostStore;
     private CheckpointStore checkpointStore;
 
+    private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private SegmentContainerMonitor monitor;
@@ -146,7 +147,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
-            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+            connectionFactory = new ConnectionFactoryImpl(false);
             SegmentHelper segmentHelper = new SegmentHelper();
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                     segmentHelper, taskExecutor, hostId, connectionFactory);
@@ -240,6 +241,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 monitor.stopAsync();
             }
             timeoutService.stopAsync();
+            connectionFactory.close();
             streamMetadataTasks.close();
             streamTransactionMetadataTasks.close();
 
