@@ -100,6 +100,7 @@ public class EventProcessorTest {
         server.startListening();
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         // Create controller object for testing against a separate controller process.

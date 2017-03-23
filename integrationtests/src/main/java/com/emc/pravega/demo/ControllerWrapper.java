@@ -126,12 +126,9 @@ public class ControllerWrapper implements AutoCloseable {
         this.controllerServiceStarter.awaitRunning();
     }
 
-    public void awaitTerminated() {
-        this.controllerServiceStarter.awaitTerminated();
-    }
-
     @Override
     public void close() throws Exception {
         this.controllerServiceStarter.stopAsync();
+        this.controllerServiceStarter.awaitTerminated();
     }
 }

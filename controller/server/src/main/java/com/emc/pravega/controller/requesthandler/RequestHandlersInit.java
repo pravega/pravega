@@ -78,6 +78,13 @@ public class RequestHandlersInit {
                 .thenCompose(z -> SCALE_REQUEST_READER_REF.get().run());
     }
 
+    public static void shutdownRequestHandlers() {
+        final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = SCALE_REQUEST_READER_REF.getAndSet(null);
+        if (prevHandler != null) {
+            prevHandler.stop();
+        }
+    }
+
     private static CompletableFuture<Void> createScope(ControllerService controller, ScheduledExecutorService executor) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Retry.indefinitelyWithExpBackoff(10, 10, 10000,
