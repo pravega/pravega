@@ -356,12 +356,16 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void createTransaction(CreateTxnRequest request, StreamObserver<TxnId> responseObserver) {
+            public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
+                Controller.CreateTxnResponse.Builder builder = Controller.CreateTxnResponse.newBuilder();
+
                 if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(TxnId.newBuilder().setHighBits(11L).setLowBits(22L).build());
+                    builder.setTxnId(TxnId.newBuilder().setHighBits(11L).setLowBits(22L).build());
+                    responseObserver.onNext(builder.build());
                     responseObserver.onCompleted();
                 } else if (request.getStreamInfo().getStream().equals("stream2")) {
-                    responseObserver.onNext(TxnId.newBuilder().setHighBits(33L).setLowBits(44L).build());
+                    builder.setTxnId(TxnId.newBuilder().setHighBits(33L).setLowBits(44L).build());
+                    responseObserver.onNext(builder.build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());

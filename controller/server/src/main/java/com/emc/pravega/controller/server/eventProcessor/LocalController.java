@@ -198,7 +198,7 @@ public class LocalController implements Controller {
                                                      final long scaleGracePeriod) {
         return controller
                 .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
-                .thenApply(ModelHelper::encode).thenApply(txid -> Pair.of(null, txid));
+                .thenApply(pair -> Pair.of(null, pair.getKey()));
     }
 
     @Override

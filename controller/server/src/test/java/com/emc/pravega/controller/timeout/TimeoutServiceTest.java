@@ -13,6 +13,7 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.store.stream.OperationContext;
+import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.stream.TxnStatus;
@@ -34,6 +35,8 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -41,6 +44,8 @@ import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -82,10 +87,10 @@ public class TimeoutServiceTest {
         }
 
         @Override
-        public CompletableFuture<VersionedTransactionData> createTxn(final String scope, final String stream,
-                                                                     final long lease, final long maxExecutionTime,
-                                                                     final long scaleGracePeriod,
-                                                                     final OperationContext contextOpt) {
+        public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream,
+                                                                                          final long lease, final long maxExecutionTime,
+                                                                                          final long scaleGracePeriod,
+                                                                                          final OperationContext contextOpt) {
             final OperationContext context =
                     contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
@@ -93,7 +98,7 @@ public class TimeoutServiceTest {
                     context, executor)
                     .thenApply(txData -> {
                         log.info("Created transaction {} with version {}", txData.getId(), txData.getVersion());
-                        return txData;
+                        return new ImmutablePair<>(txData, new ArrayList<>());
                     });
         }
 
@@ -212,6 +217,7 @@ public class TimeoutServiceTest {
     public void testControllerTimeout() throws InterruptedException {
         long begin = System.currentTimeMillis();
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+                .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
@@ -258,6 +264,7 @@ public class TimeoutServiceTest {
     @Test
     public void testControllerPingSuccess() throws InterruptedException {
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+                .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
@@ -306,6 +313,7 @@ public class TimeoutServiceTest {
     @Test
     public void testControllerPingLeaseTooLarge() {
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+                .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
         PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, SCALE_GRACE_PERIOD + 1).join();
@@ -393,6 +401,7 @@ public class TimeoutServiceTest {
     @Test
     public void testControllerPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+                .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
@@ -453,6 +462,7 @@ public class TimeoutServiceTest {
     public void testControllerPingFailureDisconnected() throws InterruptedException {
 
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+                .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);

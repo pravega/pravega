@@ -7,6 +7,7 @@ package com.emc.pravega.controller.server.rpc.grpc.v1;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -151,14 +152,18 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void createTransaction(CreateTxnRequest request, StreamObserver<TxnId> responseObserver) {
+    public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
         log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
         processResult(controllerService.createTransaction(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getLease(),
                                                           request.getMaxExecutionTime(),
-                                                          request.getScaleGracePeriod()),
+                                                          request.getScaleGracePeriod())
+                .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
+                        .setTxnId(ModelHelper.decode(pair.getKey()))
+                        .addAllActiveSegments(pair.getValue())
+                        .build()),
                       responseObserver);
     }
 

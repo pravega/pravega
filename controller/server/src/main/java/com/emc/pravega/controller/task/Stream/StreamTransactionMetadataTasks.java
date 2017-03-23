@@ -12,6 +12,7 @@ import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessor
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.OperationContext;
+import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.TxnStatus;
 import com.emc.pravega.controller.store.stream.VersionedTransactionData;
@@ -25,8 +26,11 @@ import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -113,8 +117,8 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @return transaction id.
      */
     @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<VersionedTransactionData> createTxn(final String scope, final String stream, final long lease,
-                                            final long maxExecutionTime, final long scaleGracePeriod, final OperationContext contextOpt) {
+    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream, final long lease,
+                                                                                      final long maxExecutionTime, final long scaleGracePeriod, final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
@@ -187,7 +191,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 () -> commitTxnBody(scope, stream, txId, context));
     }
 
-    private CompletableFuture<VersionedTransactionData> createTxnBody(final String scope, final String stream,
+    private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope, final String stream,
                                                                       final long lease, final long maxExecutionPeriod,
                                                                       final long scaleGracePeriod,
                                                                       final OperationContext context) {
@@ -203,8 +207,8 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                                                         stream,
                                                                         segment.getNumber(),
                                                                         txData.getId()))
-                                                        .collect(Collectors.toList())))
-                                .thenApply(x -> txData));
+                                                        .collect(Collectors.toList()))
+                                        .thenApply(v -> new ImmutablePair<>(txData, activeSegments))));
     }
 
     private CompletableFuture<VersionedTransactionData> pingTxnBody(String scope, String stream, UUID txId, long lease,
