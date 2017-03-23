@@ -41,47 +41,66 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public void createScope() {
-        FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
+    public boolean createScope(String scopeName) {
+        return FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
                 RuntimeException::new);
     }
 
     @Override
-    public void deleteScope() {
-        FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
+    public boolean deleteScope(String scopeName) {
+        return FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
                 RuntimeException::new);
     }
 
     @Override
-    public void createStream(String streamName, StreamConfiguration config) {
+    public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
         if (config == null) {
             config = StreamConfiguration.builder()
-                                        .scope(scope)
+                                        .scope(scopeName)
                                         .streamName(streamName)
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build();
         }
-        createStreamHelper(streamName, config);
+
+        return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
+                        .scope(scopeName)
+                        .streamName(streamName)
+                        .scalingPolicy(config.getScalingPolicy())
+                        .build()),
+                RuntimeException::new);
     }
 
     @Override
-    public void alterStream(String streamName, StreamConfiguration config) {
-        createStreamHelper(streamName, config);
+    public boolean alterStream(String scopeName, String streamName, StreamConfiguration config) {
+        if (config == null) {
+            config = StreamConfiguration.builder()
+                    .scope(scopeName)
+                    .streamName(streamName)
+                    .scalingPolicy(ScalingPolicy.fixed(1))
+                    .build();
+        }
+
+        return FutureHelpers.getAndHandleExceptions(controller.alterStream(StreamConfiguration.builder()
+                        .scope(scopeName)
+                        .streamName(streamName)
+                        .scalingPolicy(config.getScalingPolicy())
+                        .build()),
+                RuntimeException::new);
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
         FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                     .scope(scope)
-                                                                     .streamName(streamName)
-                                                                     .scalingPolicy(config.getScalingPolicy())
-                                                                     .build()),
-                                             RuntimeException::new);
+                        .scope(scope)
+                        .streamName(streamName)
+                        .scalingPolicy(config.getScalingPolicy())
+                        .build()),
+                RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
 
     @Override
-    public void sealStream(String streamName) {
-        FutureHelpers.getAndHandleExceptions(controller.sealStream(scope, streamName), RuntimeException::new);
+    public boolean sealStream(String scopeName, String streamName) {
+        return FutureHelpers.getAndHandleExceptions(controller.sealStream(scopeName, streamName), RuntimeException::new);
     }
 
     @Override
@@ -126,7 +145,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public void deleteStream(String toDelete) {
+    public boolean deleteStream(String scopeName, String toDelete) {
         throw new NotImplementedException();
     }
 }

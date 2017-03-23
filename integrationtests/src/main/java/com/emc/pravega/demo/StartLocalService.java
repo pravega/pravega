@@ -29,7 +29,8 @@ public class StartLocalService {
         
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(SCOPE, "localhost", StartLocalService.PORT);
-        streamManager.createStream(STREAM_NAME, null);
+        streamManager.createScope(SCOPE);
+        streamManager.createStream(SCOPE, STREAM_NAME, null);
         
         Thread.sleep(60000);
         System.exit(0);

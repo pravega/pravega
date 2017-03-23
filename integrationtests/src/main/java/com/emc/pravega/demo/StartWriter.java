@@ -20,7 +20,8 @@ public class StartWriter {
         MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
                                                                 "localhost",
                                                                 StartLocalService.PORT);
-        streamManager.createStream(StartLocalService.STREAM_NAME, null);
+        streamManager.createScope(StartLocalService.SCOPE);
+        streamManager.createStream(StartLocalService.SCOPE, StartLocalService.STREAM_NAME, null);
         @Cleanup
         EventStreamWriter<String> writer = streamManager.getClientFactory().createEventWriter(StartLocalService.STREAM_NAME,
                                                                 new JavaSerializer<>(),
