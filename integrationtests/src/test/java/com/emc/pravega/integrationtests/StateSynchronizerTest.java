@@ -94,8 +94,8 @@ public class StateSynchronizerTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(stateName, null);
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", stateName, null);
         JavaSerializer<TestUpdate> serializer = new JavaSerializer<TestUpdate>();
         
         val a = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, SynchronizerConfig.builder().build());
@@ -147,8 +147,8 @@ public class StateSynchronizerTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(stateName, null);
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", stateName, null);
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
 
         for (int i = 0; i < 10; i++) {
@@ -174,8 +174,8 @@ public class StateSynchronizerTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(stateName, null);
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", stateName, null);
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
         SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
 
