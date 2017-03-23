@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.local;
 
+
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 
@@ -81,4 +82,5 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private void start() throws Exception {
         inProcPravegaCluster.start();
     }
+
 }

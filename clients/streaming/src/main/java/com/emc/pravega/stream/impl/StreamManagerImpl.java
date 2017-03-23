@@ -7,74 +7,66 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-
-import java.net.URI;
-
 import com.google.common.annotations.VisibleForTesting;
+import java.net.URI;
 
 /**
  * A stream manager. Used to bootstrap the client.
  */
 public class StreamManagerImpl implements StreamManager {
 
-    private final String scope;
     private final Controller controller;
 
-    public StreamManagerImpl(String scope, URI controllerUri) {
-        this.scope = scope;
+    public StreamManagerImpl(URI controllerUri) {
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
     }
 
     @VisibleForTesting
-    public StreamManagerImpl(String scope, Controller controller) {
-        this.scope = scope;
+    public StreamManagerImpl(Controller controller) {
         this.controller = controller;
     }
 
     @Override
-    public void createStream(String streamName, StreamConfiguration config) {
-        createStreamHelper(streamName, config);
-    }
-
-    @Override
-    public void alterStream(String streamName, StreamConfiguration config) {
-        createStreamHelper(streamName, config);
-    }
-
-    private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                        .scope(scope)
-                                                                                        .streamName(streamName)
-                                                                                        .scalingPolicy(config.getScalingPolicy())
-                                                                                        .build()),
-                RuntimeException::new);
-        return new StreamImpl(scope, streamName);
-    }
-
-    @Override
-    public void sealStream(String streamName) {
-        FutureHelpers.getAndHandleExceptions(controller.sealStream(scope, streamName), RuntimeException::new);
-    }
-
-    @Override
-    public void deleteStream(String streamName) {
-        FutureHelpers.getAndHandleExceptions(controller.deleteStream(scope, streamName), RuntimeException::new);
-    }
-
-    @Override
-    public void createScope() {
-        CreateScopeStatus status = FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
+    public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
+        return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
+                                                                                               .scope(scopeName)
+                                                                                               .streamName(streamName)
+                                                                                               .scalingPolicy(config.getScalingPolicy())
+                                                                                               .build()),
                 RuntimeException::new);
     }
 
     @Override
-    public void deleteScope() {
-        DeleteScopeStatus status = FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
+    public boolean alterStream(String scopeName, String streamName, StreamConfiguration config) {
+        return FutureHelpers.getAndHandleExceptions(controller.alterStream(StreamConfiguration.builder()
+                                                                                              .scope(scopeName)
+                                                                                              .streamName(streamName)
+                                                                                              .scalingPolicy(config.getScalingPolicy())
+                                                                                              .build()),
+                RuntimeException::new);
+    }
+
+    @Override
+    public boolean sealStream(String scopeName, String streamName) {
+        return FutureHelpers.getAndHandleExceptions(controller.sealStream(scopeName, streamName), RuntimeException::new);
+    }
+
+    @Override
+    public boolean deleteStream(String scopeName, String toDelete) {
+        return FutureHelpers.getAndHandleExceptions(controller.deleteStream(scopeName, toDelete), RuntimeException::new);
+    }
+
+    @Override
+    public boolean createScope(String scopeName) {
+        return FutureHelpers.getAndHandleExceptions(controller.createScope(scopeName),
+                RuntimeException::new);
+        
+    }
+
+    @Override
+    public boolean deleteScope(String scopeName) {
+        return FutureHelpers.getAndHandleExceptions(controller.deleteScope(scopeName),
                 RuntimeException::new);
     }
 

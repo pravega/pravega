@@ -1,14 +1,11 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.concurrent;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -30,7 +27,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -43,7 +39,7 @@ public final class FutureHelpers {
     /**
      * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
      *
-     * @param f The future to wait for.
+     * @param f   The future to wait for.
      * @param <T> The Type of the future's result.
      */
     public static <T> boolean await(CompletableFuture<T> f) {
@@ -53,10 +49,10 @@ public final class FutureHelpers {
     /**
      * Waits for the provided future to be complete, and returns true if it was successful, false if it failed
      * or did not complete.
-     * 
+     *
      * @param timeout The maximum number of milliseconds to block
-     * @param f The future to wait for.
-     * @param <T> The Type of the future's result.
+     * @param f       The future to wait for.
+     * @param <T>     The Type of the future's result.
      */
     public static <T> boolean await(CompletableFuture<T> f, long timeout) {
         Exceptions.handleInterrupted(() -> {
@@ -67,6 +63,30 @@ public final class FutureHelpers {
             }
         });
         return isSuccessful(f);
+    }
+
+    /**
+     * Given a Supplier returning a Future, completes another future either with the result of the first future, in case
+     * of normal completion, or exceptionally with the exception of the first future.
+     *
+     * @param futureSupplier A Supplier returning a Future to listen to.
+     * @param toComplete     A CompletableFuture that has not yet been completed, which will be completed with the result
+     *                       of the Future from futureSupplier.
+     * @param <T>            Return type of Future.
+     */
+    public static <T> void completeAfter(Supplier<CompletableFuture<T>> futureSupplier, CompletableFuture<T> toComplete) {
+        Preconditions.checkArgument(!toComplete.isDone(), "toComplete is already completed.");
+        try {
+            CompletableFuture<T> f = futureSupplier.get();
+
+            // Async termination.
+            f.thenAccept(toComplete::complete);
+            FutureHelpers.exceptionListener(f, toComplete::completeExceptionally);
+        } catch (Throwable ex) {
+            // Synchronous termination.
+            toComplete.completeExceptionally(ex);
+            throw ex;
+        }
     }
 
     /**
@@ -388,20 +408,20 @@ public final class FutureHelpers {
                                                        final ScheduledExecutorService executorService) {
         CompletableFuture<T> result = new CompletableFuture<>();
         executorService.schedule(() -> result.complete(runOrFail(() -> task.get(), result)),
-                                 delay.toMillis(),
-                                 TimeUnit.MILLISECONDS);
+                delay.toMillis(),
+                TimeUnit.MILLISECONDS);
         return result;
     }
-    
+
     /**
      * Runs the provided Callable in the current thread (synchronously) if it throws any Exception or
      * Throwable the exception is propagated, but the supplied future is also failed.
-     * 
+     *
      * @param <T>      The type of the future.
      * @param <R>      The return type of the callable.
      * @param callable The function to invoke.
      * @param future   The future to fail if the fuction fails.
-     * @return         The return value of the function.
+     * @return The return value of the function.
      */
     @SneakyThrows(Exception.class)
     public static <T, R> R runOrFail(Callable<R> callable, CompletableFuture<T> future) {
@@ -525,16 +545,16 @@ public final class FutureHelpers {
             if (this.condition.get()) {
                 // Execute another iteration of the loop.
                 this.loopBody.get()
-                .thenAccept(this::acceptIterationResult)
-                .exceptionally(this::handleException)
-                .thenRunAsync(this, this.executor);
+                             .thenAccept(this::acceptIterationResult)
+                             .exceptionally(this::handleException)
+                             .thenRunAsync(this, this.executor);
             } else {
                 // We are done; set the result and don't loop again.
                 this.result.complete(null);
             }
             return null;
         }
-        
+
         @Override
         public void run() {
             runOrFail(this, this.result);

@@ -5,6 +5,7 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -14,7 +15,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -32,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @VisibleForTesting
 @ThreadSafe
-public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata {
+public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata, EvictableMetadata {
     //region Members
 
     private final String traceObjectId;
@@ -44,6 +47,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final HashMap<Long, StreamSegmentMetadata> metadataById;
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
+    private final int maxActiveSegmentCount;
     @GuardedBy("truncationMarkers")
     private final TreeMap<Long, LogAddress> truncationMarkers;
     @GuardedBy("truncationMarkers")
@@ -58,10 +62,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      * Creates a new instance of the StreamSegmentContainerMetadata.
      *
      * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
+     * @param maxActiveSegmentCount    The maximum number of segments that can be registered in this metadata at any given time.
      */
-    public StreamSegmentContainerMetadata(int streamSegmentContainerId) {
+    public StreamSegmentContainerMetadata(int streamSegmentContainerId, int maxActiveSegmentCount) {
+        Preconditions.checkArgument(maxActiveSegmentCount > 0, "maxActiveSegmentCount must be a positive integer.");
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.streamSegmentContainerId = streamSegmentContainerId;
+        this.maxActiveSegmentCount = maxActiveSegmentCount;
         this.sequenceNumber = new AtomicLong();
         this.metadataByName = new HashMap<>();
         this.metadataById = new HashMap<>();
@@ -117,12 +124,22 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     //region UpdateableContainerMetadata
 
     @Override
+    public int getMaximumActiveSegmentCount() {
+        return this.maxActiveSegmentCount;
+    }
+
+    @Override
+    public int getActiveSegmentCount() {
+        synchronized (this.lock) {
+            return this.metadataById.size();
+        }
+    }
+
+    @Override
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         StreamSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
-
+            validateNewMapping(streamSegmentName, streamSegmentId);
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
             this.metadataById.put(streamSegmentId, segmentMetadata);
@@ -137,12 +154,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         StreamSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
-
+            validateNewMapping(streamSegmentName, streamSegmentId);
             StreamSegmentMetadata parentMetadata = this.metadataById.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
-            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
+            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                    "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
@@ -152,6 +168,22 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         segmentMetadata.setLastUsed(getOperationSequenceNumber());
         log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
+    }
+
+    @GuardedBy("lock")
+    private void validateNewMapping(String streamSegmentName, long streamSegmentId) {
+        Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName",
+                "StreamSegment '%s' is already mapped.", streamSegmentName);
+        Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId",
+                "StreamSegment Id %d is already mapped.", streamSegmentId);
+        if (!this.recoveryMode.get()) {
+            // We enforce the max active segment count only in non-recovery mode. If for some reason we manage to recover
+            // more than this number of segments, then we shouldn't block recovery for that (it likely means we have a problem
+            // somewhere else though).
+            Preconditions.checkState(this.metadataById.size() < this.maxActiveSegmentCount,
+                    "StreamSegment '%s' cannot be mapped because the maximum allowed number of mapped segments (%s)has been reached.",
+                    streamSegmentName, this.maxActiveSegmentCount);
+        }
     }
 
     @Override
@@ -204,19 +236,32 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.sequenceNumber.set(value);
     }
 
+    //endregion
+
+    //region EvictableMetadata Implementation
+
     @Override
-    public Collection<SegmentMetadata> getEvictionCandidates(long sequenceNumberCutoff) {
+    public Collection<SegmentMetadata> getEvictionCandidates(long sequenceNumberCutoff, int maxCount) {
         long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
+        List<SegmentMetadata> candidates;
         synchronized (this.lock) {
             // Find those segments that have active transactions associated with them.
             Set<Long> activeTransactions = getSegmentsWithActiveTransactions(adjustedCutoff);
 
             // The result is all segments that are eligible for removal but that do not have any active transactions.
-            return this.metadataById
+            candidates = this.metadataById
                     .values().stream()
                     .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !activeTransactions.contains(m.getId()))
                     .collect(Collectors.toList());
         }
+
+        // If we have more candidates than were requested to return, then return only the ones that were not recently used.
+        if (candidates.size() > maxCount) {
+            candidates.sort(Comparator.comparingLong(SegmentMetadata::getLastUsed));
+            candidates = candidates.subList(0, maxCount);
+        }
+
+        return candidates;
     }
 
     @Override
@@ -264,11 +309,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      *
      * @param metadata             The Metadata for the Segment that is considered for eviction.
      * @param sequenceNumberCutoff A Sequence Number that indicates the cutoff threshold. A Segment is eligible for eviction
-     *                             if it has a LastUsed value smaller than this threshold.
+     *                             if it has a LastUsed value smaller than this threshold. One exception to this rule
+     *                             is deleted segments, which only need to be truncated out of the Log.
      * @return True if the Segment can be evicted, false otherwise.
      */
     private boolean isEligibleForEviction(SegmentMetadata metadata, long sequenceNumberCutoff) {
-        return metadata.getLastUsed() < sequenceNumberCutoff;
+        return metadata.getLastUsed() < sequenceNumberCutoff
+                || metadata.isDeleted() && metadata.getLastUsed() <= this.lastTruncatedSequenceNumber.get();
     }
 
     //endregion

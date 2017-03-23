@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
@@ -20,8 +21,6 @@ import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -142,34 +141,17 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private static CompletableFuture<Void> createScope(final Controller controller,
                                                        final String scopeName,
                                                        final ScheduledExecutorService executor) {
-        log.info("Creating controller scope {}", scopeName);
-        return Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+        return FutureHelpers.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor scope " + scopeName, e))
-                .runAsync(() -> controller.createScope(scopeName)
-                        .thenApply(result -> {
-                                    if (CreateScopeStatus.Status.FAILURE == result.getStatus()) {
-                                        throw new RuntimeException("Error creating scope " + scopeName);
-                                    } else {
-                                        return null;
-                                    }
-                                }
-                        ), executor);
+                .runAsync(() -> controller.createScope(scopeName), executor));
     }
 
     private static CompletableFuture<Void> createStream(final Controller controller,
                                                         final StreamConfiguration streamConfig,
                                                         final ScheduledExecutorService executor) {
-        log.info("Creating controller stream {}/{}", streamConfig.getScope(), streamConfig.getStreamName());
-        return Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+        return FutureHelpers.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
-                .runAsync(() -> controller.createStream(streamConfig)
-                        .thenApply(result -> {
-                            if (CreateStreamStatus.Status.FAILURE == result.getStatus()) {
-                                throw new RuntimeException("Error creating commitStream");
-                            } else {
-                                return null;
-                            }
-                        }), executor);
+                .runAsync(() -> controller.createStream(streamConfig), executor));
     }
 
 
@@ -195,7 +177,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
                                        final Set<String> activeProcesses) {
-        Set<String> registeredProcesses = null;
+        Set<String> registeredProcesses;
         try {
             registeredProcesses = group.getProcesses();
         } catch (CheckpointStoreException e) {

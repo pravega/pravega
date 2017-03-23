@@ -6,11 +6,7 @@
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -21,15 +17,14 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
 import com.emc.pravega.testcommon.TestUtils;
-
 import lombok.extern.slf4j.Slf4j;
-
 import org.apache.curator.test.TestingServer;
-
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Controller stream metadata tests.
@@ -101,77 +96,72 @@ public class ControllerStreamMetadataTest {
     @Test(timeout = 2000000)
     public void streamMetadataTest() throws Exception {
         // Create test scope. This operation should succeed.
-        CreateScopeStatus scopeStatus = controller.createScope(SCOPE).join();
-        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+        assertTrue(controller.createScope(SCOPE).join());
 
         // Delete the test scope. This operation should also succeed.
-        DeleteScopeStatus deleteScopeStatus = controller.deleteScope(SCOPE).join();
-        Assert.assertEquals(DeleteScopeStatus.Status.SUCCESS, deleteScopeStatus.getStatus());
+        assertTrue(controller.deleteScope(SCOPE).join());
 
         // Try creating a stream. It should fail, since the scope does not exist.
-        CreateStreamStatus streamStatus = controller.createStream(streamConfiguration).join();
-        Assert.assertEquals(CreateStreamStatus.Status.SCOPE_NOT_FOUND, streamStatus.getStatus());
+        assertFalse(FutureHelpers.await(controller.createStream(streamConfiguration)));
 
         // Again create the scope.
-        scopeStatus = controller.createScope(SCOPE).join();
-        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+        assertTrue(controller.createScope(SCOPE).join());
 
         // Try creating the stream again. It should succeed now, since the scope exists.
-        streamStatus = controller.createStream(streamConfiguration).join();
-        Assert.assertEquals(CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
+        assertTrue(controller.createStream(streamConfiguration).join());
 
         // Delete test scope. This operation should fail, since it is not empty.
-        deleteScopeStatus = controller.deleteScope(SCOPE).join();
-        Assert.assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY, deleteScopeStatus.getStatus());
+        assertFalse(FutureHelpers.await(controller.deleteScope(SCOPE)));
 
-        // Try creating already existing scope. It should fail
-        scopeStatus = controller.createScope(SCOPE).join();
-        Assert.assertEquals(CreateScopeStatus.Status.SCOPE_EXISTS, scopeStatus.getStatus());
+        // Try creating already existing scope.
+        assertFalse(controller.createScope(SCOPE).join());
 
-        // Try creating already existing stream. It should fail.
-        streamStatus = controller.createStream(streamConfiguration).join();
-        Assert.assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
+        // Try creating already existing stream.
+        assertFalse(controller.createStream(streamConfiguration).join());
 
         // Delete test stream. This operation should fail, since it is not yet SEALED.
-        DeleteStreamStatus deleteStreamStatus = controller.deleteStream(SCOPE, STREAM).join();
-        Assert.assertEquals(DeleteStreamStatus.Status.STREAM_NOT_SEALED, deleteStreamStatus.getStatus());
+        assertFalse(FutureHelpers.await(controller.deleteStream(SCOPE, STREAM)));
 
         // Seal the test stream. This operation should succeed.
-        UpdateStreamStatus updateStreamStatus = controller.sealStream(SCOPE, STREAM).join();
-        Assert.assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStreamStatus.getStatus());
+        assertTrue(controller.sealStream(SCOPE, STREAM).join());
 
         // Delete test stream. This operation should succeed.
-        deleteStreamStatus = controller.deleteStream(SCOPE, STREAM).join();
-        Assert.assertEquals(DeleteStreamStatus.Status.SUCCESS, deleteStreamStatus.getStatus());
+        assertTrue(controller.deleteStream(SCOPE, STREAM).join());
 
         // Delete test stream again. Now it should fail.
-        deleteStreamStatus = controller.deleteStream(SCOPE, STREAM).join();
-        Assert.assertEquals(DeleteStreamStatus.Status.STREAM_NOT_FOUND, deleteStreamStatus.getStatus());
+        assertFalse(controller.deleteStream(SCOPE, STREAM).join());
 
         // Delete test scope. This operation sholud succeed.
-        deleteScopeStatus = controller.deleteScope(SCOPE).join();
-        Assert.assertEquals(DeleteScopeStatus.Status.SUCCESS, deleteScopeStatus.getStatus());
+        assertTrue(controller.deleteScope(SCOPE).join());
 
-        // Delete a non-existent scope. This operation should fail.
-        deleteScopeStatus = controller.deleteScope("non_existent_scope").join();
-        Assert.assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, deleteScopeStatus.getStatus());
+        // Delete a non-existent scope.
+        assertFalse(controller.deleteScope("non_existent_scope").join());
 
         // Create a scope with invalid characters. It should fail.
-        scopeStatus = controller.createScope("abc/def").join();
-        Assert.assertEquals(CreateScopeStatus.Status.INVALID_SCOPE_NAME, scopeStatus.getStatus());
+        assertFalse(FutureHelpers.await(controller.createScope("abc/def")));
 
         // Try creating stream with invalid characters. It should fail.
-        streamStatus = controller.createStream(StreamConfiguration.builder()
-                .scope(SCOPE).streamName("abc/def").scalingPolicy(ScalingPolicy.fixed(1)).build()).join();
-        Assert.assertEquals(CreateStreamStatus.Status.INVALID_STREAM_NAME, streamStatus.getStatus());
+        assertFalse(FutureHelpers.await(controller.createStream(StreamConfiguration.builder()
+                                                                                   .scope(SCOPE)
+                                                                                   .streamName("abc/def")
+                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                                   .build())));
     }
-
 
     @Test(timeout = 10000)
     public void streamManagerImpltest() {
-        StreamManager streamManager = new StreamManagerImpl(SCOPE, controller);
+        StreamManager streamManager = new StreamManagerImpl(controller);
 
-        streamManager.createScope();
-        streamManager.deleteScope();
+        // Create and delete scope
+        assertTrue(streamManager.createScope(SCOPE));
+        assertTrue(streamManager.deleteScope(SCOPE));
+
+        // Create scope twice
+        assertTrue(streamManager.createScope(SCOPE));
+        assertFalse(streamManager.createScope(SCOPE));
+        assertTrue(streamManager.deleteScope(SCOPE));
+
+        // Delete twice
+        assertFalse(streamManager.deleteScope(SCOPE));
     }
 }

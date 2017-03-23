@@ -97,10 +97,11 @@ public class MultiReadersEndToEndTest {
     private void runTest(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws Exception {
         @Cleanup
-        StreamManager streamManager = StreamManager.withScope(SETUP_UTILS.getScope(), SETUP_UTILS.getControllerUri());
-        streamManager.createScope();
+        StreamManager streamManager = StreamManager.create(SETUP_UTILS.getControllerUri());
+        streamManager.createScope(SETUP_UTILS.getScope());
         streamNames.stream().forEach(stream -> {
-            streamManager.createStream(stream,
+            streamManager.createStream(SETUP_UTILS.getScope(),
+                                       stream,
                                        StreamConfiguration.builder()
                                                .scope(SETUP_UTILS.getScope())
                                                .streamName(stream)
@@ -186,9 +187,10 @@ public class MultiReadersEndToEndTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", "localhost", port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        streamManager.createScope();
+        streamManager.createScope("scope");
         streamNames.stream().forEach(stream -> {
-            streamManager.createStream(stream,
+            streamManager.createStream("scope",
+                                       stream,
                                        StreamConfiguration.builder()
                                        .scope("scope")
                                        .streamName(stream)

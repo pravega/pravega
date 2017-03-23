@@ -10,11 +10,11 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ManualTimer;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
-import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -1489,15 +1489,12 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final SegmentAggregator[] transactionAggregators;
 
         TestContext(WriterConfig config) {
-            this.containerMetadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-
+            this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
             this.storage = new TestStorage(new InMemoryStorage(executorService()));
             this.timer = new ManualTimer();
-
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = TestWriterDataSource.DataSourceConfig.NO_METADATA_CHECKPOINT;
             this.dataSource = new TestWriterDataSource(this.containerMetadata, executorService(), dataSourceConfig);
-
             this.transactionAggregators = new SegmentAggregator[TRANSACTION_COUNT];
             UpdateableSegmentMetadata segmentMetadata = initialize(this.containerMetadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID));
             this.segmentAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, config, this.timer);

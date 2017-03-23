@@ -5,11 +5,8 @@
  */
 package com.emc.controller.pravega.server;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -29,11 +26,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -84,49 +79,41 @@ public class ControllerServiceTest {
                 .build();
         Controller controller = controllerWrapper.getController();
         // Create test scope. This operation should succeed.
-        CreateScopeStatus scopeStatus = controller.createScope(scope).join();
-        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+        assertTrue(controller.createScope(scope).join());
 
         // Delete the test scope. This operation should also succeed.
-        DeleteScopeStatus deleteScopeStatus = controller.deleteScope(scope).join();
-        Assert.assertEquals(DeleteScopeStatus.Status.SUCCESS, deleteScopeStatus.getStatus());
+        assertTrue(controller.deleteScope(scope).join());
 
         // Try creating a stream. It should fail, since the scope does not exist.
-        CreateStreamStatus streamStatus = controller.createStream(streamConfiguration).join();
-        Assert.assertEquals(CreateStreamStatus.Status.SCOPE_NOT_FOUND, streamStatus.getStatus());
+        assertFalse(FutureHelpers.await(controller.createStream(streamConfiguration)));
 
         // Again create the scope.
-        scopeStatus = controller.createScope(scope).join();
-        Assert.assertEquals(CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+        assertTrue(controller.createScope(scope).join());
 
         // Try creating the stream again. It should succeed now, since the scope exists.
-        streamStatus = controller.createStream(streamConfiguration).join();
-        Assert.assertEquals(CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
+        assertTrue(controller.createStream(streamConfiguration).join());
 
         // Delete test scope. This operation should fail, since it is not empty.
-        deleteScopeStatus = controller.deleteScope(scope).join();
-        Assert.assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY, deleteScopeStatus.getStatus());
+        assertFalse(FutureHelpers.await(controller.deleteScope(scope)));
 
-        // Delete a non-existent scope. This operation should fail.
-        deleteScopeStatus = controller.deleteScope("non_existent_scope").join();
-        Assert.assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, deleteScopeStatus.getStatus());
+        // Delete a non-existent scope.
+        assertFalse(controller.deleteScope("non_existent_scope").get());
 
         // Create a scope with invalid characters. It should fail.
-        scopeStatus = controller.createScope("abc/def").join();
-        Assert.assertEquals(CreateScopeStatus.Status.INVALID_SCOPE_NAME, scopeStatus.getStatus());
+        assertFalse(FutureHelpers.await(controller.createScope("abc/def")));
 
-        // Try creating already existing scope. It should fail
-        scopeStatus = controller.createScope(scope).join();
-        Assert.assertEquals(CreateScopeStatus.Status.SCOPE_EXISTS, scopeStatus.getStatus());
+        // Try creating already existing scope. 
+        assertFalse(controller.createScope(scope).join());
 
         // Try creating stream with invalid characters. It should fail.
-        streamStatus = controller.createStream(StreamConfiguration.builder()
-                .scope(scope).streamName("abc/def").scalingPolicy(ScalingPolicy.fixed(1)).build()).join();
-        Assert.assertEquals(CreateStreamStatus.Status.INVALID_STREAM_NAME, streamStatus.getStatus());
+        assertFalse(FutureHelpers.await(controller.createStream(StreamConfiguration.builder()
+                                                                                   .scope(scope)
+                                                                                   .streamName("abc/def")
+                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                                   .build())));
 
-        // Try creating already existing stream. It should fail.
-        streamStatus = controller.createStream(streamConfiguration).join();
-        Assert.assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
+        // Try creating already existing stream.
+        assertFalse(controller.createStream(streamConfiguration).join());
     }
     
     
@@ -255,67 +242,58 @@ public class ControllerServiceTest {
         
     }
 
-    private static void alterConfigOfNonExistantStream(Controller controller) throws InterruptedException,
-                                                                              ExecutionException {
-        final StreamConfiguration config = StreamConfiguration.builder()
-                .scope("scope")
-                .streamName("streamName")
-                .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
-                .build();
-        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(config);
-        assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStatus.get().getStatus());
+
+    private static void alterConfigOfNonExistantStream(Controller controller) {
+        assertFalse(FutureHelpers.await(controller.alterStream(StreamConfiguration.builder()
+                                                               .scope("scope")
+                                                               .streamName("streamName")
+                                                               .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
+                                                               .build())));
     }
 
     private static void updataMinSegmentes(Controller controller, final String scope,
                                            final String streamName) throws InterruptedException, ExecutionException {
-        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(streamName)
-                .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
-                .build());
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
+        assertTrue(controller.alterStream(StreamConfiguration.builder()
+                                          .scope(scope)
+                                          .streamName(streamName)
+                                          .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
+                                          .build()).get());
     }
 
     private static void updateScaleFactor(Controller controller, final String scope,
                                           final String streamName) throws InterruptedException, ExecutionException {
-        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(streamName)
-                .scalingPolicy(ScalingPolicy.byEventRate(100, 3, 2))
-                .build());
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
+        assertTrue(controller.alterStream(StreamConfiguration.builder()
+                                          .scope(scope)
+                                          .streamName(streamName)
+                                          .scalingPolicy(ScalingPolicy.byEventRate(100, 3, 2))
+                                          .build()).get());
     }
 
     private static void updateTargetRate(Controller controller, final String scope,
                                          final String streamName) throws InterruptedException, ExecutionException {
-        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(streamName)
-                .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 2))
-                .build());
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
+        assertTrue(controller.alterStream(StreamConfiguration.builder()
+                                          .scope(scope)
+                                          .streamName(streamName)
+                                          .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 2))
+                                          .build()).get());
     }
 
     private static void updateScalingPolicy(Controller controller, final String scope,
                                             final String streamName) throws InterruptedException, ExecutionException {
-        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(streamName)
-                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .build());
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateStatus.get().getStatus());
+        assertTrue(controller.alterStream(StreamConfiguration.builder()
+                                          .scope(scope)
+                                          .streamName(streamName)
+                                          .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+                                          .build()).get());
     }
 
     private static void updateStreamName(Controller controller, final String scope,
-                                         final ScalingPolicy scalingPolicy) throws InterruptedException,
-                                                                            ExecutionException {
-        CompletableFuture<UpdateStreamStatus> updateStatus;
-        updateStatus = controller.alterStream(StreamConfiguration.builder()
-                .scope(scope)
-                .streamName("stream4")
-                .scalingPolicy(scalingPolicy)
-                .build());
-        assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStatus.get().getStatus());
+                                         final ScalingPolicy scalingPolicy) {
+        assertFalse(FutureHelpers.await(controller.alterStream(StreamConfiguration.builder()
+                                                               .scope(scope)
+                                                               .streamName("stream4")
+                                                               .scalingPolicy(scalingPolicy)
+                                                               .build())));
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
@@ -328,13 +306,11 @@ public class ControllerServiceTest {
                 .streamName(streamNameSeal)
                 .scalingPolicy(scalingPolicy)
                 .build();
-        CreateStreamStatus createStream3Status = controller.createStream(configSeal).get();
-        assertEquals(CreateStreamStatus.Status.SUCCESS,  createStream3Status.getStatus());
+        assertTrue(controller.createStream(configSeal).get());
 
         @SuppressWarnings("unused")
         StreamSegments result = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
-        UpdateStreamStatus sealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, sealStatus.getStatus());
+        assertTrue(controller.sealStream(scopeSeal, streamNameSeal).get());
 
         StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
         assertTrue("FAILURE: No active segments should be present in a sealed stream", currentSegs.getSegments().isEmpty());
@@ -343,26 +319,22 @@ public class ControllerServiceTest {
 
     private static void createAStream(Controller controller, final StreamConfiguration config) throws InterruptedException,
                                                                          ExecutionException {
-        CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
-        assertEquals(CreateStreamStatus.Status.SUCCESS, createStatus.get().getStatus());
+        assertTrue(controller.createStream(config).get());
     }
 
     private static void sealNonExistantStream(Controller controller,
-                                              final String scopeSeal) throws InterruptedException, ExecutionException {
-        UpdateStreamStatus errSealStatus = controller.sealStream(scopeSeal, "nonExistentStream").get();
-        assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, errSealStatus.getStatus());
+                                              final String scopeSeal) {
+        assertFalse(FutureHelpers.await(controller.sealStream(scopeSeal, "nonExistentStream")));
     }
 
     private static void streamDuplicationNotAllowed(Controller controller, final StreamConfiguration config) throws InterruptedException,
                                                                                        ExecutionException {
-        CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
-        assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, createStatus.get().getStatus());
+        assertFalse(controller.createStream(config).get());
     }
 
     private static void sealASealedStream(Controller controller, final String scopeSeal,
                                           final String streamNameSeal) throws InterruptedException, ExecutionException {
-        UpdateStreamStatus reSealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, reSealStatus.getStatus());
+        assertTrue(controller.sealStream(scopeSeal, streamNameSeal).get());
 
         StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
         assertTrue("FAILURE: No active segments should be present in a sealed stream", currentSegs.getSegments().isEmpty());

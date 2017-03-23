@@ -13,7 +13,7 @@ import lombok.Getter;
  */
 public class ManualTimer extends AbstractTimer {
     @Getter
-    private long elapsedNanos;
+    private volatile long elapsedNanos;
 
     /**
      * Sets the value of the timer.

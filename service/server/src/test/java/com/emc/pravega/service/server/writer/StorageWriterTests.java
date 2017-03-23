@@ -9,11 +9,12 @@ import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
+import com.emc.pravega.service.server.EvictableMetadata;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
-import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
-import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
+import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
@@ -694,8 +695,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     private Collection<Long> evictSegments(long cutoffSeqNo, TestContext context) {
-        Collection<SegmentMetadata> evictionCandidates = context.metadata.getEvictionCandidates(cutoffSeqNo);
-        context.metadata.cleanup(evictionCandidates, cutoffSeqNo);
+        EvictableMetadata metadata = (EvictableMetadata) context.metadata;
+        Collection<SegmentMetadata> evictionCandidates = metadata.getEvictionCandidates(cutoffSeqNo, Integer.MAX_VALUE);
+        metadata.cleanup(evictionCandidates, cutoffSeqNo);
         return evictionCandidates
                 .stream()
                 .map(SegmentMetadata::getId)
@@ -731,7 +733,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         StorageWriter writer;
 
         TestContext(WriterConfig config) {
-            this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+            this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.baseStorage = new InMemoryStorage(executorService());
             this.storage = new TestStorage(this.baseStorage);
             this.config = config;

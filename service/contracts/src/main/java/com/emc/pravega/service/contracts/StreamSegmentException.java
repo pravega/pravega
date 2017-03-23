@@ -33,7 +33,7 @@ public abstract class StreamSegmentException extends StreamingException {
      * @param cause             The causing exception.
      */
     public StreamSegmentException(String streamSegmentName, String message, Throwable cause) {
-        super(String.format("%s (%s).", message, streamSegmentName), cause);
+        super(String.format("[Segment '%s'] %s.", streamSegmentName, message), cause);
         this.streamSegmentName = streamSegmentName;
     }
 
