@@ -23,10 +23,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class ConsoleWriter {
-    static volatile boolean stop = false;
+    static final AtomicBoolean stop = new AtomicBoolean(false);
 
     private String scope;
     private String stream;
@@ -74,7 +75,7 @@ public class ConsoleWriter {
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
-                stop = true;
+                stop.set(true);
                 log.info("Closing writer");
             }
         });
@@ -111,7 +112,7 @@ public class ConsoleWriter {
         try {
             // Parse options
             options = parser.parse(args);
-        } catch (Exception e){
+        } catch (Exception e) {
             try {
                 parser.printHelpOn( System.out );
             } catch (IOException ioe) {
@@ -131,7 +132,7 @@ public class ConsoleWriter {
                 writer.configure(options);
                 BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
                 System.out.println("Ready to write messages");
-                while (!stop) {
+                while (!stop.get()) {
                     String message = br.readLine();
                     if (message != null) {
                         writer.write(message);

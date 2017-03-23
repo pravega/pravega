@@ -42,5 +42,6 @@
     <allow pkg="feign"/>
     <allow pkg="io.grpc" />
     <allow pkg="info.ganglia" />
+    <allow pkg=joptsimple" />
 
 </import-control>
