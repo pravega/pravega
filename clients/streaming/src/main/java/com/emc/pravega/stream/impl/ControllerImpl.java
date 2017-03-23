@@ -52,6 +52,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -367,7 +368,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+    public CompletableFuture<Pair<StreamSegments, UUID>> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
                                                      final long scaleGracePeriod) {
         long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease, maxExecutionTime, scaleGracePeriod);
         Preconditions.checkNotNull(stream, "stream");
@@ -379,8 +380,13 @@ public class ControllerImpl implements Controller {
                                          .setScaleGracePeriod(scaleGracePeriod)
                                          .build(),
                                  callback);
-        return callback.getFuture().thenApply(ModelHelper::encode)
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "createTransaction", traceId));
+        return callback.getFuture()
+                       .thenApply(ModelHelper::encode)
+                       .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "createTransaction", traceId))
+                       .thenCompose(txid -> {
+                           return getCurrentSegments(stream.getScope(), stream.getStreamName()).thenApply(
+                                   segments -> Pair.of(segments, txid));
+                       });
     }
 
     @Override

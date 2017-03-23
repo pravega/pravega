@@ -47,6 +47,7 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.tuple.Pair;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -177,15 +178,19 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
-        List<Segment> segmentsInStream = getSegmentsForStream(new StreamImpl(scope, stream));
+        return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
+    }
+    
+    private StreamSegments getCurrentSegments(Stream stream) {
+        List<Segment> segmentsInStream = getSegmentsForStream(stream);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         double increment = 1.0 / segmentsInStream.size();
         for (int i = 0; i < segmentsInStream.size(); i++) {
-            segments.put((i + 1) * increment, new Segment(scope, stream, i));
+            segments.put((i + 1) * increment, new Segment(stream.getScope(), stream.getStreamName(), i));
         }
-        return CompletableFuture.completedFuture(new StreamSegments(segments));
+        return new StreamSegments(segments);
     }
-
+    
     @Override
     public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -266,14 +271,15 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease,
+    public CompletableFuture<Pair<StreamSegments, UUID>> createTransaction(final Stream stream, final long lease,
                                                      final long maxExecutionTime, final long scaleGracePeriod) {
         UUID txId = UUID.randomUUID();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (Segment segment : getSegmentsForStream(stream)) {
+        StreamSegments currentSegments = getCurrentSegments(stream);
+        for (Segment segment : currentSegments.getSegments()) {
             futures.add(createSegmentTx(txId, segment));            
         }
-        return FutureHelpers.allOf(futures).thenApply(v -> txId);
+        return FutureHelpers.allOf(futures).thenApply(v -> Pair.of(currentSegments, txId));
     }
 
     private CompletableFuture<Void> createSegmentTx(UUID txId, Segment segment) {

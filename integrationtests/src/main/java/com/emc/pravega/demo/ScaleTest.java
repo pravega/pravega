@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -15,6 +14,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
+import com.emc.pravega.stream.impl.StreamSegments;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,7 +23,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.test.TestingServer;
+
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * End to end scale tests.
@@ -83,9 +86,9 @@ public class ScaleTest {
         }
 
         // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
-        CompletableFuture<UUID> txIdFuture = controller.createTransaction(stream, 5000, 3600000, 60000);
-        UUID txId = txIdFuture.get();
-        if (txId == null) {
+        CompletableFuture<Pair<StreamSegments, UUID>> txnFuture = controller.createTransaction(stream, 5000, 3600000, 60000);
+        Pair<StreamSegments, UUID> transaction = txnFuture.get();
+        if (transaction == null) {
             log.error("Create transaction failed, exiting");
             return;
         }
@@ -96,15 +99,15 @@ public class ScaleTest {
         CompletableFuture<Boolean> future = scaleResponseFuture.whenComplete((r, e) -> {
             if (e != null) {
                 log.error("Failed: scale with ongoing transaction.", e);
-            } else if (FutureHelpers.getAndHandleExceptions(
-                    controller.checkTransactionStatus(stream, txId), RuntimeException::new) != Transaction.Status.OPEN) {
+            } else if (getAndHandleExceptions(controller.checkTransactionStatus(stream, transaction.getRight()),
+                    RuntimeException::new) != Transaction.Status.OPEN) {
                 log.info("Success: scale with ongoing transaction.");
             } else {
                 log.error("Failed: scale with ongoing transaction.");
             }
         });
 
-        CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, txId);
+        CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, transaction.getRight());
         statusFuture.get();
         future.get();
 

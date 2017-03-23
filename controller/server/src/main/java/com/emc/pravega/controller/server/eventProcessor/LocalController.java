@@ -27,6 +27,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.tuple.Pair;
 
 public class LocalController implements Controller {
 
@@ -193,11 +194,11 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long lease, final long maxExecutionTime,
+    public CompletableFuture<Pair<StreamSegments, UUID>> createTransaction(Stream stream, long lease, final long maxExecutionTime,
                                                      final long scaleGracePeriod) {
         return controller
                 .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
-                .thenApply(ModelHelper::encode);
+                .thenApply(ModelHelper::encode).thenApply(txid -> Pair.of(null, txid));
     }
 
     @Override

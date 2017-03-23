@@ -6,7 +6,6 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -15,6 +14,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.Transaction.Status;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
@@ -31,6 +31,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
+
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.
@@ -137,15 +140,15 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         private final Map<Segment, SegmentTransaction<Type>> inner;
         private final UUID txId;
         private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final SegmentSelector router;
         private final Controller controller;
         private final Stream stream;
+        private StreamSegments segments;
 
-        TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions, SegmentSelector router,
+        TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions, StreamSegments segments,
                 Controller controller, Stream stream) {
             this.txId = txId;
             this.inner = transactions;
-            this.router = router;
+            this.segments = segments;
             this.controller = controller;
             this.stream = stream;
         }
@@ -162,7 +165,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         public void writeEvent(String routingKey, Type event) throws TxnFailedException {
             Preconditions.checkNotNull(event);
             Preconditions.checkState(!closed.get());
-            Segment s = router.getSegmentForEvent(routingKey);
+            Segment s = segments.getSegmentForKey(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
             transaction.writeEvent(event);
         }
@@ -172,19 +175,19 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
-            FutureHelpers.getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
+            getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
             closed.set(true);
         }
 
         @Override
         public void abort() {
-            FutureHelpers.getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
+            getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
             closed.set(true);
         }
 
         @Override
         public Status checkStatus() {
-            return FutureHelpers.getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
+            return getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
         }
 
         @Override
@@ -198,8 +201,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         @Override
         public void ping(long lease) throws PingFailedException {
             Preconditions.checkArgument(lease > 0);
-            FutureHelpers.getAndHandleExceptions(controller.pingTransaction(stream, txId, lease),
-                    PingFailedException::new);
+            getAndHandleExceptions(controller.pingTransaction(stream, txId, lease), PingFailedException::new);
         }
 
         @Override
@@ -211,27 +213,37 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     @Override
     public Transaction<Type> beginTxn(long timeout, long maxExecutionTime, long scaleGracePeriod) {
-        Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        UUID txId = FutureHelpers.getAndHandleExceptions(
+        Pair<StreamSegments, UUID> segmentsAndId = getAndHandleExceptions(
                 controller.createTransaction(stream, timeout, maxExecutionTime, scaleGracePeriod),
                 RuntimeException::new);
-        for (Segment s : selector.getSegments()) {
+        StreamSegments segments = segmentsAndId.getLeft();
+        UUID txId = segmentsAndId.getRight();
+        
+        Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        for (Segment s : segments.getSegments()) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl<Type>(txId, transactions, selector, controller, stream);
+        return new TransactionImpl<Type>(txId, transactions, segments, controller, stream);
     }
     
     @Override
-    public Transaction<Type> getTxn(UUID txId) {
+    public Transaction<Type> getTxn(UUID txId) throws TxnFailedException {
+        StreamSegments segments = getAndHandleExceptions(
+                controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
+        Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
+        if (status != Status.OPEN) {
+            throw new TxnFailedException("Transaction " + txId + " is no longer open it is " + status);
+        }
+        
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        for (Segment s : selector.getSegments()) {
+        for (Segment s : segments.getSegments()) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl<Type>(txId, transactions, selector, controller, stream);
+        return new TransactionImpl<Type>(txId, transactions, segments, controller, stream);
     }
 
     @Override
