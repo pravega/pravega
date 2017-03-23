@@ -94,9 +94,7 @@ public class StreamMetadataTest {
         assertFalse(controller.createStream(config1).get());
 
         // CS3:create a stream with same stream name in different scopes
-        System.err.println("huha");
         controllerWrapper.getControllerService().createScope(scope2).get();
-        System.err.println("huha2");
 
         final StreamConfiguration config2 = StreamConfiguration.builder()
                                                                .scope(scope2)
