@@ -241,7 +241,11 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 monitor.stopAsync();
             }
             timeoutService.stopAsync();
+
+            log.info("Closing stream metadata tasks");
             streamMetadataTasks.close();
+
+            log.info("Closing stream transaction metadata tasks");
             streamTransactionMetadataTasks.close();
 
             // Next stop all executors
