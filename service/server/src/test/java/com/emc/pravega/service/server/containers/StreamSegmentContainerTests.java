@@ -1245,7 +1245,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     //region MetadataCleanupContainer
 
     private static class MetadataCleanupContainer extends StreamSegmentContainer {
-        private Consumer<Collection<String>> metadataCleanupFinishedCallback;
+        private Consumer<Collection<String>> metadataCleanupFinishedCallback = null;
         private final ScheduledExecutorService executor;
 
         MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
