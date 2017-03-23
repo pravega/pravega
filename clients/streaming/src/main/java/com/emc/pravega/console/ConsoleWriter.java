@@ -83,7 +83,10 @@ public class ConsoleWriter {
             {
                 accepts("scope", "Scope name").withRequiredArg().ofType(String.class).required().describedAs("name");
                 accepts("stream", "Stream name").withRequiredArg().ofType(String.class).required().describedAs("name");
-                accepts("controller", "Controller URI").withRequiredArg().ofType(String.class).required().describedAs("Controller URI");
+                accepts("controller", "Controller URI").withRequiredArg()
+                        .ofType(String.class)
+                        .required()
+                        .describedAs("Controller URI");
                 accepts("fixed", "Use fixed scaling policy");
                 accepts("segments", "Number of segments for fixed policy")
                         .requiredIf("fixed")
@@ -119,15 +122,20 @@ public class ConsoleWriter {
         }
 
         try {
-        // Create console writer
-            ConsoleWriter writer = new ConsoleWriter();
-            writer.configure(options);
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            System.out.println("Ready to write messages");
-            while (!stop) {
-                String message = br.readLine();
-                if (message != null) {
-                    writer.write(message);
+            // If asked for config help, then print and leave
+            if (options.has("help")) {
+                parser.printHelpOn(System.out);
+            } else {
+                // Create console writer
+                ConsoleWriter writer = new ConsoleWriter();
+                writer.configure(options);
+                BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+                System.out.println("Ready to write messages");
+                while (!stop) {
+                    String message = br.readLine();
+                    if (message != null) {
+                        writer.write(message);
+                    }
                 }
             }
         } catch (URISyntaxException e) {
