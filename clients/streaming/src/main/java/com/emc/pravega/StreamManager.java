@@ -24,6 +24,7 @@ public interface StreamManager extends AutoCloseable {
     public static StreamManager create(URI controller) {
         return new StreamManagerImpl(controller);
     }
+    
     /**
      * Creates a new stream
      * <p>

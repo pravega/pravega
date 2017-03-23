@@ -7,11 +7,9 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.annotations.VisibleForTesting;
 import java.net.URI;
-import org.apache.commons.lang.NotImplementedException;
 
 /**
  * A stream manager. Used to bootstrap the client.
