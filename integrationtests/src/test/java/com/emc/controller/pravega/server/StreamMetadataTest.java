@@ -3,6 +3,7 @@
  */
 package com.emc.controller.pravega.server;
 
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -36,12 +37,20 @@ public class StreamMetadataTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        int port = TestUtils.randomPort();
+        int servicePort = TestUtils.randomPort();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
+        int controllerPort = TestUtils.randomPort();
         @Cleanup
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(
+                zkTestServer.getConnectString(),
+                true,
+                true,
+                controllerPort,
+                "localhost",
+                servicePort,
+                Config.HOST_STORE_CONTAINER_COUNT);
         controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
