@@ -63,10 +63,10 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         }
 
         return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                        .scope(scopeName)
-                        .streamName(streamName)
-                        .scalingPolicy(config.getScalingPolicy())
-                        .build()),
+                                                                                               .scope(scopeName)
+                                                                                               .streamName(streamName)
+                                                                                               .scalingPolicy(config.getScalingPolicy())
+                                                                                               .build()),
                 RuntimeException::new);
     }
 
@@ -74,26 +74,26 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public boolean alterStream(String scopeName, String streamName, StreamConfiguration config) {
         if (config == null) {
             config = StreamConfiguration.builder()
-                    .scope(scopeName)
-                    .streamName(streamName)
-                    .scalingPolicy(ScalingPolicy.fixed(1))
-                    .build();
+                                        .scope(scopeName)
+                                        .streamName(streamName)
+                                        .scalingPolicy(ScalingPolicy.fixed(1))
+                                        .build();
         }
 
         return FutureHelpers.getAndHandleExceptions(controller.alterStream(StreamConfiguration.builder()
-                        .scope(scopeName)
-                        .streamName(streamName)
-                        .scalingPolicy(config.getScalingPolicy())
-                        .build()),
+                                                                                              .scope(scopeName)
+                                                                                              .streamName(streamName)
+                                                                                              .scalingPolicy(config.getScalingPolicy())
+                                                                                              .build()),
                 RuntimeException::new);
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
         FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                        .scope(scope)
-                        .streamName(streamName)
-                        .scalingPolicy(config.getScalingPolicy())
-                        .build()),
+                                                                                        .scope(scope)
+                                                                                        .streamName(streamName)
+                                                                                        .scalingPolicy(config.getScalingPolicy())
+                                                                                        .build()),
                 RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }

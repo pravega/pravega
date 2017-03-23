@@ -15,6 +15,12 @@ import java.net.URI;
  */
 public interface StreamManager extends AutoCloseable {
 
+    /**
+     * Creates a new instance of StreamManager.
+     *
+     * @param controller The Controller URI.
+     * @return Instance of Stream Manager implementation.
+     */
     public static StreamManager create(URI controller) {
         return new StreamManagerImpl(controller);
     }
