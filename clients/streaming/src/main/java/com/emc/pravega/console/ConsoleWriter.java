@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class ConsoleWriter {
-    static final AtomicBoolean stop = new AtomicBoolean(false);
+    static final AtomicBoolean STOP = new AtomicBoolean(false);
 
     private String scope;
     private String stream;
@@ -75,7 +75,7 @@ public class ConsoleWriter {
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
-                stop.set(true);
+                STOP.set(true);
                 log.info("Closing writer");
             }
         });
@@ -132,7 +132,7 @@ public class ConsoleWriter {
                 writer.configure(options);
                 BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
                 System.out.println("Ready to write messages");
-                while (!stop.get()) {
+                while (!STOP.get()) {
                     String message = br.readLine();
                     if (message != null) {
                         writer.write(message);
