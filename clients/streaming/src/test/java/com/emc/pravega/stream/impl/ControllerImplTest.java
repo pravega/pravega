@@ -38,6 +38,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.TestUtils;
 import io.grpc.Status;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
@@ -79,6 +80,7 @@ public class ControllerImplTest {
 
     // Test implementation for simulating the server responses.
     private ServerImpl fakeServer = null;
+    private final int servicePort = TestUtils.randomPort();
 
     // The controller RPC client.
     private ControllerImpl controllerClient = null;
@@ -333,7 +335,8 @@ public class ControllerImplTest {
             @Override
             public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(NodeUri.newBuilder().setEndpoint("localhost").setPort(12345).build());
+                    responseObserver.onNext(NodeUri.newBuilder().setEndpoint("localhost").
+                            setPort(servicePort).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -712,7 +715,7 @@ public class ControllerImplTest {
     public void testGetURI() throws Exception {
         CompletableFuture<PravegaNodeUri> endpointForSegment;
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
-        assertEquals(new PravegaNodeUri("localhost", 12345), endpointForSegment.get());
+        assertEquals(new PravegaNodeUri("localhost", servicePort), endpointForSegment.get());
 
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/0");
         AssertExtensions.assertThrows("Should throw Exception", endpointForSegment, throwable -> true);

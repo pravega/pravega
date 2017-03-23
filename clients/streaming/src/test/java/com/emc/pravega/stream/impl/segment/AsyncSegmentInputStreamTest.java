@@ -19,6 +19,7 @@ import com.emc.pravega.testcommon.Async;
 
 import java.nio.ByteBuffer;
 
+import com.emc.pravega.testcommon.TestUtils;
 import lombok.Cleanup;
 
 import org.junit.Test;
@@ -35,7 +36,7 @@ public class AsyncSegmentInputStreamTest {
     @Test(timeout = 20000)
     public void testRetry() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testRetry", 4);
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", TestUtils.randomPort());
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
@@ -61,7 +62,7 @@ public class AsyncSegmentInputStreamTest {
     @Test(timeout = 10000)
     public void testRead() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testRead", 1);
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", TestUtils.randomPort());
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
 
@@ -82,7 +83,7 @@ public class AsyncSegmentInputStreamTest {
     @Test(timeout = 10000)
     public void testWrongOffsetReturned() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testWrongOffsetReturned", 0);
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", TestUtils.randomPort());
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup

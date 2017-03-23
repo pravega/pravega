@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import com.emc.pravega.testcommon.TestUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -28,7 +29,7 @@ public class ClusterZKTest {
 
     private final static String HOST_1 = "host1";
     private final static String HOST_2 = "host2";
-    private final static int PORT = 1234;
+    private final static int PORT = TestUtils.randomPort();
     private final static String CLUSTER_NAME = "cluster-1";
     private final static String CLUSTER_NAME_2 = "cluster-2";
 

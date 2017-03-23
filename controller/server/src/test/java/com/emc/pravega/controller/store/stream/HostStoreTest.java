@@ -16,6 +16,7 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import com.emc.pravega.testcommon.TestUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -31,7 +32,7 @@ import java.util.UUID;
 public class HostStoreTest {
 
     private final String host = "localhost";
-    private final int port = 9090;
+    private final int port = TestUtils.randomPort();
     private final int containerCount = 4;
 
     @Test

@@ -11,6 +11,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 
+import com.emc.pravega.testcommon.TestUtils;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -23,7 +24,7 @@ public class StreamManagerImplTest {
 
     @Before
     public void setUp() {
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", TestUtils.randomPort());
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         this.controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         this.streamManager = new StreamManagerImpl(defaultScope, controller);
