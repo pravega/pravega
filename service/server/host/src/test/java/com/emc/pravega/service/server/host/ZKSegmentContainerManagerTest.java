@@ -9,6 +9,7 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
+import com.emc.pravega.testcommon.TestUtils;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -47,7 +48,7 @@ public class ZKSegmentContainerManagerTest {
     private final static int TEST_TIMEOUT = 30000;
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
-    private final static int PORT = 12345;
+    private final static int PORT = TestUtils.randomPort();
     private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT);
     private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
     private String zkUrl;

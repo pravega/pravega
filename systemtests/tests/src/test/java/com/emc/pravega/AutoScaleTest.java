@@ -6,7 +6,6 @@ package com.emc.pravega;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.BookkeeperService;
@@ -22,13 +21,6 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamImpl;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -42,9 +34,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.utils.MarathonException;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -122,17 +119,15 @@ public class AutoScaleTest extends AbstractScaleTests {
         URI controllerUri = getControllerURI();
         com.emc.pravega.stream.impl.Controller controller = getController(controllerUri);
 
-        CompletableFuture<Controller.CreateScopeStatus> createScopeStatus = controller.createScope(SCOPE);
-        log.debug("create scope status {}", createScopeStatus.get().getStatus());
-        assertNotEquals(Controller.CreateScopeStatus.Status.FAILURE, createScopeStatus.get().getStatus());
+        Boolean createScopeStatus = controller.createScope(SCOPE).get();
+        log.debug("create scope status {}", createScopeStatus);
+        
         //create a stream
-        CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = controller.createStream(CONFIG_UP);
-        log.debug("create stream status for scale up stream {}", createStreamStatus.get().getStatus());
-        assertNotEquals(Controller.CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
+        Boolean createStreamStatus = controller.createStream(CONFIG_UP).get();
+        log.debug("create stream status for scale up stream {}", createStreamStatus);
 
-        createStreamStatus = controller.createStream(CONFIG_DOWN);
-        log.debug("create stream status for scaledown stream {}", createStreamStatus.get().getStatus());
-        assertNotEquals(Controller.CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
+        createStreamStatus = controller.createStream(CONFIG_DOWN).get();
+        log.debug("create stream status for scaledown stream {}", createStreamStatus);
 
         log.debug("scale down stream starting segments:" + controller.getCurrentSegments(SCOPE, SCALE_DOWN_STREAM_NAME).get().getSegments().size());
 
@@ -140,16 +135,14 @@ public class AutoScaleTest extends AbstractScaleTests {
         keyRanges.put(0.0, 0.5);
         keyRanges.put(0.5, 1.0);
 
-        CompletableFuture<Controller.ScaleResponse> status = controller.scaleStream(new StreamImpl(SCOPE, SCALE_DOWN_STREAM_NAME),
-                Collections.singletonList(0),
-                keyRanges);
-        log.debug("scale stream status {}", status.get().getStatus());
+        Boolean status = controller.scaleStream(new StreamImpl(SCOPE, SCALE_DOWN_STREAM_NAME),
+                                                Collections.singletonList(0),
+                                                keyRanges)
+                                   .get();
+        assertTrue(status);
 
-        assertEquals(Controller.ScaleResponse.ScaleStreamStatus.SUCCESS, status.get().getStatus());
-
-        createStreamStatus = controller.createStream(CONFIG_TXN);
-        log.debug("create stream status for txn stream {}", createStreamStatus.get().getStatus());
-        assertNotEquals(Controller.CreateStreamStatus.Status.FAILURE, createStreamStatus.get().getStatus());
+        createStreamStatus = controller.createStream(CONFIG_TXN).get();
+        log.debug("create stream status for txn stream {}", createStreamStatus);
     }
 
     @Test

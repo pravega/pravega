@@ -35,14 +35,15 @@ public class ControllerWrapper implements AutoCloseable {
 
     private final ControllerServiceStarter controllerServiceStarter;
 
-    public ControllerWrapper(final String connectionString) throws Exception {
-        this(connectionString, false, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, Config.SERVICE_PORT,
+    public ControllerWrapper(final String connectionString, final int servicePort) throws Exception {
+        this(connectionString, false, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT);
     }
 
-    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor) throws Exception {
-        this(connectionString, disableEventProcessor, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST,
-                Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT);
+    public ControllerWrapper(final String connectionString, final int servicePort,
+            final boolean disableEventProcessor) throws Exception {
+        this(connectionString, disableEventProcessor, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, servicePort,
+             Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,

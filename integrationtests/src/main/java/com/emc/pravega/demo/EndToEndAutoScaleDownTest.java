@@ -4,6 +4,7 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -38,8 +39,10 @@ public class EndToEndAutoScaleDownTest {
         try {
             @Cleanup
             TestingServer zkTestServer = new TestingServer();
+
+            int port = Config.SERVICE_PORT;
             @Cleanup
-            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, true);
             Controller controller = controllerWrapper.getController();
 
             controllerWrapper.getControllerService().createScope("pravega").get();
