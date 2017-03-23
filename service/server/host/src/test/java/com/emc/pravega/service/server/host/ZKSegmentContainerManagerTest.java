@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import lombok.Cleanup;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -82,7 +83,7 @@ public class ZKSegmentContainerManagerTest {
         zkClient.start();
 
         segmentToContainerMapper = new SegmentToContainerMapper(8);
-
+        @Cleanup
         ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(createMockContainerRegistry(),
                 segmentToContainerMapper, zkClient,
                 PRAVEGA_SERVICE_ENDPOINT);
@@ -105,7 +106,7 @@ public class ZKSegmentContainerManagerTest {
         SegmentContainerRegistry containerRegistry = createMockContainerRegistry();
 
         segmentToContainerMapper = new SegmentToContainerMapper(8);
-
+        @Cleanup
         ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry,
                 segmentToContainerMapper, zkClient,
                 PRAVEGA_SERVICE_ENDPOINT);

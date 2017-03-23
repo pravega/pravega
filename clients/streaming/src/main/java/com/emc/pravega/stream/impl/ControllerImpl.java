@@ -104,6 +104,7 @@ public class ControllerImpl implements Controller {
                         return false;
                     case SUCCESS:
                         return true;
+                    case UNRECOGNIZED:
                     default:
                         throw new ControllerFailureException("Unknown return status creating scope " + scopeName
                                                              + " " + x.getStatus());
@@ -130,6 +131,7 @@ public class ControllerImpl implements Controller {
                         return false;
                     case SUCCESS:
                         return true;
+                    case UNRECOGNIZED:
                     default:
                         throw new ControllerFailureException("Unknown return status deleting scope " + scopeName
                                                              + " " + x.getStatus());
@@ -157,6 +159,7 @@ public class ControllerImpl implements Controller {
                 return false;
             case SUCCESS:
                 return true;
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status creating stream " + streamConfig
                                                      + " " + x.getStatus());
@@ -182,6 +185,7 @@ public class ControllerImpl implements Controller {
                 throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
             case SUCCESS:
                 return true;
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status altering stream " + streamConfig
                                                      + " " + x.getStatus());
@@ -220,6 +224,7 @@ public class ControllerImpl implements Controller {
             case TXN_CONFLICT:
                 throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "
                         + stream);
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status scaling stream " + stream
                                                      + " " + x.getStatus());
@@ -246,6 +251,7 @@ public class ControllerImpl implements Controller {
                 throw new IllegalArgumentException("Stream does not exist: " + streamName);
             case SUCCESS:
                 return true;
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status scealing stream " + streamName
                                                      + " " + x.getStatus());
@@ -272,6 +278,7 @@ public class ControllerImpl implements Controller {
                 throw new IllegalArgumentException("Stream is not sealed: " + streamName);
             case SUCCESS:
                 return true;
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status deleting stream " + streamName
                                                      + " " + x.getStatus());

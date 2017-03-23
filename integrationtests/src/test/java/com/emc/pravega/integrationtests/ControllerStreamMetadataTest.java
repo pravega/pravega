@@ -17,6 +17,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
 import com.emc.pravega.testcommon.TestUtils;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -150,6 +151,7 @@ public class ControllerStreamMetadataTest {
 
     @Test(timeout = 10000)
     public void streamManagerImpltest() {
+        @Cleanup
         StreamManager streamManager = new StreamManagerImpl(SCOPE, controller);
 
         streamManager.createScope();

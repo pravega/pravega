@@ -413,6 +413,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 case Reconciling:
                     result = reconcile(timer, executor);
                     break;
+                //$CASES-OMITTED$
                 default:
                     result = FutureHelpers.failedFuture(new IllegalStateException(String.format("Unexpected state for SegmentAggregator (%s) for segment '%s'.", this.state, this.metadata.getName())));
                     break;
