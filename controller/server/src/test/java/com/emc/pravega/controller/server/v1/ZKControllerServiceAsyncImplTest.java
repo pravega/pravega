@@ -80,8 +80,18 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     }
 
     @Override
-    public void cleanupStore() throws IOException {
+    public void cleanupStore() throws Exception {
         executorService.shutdown();
+        if (timeoutService != null) {
+            timeoutService.stopAsync();
+            timeoutService.awaitTerminated();
+        }
+        if (streamMetadataTasks != null) {
+            streamMetadataTasks.close();
+        }
+        if (streamTransactionMetadataTasks != null) {
+            streamTransactionMetadataTasks.close();
+        }
         zkClient.close();
         zkServer.close();
     }

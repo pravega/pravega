@@ -54,7 +54,7 @@ public abstract class ControllerServiceImplTest {
     public abstract void setupStore() throws Exception;
 
     @After
-    public abstract void cleanupStore() throws IOException;
+    public abstract void cleanupStore() throws Exception;
 
     @Test
     public void createScopeTests() {

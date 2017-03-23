@@ -53,14 +53,20 @@ public class ControllerServiceTest {
 
     private final StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
 
+    private final TimeoutService timeoutService;
+    private final StreamMetadataTasks streamMetadataTasks;
+    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private final ConnectionFactoryImpl connectionFactory;
     private final ControllerService consumer;
 
+    private final CuratorFramework zkClient;
     private final TestingServer zkServer;
+
 
     public ControllerServiceTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
+        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
@@ -68,12 +74,12 @@ public class ControllerServiceTest {
         final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
+        connectionFactory = new ConnectionFactoryImpl(false);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
                 taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
@@ -110,7 +116,13 @@ public class ControllerServiceTest {
     }
 
     @After
-    public void stopZKServer() throws IOException {
+    public void stopZKServer() throws Exception {
+        timeoutService.stopAsync();
+        timeoutService.awaitTerminated();
+        streamTransactionMetadataTasks.close();
+        streamMetadataTasks.close();
+        connectionFactory.close();
+        zkClient.close();
         zkServer.close();
     }
 
