@@ -119,10 +119,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 .thenApply(result -> {
                     CREATE_STREAM.reportSuccessValue(1);
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
                                     configuration.getScalingPolicy().getMinNumSegments());
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
+                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
+                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
 
                     return result;
                 });
