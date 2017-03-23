@@ -495,7 +495,7 @@ public class TimeoutServiceTest {
 
     }
 
-    private <T> void checkError(CompletableFuture<T> future, Class expectedException) {
+    private <T> void checkError(CompletableFuture<T> future, Class<? extends Throwable> expectedException) {
         try {
             future.join();
             Assert.assertTrue(false);

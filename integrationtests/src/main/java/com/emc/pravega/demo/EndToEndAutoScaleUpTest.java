@@ -40,7 +40,7 @@ public class EndToEndAutoScaleUpTest {
         try {
             @Cleanup
             TestingServer zkTestServer = new TestingServer();
-
+            @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
             Controller controller = controllerWrapper.getController();
             controllerWrapper.getControllerService().createScope("pravega").get();
@@ -50,7 +50,9 @@ public class EndToEndAutoScaleUpTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            SegmentStatsRecorder statsRecorder = new SegmentStatsFactory().createSegmentStatsRecorder(store,
+            @Cleanup
+            SegmentStatsFactory segmentStatsFactory = new SegmentStatsFactory();
+            SegmentStatsRecorder statsRecorder = segmentStatsFactory.createSegmentStatsRecorder(store,
                     internalCF,
                     AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                             .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
@@ -62,6 +64,7 @@ public class EndToEndAutoScaleUpTest {
             controllerWrapper.getControllerService().createScope("test").get();
 
             controller.createStream(CONFIG).get();
+            @Cleanup
             MockClientFactory clientFactory = new MockClientFactory("test", controller);
 
             // Mocking pravega service by putting scale up and scale down requests for the stream

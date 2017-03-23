@@ -46,6 +46,7 @@ public class ReaderGroupTest {
         private final ClientFactory clientFactory;
         private final AtomicReference<Exception> exception = new AtomicReference<>(null);
 
+        @Override
         public void run() {
             try {
                 @Cleanup

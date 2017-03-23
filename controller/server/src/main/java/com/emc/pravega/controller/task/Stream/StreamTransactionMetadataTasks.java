@@ -24,6 +24,7 @@ import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
@@ -83,7 +84,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param config Controller event processor configuration.
      */
     public Void initializeStreamWriters(Controller controller, ControllerEventProcessorConfig config) {
-
+        @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(config.getScopeName(), controller);
 
         this.commitEventEventStreamWriter = clientFactory.createEventWriter(

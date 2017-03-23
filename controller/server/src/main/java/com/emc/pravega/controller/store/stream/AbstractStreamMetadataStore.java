@@ -68,6 +68,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(
                         new CacheLoader<Pair<String, String>, Stream>() {
+                            @Override
                             @ParametersAreNonnullByDefault
                             public Stream load(Pair<String, String> input) {
                                 try {
@@ -84,6 +85,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(
                         new CacheLoader<String, Scope>() {
+                            @Override
                             @ParametersAreNonnullByDefault
                             public Scope load(String scopeName) {
                                 try {
@@ -208,32 +210,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      */
     @Override
     public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
-        return getScope(scopeName).listStreamsInScope()
-                .thenCompose(streams -> {
-                    List<CompletableFuture<StreamConfiguration>> streamFutures = streams.stream()
-                            .map(s -> getStream(scopeName, s, null).getConfiguration())
-                            .collect(Collectors.toList());
-
-                    // Aggregate each of the results into one CompleteableFuture.
-                    final CompletableFuture[] completableFutures =
-                            streamFutures.toArray(new CompletableFuture[streamFutures.size()]);
-                    final CompletableFuture<Void> futuresList = CompletableFuture.allOf(completableFutures);
-
-                    // On completion contruct a single future holding the result.
-                    final CompletableFuture<List<StreamConfiguration>> result = futuresList.thenApply(v -> streamFutures
-                            .stream()
-                            .map(CompletableFuture::join)
-                            .collect(Collectors.toList()));
-
-                    // Complete the future on first error, so clients won't have to wait.
-                    streamFutures.forEach(stream -> stream.whenComplete((res, ex) -> {
-                        if (ex != null) {
-                            result.completeExceptionally(ex);
-                        }
-                    }));
-
-                    return result;
-                });
+        return getScope(scopeName).listStreamsInScope().thenCompose(streams -> {
+            return FutureHelpers.allOfWithResults(
+                    streams.stream()
+                           .map(s -> getStream(scopeName, s, null).getConfiguration())
+                           .collect(Collectors.toList()));
+        });
     }
 
     @Override
@@ -251,6 +233,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scope, name, context).getConfiguration(), executor);
     }
 
+    @Override
     public CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, name, context).getState().thenApply(state -> state.equals(State.SEALED)), executor);
     }

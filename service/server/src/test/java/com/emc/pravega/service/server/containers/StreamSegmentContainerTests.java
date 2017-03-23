@@ -644,7 +644,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * * Transaction merging.
      */
     @Test
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testFutureReads() throws Exception {
         final int nonSealReadLimit = 100;
         @Cleanup

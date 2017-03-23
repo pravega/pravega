@@ -89,7 +89,7 @@ public class ServiceBuilderConfigTests {
     @SuppressWarnings("unchecked")
     public void testGetConfig() throws Exception {
         // Select a few classes to test dynamically.
-        val testClasses = new HashMap<Class, Supplier<ConfigBuilder<?>>>();
+        val testClasses = new HashMap<Class<?>, Supplier<ConfigBuilder<?>>>();
         testClasses.put(ReadIndexConfig.class, ReadIndexConfig::builder);
         testClasses.put(WriterConfig.class, WriterConfig::builder);
         testClasses.put(MetricsConfig.class, MetricsConfig::builder);
@@ -100,11 +100,11 @@ public class ServiceBuilderConfigTests {
         val nextValue = new AtomicInteger(1000 * 1000 * 1000);
 
         // Create instances of each test class and dynamically assign their properties some arbitrary values
-        val expectedValues = new HashMap<Class, Object>();
+        val expectedValues = new HashMap<Class<?>, Object>();
         val b = ServiceBuilderConfig.builder();
-        for (Map.Entry<Class, Supplier<ConfigBuilder<?>>> e : testClasses.entrySet()) {
-            Class c = e.getKey();
-            ConfigBuilder configBuilder = e.getValue().get();
+        for (Map.Entry<Class<?>, Supplier<ConfigBuilder<?>>> e : testClasses.entrySet()) {
+            Class<?> c = e.getKey();
+            ConfigBuilder<?> configBuilder = e.getValue().get();
             for (Field f : c.getDeclaredFields()) {
                 // Property names are defined as static fields; find those that are of type Property and their generic
                 // type contains one of the supported types.
@@ -131,8 +131,8 @@ public class ServiceBuilderConfigTests {
         // Create the ServiceBuilderConfig, and verify that the created Config classes (using getConfig()) match the
         // expected ones.
         val builderConfig = b.build();
-        for (Map.Entry<Class, Supplier<ConfigBuilder<?>>> e : testClasses.entrySet()) {
-            Class c = e.getKey();
+        for (Map.Entry<Class<?>, Supplier<ConfigBuilder<?>>> e : testClasses.entrySet()) {
+            Class<?> c = e.getKey();
             Object expectedConfig = expectedValues.get(c);
             Object actualConfig = builderConfig.getConfig(e.getValue());
 
@@ -158,7 +158,7 @@ public class ServiceBuilderConfigTests {
         }
     }
 
-    private String getPropName(Class c, Method m) {
+    private String getPropName(Class<?> c, Method m) {
         return c.getSimpleName() + "." + m.getName();
     }
 

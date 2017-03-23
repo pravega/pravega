@@ -119,7 +119,7 @@ public class ZKSegmentContainerManagerTest {
         //now modify the ZK entry
         HashMap<Host, Set<Integer>> currentData =
                 (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(PATH));
-        currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet(Arrays.asList(2)));
+        currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet<>(Arrays.asList(2)));
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
         verify(containerRegistry, after(10000).atLeastOnce()).startContainer(eq(2), any());
