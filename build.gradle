@@ -706,11 +706,15 @@ project('singlenode') {
 task consoleWriter(type: JavaExec) {
     dependencies {
         compile project(':clients:streaming')
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
 
     main = "com.emc.pravega.console.ConsoleWriter"
     classpath = sourceSets.main.runtimeClasspath
-    args = ["--scope=myScope", "--stream=myTest", "--controller=localhost:6000"]
+    systemProperties 'logback.configurationFile' : new File(path,'config/logback.xml').absolutePath
+    if (project.hasProperty("writerArgs")) {
+        args Eval.me(writerArgs)
+    }
 }
 
 project('systemtests:tests') {
