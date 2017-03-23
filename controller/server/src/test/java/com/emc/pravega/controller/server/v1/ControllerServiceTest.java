@@ -86,7 +86,7 @@ public class ControllerServiceTest {
     }
 
     @Before
-    public void prepareStreamStore() throws ExecutionException, InterruptedException {
+    public void setup() throws ExecutionException, InterruptedException {
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
@@ -115,7 +115,7 @@ public class ControllerServiceTest {
     }
 
     @After
-    public void stopZKServer() throws Exception {
+    public void tearDown() throws Exception {
         timeoutService.stopAsync();
         timeoutService.awaitTerminated();
         streamTransactionMetadataTasks.close();

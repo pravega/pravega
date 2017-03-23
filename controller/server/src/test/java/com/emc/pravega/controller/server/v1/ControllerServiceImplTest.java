@@ -49,10 +49,10 @@ public abstract class ControllerServiceImplTest {
     ControllerServiceImpl controllerService;
 
     @Before
-    public abstract void setupStore() throws Exception;
+    public abstract void setup() throws Exception;
 
     @After
-    public abstract void cleanupStore() throws Exception;
+    public abstract void tearDown() throws Exception;
 
     @Test
     public void createScopeTests() {

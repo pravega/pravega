@@ -40,7 +40,7 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
     private TimeoutService timeoutService;
 
     @Override
-    public void setupStore() throws Exception {
+    public void setup() throws Exception {
 
         executorService = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
@@ -64,7 +64,7 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
     }
 
     @Override
-    public void cleanupStore() throws Exception {
+    public void tearDown() throws Exception {
         executorService.shutdown();
         if (timeoutService != null) {
             timeoutService.stopAsync();

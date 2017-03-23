@@ -229,6 +229,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 grpcServer.stopAsync();
             }
             if (serviceConfig.isRequestHandlersEnabled()) {
+                log.info("Shutting down request handlers");
                 RequestHandlersInit.shutdownRequestHandlers();
             }
             if (controllerEventProcessors != null) {

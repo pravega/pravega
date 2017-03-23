@@ -49,7 +49,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     private TimeoutService timeoutService;
 
     @Override
-    public void setupStore() throws Exception {
+    public void setup() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
@@ -79,7 +79,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     }
 
     @Override
-    public void cleanupStore() throws Exception {
+    public void tearDown() throws Exception {
         executorService.shutdown();
         if (timeoutService != null) {
             timeoutService.stopAsync();
