@@ -9,9 +9,9 @@ import lombok.Data;
 
 @Data
 public class ScaleRequest implements ControllerRequest {
-    private static final long serialVersionUID = 1L;
     public static final byte UP = (byte) 0;
     public static final byte DOWN = (byte) 1;
+    private static final long serialVersionUID = 1L;
 
     private final String scope;
     private final String stream;
