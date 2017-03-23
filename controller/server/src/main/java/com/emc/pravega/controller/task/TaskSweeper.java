@@ -149,6 +149,7 @@ public class TaskSweeper {
      * @param taggedResource resource on which old host had unfinished task.
      * @return the object returned from task method.
      */
+    @SuppressWarnings("unchecked")
     public CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
 
         log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",

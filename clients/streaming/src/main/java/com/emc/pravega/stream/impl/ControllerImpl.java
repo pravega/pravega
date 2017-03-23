@@ -79,7 +79,7 @@ public class ControllerImpl implements Controller {
      * @param channelBuilder The channel builder to connect to the service instance.
      */
     @VisibleForTesting
-    public ControllerImpl(ManagedChannelBuilder channelBuilder) {
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
 
         // Create Async RPC client.

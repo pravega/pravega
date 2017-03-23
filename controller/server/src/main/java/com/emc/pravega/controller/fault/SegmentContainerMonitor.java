@@ -71,6 +71,7 @@ public class SegmentContainerMonitor extends AbstractIdleService {
                                 segmentMonitorLeader.resume();
                             }
                             break;
+                        //$CASES-OMITTED$
                         default:
                             log.debug("Connection state to zookeeper updated: " + newState.toString());
                     }

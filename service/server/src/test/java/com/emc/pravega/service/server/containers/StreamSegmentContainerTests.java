@@ -237,7 +237,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         @Cleanup("shutdown")
         ExecutorService testExecutor = Executors.newFixedThreadPool(Math.min(20, APPENDS_PER_SEGMENT));
-        val submitFutures = new ArrayList<Future>();
+        val submitFutures = new ArrayList<Future<?>>();
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             final byte fillValue = (byte) i;
             submitFutures.add(testExecutor.submit(() -> {
