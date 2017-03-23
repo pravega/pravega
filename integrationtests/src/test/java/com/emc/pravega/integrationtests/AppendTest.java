@@ -195,8 +195,8 @@ public class AppendTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        streamManager.createScope();
-        streamManager.createStream(streamName, null);
+        streamManager.createScope("Scope");
+        streamManager.createStream("Scope", streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
@@ -216,8 +216,8 @@ public class AppendTest {
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
         @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        streamManager.createScope();
-        streamManager.createStream(streamName, null);
+        streamManager.createScope("Scope");
+        streamManager.createStream("Scope", streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         long blockingTime = timeWrites(testString, 200, producer, true);
         long nonBlockingTime = timeWrites(testString, 1000, producer, false);
