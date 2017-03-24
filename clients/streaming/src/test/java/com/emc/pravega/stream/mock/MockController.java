@@ -29,6 +29,7 @@ import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
+import com.emc.pravega.stream.impl.TxnSegments;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
@@ -47,7 +48,6 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 import org.apache.commons.lang.NotImplementedException;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -271,7 +271,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Pair<StreamSegments, UUID>> createTransaction(final Stream stream, final long lease,
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease,
                                                      final long maxExecutionTime, final long scaleGracePeriod) {
         UUID txId = UUID.randomUUID();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -279,7 +279,7 @@ public class MockController implements Controller {
         for (Segment segment : currentSegments.getSegments()) {
             futures.add(createSegmentTx(txId, segment));            
         }
-        return FutureHelpers.allOf(futures).thenApply(v -> Pair.of(currentSegments, txId));
+        return FutureHelpers.allOf(futures).thenApply(v -> new TxnSegments(currentSegments, txId));
     }
 
     private CompletableFuture<Void> createSegmentTx(UUID txId, Segment segment) {

@@ -12,6 +12,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
@@ -51,8 +52,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -368,30 +367,31 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Pair<StreamSegments, UUID>> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
                                                      final long scaleGracePeriod) {
         long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease, maxExecutionTime, scaleGracePeriod);
         Preconditions.checkNotNull(stream, "stream");
-        RPCAsyncCallback<com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse> callback = new RPCAsyncCallback<>();
-        client.createTransaction(CreateTxnRequest.newBuilder().setStreamInfo(
-                ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                                         .setLease(lease)
-                                         .setMaxExecutionTime(maxExecutionTime)
-                                         .setScaleGracePeriod(scaleGracePeriod)
-                                         .build(),
-                                 callback);
-        return callback.getFuture().thenApply(this::convert)
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "createTransaction", traceId));
+        RPCAsyncCallback<CreateTxnResponse> callback = new RPCAsyncCallback<>();
+        client.createTransaction(
+                CreateTxnRequest.newBuilder()
+                                .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                .setLease(lease)
+                                .setMaxExecutionTime(maxExecutionTime)
+                                .setScaleGracePeriod(scaleGracePeriod)
+                                .build(),
+                callback);
+        return callback.getFuture().thenApply(this::convert).whenComplete(
+                (x, y) -> LoggerHelpers.traceLeave(log, "createTransaction", traceId));
     }
 
-    private Pair<StreamSegments, UUID> convert(com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse response) {
+    private TxnSegments convert(CreateTxnResponse response) {
         NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
 
         for (SegmentRange r : response.getActiveSegmentsList()) {
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
         StreamSegments segments = new StreamSegments(rangeMap);
-        return new ImmutablePair<>(segments, ModelHelper.encode(response.getTxnId()));
+        return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
     }
 
     @Override

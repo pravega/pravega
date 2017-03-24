@@ -24,7 +24,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Cleanup;
-import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -202,7 +201,7 @@ public class EventStreamWriterTest {
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream();
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream();
         Mockito.when(controller.createTransaction(stream, 0, 0, 0))
-               .thenReturn(CompletableFuture.completedFuture(Pair.of(getSegments(segment), txid)));
+               .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
         Mockito.when(streamFactory.createOutputStreamForTransaction(segment, txid)).thenReturn(outputStream);
         Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(bad);
 
@@ -237,7 +236,7 @@ public class EventStreamWriterTest {
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream();
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream();
         Mockito.when(controller.createTransaction(stream, 0, 0, 0))
-               .thenReturn(CompletableFuture.completedFuture(Pair.of(getSegments(segment), txid)));
+               .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
         Mockito.when(streamFactory.createOutputStreamForTransaction(segment, txid)).thenReturn(outputStream);
         Mockito.when(streamFactory.createOutputStreamForSegment(segment)).thenReturn(bad);
 

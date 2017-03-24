@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -213,19 +212,17 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     @Override
     public Transaction<Type> beginTxn(long timeout, long maxExecutionTime, long scaleGracePeriod) {
-        Pair<StreamSegments, UUID> segmentsAndId = getAndHandleExceptions(
+        TxnSegments txnSegments = getAndHandleExceptions(
                 controller.createTransaction(stream, timeout, maxExecutionTime, scaleGracePeriod),
                 RuntimeException::new);
-        StreamSegments segments = segmentsAndId.getLeft();
-        UUID txId = segmentsAndId.getRight();
-        
+        UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
-            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
+        for (Segment s : txnSegments.getSteamSegments().getSegments()) {
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId);
+            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl<Type>(txId, transactions, segments, controller, stream);
+        return new TransactionImpl<Type>(txnId, transactions, txnSegments.getSteamSegments(), controller, stream);
     }
     
     @Override

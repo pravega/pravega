@@ -57,7 +57,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -738,12 +737,12 @@ public class ControllerImplTest {
 
     @Test
     public void testCreateTransaction() throws Exception {
-        CompletableFuture<Pair<StreamSegments, UUID>> transaction;
+        CompletableFuture<TxnSegments> transaction;
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream1"), 0, 0, 0);
-        assertEquals(new UUID(11L, 22L), transaction.get().getValue());
+        assertEquals(new UUID(11L, 22L), transaction.get().getTxnId());
 
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream2"), 0, 0, 0);
-        assertEquals(new UUID(33L, 44L), transaction.get().getValue());
+        assertEquals(new UUID(33L, 44L), transaction.get().getTxnId());
 
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream3"), 0, 0, 0);
         AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);

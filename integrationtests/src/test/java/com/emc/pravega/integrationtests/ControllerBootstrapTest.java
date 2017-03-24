@@ -14,13 +14,11 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.stream.impl.StreamSegments;
+import com.emc.pravega.stream.impl.TxnSegments;
 import com.emc.pravega.testcommon.TestUtils;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -95,7 +93,7 @@ public class ControllerBootstrapTest {
         Assert.assertTrue(!streamStatus.isDone());
 
         // Create transaction should fail.
-        CompletableFuture<Pair<StreamSegments, UUID>> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM),
+        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM),
                 10000, 30000, 30000);
 
         try {
@@ -130,7 +128,7 @@ public class ControllerBootstrapTest {
         txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000, 30000, 30000);
 
         try {
-            Pair<StreamSegments, UUID> id = txIdFuture.join();
+            TxnSegments id = txIdFuture.join();
             Assert.assertNotNull(id);
         } catch (CompletionException ce) {
             Assert.fail();
