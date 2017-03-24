@@ -149,6 +149,7 @@ public class TaskSweeper {
      * @param taggedResource resource on which old host had unfinished task.
      * @return the object returned from task method.
      */
+    @SuppressWarnings("unchecked")
     public CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
 
         log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
@@ -166,7 +167,7 @@ public class TaskSweeper {
                                                                             taggedResource.getResource()));
 
                 // finally execute the task by invoking corresponding method and return its result
-                return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());
+                return (CompletableFuture<Object>) method.invoke(o, (Object[]) taskData.getParameters());
 
             } else {
                 CompletableFuture<Object> error = new CompletableFuture<>();
@@ -188,7 +189,7 @@ public class TaskSweeper {
      */
     private void initializeMappingTable() {
         for (TaskBase taskClassObject : taskClassObjects) {
-            Class claz = taskClassObject.getClass();
+            Class<? extends TaskBase> claz = taskClassObject.getClass();
             for (Method method : claz.getDeclaredMethods()) {
                 for (Annotation annotation : method.getAnnotations()) {
                     if (annotation instanceof Task) {

@@ -35,6 +35,7 @@ import com.google.common.util.concurrent.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -42,7 +43,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
@@ -283,14 +283,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // As soon as this happens, all operations that deal with those segments will start throwing appropriate exceptions
         // or ignore the segments altogether (such as StorageWriter).
         Collection<SegmentMetadata> deletedSegments = this.metadata.deleteStreamSegment(streamSegmentName);
-        CompletableFuture[] deletionFutures = mapToFutureArray(
-                deletedSegments,
-                s -> this.storage
-                        .delete(s.getName(), timer.getRemaining())
-                        .thenComposeAsync(v -> this.stateStore.remove(s.getName(), timer.getRemaining()), this.executor));
+        
+        List<CompletableFuture<Void>> deletionFutures = deletedSegments.stream().map(s -> {
+            CompletableFuture<Void> result = this.storage.delete(s.getName(), timer.getRemaining()).thenComposeAsync(
+                    v -> this.stateStore.remove(s.getName(), timer.getRemaining()), this.executor);
+            return result;
+        }).collect(Collectors.toList());
 
         notifyMetadataRemoved(deletedSegments);
-        return CompletableFuture.allOf(deletionFutures);
+        return FutureHelpers.allOf(deletionFutures);
     }
 
     @Override
@@ -395,16 +396,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             }
         };
         component.addListener(new ServiceShutdownListener(stoppedHandler, failedHandler), this.executor);
-    }
-
-    private <T> CompletableFuture[] mapToFutureArray(Collection<T> source, Function<T, CompletableFuture> transformer) {
-        CompletableFuture[] result = new CompletableFuture[source.size()];
-        int count = 0;
-        for (T s : source) {
-            result[count++] = transformer.apply(s);
-        }
-
-        return result;
     }
 
     //endregion

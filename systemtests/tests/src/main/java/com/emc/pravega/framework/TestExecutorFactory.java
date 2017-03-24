@@ -22,6 +22,7 @@ public class TestExecutorFactory {
                 return MARATHON_SEQUENTIAL_EXECUTOR;
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");
+            case LOCAL:
             default:
                 throw new IllegalArgumentException("Invalid Executor specified: " + type);
         }
