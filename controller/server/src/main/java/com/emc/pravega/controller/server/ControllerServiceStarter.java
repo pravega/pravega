@@ -61,6 +61,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
     private HostControllerStore hostStore;
     private CheckpointStore checkpointStore;
 
+    private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private SegmentContainerMonitor monitor;
@@ -146,7 +147,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
-            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+            connectionFactory = new ConnectionFactoryImpl(false);
             SegmentHelper segmentHelper = new SegmentHelper();
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                     segmentHelper, taskExecutor, hostId, connectionFactory);
@@ -228,6 +229,10 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             if (grpcServer != null) {
                 grpcServer.stopAsync();
             }
+            if (serviceConfig.isRequestHandlersEnabled()) {
+                log.info("Shutting down request handlers");
+                RequestHandlersInit.shutdownRequestHandlers();
+            }
             if (controllerEventProcessors != null) {
                 controllerEventProcessors.stopAsync();
             }
@@ -236,6 +241,12 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 monitor.stopAsync();
             }
             timeoutService.stopAsync();
+
+            log.info("Closing stream metadata tasks");
+            streamMetadataTasks.close();
+
+            log.info("Closing stream transaction metadata tasks");
+            streamTransactionMetadataTasks.close();
 
             // Next stop all executors
             log.info("Stopping executors");
@@ -280,6 +291,9 @@ public final class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Awaiting termination of controllerService executor");
             controllerServiceExecutor.awaitTermination(5, TimeUnit.SECONDS);
+
+            log.info("Closing connection factory");
+            connectionFactory.close();
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }

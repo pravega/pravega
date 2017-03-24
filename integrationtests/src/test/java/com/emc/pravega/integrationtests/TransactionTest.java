@@ -74,8 +74,8 @@ public class TransactionTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(streamName, StreamConfiguration.builder().build());
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
         streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().build(), Collections.singleton(streamName));
         @Cleanup
         EventStreamWriter<String> producer = streamManager.getClientFactory()
@@ -137,8 +137,8 @@ public class TransactionTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(streamName, null);
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", streamName, null);
         @Cleanup
         EventStreamWriter<String> producer = streamManager.getClientFactory()
                                                           .createEventWriter(streamName,
@@ -165,8 +165,8 @@ public class TransactionTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(streamName, StreamConfiguration.builder().build());
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
         streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().build(), Collections.singleton(streamName));
         @Cleanup
         EventStreamWriter<String> producer = streamManager.getClientFactory()

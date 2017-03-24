@@ -46,6 +46,7 @@ public class ReaderGroupTest {
         private final ClientFactory clientFactory;
         private final AtomicReference<Exception> exception = new AtomicReference<>(null);
 
+        @Override
         public void run() {
             try {
                 @Cleanup
@@ -80,8 +81,8 @@ public class ReaderGroupTest {
 
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(STREAM_NAME, StreamConfiguration.builder()
+        streamManager.createScope(SCOPE);
+        streamManager.createStream(SCOPE, STREAM_NAME, StreamConfiguration.builder()
                                                                    .scope(SCOPE)
                                                                    .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))
@@ -123,8 +124,8 @@ public class ReaderGroupTest {
 
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(STREAM_NAME, StreamConfiguration.builder()
+        streamManager.createScope(SCOPE);
+        streamManager.createStream(SCOPE, STREAM_NAME, StreamConfiguration.builder()
                                                                    .scope(SCOPE)
                                                                    .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))

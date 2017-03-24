@@ -31,8 +31,9 @@ import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExcept
  */
 @Slf4j
 public class ScaleTest {
-    @SuppressWarnings("checkstyle:ReturnCount")
+    
     public static void main(String[] args) throws Exception {
+        @Cleanup
         TestingServer zkTestServer = new TestingServer();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -44,7 +45,9 @@ public class ScaleTest {
         server.startListening();
 
         // Create controller object for testing against a separate controller report.
+        @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String scope = "scope";

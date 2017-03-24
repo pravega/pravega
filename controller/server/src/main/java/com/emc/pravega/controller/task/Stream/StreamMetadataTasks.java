@@ -492,4 +492,8 @@ public class StreamMetadataTasks extends TaskBase {
                                        context,
                                        connectionFactory);
     }
+
+    @Override
+    public void close() throws Exception {
+    }
 }

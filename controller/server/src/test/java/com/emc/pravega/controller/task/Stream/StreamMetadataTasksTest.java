@@ -30,7 +30,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,16 +54,19 @@ public class StreamMetadataTasksTest {
 
     private ControllerService consumer;
 
+    private CuratorFramework zkClient;
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStorePartialMock;
     private StreamMetadataTasks streamMetadataTasks;
+    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private TimeoutService timeoutService;
 
     @Before
     public void initialize() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
+        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
@@ -82,9 +84,9 @@ public class StreamMetadataTasksTest {
                 taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory);
 
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock, executor, "host", connectionFactory);
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
@@ -102,7 +104,12 @@ public class StreamMetadataTasksTest {
     }
 
     @After
-    public void tearDown() throws IOException {
+    public void tearDown() throws Exception {
+        timeoutService.stopAsync();
+        timeoutService.awaitTerminated();
+        streamMetadataTasks.close();
+        streamTransactionMetadataTasks.close();
+        zkClient.close();
         zkServer.close();
     }
 

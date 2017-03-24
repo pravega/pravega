@@ -46,7 +46,9 @@ public class EndToEndTransactionTest {
         server.startListening();
 
         Thread.sleep(1000);
+        @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String testScope = "testScope";
@@ -74,6 +76,7 @@ public class EndToEndTransactionTest {
         final long maxExecutionTime = 10000;
         final long scaleGracePeriod = 30000;
 
+        @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
 
         @Cleanup

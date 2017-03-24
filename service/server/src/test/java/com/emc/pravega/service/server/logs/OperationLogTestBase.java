@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.AttributeUpdate;
@@ -420,7 +421,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         static CompletableFuture<Void> allOf(Collection<OperationWithCompletion> operations) {
             List<CompletableFuture<Long>> futures = new ArrayList<>();
             operations.forEach(oc -> futures.add(oc.completion));
-            return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
+            return FutureHelpers.allOf(futures);
         }
     }
 

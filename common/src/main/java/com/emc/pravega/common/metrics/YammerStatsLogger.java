@@ -56,7 +56,7 @@ public class YammerStatsLogger implements StatsLogger {
     public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value) {
         try {
             String metricName = name(basename, statName);
-            com.codahale.metrics.Gauge gauge = new com.codahale.metrics.Gauge<T>() {
+            com.codahale.metrics.Gauge<T> gauge = new com.codahale.metrics.Gauge<T>() {
                 @Override
                 public T getValue() {
                     return value.get();
@@ -64,7 +64,7 @@ public class YammerStatsLogger implements StatsLogger {
             };
             metrics.remove(metricName);
             metrics.register(metricName, gauge);
-            return new GaugeImpl(gauge, metricName);
+            return new GaugeImpl<>(gauge, metricName);
         } catch (Exception e) {
             log.warn("registerGauge failure: {}", e);
             return NULLGAUGE;
@@ -134,11 +134,11 @@ public class YammerStatsLogger implements StatsLogger {
         }
     }
 
-    private static class GaugeImpl implements Gauge {
-        private final com.codahale.metrics.Gauge gauge;
+    private static class GaugeImpl<T> implements Gauge {
+        private final com.codahale.metrics.Gauge<T> gauge;
         private final String name;
 
-        GaugeImpl(com.codahale.metrics.Gauge gauge, String name) {
+        GaugeImpl(com.codahale.metrics.Gauge<T> gauge, String name) {
             this.gauge = gauge;
             this.name = name;
         }
