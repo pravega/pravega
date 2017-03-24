@@ -64,22 +64,22 @@ public class ControllerClusterListener extends AbstractIdleService {
             log.info("Registering host {} with controller cluster", host);
             clusterZK.registerHost(host);
 
-            // TODO: At startup find old failures that haven't been handled yet and handle them.
+            Set<String> activeProcesses = clusterZK.getClusterMembers()
+                    .stream()
+                    .map(Host::toString)
+                    .collect(Collectors.toSet());
 
             // Await initialization of components
             if (eventProcessorsOpt.isPresent()) {
                 log.info("Awaiting controller event processors' start");
                 eventProcessorsOpt.get().awaitRunning();
 
-                Set<String> activeProcesses = clusterZK.getClusterMembers()
-                        .stream()
-                        .map(Host::toString)
-                        .collect(Collectors.toSet());
                 eventProcessorsOpt.get().handleOrphanedReaders(activeProcesses);
             }
 
             log.info("Awaiting taskSweeper to become ready");
             taskSweeper.awaitReady();
+            taskSweeper.sweepOrphanedTasks(activeProcesses);
 
             log.info("Adding controller cluster listener");
             clusterZK.addListener((type, host) -> {

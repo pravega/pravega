@@ -10,6 +10,7 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -194,5 +195,10 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
 
             }, executor);
         }
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> getHosts() {
+        return CompletableFuture.completedFuture(Collections.unmodifiableSet(hostTable.keySet()));
     }
 }

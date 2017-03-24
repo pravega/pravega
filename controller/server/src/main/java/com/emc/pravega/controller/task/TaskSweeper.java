@@ -17,7 +17,10 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class TaskSweeper {
@@ -27,6 +30,7 @@ public class TaskSweeper {
     private final Map<String, Method> methodMap = new HashMap<>();
     private final Map<String, TaskBase> objectMap = new HashMap<>();
     private final String hostId;
+    private final ScheduledExecutorService executor;
 
     @Data
     static class Result {
@@ -35,9 +39,11 @@ public class TaskSweeper {
         private final Throwable error;
     }
 
-    public TaskSweeper(final TaskMetadataStore taskMetadataStore, final String hostId, final TaskBase... classes) {
+    public TaskSweeper(final TaskMetadataStore taskMetadataStore, final String hostId,
+                       final ScheduledExecutorService executor, final TaskBase... classes) {
         this.taskMetadataStore = taskMetadataStore;
         this.hostId = hostId;
+        this.executor = executor;
         for (TaskBase object : classes) {
             Preconditions.checkArgument(object.getContext().getHostId().equals(hostId));
         }
@@ -54,6 +60,17 @@ public class TaskSweeper {
         }
     }
 
+    public CompletableFuture<Void> sweepOrphanedTasks(final Set<String> activeHosts) {
+        return taskMetadataStore.getHosts()
+                .thenComposeAsync(registeredHosts -> {
+                    log.info("Hosts {} have ongoing tasks", registeredHosts);
+                    registeredHosts.removeAll(activeHosts);
+                    log.info("Failed hosts {} have orphaned tasks", registeredHosts);
+                    return FutureHelpers.allOf(registeredHosts.stream()
+                            .map(this::sweepOrphanedTasks).collect(Collectors.toList()));
+                }, executor);
+    }
+
     /**
      * This method is called whenever a node in the controller cluster dies. A ServerSet abstraction may be used as
      * a trigger to invoke this method with one of the dead hostId.
@@ -64,9 +81,12 @@ public class TaskSweeper {
      */
     public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
+        log.info("Sweeping orphaned tasks for host {}", oldHostId);
         return FutureHelpers.doWhileLoop(
                 () -> executeHostTask(oldHostId),
-                x -> x != null);
+                x -> x != null, executor)
+                .whenCompleteAsync((result, ex) ->
+                        log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor);
     }
 
     private CompletableFuture<Result> executeHostTask(final String oldHostId) {

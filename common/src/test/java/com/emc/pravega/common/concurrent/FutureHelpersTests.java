@@ -338,7 +338,8 @@ public class FutureHelpersTests {
                     accumulator.incrementAndGet();
                     return CompletableFuture.completedFuture(0);
                 },
-                x -> false // Only one iteration.
+                x -> false, // Only one iteration.
+                ForkJoinPool.commonPool()
         ).join();
         Assert.assertEquals("Unexpected result for loop without a specific accumulator.", 1, accumulator.get());
 
@@ -351,7 +352,8 @@ public class FutureHelpersTests {
                     accumulator.addAndGet(i);
                     return CompletableFuture.completedFuture(loopCounter.incrementAndGet());
                 },
-                x -> x < maxLoops
+                x -> x < maxLoops,
+                ForkJoinPool.commonPool()
         ).join();
 
         Assert.assertEquals("Unexpected result for loop without a specific accumulator.", expectedResult, accumulator.get());
@@ -368,7 +370,7 @@ public class FutureHelpersTests {
                         return CompletableFuture.completedFuture(loopCounter.get());
                     }
                 },
-                x -> x < maxLoops);
+                x -> x < maxLoops, ForkJoinPool.commonPool());
 
         AssertExtensions.assertThrows(
                 "doWhileLoop() did not return a failed Future when one of the loopBody calls returned a failed Future.",

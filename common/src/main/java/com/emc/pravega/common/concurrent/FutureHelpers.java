@@ -15,7 +15,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -479,12 +478,12 @@ public final class FutureHelpers {
      * @param condition Predicate that indicates whether to proceed with the loop or not.
      * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This
      *                  supplier is invoked every time the loopBody needs to execute.
+     * @param executor  An Executor that is used to execute the condition and the loop support code.
      * @param <T>       Return type of the executor.
      * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
-    public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T> condition) {
-        Executor executor = ForkJoinPool.commonPool(); // This method does not take an Executor, so use the default one.
+    public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T> condition, Executor executor) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
         // We implement the do-while loop using a regular loop, but we execute one iteration before we create the actual Loop object.

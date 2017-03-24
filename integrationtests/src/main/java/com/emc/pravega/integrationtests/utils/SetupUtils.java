@@ -87,7 +87,6 @@ public final class SetupUtils {
         this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(this.scope).get();
         this.controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
-        this.controllerWrapper.awaitRunning();
         log.info("Initialized Pravega Controller");
     }
 
