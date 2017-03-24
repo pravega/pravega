@@ -4,7 +4,6 @@
 package com.emc.pravega.integrationtests.endtoendtest;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -20,13 +19,13 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.testcommon.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +44,7 @@ public class EndToEndTxnWithScaleTest {
     @Before
     public void setup() throws Exception {
         zkTestServer = new TestingServer();
-        int port = Config.SERVICE_PORT;
+        int port = TestUtils.randomPort();
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
 
