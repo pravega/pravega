@@ -22,7 +22,6 @@ import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import java.io.IOException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -41,7 +40,7 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
     private TimeoutService timeoutService;
 
     @Override
-    public void setupStore() throws Exception {
+    public void setup() throws Exception {
 
         executorService = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
@@ -65,7 +64,17 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
     }
 
     @Override
-    public void cleanupStore() throws IOException {
+    public void tearDown() throws Exception {
         executorService.shutdown();
+        if (timeoutService != null) {
+            timeoutService.stopAsync();
+            timeoutService.awaitTerminated();
+        }
+        if (streamMetadataTasks != null) {
+            streamMetadataTasks.close();
+        }
+        if (streamTransactionMetadataTasks != null) {
+            streamTransactionMetadataTasks.close();
+        }
     }
 }

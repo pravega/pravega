@@ -36,12 +36,21 @@ public class StreamMetadataTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        int port = TestUtils.randomPort();
+        int servicePort = TestUtils.randomPort();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
+        int controllerPort = TestUtils.randomPort();
         @Cleanup
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(
+                zkTestServer.getConnectString(),
+                true,
+                true,
+                controllerPort,
+                "localhost",
+                servicePort,
+                4);
+        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String scope1 = "scope1";

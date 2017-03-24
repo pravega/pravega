@@ -28,7 +28,6 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 
-import java.io.IOException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -50,7 +49,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     private TimeoutService timeoutService;
 
     @Override
-    public void setupStore() throws Exception {
+    public void setup() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
@@ -80,8 +79,18 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     }
 
     @Override
-    public void cleanupStore() throws IOException {
+    public void tearDown() throws Exception {
         executorService.shutdown();
+        if (timeoutService != null) {
+            timeoutService.stopAsync();
+            timeoutService.awaitTerminated();
+        }
+        if (streamMetadataTasks != null) {
+            streamMetadataTasks.close();
+        }
+        if (streamTransactionMetadataTasks != null) {
+            streamTransactionMetadataTasks.close();
+        }
         zkClient.close();
         zkServer.close();
     }

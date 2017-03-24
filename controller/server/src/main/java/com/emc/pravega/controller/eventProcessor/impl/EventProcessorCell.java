@@ -97,7 +97,6 @@ class EventProcessorCell<T extends ControllerEvent> {
                         state.store(event.getPosition());
                     }
                 } catch (Exception e) {
-                    log.warn(String.format("Failed in run method of event processor %s", objectId), e);
                     handleException(e);
                 }
             }
@@ -148,14 +147,17 @@ class EventProcessorCell<T extends ControllerEvent> {
             ExceptionHandler.Directive directive = eventProcessorConfig.getExceptionHandler().run(e);
             switch (directive) {
                 case Restart:
+                    log.warn("Restarting event processor: {} due to exception: {}", objectId, e);
                     this.restart(e, event == null ? null : event.getEvent());
                     break;
 
                 case Resume:
                     // no action
+                    log.debug("Resuming event processor: {} after receiving exception: {}", objectId, e);
                     break;
 
                 case Stop:
+                    log.warn("Stopping event processor: {} due to exception: {}", objectId, e);
                     this.stopAsync();
                     break;
             }
