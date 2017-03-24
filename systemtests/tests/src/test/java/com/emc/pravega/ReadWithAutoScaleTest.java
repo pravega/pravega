@@ -225,7 +225,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     } else {
                         isLastEventNull = true;
                     }
-                } catch (Throwable e) {
+                } catch (Throwable e) { //TODO: Remove throwable once issue #862 is resolved.
                     log.warn("Test Exception while reading from the stream", e);
                     break;
                 }
@@ -267,6 +267,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         try {
             //Default max scale grace period is 30000
             txn = writer.beginTxn(5000, 3600000, 29000);
+            log.debug("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
             final Class<? extends Throwable> exceptionClass = ex.getCause().getClass();
