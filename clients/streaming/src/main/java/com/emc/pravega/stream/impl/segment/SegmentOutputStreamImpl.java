@@ -353,9 +353,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         if (state.isClosed()) {
             return;
         }
-        if (!state.isInflightEmpty()) {
-            flush();
-        }
+        flush();
         state.setClosed(true);
         ClientConnection connection = state.getConnection();
         if (connection != null) {
@@ -370,9 +368,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Synchronized
     public void flush() throws SegmentSealedException {
         try {
-            ClientConnection connection = getConnection();
-            connection.send(new KeepAlive());
-            state.waitForEmptyInflight();
+            if (!state.isInflightEmpty()) {
+                ClientConnection connection = getConnection();
+                connection.send(new KeepAlive());
+                state.waitForEmptyInflight();
+            }
         } catch (ConnectionFailedException e) {
             state.failConnection(e);
         }
