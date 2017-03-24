@@ -68,7 +68,11 @@ public class EndToEndTxnWithScaleTest {
     public void teardown() {
         clientFactory.close();
         server.close();
-        zkTestServer.close();
+        try {
+            zkTestServer.close();
+        } catch (IOException e) {
+            // ignore it
+        }
     }
 
     @Test
