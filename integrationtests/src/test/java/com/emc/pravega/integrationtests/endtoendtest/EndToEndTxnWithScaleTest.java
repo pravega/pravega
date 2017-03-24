@@ -37,9 +37,9 @@ public class EndToEndTxnWithScaleTest {
                     ScalingPolicy.byEventRate(10, 2, 1)).build();
     private ClientFactory clientFactory;
     private Controller controller;
-    TestingServer zkTestServer;
-    PravegaConnectionListener server;
     ControllerWrapper controllerWrapper;
+    PravegaConnectionListener server;
+    TestingServer zkTestServer;
 
     @Before
     public void setup() throws Exception {
