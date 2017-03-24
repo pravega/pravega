@@ -360,9 +360,12 @@ public class ControllerImplTest {
 
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     builder.setTxnId(TxnId.newBuilder().setHighBits(11L).setLowBits(22L).build());
+                    builder.addActiveSegments(ModelHelper.createSegmentRange("scope1", "stream1", 0, 0.0, 0.5));
+                    builder.addActiveSegments(ModelHelper.createSegmentRange("scope1", "stream1", 1, 0.5, 1.0));
                     responseObserver.onNext(builder.build());
                     responseObserver.onCompleted();
                 } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                    builder.addActiveSegments(ModelHelper.createSegmentRange("scope1", "stream2", 0, 0.0, 1.0));
                     builder.setTxnId(TxnId.newBuilder().setHighBits(33L).setLowBits(44L).build());
                     responseObserver.onNext(builder.build());
                     responseObserver.onCompleted();
@@ -740,10 +743,16 @@ public class ControllerImplTest {
         CompletableFuture<TxnSegments> transaction;
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream1"), 0, 0, 0);
         assertEquals(new UUID(11L, 22L), transaction.get().getTxnId());
-
+        assertEquals(2, transaction.get().getSteamSegments().getSegments().size());
+        assertEquals(new Segment("scope1", "stream1", 0), transaction.get().getSteamSegments().getSegmentForKey(.2));
+        assertEquals(new Segment("scope1", "stream1", 1), transaction.get().getSteamSegments().getSegmentForKey(.8));
+        
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream2"), 0, 0, 0);
         assertEquals(new UUID(33L, 44L), transaction.get().getTxnId());
-
+        assertEquals(1, transaction.get().getSteamSegments().getSegments().size());
+        assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getSteamSegments().getSegmentForKey(.2));
+        assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getSteamSegments().getSegmentForKey(.8));
+        
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream3"), 0, 0, 0);
         AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
     }
