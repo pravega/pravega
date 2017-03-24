@@ -31,7 +31,7 @@ import lombok.extern.slf4j.Slf4j;
  * Actual tasks are implemented in sub-classes of TaskBase and annotated with @Task annotation.
  */
 @Slf4j
-public abstract class TaskBase {
+public abstract class TaskBase implements AutoCloseable {
 
     public interface FutureOperation<T> {
         CompletableFuture<T> apply();

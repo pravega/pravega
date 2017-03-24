@@ -42,7 +42,9 @@ public class EndToEndAutoScaleUpTest {
             @Cleanup
             TestingServer zkTestServer = new TestingServer();
             int port = Config.SERVICE_PORT;
+            @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, true);
+            controllerWrapper.awaitRunning();
             Controller controller = controllerWrapper.getController();
             controllerWrapper.getControllerService().createScope("pravega").get();
 

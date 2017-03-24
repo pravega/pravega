@@ -49,4 +49,8 @@ public class TestTasks extends TaskBase {
     public TaskBase copyWithContext(Context context) {
         return new TestTasks(taskMetadataStore, executor, context);
     }
+
+    @Override
+    public void close() throws Exception {
+    }
 }
