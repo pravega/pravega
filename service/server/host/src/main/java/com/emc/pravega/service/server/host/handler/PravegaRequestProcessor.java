@@ -92,6 +92,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @VisibleForTesting
     static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
+    static final OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_READ_LATENCY);
 
     private final StreamSegmentStore segmentStore;
 
@@ -119,7 +120,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         future.thenApply((ReadResult t) -> {
             handleReadResult(readSegment, t);
             DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), t.getConsumedLength());
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_READ_LATENCY, segment), timer.getElapsedMillis());
+            READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             return null;
         }).exceptionally((Throwable t) -> {
             handleException(segment, "Read segment", t);
