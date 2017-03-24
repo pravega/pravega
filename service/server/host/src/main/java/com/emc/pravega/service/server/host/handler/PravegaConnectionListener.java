@@ -53,8 +53,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private EventLoopGroup workerGroup;
     private final SegmentStatsRecorder statsRecorder;
 
-    public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore) {
-        this(ssl, host, port, streamSegmentStore, null);
+    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
+        this(ssl, "localhost", port, streamSegmentStore, null);
     }
 
     public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore,
