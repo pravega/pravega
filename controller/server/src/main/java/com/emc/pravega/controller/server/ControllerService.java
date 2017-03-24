@@ -10,6 +10,7 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.stream.VersionedTransactionData;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -40,6 +41,8 @@ import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * Stream controller RPC server implementation.
@@ -98,14 +101,7 @@ public class ControllerService {
 
         // Fetch active segments from segment store.
         return streamStore.getActiveSegments(scope, stream, null, executor)
-                .thenApplyAsync(activeSegments -> {
-                    List<SegmentRange> listOfSegment = activeSegments
-                            .stream()
-                            .map(segment -> convert(scope, stream, segment))
-                            .collect(Collectors.toList());
-                    listOfSegment.sort(Comparator.comparingDouble(SegmentRange::getMinKey));
-                    return listOfSegment;
-                }, executor);
+                .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, stream), executor);
     }
 
     public CompletableFuture<Map<SegmentId, Long>> getSegmentsAtTime(final String scope, final String stream, final long timestamp) {
@@ -181,8 +177,8 @@ public class ControllerService {
                 .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber), executor);
     }
 
-    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream, final long lease,
-                                                      final long maxExecutionTime, final long scaleGracePeriod) {
+    public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream, final long lease,
+                                                                          final long maxExecutionTime, final long scaleGracePeriod) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
@@ -197,12 +193,21 @@ public class ControllerService {
         }
 
         return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionTime, scaleGracePeriod, null)
-                .thenApply(data -> {
+                .thenApply(pair -> {
+                    VersionedTransactionData data = pair.getKey();
                     timeoutService.addTxn(scope, stream, data.getId(), data.getVersion(), lease,
                             data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
-                    return data.getId();
-                })
-                .thenApply(ModelHelper::decode);
+                    return new ImmutablePair<>(data.getId(), getSegmentRanges(pair.getValue(), scope, stream));
+                });
+    }
+
+    private List<SegmentRange> getSegmentRanges(List<Segment> activeSegments, String scope, String stream) {
+        List<SegmentRange> listOfSegment = activeSegments
+                .stream()
+                .map(segment -> convert(scope, stream, segment))
+                .collect(Collectors.toList());
+        listOfSegment.sort(Comparator.comparingDouble(SegmentRange::getMinKey));
+        return listOfSegment;
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
