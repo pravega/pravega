@@ -118,6 +118,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             currentBlock = null;
             result = new Append(segment.name, connectionId, segment.lastEventNumber, appendDataBuf, null);
             break;
+            //$CASES-OMITTED$
         default:
             throw new IllegalStateException("Unexpected case: " + command);
         }

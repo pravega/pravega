@@ -20,7 +20,7 @@ public class StatsLoggerProxy implements StatsLogger {
     private final ConcurrentHashMap<OpStatsLoggerProxy, String> opStatsLoggers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<CounterProxy, String> counters = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<MeterProxy, String> meters = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<GaugeProxy, Map.Entry<String, Supplier>> gauges = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<GaugeProxy, Map.Entry<String, Supplier<? extends Number>>> gauges = new ConcurrentHashMap<>();
 
     StatsLoggerProxy(StatsLogger logger) {
         this.statsLoggerRef.set(logger);

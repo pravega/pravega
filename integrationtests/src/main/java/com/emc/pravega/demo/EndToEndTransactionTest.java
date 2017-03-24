@@ -76,6 +76,7 @@ public class EndToEndTransactionTest {
         final long maxExecutionTime = 10000;
         final long scaleGracePeriod = 30000;
 
+        @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
 
         @Cleanup

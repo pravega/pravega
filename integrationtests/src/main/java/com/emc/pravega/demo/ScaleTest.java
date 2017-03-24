@@ -30,7 +30,7 @@ import org.apache.curator.test.TestingServer;
  */
 @Slf4j
 public class ScaleTest {
-    @SuppressWarnings("checkstyle:ReturnCount")
+    
     public static void main(String[] args) throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
