@@ -71,14 +71,14 @@ public class EndToEndTxnWithScaleTest {
         server.close();
         try {
             zkTestServer.close();
-        } catch (IOException e) {
+            controllerWrapper.close();
+        } catch (Exception e) {
             // ignore it
         }
     }
 
     @Test(timeout = 10000)
     public void testTxnWithScale() throws Exception {
-        // Mocking pravega service by putting scale up and scale down requests for the stream
         EventStreamWriter<String> test = clientFactory.createEventWriter(
                 "test", new JavaSerializer<>(), EventWriterConfig.builder().build());
         Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
