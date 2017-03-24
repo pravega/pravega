@@ -18,12 +18,6 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-
-import static com.emc.pravega.controller.store.stream.tables.TableHelper.findSegmentPredecessorCandidates;
-import static com.emc.pravega.controller.store.stream.tables.TableHelper.findSegmentSuccessorCandidates;
-
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
@@ -36,6 +30,12 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+
+import static com.emc.pravega.controller.store.stream.tables.TableHelper.findSegmentPredecessorCandidates;
+import static com.emc.pravega.controller.store.stream.tables.TableHelper.findSegmentSuccessorCandidates;
 
 @Slf4j
 public abstract class PersistentStreamBase<T> implements Stream {
@@ -159,21 +159,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
      */
     @Override
     public CompletableFuture<List<Integer>> getSuccessors(final int number) {
-
-        final CompletableFuture[] futures = new CompletableFuture[3];
-
-        futures[0] = getSegment(number);
-        futures[1] = getIndexTable();
-        futures[2] = getHistoryTable();
-
-        return verifyLegalState(CompletableFuture.allOf(futures).thenApply(x -> {
-            final Segment segment = (Segment) futures[0].getNow(null);
-            final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
-            final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
-            return TableHelper.findSegmentSuccessorCandidates(segment, indexTable.getData(), historyTable.getData());
+        val segmentFuture = getSegment(number);
+        val indexTableFuture = getIndexTable();
+        val historyTableFuture = getHistoryTable();
+        CompletableFuture<Void> all = CompletableFuture.allOf(segmentFuture, indexTableFuture, historyTableFuture);
+        
+        return verifyLegalState(all.thenApply(x -> {
+            return TableHelper.findSegmentSuccessorCandidates(segmentFuture.getNow(null),
+                    indexTableFuture.getNow(null).getData(),
+                    historyTableFuture.getNow(null).getData());
         }).thenCompose(candidates -> {
-            Segment segment = (Segment) futures[0].getNow(null);
-            return findOverlapping(segment, candidates);
+            return findOverlapping(segmentFuture.getNow(null), candidates);
         }).thenApply(list -> list.stream().map(e -> e.getNumber()).collect(Collectors.toList())));
     }
 
@@ -186,32 +182,26 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
+        val segmentFuture = getSegment(number);
+        val indexTableFuture = getIndexTable();
+        val historyTableFuture = getHistoryTable();
+        CompletableFuture<Void> all = CompletableFuture.allOf(segmentFuture, indexTableFuture, historyTableFuture);
 
-        final CompletableFuture[] futures = new CompletableFuture[3];
-
-        futures[0] = getSegment(number);
-        futures[1] = getIndexTable();
-        futures[2] = getHistoryTable();
-        CompletableFuture<List<Segment>> segments = CompletableFuture.allOf(futures).thenCompose(x -> {
-            final Segment segment = (Segment) futures[0].getNow(null);
-            final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
-            final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
+        CompletableFuture<List<Segment>> segments = all.thenCompose(x -> {
+            final Segment segment = segmentFuture.getNow(null);
             List<Integer> candidates = findSegmentSuccessorCandidates(segment,
-                                                                      indexTable.getData(),
-                                                                      historyTable.getData());
+                    indexTableFuture.getNow(null).getData(),
+                    historyTableFuture.getNow(null).getData());
             return findOverlapping(segment, candidates);
         });
         CompletableFuture<Map<Integer, List<Integer>>> result = segments.thenCompose(successors -> {
-            final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
-            final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
             List<CompletableFuture<Map.Entry<Segment, List<Integer>>>> resultFutures = new ArrayList<>();
             for (Segment successor : successors) {
                 List<Integer> candidates = findSegmentPredecessorCandidates(successor,
-                                                                            indexTable.getData(),
-                                                                            historyTable.getData());
-                resultFutures.add(findOverlapping(successor,
-                                                  candidates).thenApply(list -> new SimpleImmutableEntry<>(successor,
-                                                                                                           candidates)));
+                        indexTableFuture.getNow(null).getData(),
+                        historyTableFuture.getNow(null).getData());
+                resultFutures.add(findOverlapping(successor, candidates).thenApply(
+                        list -> new SimpleImmutableEntry<>(successor, candidates)));
             }
             return FutureHelpers.allOfWithResults(resultFutures);
         }).thenApply(list -> list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), Map.Entry::getValue)));
@@ -226,19 +216,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
      */
     @Override
     public CompletableFuture<List<Integer>> getPredecessors(final int number) {
-        final CompletableFuture[] futures = new CompletableFuture[3];
+        val segmentFuture = getSegment(number);
+        val indexTableFuture = getIndexTable();
+        val historyTableFuture = getHistoryTable();
+        CompletableFuture<Void> all = CompletableFuture.allOf(segmentFuture, indexTableFuture, historyTableFuture);
 
-        futures[0] = getSegment(number);
-        futures[1] = getIndexTable();
-        futures[2] = getHistoryTable();
-
-        return verifyLegalState(CompletableFuture.allOf(futures).thenCompose(x -> {
-            final Segment segment = (Segment) futures[0].getNow(null);
-            final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
-            final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
+        return verifyLegalState(all.thenCompose(x -> {
+            final Segment segment = segmentFuture.getNow(null);
             List<Integer> candidates = TableHelper.findSegmentPredecessorCandidates(segment,
-                    indexTable.getData(),
-                    historyTable.getData());
+                    indexTableFuture.getNow(null).getData(),
+                    historyTableFuture.getNow(null).getData());
             return findOverlapping(segment, candidates);
         }).thenApply(list -> list.stream().map(e -> e.getNumber()).collect(Collectors.toList())));
     }
