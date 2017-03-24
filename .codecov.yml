@@ -8,7 +8,8 @@ coverage:
         against: parent
         target: auto
         threshold: 1%
-
+        branches:
+          - master
   ignore:
     - "benchmark"
     - "generated"
