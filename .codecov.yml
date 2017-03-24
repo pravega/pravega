@@ -1,17 +1,18 @@
 #
 #  Copyright (c) 2017 Dell Inc., or its subsidiaries.
 #
-status:
-  project:
-    default:
-      against: parent
-      target: auto
-      threshold: 1%
-      
-ignore:
-  - "benchmark"
-  - "generated"
-  - "integrationtests"
-  - "singlenode"
-  - "testcommon"
-  - "systemtests"
+coverage:
+  status:
+    project:
+      default:
+        against: parent
+        target: auto
+        threshold: 1%
+
+  ignore:
+    - "benchmark"
+    - "generated"
+    - "integrationtests"
+    - "singlenode"
+    - "testcommon"
+    - "systemtests"
