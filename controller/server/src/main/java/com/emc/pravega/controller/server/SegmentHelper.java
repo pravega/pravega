@@ -22,7 +22,6 @@ import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
