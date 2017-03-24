@@ -66,6 +66,10 @@ public final class SetupUtils {
             return;
         }
 
+        // Start zookeeper.
+        this.zkTestServer = new TestingServer();
+        this.zkTestServer.start();
+
         // Start Pravega Service.
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -75,15 +79,12 @@ public final class SetupUtils {
         this.server.startListening();
         log.info("Started Pravega Service");
 
-        // Start zookeeper.
-        this.zkTestServer = new TestingServer();
-        this.zkTestServer.start();
-
         // Start Controller.
         int controllerPort = TestUtils.randomPort();
         this.controllerWrapper = new ControllerWrapper(
                 this.zkTestServer.getConnectString(), true, true, controllerPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT);
+        this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(this.scope).get();
         this.controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
         this.controllerWrapper.awaitRunning();

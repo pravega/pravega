@@ -253,4 +253,14 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 context,
                 connectionFactory);
     }
+
+    @Override
+    public void close() throws Exception {
+        if (commitEventEventStreamWriter != null) {
+            commitEventEventStreamWriter.close();
+        }
+        if (abortEventEventStreamWriter != null) {
+            abortEventEventStreamWriter.close();
+        }
+    }
 }

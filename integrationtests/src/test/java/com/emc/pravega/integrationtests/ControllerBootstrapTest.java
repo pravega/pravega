@@ -64,7 +64,6 @@ public class ControllerBootstrapTest {
     public void cleanup() throws Exception {
         if (controllerWrapper != null) {
             controllerWrapper.close();
-            controllerWrapper.awaitTerminated();
         }
         if (server != null) {
             server.close();

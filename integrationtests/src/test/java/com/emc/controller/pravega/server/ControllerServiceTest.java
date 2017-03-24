@@ -56,6 +56,7 @@ public class ControllerServiceTest {
         
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
                                                                     controllerPort, serviceHost, servicePort, containerCount);
+        controllerWrapper.awaitRunning();
     }
     
     @After

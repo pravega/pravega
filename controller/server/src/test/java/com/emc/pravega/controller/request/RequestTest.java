@@ -25,6 +25,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -56,7 +57,7 @@ public class RequestTest {
     private CuratorFramework zkClient;
 
     @Before
-    public void createStream() throws Exception {
+    public void setup() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
 
@@ -94,6 +95,14 @@ public class RequestTest {
         // create a stream
         streamStore.createScope(scope);
         streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        streamMetadataTasks.close();
+        streamTransactionMetadataTasks.close();
+        zkClient.close();
+        zkServer.close();
     }
 
     @Test(timeout = 10000)

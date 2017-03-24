@@ -61,6 +61,7 @@ public class ControllerStreamMetadataTest {
             // 3. Start controller
             this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
                     controllerPort, serviceHost, servicePort, containerCount);
+            this.controllerWrapper.awaitRunning();
             this.controller = controllerWrapper.getController();
             this.streamConfiguration = StreamConfiguration.builder()
                     .scope(SCOPE)
