@@ -20,8 +20,6 @@ import com.emc.pravega.stream.impl.ControllerFailureException;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.TxnSegments;
-import org.apache.commons.lang3.tuple.Pair;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
