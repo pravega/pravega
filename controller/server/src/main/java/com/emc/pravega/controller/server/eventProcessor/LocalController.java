@@ -19,6 +19,8 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ControllerFailureException;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.StreamSegments;
+import org.apache.commons.lang3.tuple.Pair;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +29,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.tuple.Pair;
 
 public class LocalController implements Controller {
 
@@ -183,14 +184,15 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName) {
         return controller.getCurrentSegments(scope, streamName)
-                .thenApply((List<SegmentRange> ranges) -> {
-                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                    for (SegmentRange r : ranges) {
-                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
-                    }
-                    return rangeMap;
-                })
-                .thenApply(StreamSegments::new);
+                .thenApply(this::getStreamSegments);
+    }
+
+    private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
+        NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+        for (SegmentRange r : ranges) {
+            rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+        }
+        return new StreamSegments(rangeMap);
     }
 
     @Override
@@ -198,7 +200,9 @@ public class LocalController implements Controller {
                                                      final long scaleGracePeriod) {
         return controller
                 .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
-                .thenApply(pair -> Pair.of(null, pair.getKey()));
+                .thenApply(pair -> {
+                    return Pair.of(getStreamSegments(pair.getRight()), pair.getKey());
+                });
     }
 
     @Override

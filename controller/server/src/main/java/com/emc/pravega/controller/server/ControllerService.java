@@ -101,14 +101,7 @@ public class ControllerService {
 
         // Fetch active segments from segment store.
         return streamStore.getActiveSegments(scope, stream, null, executor)
-                .thenApplyAsync(activeSegments -> {
-                    List<SegmentRange> listOfSegment = activeSegments
-                            .stream()
-                            .map(segment -> convert(scope, stream, segment))
-                            .collect(Collectors.toList());
-                    listOfSegment.sort(Comparator.comparingDouble(SegmentRange::getMinKey));
-                    return listOfSegment;
-                }, executor);
+                .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, stream), executor);
     }
 
     public CompletableFuture<Map<SegmentId, Long>> getSegmentsAtTime(final String scope, final String stream, final long timestamp) {
@@ -204,11 +197,11 @@ public class ControllerService {
                     VersionedTransactionData data = pair.getKey();
                     timeoutService.addTxn(scope, stream, data.getId(), data.getVersion(), lease,
                             data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
-                    return new ImmutablePair<>(data.getId(), convert(pair.getValue(), scope, stream));
+                    return new ImmutablePair<>(data.getId(), getSegmentRanges(pair.getValue(), scope, stream));
                 });
     }
 
-    private List<SegmentRange> convert(List<Segment> activeSegments, String scope, String stream) {
+    private List<SegmentRange> getSegmentRanges(List<Segment> activeSegments, String scope, String stream) {
         List<SegmentRange> listOfSegment = activeSegments
                 .stream()
                 .map(segment -> convert(scope, stream, segment))
