@@ -177,8 +177,10 @@ public class ControllerService {
                 .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber), executor);
     }
 
-    public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream, final long lease,
-                                                                          final long maxExecutionTime, final long scaleGracePeriod) {
+    public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream,
+                                                                               final long lease,
+                                                                               final long maxExecutionTime,
+                                                                               final long scaleGracePeriod) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 

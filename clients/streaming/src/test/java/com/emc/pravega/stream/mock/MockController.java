@@ -190,7 +190,7 @@ public class MockController implements Controller {
         }
         return new StreamSegments(segments);
     }
-    
+
     @Override
     public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
