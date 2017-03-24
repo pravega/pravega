@@ -44,6 +44,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             int port = Config.SERVICE_PORT;
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+            controllerWrapper.awaitRunning();
             Controller controller = controllerWrapper.getController();
             controllerWrapper.getControllerService().createScope("pravega").get();
 

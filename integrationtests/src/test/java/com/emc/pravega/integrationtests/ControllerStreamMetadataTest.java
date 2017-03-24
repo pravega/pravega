@@ -61,6 +61,7 @@ public class ControllerStreamMetadataTest {
             // 3. Start controller
             this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
                     controllerPort, serviceHost, servicePort, containerCount);
+            this.controllerWrapper.awaitRunning();
             this.controller = controllerWrapper.getController();
             this.streamConfiguration = StreamConfiguration.builder()
                     .scope(SCOPE)
@@ -150,9 +151,18 @@ public class ControllerStreamMetadataTest {
 
     @Test(timeout = 10000)
     public void streamManagerImpltest() {
-        StreamManager streamManager = new StreamManagerImpl(SCOPE, controller);
+        StreamManager streamManager = new StreamManagerImpl(controller);
 
-        streamManager.createScope();
-        streamManager.deleteScope();
+        // Create and delete scope
+        assertTrue(streamManager.createScope(SCOPE));
+        assertTrue(streamManager.deleteScope(SCOPE));
+
+        // Create scope twice
+        assertTrue(streamManager.createScope(SCOPE));
+        assertFalse(streamManager.createScope(SCOPE));
+        assertTrue(streamManager.deleteScope(SCOPE));
+
+        // Delete twice
+        assertFalse(streamManager.deleteScope(SCOPE));
     }
 }

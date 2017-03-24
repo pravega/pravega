@@ -17,8 +17,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import io.grpc.stub.StreamObserver;
 
-import java.io.IOException;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -51,10 +49,10 @@ public abstract class ControllerServiceImplTest {
     ControllerServiceImpl controllerService;
 
     @Before
-    public abstract void setupStore() throws Exception;
+    public abstract void setup() throws Exception;
 
     @After
-    public abstract void cleanupStore() throws IOException;
+    public abstract void tearDown() throws Exception;
 
     @Test
     public void createScopeTests() {

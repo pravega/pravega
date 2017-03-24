@@ -94,12 +94,21 @@ public class EventProcessorTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        int port = TestUtils.randomPort();
+        int servicePort = TestUtils.randomPort();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
+        int controllerPort = TestUtils.randomPort();
         @Cleanup
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(
+                zkTestServer.getConnectString(),
+                true,
+                true,
+                controllerPort,
+                "localhost",
+                servicePort,
+                4);
+        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         // Create controller object for testing against a separate controller process.
