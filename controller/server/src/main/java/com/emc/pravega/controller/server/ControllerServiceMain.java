@@ -170,6 +170,10 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         }
     }
 
+    /**
+     * Changes internal state to the new value.
+     * @param newState new internal state.
+     */
     private void notifyServiceStateChange(ServiceState newState) {
         monitor.enter();
         try {
@@ -179,6 +183,10 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         }
     }
 
+    /**
+     * Awaits until the internal state changes to STARTING, and returns the reference
+     * of current ControllerServiceStarter.
+     */
     @VisibleForTesting
     public ControllerServiceStarter awaitServiceStarting() {
         monitor.enterWhenUninterruptibly(hasReachedStarting);
@@ -194,6 +202,10 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         }
     }
 
+    /**
+     * Awaits until the internal state changes to PAUSING, and returns the reference
+     * of current ControllerServiceStarter.
+     */
     @VisibleForTesting
     public ControllerServiceStarter awaitServicePausing() {
         monitor.enterWhenUninterruptibly(hasReachedPausing);
@@ -207,11 +219,6 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         } finally {
             monitor.leave();
         }
-    }
-
-    @VisibleForTesting
-    public void awaitServiceTerminated() {
-        this.awaitTerminated();
     }
 
     @VisibleForTesting
