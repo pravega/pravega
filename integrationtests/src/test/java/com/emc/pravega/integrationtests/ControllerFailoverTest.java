@@ -15,7 +15,6 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.testcommon.TestUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -23,8 +22,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.URI;
-
-import static com.emc.pravega.controller.util.ZKUtils.simulateZkSessionExpiry;
 
 /**
  * Tests for validating controller fail over behaviour.
@@ -79,7 +76,7 @@ public class ControllerFailoverTest {
 
         try {
             controllerWrapper.awaitRunning();
-        } catch (InterruptedException e) {
+        } catch (IllegalStateException e) {
             log.error("Received interrupt while awaiting start of controllerWrapper", e);
             Assert.fail("Failed starting controllerWrapper");
             return;
@@ -87,24 +84,23 @@ public class ControllerFailoverTest {
 
         // Simulate ZK session timeout
         try {
-            CuratorFramework curatorClient = (CuratorFramework) controllerWrapper.getStoreClient().getClient();
-            simulateZkSessionExpiry(curatorClient);
+            controllerWrapper.forceClientSessionExpiry();
         } catch (Exception e) {
-            log.error("Error while simulating ZK session expiry", e);
+            log.error("Error while simulating client session expiry", e);
             Assert.fail();
         }
 
         // Now, that session has expired, lets do some operations on
         try {
-            controllerWrapper.getControllerServiceMain().getStarter().awaitTerminated();
-        } catch (InterruptedException e) {
+            controllerWrapper.awaitPaused();
+        } catch (IllegalStateException e) {
             log.error("Error waiting for starter termination", e);
             Assert.fail();
         }
 
         try {
-            controllerWrapper.getControllerServiceMain().getStarter().awaitRunning();
-        } catch (InterruptedException e) {
+            controllerWrapper.awaitRunning();
+        } catch (IllegalStateException e) {
             log.error("Error waiting for starter ready", e);
             Assert.fail();
         }
@@ -136,6 +132,6 @@ public class ControllerFailoverTest {
             Assert.fail();
         }
 
-        controllerWrapper.getControllerServiceMain().awaitTerminated();
+        controllerWrapper.awaitTerminated();
     }
 }

@@ -15,7 +15,6 @@ import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
-import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
 import com.emc.pravega.controller.store.client.ZKClientConfig;
 import com.emc.pravega.controller.store.client.impl.StoreClientConfigImpl;
@@ -136,36 +135,36 @@ public class ControllerWrapper implements AutoCloseable {
     }
 
     public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
-        return this.controllerServiceMain.getStarter().awaitTasksModuleInitialization(timeout, timeUnit);
+        return this.controllerServiceMain.awaitServiceStarting().awaitTasksModuleInitialization(timeout, timeUnit);
     }
 
     public ControllerService getControllerService() throws InterruptedException {
-        return this.controllerServiceMain.getStarter().getControllerService();
+        return this.controllerServiceMain.awaitServiceStarting().getControllerService();
     }
 
     public Controller getController() throws InterruptedException {
-        return this.controllerServiceMain.getStarter().getController();
+        return this.controllerServiceMain.awaitServiceStarting().getController();
     }
 
-    public void awaitRunning() throws InterruptedException {
-        this.controllerServiceMain.getStarter().awaitRunning();
+    public void awaitRunning() {
+        this.controllerServiceMain.awaitServiceStarting().awaitRunning();
+    }
+
+    public void awaitPaused() {
+        this.controllerServiceMain.awaitServicePausing().awaitTerminated();
     }
 
     public void awaitTerminated() {
         this.controllerServiceMain.awaitTerminated();
     }
 
-    public StoreClient getStoreClient() throws InterruptedException {
-        return this.controllerServiceMain.getStoreClient();
-    }
-
-    public ControllerServiceMain getControllerServiceMain() {
-        return this.controllerServiceMain;
+    public void forceClientSessionExpiry() throws Exception {
+        this.controllerServiceMain.forceClientSessionExpiry();
     }
 
     @Override
     public void close() throws Exception {
         this.controllerServiceMain.stopAsync();
-        this.controllerServiceMain.getStarter().awaitTerminated();
+        this.controllerServiceMain.awaitTerminated();
     }
 }
