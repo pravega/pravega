@@ -6,7 +6,6 @@
 package com.emc.pravega.stream.mock;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
@@ -318,14 +317,14 @@ public class MockController implements Controller {
     private <T> void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor, CompletableFuture<T> resultFuture) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
             .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
-        try {
-            connection.send(request);
-        } catch (ConnectionFailedException e) {
-            resultFuture.completeExceptionally(e);
-        }
         resultFuture.whenComplete((result, e) -> {
             connection.close();
         });
+        try {
+            connection.send(request);
+        } catch (Exception e) {
+            resultFuture.completeExceptionally(e);
+        }
     }
 
     @Override
