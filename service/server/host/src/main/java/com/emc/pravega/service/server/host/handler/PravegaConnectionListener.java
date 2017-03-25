@@ -45,6 +45,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 public final class PravegaConnectionListener implements AutoCloseable {
 
     private final boolean ssl;
+    private final String host;
     private final int port;
     private final StreamSegmentStore store;
     private Channel serverChannel;
@@ -53,11 +54,13 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final SegmentStatsRecorder statsRecorder;
 
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
-        this(ssl, port, streamSegmentStore, null);
+        this(ssl, "localhost", port, streamSegmentStore, null);
     }
 
-    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore, SegmentStatsRecorder statsRecorder) {
+    public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore,
+                                     SegmentStatsRecorder statsRecorder) {
         this.ssl = ssl;
+        this.host = host;
         this.port = port;
         this.store = streamSegmentStore;
         this.statsRecorder = statsRecorder;
@@ -115,7 +118,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
          });
 
         // Start the server.
-        serverChannel = b.bind(port).awaitUninterruptibly().channel();
+        serverChannel = b.bind(host, port).awaitUninterruptibly().channel();
     }
 
     @Override
