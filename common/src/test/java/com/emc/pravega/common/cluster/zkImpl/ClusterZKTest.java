@@ -12,7 +12,7 @@ import com.emc.pravega.common.cluster.Host;
 import java.io.IOException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-
+import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -54,6 +54,7 @@ public class ClusterZKTest {
     public void registerNode() throws Exception {
         LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue<>();
         LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<Exception> exceptionsQueue = new LinkedBlockingQueue<>();
 
         //ClusterListener for testing purposes
         CuratorFramework client2 = CuratorFrameworkFactory.builder()
@@ -62,7 +63,7 @@ public class ClusterZKTest {
                         RETRY_SLEEP_MS, MAX_RETRY))
                 .namespace(CLUSTER_NAME)
                 .build();
-
+        @Cleanup
         Cluster clusterListener = new ClusterZKImpl(client2, ClusterType.Host.toString());
         clusterListener.addListener((eventType, host) -> {
             switch (eventType) {
@@ -71,6 +72,12 @@ public class ClusterZKTest {
                     break;
                 case HOST_REMOVED:
                     nodeRemovedQueue.offer(host.getIpAddr());
+                    break;
+                case ERROR:
+                    exceptionsQueue.offer(new RuntimeException("Encountered error"));
+                    break;
+                default:
+                    exceptionsQueue.offer(new RuntimeException("Unhandled case"));
                     break;
             }
         });
@@ -83,26 +90,29 @@ public class ClusterZKTest {
                 .build();
 
         //Create Add a node to the cluster.
+        @Cleanup
         Cluster clusterZKInstance1 = new ClusterZKImpl(client, ClusterType.Host.toString());
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
         //Create a separate instance of Cluster and add node to same Cluster
+        @Cleanup
         Cluster clusterZKInstance2 = new ClusterZKImpl(client, ClusterType.Host.toString());
         clusterZKInstance1.registerHost(new Host(HOST_2, PORT));
         assertEquals(HOST_2, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
         assertEquals(2, clusterListener.getClusterMembers().size());
 
-        //cleanup
-        clusterListener.close();
-        clusterZKInstance1.close();
-        clusterZKInstance2.close();
+        Exception exception = exceptionsQueue.poll();
+        if (exception != null) {
+            throw exception;
+        }
     }
 
     @Test(timeout = TEST_TIMEOUT)
     public void deregisterNode() throws Exception {
         LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue<>();
         LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<Exception> exceptionsQueue = new LinkedBlockingQueue<>();
 
         CuratorFramework client2 = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
@@ -110,6 +120,7 @@ public class ClusterZKTest {
                         RETRY_SLEEP_MS, MAX_RETRY))
                 .namespace(CLUSTER_NAME_2)
                 .build();
+        @Cleanup
         Cluster clusterListener = new ClusterZKImpl(client2, ClusterType.Host.toString());
         clusterListener.addListener((eventType, host) -> {
             switch (eventType) {
@@ -118,6 +129,12 @@ public class ClusterZKTest {
                     break;
                 case HOST_REMOVED:
                     nodeRemovedQueue.offer(host.getIpAddr());
+                    break;
+                case ERROR:
+                    exceptionsQueue.offer(new RuntimeException("Encountered error"));
+                    break;
+                default:
+                    exceptionsQueue.offer(new RuntimeException("Unhandled case"));
                     break;
             }
         });
@@ -129,6 +146,7 @@ public class ClusterZKTest {
                 .namespace(CLUSTER_NAME_2)
                 .build();
         //Create Add a node to the cluster.
+        @Cleanup
         Cluster clusterZKInstance1 = new ClusterZKImpl(client, ClusterType.Host.toString());
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
@@ -136,8 +154,9 @@ public class ClusterZKTest {
         clusterZKInstance1.deregisterHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeRemovedQueue.poll(5, TimeUnit.SECONDS));
 
-        //cleanup
-        clusterListener.close();
-        clusterZKInstance1.close();
+        Exception exception = exceptionsQueue.poll();
+        if (exception != null) {
+            throw exception;
+        }
     }
 }

@@ -389,7 +389,7 @@ public class FutureHelpersTests {
     }
 
     private Map<Integer, CompletableFuture<Integer>> createMappedNumericFutures(int count) {
-        HashMap<Integer, CompletableFuture<Integer>> result = new HashMap();
+        HashMap<Integer, CompletableFuture<Integer>> result = new HashMap<>();
         for (int i = 0; i < count; i++) {
             result.put(i, new CompletableFuture<>());
         }

@@ -137,13 +137,16 @@ public final class TrustingSSLSocketFactory extends SSLSocketFactory
         return setEnabledCipherSuites(delegate.createSocket(address, port, localAddress, localPort));
     }
 
+    @Override
     public X509Certificate[] getAcceptedIssuers() {
         return null;
     }
 
+    @Override
     public void checkClientTrusted(X509Certificate[] certs, String authType) {
     }
 
+    @Override
     public void checkServerTrusted(X509Certificate[] certs, String authType) {
     }
 

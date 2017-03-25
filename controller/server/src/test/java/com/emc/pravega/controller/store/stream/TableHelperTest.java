@@ -296,7 +296,7 @@ public class TableHelperTest {
                         .stream()
                         .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(1));
-        assertEquals(successors, new ArrayList());
+        assertEquals(successors, new ArrayList<>());
 
         predecessors = TableHelper.getOverlaps(seven,
                 TableHelper.findSegmentPredecessorCandidates(seven,
@@ -341,7 +341,7 @@ public class TableHelperTest {
                         .stream()
                         .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(7));
-        assertEquals(successors, new ArrayList());
+        assertEquals(successors, new ArrayList<>());
 
         predecessors = TableHelper.getOverlaps(ten,
                 TableHelper.findSegmentPredecessorCandidates(ten,
@@ -356,7 +356,7 @@ public class TableHelperTest {
                         .stream()
                         .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(7, 8));
-        assertEquals(successors, new ArrayList());
+        assertEquals(successors, new ArrayList<>());
 
         predecessors = TableHelper.getOverlaps(eleven,
                 TableHelper.findSegmentPredecessorCandidates(eleven,
@@ -371,7 +371,7 @@ public class TableHelperTest {
                         .stream()
                         .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(8));
-        assertEquals(successors, new ArrayList());
+        assertEquals(successors, new ArrayList<>());
     }
 
     private byte[] createSegmentTable(int numSegments, long eventTime) {

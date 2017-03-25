@@ -194,6 +194,7 @@ public class ClusterZKImpl implements Cluster {
                     log.error("Connection lost with Zookeeper");
                     listener.onEvent(ERROR, null);
                     break;
+                //$CASES-OMITTED$
                 default:
                     log.warn("Received unknown event {}", event.getType());
             }

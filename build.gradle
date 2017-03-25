@@ -44,6 +44,7 @@ allprojects {
     test { finalizedBy jacocoTestReport }
 
     javadoc {
+        title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
         source  =  project(':clients:streaming').sourceSets.main.java
