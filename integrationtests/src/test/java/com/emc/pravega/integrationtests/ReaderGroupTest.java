@@ -69,7 +69,7 @@ public class ReaderGroupTest {
     @Test(timeout = 20000)
     public void testEventHandoff() throws Exception {
         String endpoint = "localhost";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -112,7 +112,7 @@ public class ReaderGroupTest {
     @Test
     public void testMultiSegmentsPerReader() throws InterruptedException, ExecutionException {
         String endpoint = "localhost";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

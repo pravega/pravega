@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.util.Random;
 
 /**
  * Utility class for Tests.
@@ -15,36 +14,23 @@ import java.util.Random;
 @Slf4j
 public class TestUtils {
 
-    static final Random RAND = new Random();
-
     /**
      * A helper method to get a random free port.
      *
      * @return free port.
      */
-    public static int randomPort() {
-        int minValue = 1024;
-        int maxValue = 49151 - minValue;
+    public static int getAvailableListenPort() {
         ServerSocket serverSocket = null;
-
-        for (int i = 0; i < 10000; i++) {
-            try {
-                serverSocket = new ServerSocket(RAND.nextInt(maxValue) + minValue);
-                return serverSocket.getLocalPort();
-            } catch (IOException ex) {
-                continue; // try next port
-            } finally {
-                if (serverSocket != null) {
-                    try {
-                        serverSocket.close();
-                    } catch (IOException e) {
-                        log.error("Could not close ServerSocket");
-                    }
-                }
-            }
+        int freePort;
+        try {
+            serverSocket = new ServerSocket(0);
+            serverSocket.setReuseAddress(true);
+            freePort = serverSocket.getLocalPort();
+            serverSocket.close();
+            return freePort;
+        } catch (IOException e) {
+            log.error("Could not find free port");
+            return -1;
         }
-
-        log.error("Could not find free port between {} and {}", minValue, maxValue+minValue);
-        return -1;
     }
 }

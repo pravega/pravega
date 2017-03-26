@@ -38,7 +38,6 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.TestUtils;
 import io.grpc.Status;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
@@ -74,13 +73,13 @@ import static org.junit.Assert.assertTrue;
  */
 @Slf4j
 public class ControllerImplTest {
+    private final static int SERVICE_PORT = 12345;
 
     @Rule
     public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     // Test implementation for simulating the server responses.
     private ServerImpl fakeServer = null;
-    private final int servicePort = TestUtils.randomPort();
 
     // The controller RPC client.
     private ControllerImpl controllerClient = null;
@@ -336,7 +335,7 @@ public class ControllerImplTest {
             public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(NodeUri.newBuilder().setEndpoint("localhost").
-                            setPort(servicePort).build());
+                            setPort(SERVICE_PORT).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -715,7 +714,7 @@ public class ControllerImplTest {
     public void testGetURI() throws Exception {
         CompletableFuture<PravegaNodeUri> endpointForSegment;
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
-        assertEquals(new PravegaNodeUri("localhost", servicePort), endpointForSegment.get());
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
 
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/0");
         AssertExtensions.assertThrows("Should throw Exception", endpointForSegment, throwable -> true);

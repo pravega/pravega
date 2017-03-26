@@ -16,7 +16,6 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import com.emc.pravega.testcommon.TestUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -32,14 +31,14 @@ import java.util.UUID;
 public class HostStoreTest {
 
     private final String host = "localhost";
-    private final int port = TestUtils.randomPort();
+    private final int controllerPort = 9090;
     private final int containerCount = 4;
 
     @Test
     public void inMemoryStoreTests() {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(false)
-                .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(host, port, containerCount))
+                .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount))
                 .hostMonitorMinRebalanceInterval(10)
                 .containerCount(containerCount)
                 .build();
@@ -81,7 +80,7 @@ public class HostStoreTest {
             HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
 
             // Update host store map.
-            hostStore.updateHostContainersMap(HostMonitorConfigImpl.getHostContainerMap(host, port, containerCount));
+            hostStore.updateHostContainersMap(HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount));
 
             validateStore(hostStore);
         } catch (Exception e) {
@@ -95,7 +94,7 @@ public class HostStoreTest {
         Assert.assertEquals(containerCount, hostStore.getContainerCount());
         Host hostObj = hostStore.getHostForSegment("dummyScope", "dummyStream",
                 (int) Math.floor(containerCount * Math.random()));
-        Assert.assertEquals(port, hostObj.getPort());
+        Assert.assertEquals(controllerPort, hostObj.getPort());
         Assert.assertEquals(host, hostObj.getIpAddr());
     }
 }

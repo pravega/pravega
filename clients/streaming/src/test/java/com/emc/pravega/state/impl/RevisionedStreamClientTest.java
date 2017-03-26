@@ -19,7 +19,6 @@ import com.emc.pravega.stream.mock.MockSegmentStreamFactory;
 import java.util.Iterator;
 import java.util.Map.Entry;
 
-import com.emc.pravega.testcommon.TestUtils;
 import lombok.Cleanup;
 
 import org.junit.Test;
@@ -31,13 +30,13 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class RevisionedStreamClientTest {
-    
+    private static final int SERVICE_PORT = 12345;
     
     @Test
     public void testWriteWhileReading() {
         String scope = "scope";
         String stream = "stream";
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", TestUtils.randomPort());
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
@@ -75,7 +74,7 @@ public class RevisionedStreamClientTest {
     public void testConditionalWrite() {
         String scope = "scope";
         String stream = "stream";
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", TestUtils.randomPort());
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();

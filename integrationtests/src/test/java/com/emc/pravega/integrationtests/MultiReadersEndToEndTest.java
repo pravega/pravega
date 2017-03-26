@@ -177,7 +177,7 @@ public class MultiReadersEndToEndTest {
     
     private void runTestUsingMock(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws ExecutionException, InterruptedException {
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();

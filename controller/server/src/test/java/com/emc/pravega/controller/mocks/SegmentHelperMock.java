@@ -5,7 +5,6 @@ package com.emc.pravega.controller.mocks;
 
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
-import com.emc.pravega.testcommon.TestUtils;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -16,12 +15,12 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 public class SegmentHelperMock {
+    private final static int SERVICE_PORT = 12345;
 
     public static SegmentHelper getSegmentHelperMock() {
-        int port = TestUtils.randomPort();
         SegmentHelper helper = spy(new SegmentHelper());
 
-        doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(port).build()).when(helper).getSegmentUri(
+        doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyInt(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).sealSegment(

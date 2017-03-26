@@ -10,7 +10,6 @@ import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
-import com.emc.pravega.testcommon.TestUtils;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -19,13 +18,14 @@ import org.junit.Test;
 
 public class StreamManagerImplTest {
 
+    private final static int SERVICE_PORT = 12345;
     private String defaultScope = "foo";
     private StreamManager streamManager;
     private Controller controller = null;
 
     @Before
     public void setUp() {
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", TestUtils.randomPort());
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         this.controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         this.streamManager = new StreamManagerImpl(controller);

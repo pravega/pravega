@@ -74,13 +74,13 @@ public final class SetupUtils {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        int servicePort = TestUtils.randomPort();
+        int servicePort = TestUtils.getAvailableListenPort();
         this.server = new PravegaConnectionListener(false, servicePort, store);
         this.server.startListening();
         log.info("Started Pravega Service");
 
         // Start Controller.
-        int controllerPort = TestUtils.randomPort();
+        int controllerPort = TestUtils.getAvailableListenPort();
         this.controllerWrapper = new ControllerWrapper(
                 this.zkTestServer.getConnectString(), true, true, controllerPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT);

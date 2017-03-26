@@ -64,7 +64,7 @@ public class TransactionTest {
         String groupName = "group";
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
@@ -128,7 +128,7 @@ public class TransactionTest {
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String event = "Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -155,7 +155,7 @@ public class TransactionTest {
         String endpoint = "localhost";
         String groupName = "group";
         String streamName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";

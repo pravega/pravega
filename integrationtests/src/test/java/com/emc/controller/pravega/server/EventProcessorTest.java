@@ -94,11 +94,11 @@ public class EventProcessorTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        int servicePort = TestUtils.randomPort();
+        int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
-        int controllerPort = TestUtils.randomPort();
+        int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(
                 zkTestServer.getConnectString(),

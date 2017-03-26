@@ -41,9 +41,9 @@ public class ControllerStreamMetadataTest {
 
     @Before
     public void setUp() throws Exception {
-        final int controllerPort = TestUtils.randomPort();
+        final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
-        final int servicePort = TestUtils.randomPort();
+        final int servicePort = TestUtils.getAvailableListenPort();
         final int containerCount = 4;
 
         try {
