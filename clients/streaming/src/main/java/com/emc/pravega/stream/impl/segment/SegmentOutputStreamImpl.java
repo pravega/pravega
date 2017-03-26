@@ -92,6 +92,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private void waitForEmptyInflight() {
             handleInterrupted(() -> inflightEmpty.await());
         }
+        
+        private boolean isInflightEmpty() {
+            synchronized (lock) {
+                return inflight.isEmpty();
+            }
+        }
 
         private void connectionSetupComplete() {
             connectionSetup.release();
@@ -362,9 +368,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Synchronized
     public void flush() throws SegmentSealedException {
         try {
-            ClientConnection connection = getConnection();
-            connection.send(new KeepAlive());
-            state.waitForEmptyInflight();
+            if (!state.isInflightEmpty()) {
+                ClientConnection connection = getConnection();
+                connection.send(new KeepAlive());
+                state.waitForEmptyInflight();
+            }
         } catch (ConnectionFailedException e) {
             state.failConnection(e);
         }

@@ -23,7 +23,7 @@ public class CancellationToken {
      */
     public static final CancellationToken NONE = new NonCancellableToken();
     @GuardedBy("futures")
-    private final Collection<CompletableFuture> futures;
+    private final Collection<CompletableFuture<?>> futures;
     @Getter
     @GuardedBy("futures")
     private boolean cancellationRequested;
@@ -65,7 +65,7 @@ public class CancellationToken {
      * Cancels all registered futures.
      */
     public void requestCancellation() {
-        Collection<CompletableFuture> toInvoke;
+        Collection<CompletableFuture<?>> toInvoke;
         synchronized (this.futures) {
             this.cancellationRequested = true;
             toInvoke = new ArrayList<>(this.futures);
@@ -86,7 +86,7 @@ public class CancellationToken {
 
     private static final class NonCancellableToken extends CancellationToken {
         @Override
-        public void register(CompletableFuture future) {
+        public <T> void register(CompletableFuture<T> future) {
             // This method intentionally left blank. No point in registering anything.
         }
 

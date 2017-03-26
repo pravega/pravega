@@ -9,6 +9,8 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -60,7 +62,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final int HIGH_WATER_MARK = 128 * 1024;
     private static final int LOW_WATER_MARK = 64 * 1024;
 
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("host");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+
+    static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
 
     private final StreamSegmentStore store;
     private final ServerConnection connection;
@@ -213,7 +218,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     }
                 } else {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_WRITE_LATENCY, toWrite.getSegment()), timer.getElapsedMillis());
+                    WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
                     connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
 
                     if (statsRecorder != null) {

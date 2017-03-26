@@ -41,6 +41,7 @@ public class YammerDynamicLogger implements DynamicLogger {
                 maximumSize(cacheSize).
                 expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
                 removalListener(new RemovalListener<String, Counter>() {
+                    @Override
                     public void onRemoval(RemovalNotification<String, Counter> removal) {
                         Counter counter = removal.getValue();
                         Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
@@ -54,6 +55,7 @@ public class YammerDynamicLogger implements DynamicLogger {
                 maximumSize(cacheSize).
                 expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
                 removalListener(new RemovalListener<String, Gauge>() {
+                    @Override
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
                         metrics.remove(gauge.getName());
@@ -66,6 +68,7 @@ public class YammerDynamicLogger implements DynamicLogger {
             maximumSize(cacheSize).
             expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
             removalListener(new RemovalListener<String, Meter>() {
+                @Override
                 public void onRemoval(RemovalNotification<String, Meter> removal) {
                     Meter meter = removal.getValue();
                     metrics.remove(meter.getName());
