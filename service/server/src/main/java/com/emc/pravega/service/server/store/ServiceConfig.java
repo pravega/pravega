@@ -10,6 +10,7 @@ import com.emc.pravega.common.util.TypedProperties;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 
+import com.google.common.base.Strings;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -23,6 +24,7 @@ public class ServiceConfig {
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 50);
     public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
+    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("publishedIPAddres", "");
     public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
@@ -56,6 +58,12 @@ public class ServiceConfig {
      */
     @Getter
     private final String listeningIPAddress;
+
+    /**
+     * The IP address registered with controller.
+     */
+    @Getter
+    private final String publishedIPAddress;
 
     /**
      * The Zookeeper URL.
@@ -101,6 +109,12 @@ public class ServiceConfig {
         }
 
         this.listeningIPAddress = ipAddress;
+        String publishedIPAddress = properties.get(PUBLISHED_IP_ADDRESS);
+        if(Strings.isNullOrEmpty(publishedIPAddress)){
+            this.publishedIPAddress = this.listeningIPAddress;
+        } else {
+            this.publishedIPAddress = publishedIPAddress;
+        }
         this.zkURL = properties.get(ZK_URL);
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
