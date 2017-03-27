@@ -12,6 +12,7 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
@@ -52,7 +53,9 @@ public class ControllerStreamMetadataTest {
             this.zkTestServer = new TestingServer();
 
             // 2. Start Pravega service.
-            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.builder().include(
+                    ServiceConfig.builder().with(ServiceConfig.LISTENING_PORT, servicePort).
+                            with(ServiceConfig.CONTAINER_COUNT, 1)).build());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 

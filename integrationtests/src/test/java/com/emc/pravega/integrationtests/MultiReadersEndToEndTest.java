@@ -15,6 +15,7 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -177,15 +178,17 @@ public class MultiReadersEndToEndTest {
     
     private void runTestUsingMock(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws ExecutionException, InterruptedException {
-        int port = TestUtils.getAvailableListenPort();
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        int servicePort = TestUtils.getAvailableListenPort();
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.builder().include(
+                ServiceConfig.builder().with(ServiceConfig.LISTENING_PORT, servicePort).
+                        with(ServiceConfig.CONTAINER_COUNT, 1)).build());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", "localhost", port);
+        MockStreamManager streamManager = new MockStreamManager("scope", "localhost", servicePort);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         streamManager.createScope("scope");
         streamNames.stream().forEach(stream -> {

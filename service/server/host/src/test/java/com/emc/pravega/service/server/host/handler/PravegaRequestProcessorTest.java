@@ -29,6 +29,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.server.store.StreamSegmentService;
 import com.emc.pravega.testcommon.InlineExecutor;
+import com.emc.pravega.testcommon.TestUtils;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -203,7 +204,8 @@ public class PravegaRequestProcessorTest {
                 .builder()
                 .include(ServiceConfig.builder()
                                       .with(ServiceConfig.CONTAINER_COUNT, 1)
-                                      .with(ServiceConfig.THREAD_POOL_SIZE, 3))
+                                      .with(ServiceConfig.THREAD_POOL_SIZE, 3)
+                                      .with(ServiceConfig.LISTENING_PORT, TestUtils.getAvailableListenPort()))
                 .build();
     }
 
