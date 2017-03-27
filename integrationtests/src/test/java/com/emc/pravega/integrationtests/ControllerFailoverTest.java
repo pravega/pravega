@@ -66,12 +66,12 @@ public class ControllerFailoverTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test(timeout = 60000)
     public void testSessionExpiryTolerance() {
         final int controllerPort = TestUtils.randomPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
-        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
+        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, false,
                 false, controllerPort, serviceHost, servicePort, containerCount);
 
         try {
