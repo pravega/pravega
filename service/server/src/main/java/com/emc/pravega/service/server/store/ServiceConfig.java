@@ -110,7 +110,7 @@ public class ServiceConfig {
 
         this.listeningIPAddress = ipAddress;
         String publishedIPAddress = properties.get(PUBLISHED_IP_ADDRESS);
-        if(Strings.isNullOrEmpty(publishedIPAddress)){
+        if ( Strings.isNullOrEmpty(publishedIPAddress)) {
             this.publishedIPAddress = this.listeningIPAddress;
         } else {
             this.publishedIPAddress = publishedIPAddress;
