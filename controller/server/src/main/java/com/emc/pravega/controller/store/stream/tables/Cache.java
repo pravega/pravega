@@ -27,6 +27,7 @@ public class Cache<T> {
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(new CacheLoader<String, CompletableFuture<Data<T>>>() {
                     @ParametersAreNonnullByDefault
+                    @Override
                     public CompletableFuture<Data<T>> load(final String key) {
                         CompletableFuture<Data<T>> result = loader.get(key);
                         result.exceptionally(ex -> {

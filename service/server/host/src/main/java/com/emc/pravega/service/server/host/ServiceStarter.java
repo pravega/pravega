@@ -103,7 +103,8 @@ public final class ServiceStarter {
         SegmentStatsRecorder statsRecorder = segmentStatsFactory
                 .createSegmentStatsRecorder(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service, statsRecorder);
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningIPAddress(),
+                this.serviceConfig.getListeningPort(), service, statsRecorder);
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");

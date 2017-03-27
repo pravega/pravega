@@ -46,7 +46,7 @@ public class RemoteSequential implements TestExecutor {
         String methodName = testMethod.getName();
         String jobId = (methodName + ".testJob").toLowerCase(); //All jobIds should have lowercase for metronome.
 
-        return CompletableFuture.<Void>runAsync(() -> {
+        return CompletableFuture.runAsync(() -> {
             CLIENT.createJob(newJob(jobId, className, methodName));
             Response response = CLIENT.triggerJobRun(jobId);
             if (response.status() != CREATED.code()) {

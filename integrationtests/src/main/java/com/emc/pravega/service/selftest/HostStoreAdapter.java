@@ -92,7 +92,8 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     public CompletableFuture<Void> initialize(Duration timeout) {
         return super.initialize(timeout)
                     .thenAccept(v -> {
-                        this.listener = new PravegaConnectionListener(false, this.listeningPort, getStreamSegmentStore());
+                        this.listener = new PravegaConnectionListener(false, this.listeningPort,
+                                getStreamSegmentStore());
                         this.listener.startListening();
                         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, this.listeningPort);
                         this.streamManager.createScope(SCOPE);

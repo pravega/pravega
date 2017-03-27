@@ -46,7 +46,7 @@ import lombok.val;
 public class DelimitedStringParser {
     private final String pairDelimiter;
     private final String keyValueDelimiter;
-    private final Map<String, Extractor> extractors = new HashMap<>();
+    private final Map<String, Extractor<?>> extractors = new HashMap<>();
 
     //region Static Constructor
 
@@ -156,7 +156,7 @@ public class DelimitedStringParser {
                 value = pair.substring(delimiterPos + 1);
             }
 
-            Extractor e = this.extractors.get(key);
+            Extractor<?> e = this.extractors.get(key);
             Preconditions.checkArgument(e != null, String.format("No extractor provided for key '%s'.", key));
             e.process(value);
         }

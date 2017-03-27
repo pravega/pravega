@@ -39,6 +39,7 @@ public class EndToEndAutoScaleDownTest {
         try {
             @Cleanup
             TestingServer zkTestServer = new TestingServer();
+
             int port = Config.SERVICE_PORT;
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, true);
@@ -51,8 +52,9 @@ public class EndToEndAutoScaleDownTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
-            SegmentStatsRecorder statsRecorder = new SegmentStatsFactory().createSegmentStatsRecorder(store,
+            @Cleanup
+            SegmentStatsFactory segmentStatsFactory = new SegmentStatsFactory();
+            SegmentStatsRecorder statsRecorder = segmentStatsFactory.createSegmentStatsRecorder(store,
                     internalCF,
                     AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                             .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
@@ -60,7 +62,8 @@ public class EndToEndAutoScaleDownTest {
                             .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 30).build());
 
             @Cleanup
-            PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store, statsRecorder);
+            PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
+                    statsRecorder);
             server.startListening();
             controllerWrapper.getControllerService().createScope("test").get();
 

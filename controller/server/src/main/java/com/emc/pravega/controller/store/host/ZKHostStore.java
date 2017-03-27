@@ -69,6 +69,7 @@ public class ZKHostStore implements HostControllerStore {
         return getCurrentHostMap();
     }
 
+    @SuppressWarnings("unchecked")
     private Map<Host, Set<Integer>> getCurrentHostMap() {
         try {
             return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(zkPath));

@@ -82,6 +82,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
      * @return A CompletableFuture that, when complete, will contain a ReadResult with the requested Operation. If no more
      * Operations exist, null will be returned.
      */
+    @Override
     public ReadResult<T> getNext() throws Exception {
         Exceptions.checkNotClosed(this.closed, closed);
 
@@ -396,6 +397,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
          * @return A CompletableFuture that, when completed, will contain the next available DataFrameEntry. If no such
          * entry exists, it will contain a null value.
          */
+        @Override
         public DataFrame.DataFrameEntry getNext() throws Exception {
             // Check to see if we are in the middle of a frame, in which case, just return the next element.
             DataFrame.DataFrameEntry result;
@@ -488,6 +490,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
          * @return A CompletableFuture that, when complete, will contain the next DataFrame from the log. If no such
          * frame exists, it will contain a null value.
          */
+        @Override
         public DataFrame getNext() throws Exception {
             DurableDataLog.ReadItem nextItem = this.reader.getNext();
             if (nextItem == null) {
