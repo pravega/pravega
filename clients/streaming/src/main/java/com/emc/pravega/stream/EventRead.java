@@ -36,6 +36,8 @@ public interface EventRead<T> {
     /**
      * Returns a pointer object for the event read. The event pointer enables a random read of the
      * event at a future time.
+     *
+     * @return Pointer to an event
      */
     EventPointer getEventPointer();
 
@@ -49,7 +51,7 @@ public interface EventRead<T> {
     
     /**
      * If a checkpoint has been requested this will return the checkpointName passed to
-     * {@link ReaderGroup#initiateCheckpoint(String)} otherwise this will return null.
+     * {@link ReaderGroup#initiateCheckpoint(String,java.util.concurrent.ScheduledExecutorService)} otherwise this will return null.
      * 
      * @return The name of the checkpoint
      */

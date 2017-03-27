@@ -43,14 +43,6 @@ allprojects {
 
     test { finalizedBy jacocoTestReport }
 
-    javadoc {
-        failOnError = false
-        exclude "**/impl/**";
-        source  =  project(':clients:streaming').sourceSets.main.java
-        def javadocs = new File(rootDir, "javadocs")
-        javadocs.mkdirs()
-        destinationDir = javadocs
-    }
     tasks.withType(FindBugs) {
         effort = "default"
         includeFilter = file("$rootDir/checkstyle/findbugs-include.xml")
@@ -191,6 +183,14 @@ project('clients:streaming') {
                 from components.java
             }
         }
+    }
+    javadoc {
+        failOnError = false
+        exclude "**/impl/**";
+        source  =  project(':clients:streaming').sourceSets.main.java
+        def javadocs = new File(rootDir, "javadocs")
+        javadocs.mkdirs()
+        destinationDir = javadocs
     }
 }
 
@@ -801,4 +801,8 @@ task sourceTar(type: Tar) {
     destinationDir = file('sourceArtifacts')
     extension = 'tgz'
     compression = Compression.GZIP
+}
+
+task javaDoc(type: Javadoc) {
+    dependsOn 'clients:streaming:javadoc'
 }

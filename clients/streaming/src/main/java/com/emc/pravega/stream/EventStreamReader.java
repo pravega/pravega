@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.stream;
 
-import com.emc.pravega.stream.impl.EventReadImpl;
 import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 
 /**
@@ -27,7 +26,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
      *         is reached, {@link EventRead#getEvent()} returns null.
      * @throws ReinitializationRequiredException Is throw in the event that
      *         {@link ReaderGroup#resetReadersToCheckpoint(Checkpoint)} or
-     *         {@link ReaderGroup#alterConfig(ReaderGroupConfig, java.util.List)} was called
+     *         {@link ReaderGroup#alterConfig(ReaderGroupConfig, java.util.Set)} was called
      *         which requires readers to be reinitialized.
      */
     EventRead<T> readNextEvent(long timeout) throws ReinitializationRequiredException;
@@ -41,7 +40,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
 
     /**
      * Re-read an event that was previously read, by passing the pointer returned from
-     * {@link EventReadImpl#getEventPointer()}.
+     * {@link EventRead#getEventPointer()}.
      * This does not affect the current position of the reader.
      * 
      * This is a blocking call. Passing invalid offsets has undefined behavior.
