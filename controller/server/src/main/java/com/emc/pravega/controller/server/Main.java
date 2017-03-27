@@ -55,7 +55,7 @@ public class Main {
                 .build();
 
         ControllerClusterListenerConfig controllerClusterListenerConfig = ControllerClusterListenerConfigImpl.builder()
-                .minThreads(2)
+                .minThreads(1)
                 .maxThreads(10)
                 .idleTime(10)
                 .idleTimeUnit(TimeUnit.SECONDS)

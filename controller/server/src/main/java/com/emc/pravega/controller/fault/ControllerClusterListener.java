@@ -54,7 +54,7 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.executor = executor;
         this.eventProcessorsOpt = eventProcessorsOpt;
         this.taskSweeper = taskSweeper;
-        this.clusterZK = new ClusterZKImpl(client, ClusterType.Controller.toString());
+        this.clusterZK = new ClusterZKImpl(client, ClusterType.CONTROLLER);
     }
 
     @Override
@@ -69,18 +69,16 @@ public class ControllerClusterListener extends AbstractIdleService {
                     .map(Host::toString)
                     .collect(Collectors.toSet());
 
-            // Await initialization of components
+            // Await initialization of components.
             if (eventProcessorsOpt.isPresent()) {
                 log.info("Awaiting controller event processors' start");
                 eventProcessorsOpt.get().awaitRunning();
-
-                eventProcessorsOpt.get().handleOrphanedReaders(activeProcesses);
             }
 
             log.info("Awaiting taskSweeper to become ready");
             taskSweeper.awaitReady();
-            taskSweeper.sweepOrphanedTasks(activeProcesses);
 
+            // Register cluster listener.
             log.info("Adding controller cluster listener");
             clusterZK.addListener((type, host) -> {
                 switch (type) {
@@ -89,7 +87,6 @@ public class ControllerClusterListener extends AbstractIdleService {
                         log.info("Received controller cluster event: {} for host: {}", type, host);
                         break;
                     case HOST_REMOVED:
-                        // TODO: Since events could be lost, find the correct diff and notify host failures accordingly.
                         log.info("Received controller cluster event: {} for host: {}", type, host);
                         taskSweeper.sweepOrphanedTasks(host.toString());
                         if (eventProcessorsOpt.isPresent()) {
@@ -104,6 +101,16 @@ public class ControllerClusterListener extends AbstractIdleService {
                         break;
                 }
             }, executor);
+
+            // Sweep orphaned tasks or readers at startup.
+            if (eventProcessorsOpt.isPresent()) {
+                log.info("Sweeping orphaned readers at startup");
+                eventProcessorsOpt.get().handleOrphanedReaders(activeProcesses);
+            }
+
+            log.info("Sweeping orphaned tasks at startup");
+            taskSweeper.sweepOrphanedTasks(activeProcesses);
+
             log.info("Controller cluster listener startUp complete");
         } finally {
             LoggerHelpers.traceLeave(log, objectId, "startUp", traceId);

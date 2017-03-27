@@ -39,6 +39,7 @@ import org.apache.curator.framework.CuratorFramework;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Optional;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -372,7 +373,8 @@ public final class ControllerServiceStarter extends AbstractIdleService {
         } else if (serviceConfig.getRestServerConfig().isPresent()) {
             return serviceConfig.getRestServerConfig().get().getPort();
         } else {
-            return 9090;
+            // return a random number between 0 and 999
+            return new Random().nextInt(1000);
         }
     }
 }
