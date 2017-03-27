@@ -13,6 +13,25 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface Storage extends ReadOnlyStorage, AutoCloseable {
     /**
+     * Attempts to open the given Segment in read-write mode and make it available for use for this instance of the Storage
+     * adapter.
+     * A single active read-write SegmentHandle can exist at any given time for a particular Segment, regardless of owner,
+     * while a read-write SegmentHandle can coexist with any number of read-only SegmentHandles for that Segment (obtained
+     * by calling openRead()).
+     * This can be accomplished in a number of different ways based on the actual implementation of the Storage
+     * interface, but it can be compared to acquiring an exclusive lock on the given segment).
+     *
+     * @param streamSegmentName Name of the StreamSegment to be opened.
+     * @return A CompletableFuture that, when completed, will contain a read-write SegmentHandle that can be used to access
+     * the segment for read and write activities (ex: read, get, write, seal, concat). If the operation failed, it will be
+     * failed with the cause of the failure. Notable exceptions:
+     * <ul>
+     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * </ul>
+     */
+    CompletableFuture<SegmentHandle> openWrite(String streamSegmentName);
+
+    /**
      * Creates a new StreamSegment in this Storage Layer.
      *
      * @param streamSegmentName The full name of the StreamSegment.
@@ -29,11 +48,11 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
     /**
      * Writes the given data to the StreamSegment.
      *
-     * @param streamSegmentName The full name of the StreamSegment.
-     * @param offset            The offset in the StreamSegment to write data at.
-     * @param data              An InputStream representing the data to write.
-     * @param length            The length of the InputStream.
-     * @param timeout           Timeout for the operation.
+     * @param handle  A read-write SegmentHandle that points to a Segment to write to.
+     * @param offset  The offset in the StreamSegment to write data at.
+     * @param data    An InputStream representing the data to write.
+     * @param length  The length of the InputStream.
+     * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
@@ -41,14 +60,15 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
      * </ul>
+     * @throws IllegalArgumentException If handle is read-only.
      */
-    CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout);
+    CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout);
 
     /**
      * Seals a StreamSegment. No further modifications are allowed on the StreamSegment after this operation completes.
      *
-     * @param streamSegmentName The full name of the StreamSegment.
-     * @param timeout           Timeout for the operation.
+     * @param handle  A read-write SegmentHandle that points to a Segment to Seal.
+     * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed (it will contain a
      * StreamSegmentInformation with the final state of the StreamSegment). If the operation failed, it will contain the
      * cause of the failure. Notable exceptions:
@@ -56,21 +76,22 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
      * </ul>
+     * @throws IllegalArgumentException If handle is read-only.
      */
-    CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout);
+    CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout);
 
     /**
      * Concatenates two StreamSegments together. The Source StreamSegment will be appended as one atomic block at the end
      * of the Target StreamSegment (but only if its length equals the given offset), after which the Source StreamSegment
      * will cease to exist. Prior to this operation, the Source StreamSegment must be sealed.
      *
-     * @param targetStreamSegmentName The full name of the Target StreamSegment. After this operation is complete, this
-     *                                is the surviving StreamSegment.
-     * @param offset                  The offset in the Target StreamSegment to concat at.
-     * @param sourceStreamSegmentName The full name of the Source StreamSegment. This StreamSegment will be concatenated
-     *                                to the Target StreamSegment. After this operation is complete, this StreamSegment
-     *                                will be deleted.
-     * @param timeout                 Timeout for the operation.
+     * @param targetHandle A read-write SegmentHandle that points to the Target StreamSegment. After this operation
+     *                     is complete, this is the surviving StreamSegment.
+     * @param offset       The offset in the Target StreamSegment to concat at.
+     * @param sourceHandle A read-write SegmentHandle that points to the Source StreamSegment. This StreamSegment will be
+     *                     concatenated to the Target StreamSegment. After this operation is complete, this StreamSegment
+     *                     will no longer exist..
+     * @param timeout      Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
@@ -79,22 +100,24 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for either the target Segment
      * or the source Segment (it was fenced out).
      * </ul>
+     * @throws IllegalArgumentException If targetHandle is read-only.
      */
-    CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout);
+    CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout);
 
     /**
      * Deletes a StreamSegment.
      *
-     * @param streamSegmentName The full name of the StreamSegment.
-     * @param timeout           Timeout for the operation.
+     * @param handle  A read-write SegmentHandle that points to a Segment to Delete.
+     * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
      * </ul>
+     * @throws IllegalArgumentException If handle is read-only.
      */
-    CompletableFuture<Void> delete(String streamSegmentName, Duration timeout);
+    CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout);
 
     @Override
     void close();

@@ -1002,7 +1002,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             byte[] expectedData = segmentContents.get(segmentName).toByteArray();
             byte[] actualData = new byte[expectedData.length];
-            int actualLength = context.storage.read(segmentName, 0, actualData, 0, actualData.length, TIMEOUT).join();
+            val readHandle = context.storage.openRead(segmentName).join();
+            int actualLength = context.storage.read(readHandle, 0, actualData, 0, actualData.length, TIMEOUT).join();
             Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName, expectedLength, actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentName, expectedData, actualData);
         }

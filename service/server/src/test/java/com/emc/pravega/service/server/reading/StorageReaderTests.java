@@ -10,6 +10,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -57,10 +58,9 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
 
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executorService());
+        byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
-
-        byte[] segmentData = populateSegment(storage);
         HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
         int readOffset = 0;
         while (readOffset < segmentData.length) {
@@ -94,10 +94,9 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
     public void testInvalidRequests() {
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executorService());
+        byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
-
-        byte[] segmentData = populateSegment(storage);
 
         // Segment does not exist.
         AssertExtensions.assertThrows(
@@ -113,13 +112,13 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         // Invalid read offset.
         AssertExtensions.assertThrows(
                 "Request was not failed when bad offset was provided.",
-                sendRequest(reader, segmentData.length + 1, 1)::join,
+                () -> sendRequest(reader, segmentData.length + 1, 1),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
 
         // Invalid read length.
         AssertExtensions.assertThrows(
                 "Request was not failed when bad offset + length was provided.",
-                sendRequest(reader, segmentData.length - 1, 2)::join,
+                () -> sendRequest(reader, segmentData.length - 1, 2),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 
@@ -213,7 +212,8 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         byte[] segmentData = new byte[length];
         random.nextBytes(segmentData);
         storage.create(SEGMENT_METADATA.getName(), TIMEOUT).join();
-        storage.write(SEGMENT_METADATA.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
+        val writeHandle = storage.openWrite(SEGMENT_METADATA.getName()).join();
+        storage.write(writeHandle, 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
         return segmentData;
     }
 
@@ -221,13 +221,12 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         Supplier<CompletableFuture<Integer>> readImplementation;
 
         @Override
-        public CompletableFuture<Void> open(String streamSegmentName) {
-            // This method is not needed.
-            throw new NotImplementedException();
+        public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
+            return CompletableFuture.completedFuture(InMemoryStorage.newHandle(streamSegmentName, true));
         }
 
         @Override
-        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
             return this.readImplementation.get();
         }
 

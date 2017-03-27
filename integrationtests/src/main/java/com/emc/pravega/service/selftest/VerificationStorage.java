@@ -1,19 +1,16 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.TruncateableStorage;
 import com.google.common.base.Preconditions;
-import lombok.val;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -22,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import lombok.val;
 
 /**
  * Wrapper Storage that accepts Segment Length change listeners.
@@ -78,42 +76,47 @@ class VerificationStorage implements TruncateableStorage {
     }
 
     @Override
-    public CompletableFuture<Void> open(String streamSegmentName) {
-        return this.baseStorage.open(streamSegmentName);
+    public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
+        return this.baseStorage.openWrite(streamSegmentName);
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
-        CompletableFuture<Void> result = this.baseStorage.write(streamSegmentName, offset, data, length, timeout);
-        result.thenRunAsync(() -> triggerListeners(streamSegmentName, offset + length, false), this.executor);
+    public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
+        return this.baseStorage.openRead(streamSegmentName);
+    }
+
+    @Override
+    public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
+        CompletableFuture<Void> result = this.baseStorage.write(handle, offset, data, length, timeout);
+        result.thenRunAsync(() -> triggerListeners(handle.getSegmentName(), offset + length, false), this.executor);
         return result;
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-        CompletableFuture<SegmentProperties> result = this.baseStorage.seal(streamSegmentName, timeout);
-        result.thenAcceptAsync(sp -> triggerListeners(streamSegmentName, sp.getLength(), sp.isSealed()), this.executor);
+    public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
+        CompletableFuture<SegmentProperties> result = this.baseStorage.seal(handle, timeout);
+        result.thenAcceptAsync(sp -> triggerListeners(handle.getSegmentName(), sp.getLength(), sp.isSealed()), this.executor);
         return result;
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
-        unregisterAllListeners(sourceStreamSegmentName);
-        CompletableFuture<Void> result = this.baseStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
-        result.thenComposeAsync(v -> this.baseStorage.getStreamSegmentInfo(targetStreamSegmentName, timeout), this.executor)
-              .thenAcceptAsync(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false), this.executor);
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
+        unregisterAllListeners(sourceHandle.getSegmentName());
+        CompletableFuture<Void> result = this.baseStorage.concat(targetHandle, offset, sourceHandle, timeout);
+        result.thenComposeAsync(v -> this.baseStorage.getStreamSegmentInfo(targetHandle.getSegmentName(), timeout), this.executor)
+              .thenAcceptAsync(sp -> triggerListeners(targetHandle.getSegmentName(), sp.getLength(), false), this.executor);
         return result;
     }
 
     @Override
-    public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-        unregisterAllListeners(streamSegmentName);
-        return this.baseStorage.delete(streamSegmentName, timeout);
+    public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
+        unregisterAllListeners(handle.getSegmentName());
+        return this.baseStorage.delete(handle, timeout);
     }
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return this.baseStorage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout);
+    public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        return this.baseStorage.read(handle, offset, buffer, bufferOffset, length, timeout);
     }
 
     @Override
@@ -127,8 +130,8 @@ class VerificationStorage implements TruncateableStorage {
     }
 
     @Override
-    public CompletableFuture<Void> truncate(String streamSegmentName, long offset, Duration timeout) {
-        return this.baseStorage.truncate(streamSegmentName, offset, timeout);
+    public CompletableFuture<Void> truncate(String segmentName, long offset, Duration timeout) {
+        return this.baseStorage.truncate(segmentName, offset, timeout);
     }
 
     //endregion

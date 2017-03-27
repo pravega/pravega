@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.selftest;
 
@@ -201,10 +199,8 @@ public class Consumer extends Actor {
         // with respect to verification and state updates.
         val listener = new VerificationStorage.SegmentUpdateListener(
                 this.segmentName,
-                (length, sealed) ->
-                        this.storageVerificationQueue.queue(() -> {
-                            return FutureHelpers.runOrFail(() -> storageSegmentChangedHandler(length, sealed, result), result);
-                        }));
+                (length, sealed) -> this.storageVerificationQueue.queue(() ->
+                        FutureHelpers.runOrFail(() -> storageSegmentChangedHandler(length, sealed, result), result)));
         this.store.getStorageAdapter().registerListener(listener);
 
         // Make sure the listener is closed (and thus unregistered) when we are done, whether successfully or not.
@@ -249,9 +245,10 @@ public class Consumer extends Actor {
 
         // Execute a Storage Read, then validate that the read data matches what was in there.
         byte[] storageReadBuffer = new byte[length];
-        return this.store
-                .getStorageAdapter()
-                .read(this.segmentName, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout())
+        val storage = this.store.getStorageAdapter();
+        return storage
+                .openRead(this.segmentName)
+                .thenComposeAsync(handle -> storage.read(handle, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout()), this.executorService)
                 .thenAcceptAsync(l -> {
                     ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer, segmentStartOffset);
                     validationResult.setSource(SOURCE_STORAGE_READ);
@@ -272,7 +269,11 @@ public class Consumer extends Actor {
                     logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
                 }, this.executorService)
                 .thenComposeAsync(v -> {
-                    long truncateOffset = Math.min(this.storageReadValidatedOffset, this.catchupReadValidatedOffset);
+                    long truncateOffset;
+                    synchronized (this.lock) {
+                        truncateOffset = Math.min(this.storageReadValidatedOffset, this.catchupReadValidatedOffset);
+                    }
+
                     return this.store.getStorageAdapter().truncate(this.segmentName, truncateOffset, this.config.getTimeout());
                 }, this.executorService)
                 .exceptionally(ex -> {

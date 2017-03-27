@@ -19,6 +19,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.google.common.annotations.VisibleForTesting;
@@ -124,47 +125,57 @@ class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return supplyAsync(() -> createSync(streamSegmentName), streamSegmentName, "create");
+        return supplyAsync(() -> createSync(streamSegmentName), streamSegmentName);
     }
 
     @Override
-    public CompletableFuture<Void> open(String streamSegmentName) {
-        return runAsync(() -> openWithFencing(streamSegmentName), streamSegmentName, "open");
+    public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
+        return supplyAsync(() -> openWithFencing(streamSegmentName), streamSegmentName);
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
-        return runAsync(() -> writeSync(streamSegmentName, offset, length, data), streamSegmentName, "write");
+    public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
+        return supplyAsync(() -> openWithoutFencing(streamSegmentName), streamSegmentName);
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-        return supplyAsync(() -> sealSync(streamSegmentName), streamSegmentName, "seal");
+    public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
+        Preconditions.checkArgument(!handle.isReadOnly(), "Cannot write using a read-only handle.");
+        return runAsync(() -> writeSync(handle.getSegmentName(), offset, length, data), handle.getSegmentName());
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
-        return runAsync(() -> concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName), targetStreamSegmentName, "concat");
+    public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
+        Preconditions.checkArgument(!handle.isReadOnly(), "Cannot seal using a read-only handle.");
+        return supplyAsync(() -> sealSync(handle.getSegmentName()), handle.getSegmentName());
     }
 
     @Override
-    public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-        return runAsync(() -> deleteSync(streamSegmentName), streamSegmentName, "delete");
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
+        Preconditions.checkArgument(!targetHandle.isReadOnly(), "Cannot concat using a read-only handle.");
+        Preconditions.checkArgument(!sourceHandle.isReadOnly(), "Cannot concat using a read-only handle.");
+        return runAsync(() -> concatSync(targetHandle.getSegmentName(), offset, sourceHandle.getSegmentName()), targetHandle.getSegmentName());
     }
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return supplyAsync(() -> readSync(streamSegmentName, offset, buffer, bufferOffset, length), streamSegmentName, "read");
+    public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
+        Preconditions.checkArgument(!handle.isReadOnly(), "Cannot delete using a read-only handle.");
+        return runAsync(() -> deleteSync(handle.getSegmentName()), handle.getSegmentName());
+    }
+
+    @Override
+    public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        return supplyAsync(() -> readSync(handle.getSegmentName(), offset, buffer, bufferOffset, length), handle.getSegmentName());
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return supplyAsync(() -> getStreamSegmentInfoSync(streamSegmentName), streamSegmentName, "getInfo");
+        return supplyAsync(() -> getStreamSegmentInfoSync(streamSegmentName), streamSegmentName);
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return supplyAsync(() -> existsSync(streamSegmentName), streamSegmentName, "exists");
+        return supplyAsync(() -> existsSync(streamSegmentName), streamSegmentName);
     }
 
     //endregion
@@ -260,14 +271,14 @@ class HDFSStorage implements Storage {
     /**
      * "Fences" off the given segment by renaming it to something based off the segment's name and this HDFSStorage instance's id.
      */
-    private void openWithFencing(String streamSegmentName) throws IOException {
-        long traceId = LoggerHelpers.traceEnter(log, "fence", streamSegmentName);
+    private SegmentHandle openWithFencing(String streamSegmentName) throws IOException {
+        long traceId = LoggerHelpers.traceEnter(log, "openWithFencing", streamSegmentName);
 
         FileStatus status = findAny(streamSegmentName);
         if (isSealed(status)) {
             // Nothing to fence when sealed. Bail out.
-            LoggerHelpers.traceLeave(log, "fence", traceId, streamSegmentName, streamSegmentName);
-            return;
+            LoggerHelpers.traceLeave(log, "openWithFencing", traceId, streamSegmentName, streamSegmentName);
+            return new HDFSSegmentHandle(streamSegmentName, false);
         }
 
         String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
@@ -275,7 +286,20 @@ class HDFSStorage implements Storage {
             throw new IOException(String.format("Unable to fence Segment '%s'.", streamSegmentName));
         }
 
-        LoggerHelpers.traceLeave(log, "fence", traceId, streamSegmentName, ownedFullPath);
+        LoggerHelpers.traceLeave(log, "openWithFencing", traceId, streamSegmentName, ownedFullPath);
+        return new HDFSSegmentHandle(streamSegmentName, false);
+    }
+
+    /**
+     * "Fences" off the given segment by renaming it to something based off the segment's name and this HDFSStorage instance's id.
+     */
+    private SegmentHandle openWithoutFencing(String streamSegmentName) throws IOException {
+        long traceId = LoggerHelpers.traceEnter(log, "openWithoutFencing", streamSegmentName);
+
+        // findAny will throw FileNotFoundException if not found. That's all we need for now.
+        findAny(streamSegmentName);
+        LoggerHelpers.traceLeave(log, "openWithoutFencing", traceId, streamSegmentName);
+        return new HDFSSegmentHandle(streamSegmentName, true);
     }
 
     /**
@@ -385,7 +409,7 @@ class HDFSStorage implements Storage {
                 "Cannot concat segment '%s' into '%s' because it is not sealed.", sourceStreamSegmentName, targetStreamSegmentName);
 
         this.fileSystem.concat(targetStatus.getPath(),
-                new Path[]{ sourceStatus.getPath() });
+                new Path[]{sourceStatus.getPath()});
         LoggerHelpers.traceLeave(log, "concat", traceId, targetStreamSegmentName, offset, sourceStreamSegmentName);
     }
 
@@ -451,7 +475,7 @@ class HDFSStorage implements Storage {
         return result;
     }
 
-    private CompletableFuture<Void> runAsync(RunnableWithException syncCode, String streamSegmentName, String action) {
+    private CompletableFuture<Void> runAsync(RunnableWithException syncCode, String streamSegmentName) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
             try {
@@ -462,7 +486,7 @@ class HDFSStorage implements Storage {
         }, this.executor);
     }
 
-    private <T> CompletableFuture<T> supplyAsync(Callable<T> syncCode, String streamSegmentName, String action) {
+    private <T> CompletableFuture<T> supplyAsync(Callable<T> syncCode, String streamSegmentName) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.supplyAsync(() -> {
             T result;
