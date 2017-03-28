@@ -170,7 +170,6 @@ public class InMemoryStorage implements TruncateableStorage {
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "Cannot concat using a read-only handle.");
-        Preconditions.checkArgument(!sourceHandle.isReadOnly(), "Cannot concat using a read-only handle.");
         AtomicLong newLength = new AtomicLong();
         CompletableFuture<Void> result = CompletableFuture.runAsync(() -> {
             StreamSegmentData sourceData = getStreamSegmentData(sourceHandle.getSegmentName());

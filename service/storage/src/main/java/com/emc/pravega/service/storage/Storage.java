@@ -97,8 +97,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <ul>
      * <li> BadOffsetException: When the given offset does not match the actual length of the target segment in storage.
      * <li> StreamSegmentNotExistsException: When the either the source Segment or the target Segment do not exist in Storage.
-     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for either the target Segment
-     * or the source Segment (it was fenced out).
+     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for the target Segment (it was fenced out).
      * </ul>
      * @throws IllegalArgumentException If targetHandle is read-only.
      */
