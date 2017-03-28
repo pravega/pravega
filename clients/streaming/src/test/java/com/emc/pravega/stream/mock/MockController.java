@@ -6,7 +6,6 @@
 package com.emc.pravega.stream.mock;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
@@ -14,6 +13,7 @@ import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
+import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
@@ -165,13 +165,8 @@ public class MockController implements Controller {
                 result.complete(true);
             }
         };
-        ClientConnection connection = getAndHandleExceptions(connectionFactory.establishConnection(uri, replyProcessor),
-                                                             RuntimeException::new);
-        try {
-            connection.send(new WireCommands.CreateSegment(name, WireCommands.CreateSegment.NO_SCALE, 0));
-        } catch (ConnectionFailedException e) {
-            throw new RuntimeException(e);
-        }
+        CreateSegment command = new WireCommands.CreateSegment(name, WireCommands.CreateSegment.NO_SCALE, 0);
+        sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
 
@@ -219,7 +214,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new TxnFailedException("Transaction already aborted."));
             }
         };
-        sendRequestOverNewConnection(new CommitTransaction(segment.getScopedName(), txId), replyProcessor);
+        sendRequestOverNewConnection(new CommitTransaction(segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 
@@ -256,7 +251,7 @@ public class MockController implements Controller {
                 result.complete(null);
             }
         };
-        sendRequestOverNewConnection(new AbortTransaction(segment.getScopedName(), txId), replyProcessor);
+        sendRequestOverNewConnection(new AbortTransaction(segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 
@@ -295,7 +290,7 @@ public class MockController implements Controller {
                 result.complete(null);
             }
         };
-        sendRequestOverNewConnection(new CreateTransaction(segment.getScopedName(), txId), replyProcessor);
+        sendRequestOverNewConnection(new CreateTransaction(segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 
@@ -319,13 +314,16 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(new PravegaNodeUri(endpoint, port));
     }
 
-    private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {
+    private <T> void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor, CompletableFuture<T> resultFuture) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
             .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
+        resultFuture.whenComplete((result, e) -> {
+            connection.close();
+        });
         try {
             connection.send(request);
-        } catch (ConnectionFailedException e) {
-            throw new RuntimeException(e);
+        } catch (Exception e) {
+            resultFuture.completeExceptionally(e);
         }
     }
 

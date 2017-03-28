@@ -141,6 +141,7 @@ public final class ModelHelper {
                 break;
             case UNKNOWN:
                 throw new RuntimeException("Unknown transaction: " + logString);
+            case UNRECOGNIZED:
             default:
                 throw new IllegalStateException("Unknown status: " + state);
         }

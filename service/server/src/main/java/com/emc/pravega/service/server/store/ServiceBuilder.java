@@ -289,7 +289,7 @@ public final class ServiceBuilder implements AutoCloseable {
 
     //region Helpers
 
-    private static <T> Function<ComponentSetup, T> notConfiguredCreator(Class c) {
+    private static <T> Function<ComponentSetup, T> notConfiguredCreator(Class<?> c) {
         return ignored -> {
             throw new IllegalStateException("ServiceBuilder not properly configured. Missing supplier for: " + c.getName());
         };
