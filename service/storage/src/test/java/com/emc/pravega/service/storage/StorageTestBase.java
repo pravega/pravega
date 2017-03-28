@@ -49,6 +49,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testCreate() {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
+            s.initialize(0);
             s.create(segmentName, null).join();
             assertThrows("create() did not throw for existing StreamSegment.",
                     s.create(segmentName, null),
@@ -63,6 +64,8 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testOpen() {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
+            s.initialize(0);
+
             // Segment does not exist.
             assertThrows("openWrite() did not throw for non-existent StreamSegment.",
                     s.openWrite(segmentName),
@@ -85,6 +88,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         int appendCount = 100;
 
         try (Storage s = createStorage()) {
+            s.initialize(0);
             s.create(segmentName, TIMEOUT).join();
 
             // Invalid handle.
@@ -135,6 +139,8 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testRead() throws Exception {
         final String context = "Read";
         try (Storage s = createStorage()) {
+            s.initialize(0);
+
             // Check invalid segment name.
             assertThrows("read() did not throw for invalid segment name.",
                     () -> s.read(createHandle("foo_read_1", true), 0, new byte[1], 0, 1, TIMEOUT),
@@ -201,6 +207,8 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testSeal() throws Exception {
         final String context = "Seal";
         try (Storage s = createStorage()) {
+            s.initialize(0);
+
             // Check segment not exists.
             assertThrows("seal() did not throw for non-existent segment name.",
                     () -> s.seal(createHandle("foo", false), TIMEOUT),
@@ -244,6 +252,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testConcat() throws Exception {
         final String context = "Concat";
         try (Storage s = createStorage()) {
+            s.initialize(0);
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
 
             // Check invalid segment name.

@@ -33,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -86,21 +87,6 @@ class HDFSStorage implements Storage {
         this.closed = new AtomicBoolean(false);
     }
 
-    /**
-     * Initializes the HDFSStorage.
-     *
-     * @throws IOException If the initialization failed.
-     */
-    public void initialize() throws IOException {
-        Preconditions.checkState(this.fileSystem == null, "HDFSStorage has already been initialized.");
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        Configuration conf = new Configuration();
-        conf.set("fs.default.name", config.getHdfsHostURL());
-        conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
-        this.fileSystem = FileSystem.get(conf);
-        log.info("{}: Initialized.", LOG_ID);
-    }
-
     //endregion
 
     //region AutoCloseable Implementation
@@ -122,6 +108,18 @@ class HDFSStorage implements Storage {
     //endregion
 
     //region Storage Implementation
+
+    @Override
+    @SneakyThrows(IOException.class)
+    public void initialize(long epoch) {
+        Preconditions.checkState(this.fileSystem == null, "HDFSStorage has already been initialized.");
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Configuration conf = new Configuration();
+        conf.set("fs.default.name", config.getHdfsHostURL());
+        conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
+        this.fileSystem = FileSystem.get(conf);
+        log.info("{}: Initialized.", LOG_ID);
+    }
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {

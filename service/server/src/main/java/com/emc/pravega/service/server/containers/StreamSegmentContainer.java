@@ -3,11 +3,13 @@
  */
 package com.emc.pravega.service.server.containers;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -40,6 +42,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -92,13 +95,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.config = config;
-        this.storage = storageFactory.getStorageAdapter();
+        this.storage = storageFactory.createStorageAdapter();
         this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId, config.getMaxActiveSegmentCount());
-        this.readIndex = readIndexFactory.createReadIndex(this.metadata);
+        this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
         this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
         shutdownWhenStopped(this.durableLog, "DurableLog");
-        this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex);
+        this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.storage);
         shutdownWhenStopped(this.writer, "Writer");
         this.stateStore = new SegmentStateStore(this.storage, this.executor);
         this.metadataCleaner = new MetadataCleaner(this.config, this.metadata, this.stateStore, this::notifyMetadataRemoved,
@@ -135,20 +138,21 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting.", this.traceObjectId);
 
         this.durableLog.startAsync();
-        this.executor.execute(() -> {
+        runAsyncOrFail(() -> {
             this.durableLog.awaitRunning();
+            this.storage.initialize(0); //TODO: fix when we implement epochs via DurableDataLog
 
             // DurableLog is running. Now start all other components that depend on it.
             this.metadataCleaner.startAsync();
             this.writer.startAsync();
-            this.executor.execute(() -> {
+            runAsyncOrFail(() -> {
                 this.writer.awaitRunning();
                 this.metadataCleaner.awaitRunning();
                 log.info("{}: Started.", this.traceObjectId);
                 LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
                 notifyStarted();
-            });
-        });
+            }, this::notifyFailed, this.executor);
+        }, this::notifyFailed, this.executor);
     }
 
     @Override
@@ -165,6 +169,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             log.info("{}: Stopped.", this.traceObjectId);
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
             notifyStopped();
+        });
+    }
+
+    private void runAsyncOrFail(RunnableWithException r, Consumer<Throwable> notifyFailed, Executor executor) {
+        executor.execute(() -> {
+            try {
+                r.run();
+            } catch (Throwable ex) {
+                if (!ExceptionHelpers.mustRethrow(ex)) {
+                    notifyFailed.accept(ex);
+                }
+            }
         });
     }
 

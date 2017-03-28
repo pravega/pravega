@@ -62,10 +62,17 @@ public class TestStorage implements Storage {
     }
 
     @Override
+    public void initialize(long epoch) {
+        // Nothing to do.
+        this.wrappedStorage.initialize(epoch);
+    }
+
+    @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector)
                             .thenCompose(v -> this.wrappedStorage.create(streamSegmentName, timeout));
     }
+
 
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {

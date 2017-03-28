@@ -59,6 +59,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
 
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executorService());
+        storage.initialize(0);
         byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
@@ -95,6 +96,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
     public void testInvalidRequests() {
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executorService());
+        storage.initialize(0);
         byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
@@ -219,6 +221,11 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
 
     private static class TestStorage implements ReadOnlyStorage {
         Supplier<CompletableFuture<Integer>> readImplementation;
+
+        @Override
+        public void initialize(long epoch) {
+            // Nothing to do.
+        }
 
         @Override
         public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {

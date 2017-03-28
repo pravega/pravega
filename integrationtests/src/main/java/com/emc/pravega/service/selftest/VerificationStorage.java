@@ -71,6 +71,11 @@ class VerificationStorage implements TruncateableStorage {
     //region Storage Implementation
 
     @Override
+    public void initialize(long epoch) {
+        // Nothing to do.
+    }
+
+    @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return this.baseStorage.create(streamSegmentName, timeout);
     }
@@ -259,7 +264,7 @@ class VerificationStorage implements TruncateableStorage {
 
     //region Factory
 
-    static class Factory implements StorageFactory {
+    static class Factory implements StorageFactory, AutoCloseable {
         private final AtomicBoolean closed;
         private final VerificationStorage storage;
 
@@ -275,7 +280,7 @@ class VerificationStorage implements TruncateableStorage {
         }
 
         @Override
-        public Storage getStorageAdapter() {
+        public Storage createStorageAdapter() {
             Exceptions.checkNotClosed(this.closed.get(), this);
             return this.storage;
         }

@@ -1,66 +1,35 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.hdfs;
 
-
-import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
-
-import java.io.IOException;
+import com.google.common.base.Preconditions;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Factory for HDFS Storage components.
+ * Factory for HDFS Storage adapters.
  */
 public class HDFSStorageFactory implements StorageFactory {
-    private final HDFSStorage storage;
-    private final AtomicBoolean closed;
+    private final HDFSStorageConfig config;
+    private final Executor executor;
 
     /**
      * Creates a new instance of the HDFSStorageFactory class.
      *
-     * @param serviceBuilderConfig The configuration to use.
-     * @param executor             The executor to use for async operations.
+     * @param config   The Configuration to use.
+     * @param executor An executor to use for background operations.
      */
-    public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
-        this.storage = new HDFSStorage(serviceBuilderConfig, executor);
-        this.closed = new AtomicBoolean();
-    }
-
-    /**
-     * Creates a new instance of the HDFSStorageFactory class, using the default ForkJoinPool executor for async operations.
-     *
-     * @param serviceBuilderConfig The configuration to use.
-     */
-    public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig) {
-        this(serviceBuilderConfig, ForkJoinPool.commonPool());
-
+    public HDFSStorageFactory(HDFSStorageConfig config, Executor executor) {
+        Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(executor, "executor");
+        this.config = config;
+        this.executor = executor;
     }
 
     @Override
-    public Storage getStorageAdapter() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return storage;
-    }
-
-    @Override
-    public void close() {
-        this.closed.set(true);
-    }
-
-    /**
-     * Initializes the HDFSStorageFactory by attempting to establish a connection to the remote HDFS server.
-     *
-     * @throws IOException If the initialization failed.
-     */
-    public void initialize() throws IOException {
-        this.storage.initialize();
-
+    public Storage createStorageAdapter() {
+        return new HDFSStorage(this.config, this.executor);
     }
 }
