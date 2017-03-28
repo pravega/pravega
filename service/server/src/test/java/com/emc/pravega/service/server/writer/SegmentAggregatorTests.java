@@ -88,7 +88,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
         // Check behavior for non-existent segments (in Storage).
-        context.transactionAggregators[0].initialize(TIMEOUT).join();
+        context.transactionAggregators[0].initialize(TIMEOUT, executorService()).join();
         Assert.assertTrue("isDeleted() flag not set on metadata for deleted segment.", context.transactionAggregators[0].getMetadata().isDeleted());
 
         // Check behavior for already-sealed segments (in storage, but not in metadata)
@@ -96,21 +96,21 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.storage.seal(writeHandle(context.transactionAggregators[1].getMetadata().getName()), TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "initialize() succeeded on a Segment is sealed in Storage but not in the metadata.",
-                () -> context.transactionAggregators[1].initialize(TIMEOUT),
+                () -> context.transactionAggregators[1].initialize(TIMEOUT, executorService()),
                 ex -> ex instanceof DataCorruptionException);
 
         // Check behavior for already-sealed segments (in storage, in metadata, but metadata does not reflect Sealed in storage.)
         context.storage.create(context.transactionAggregators[2].getMetadata().getName(), TIMEOUT).join();
         context.storage.seal(writeHandle(context.transactionAggregators[2].getMetadata().getName()), TIMEOUT).join();
         ((UpdateableSegmentMetadata) context.transactionAggregators[2].getMetadata()).markSealed();
-        context.transactionAggregators[2].initialize(TIMEOUT).join();
+        context.transactionAggregators[2].initialize(TIMEOUT, executorService()).join();
         Assert.assertTrue("isSealedInStorage() flag not set on metadata for storage-sealed segment.", context.transactionAggregators[2].getMetadata().isSealedInStorage());
 
         // Check the ability to update Metadata.StorageOffset if it is different.
         final int writeLength = 10;
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.storage.write(writeHandle(context.segmentAggregator.getMetadata().getName()), 0, new ByteArrayInputStream(new byte[writeLength]), writeLength, TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
         Assert.assertEquals("SegmentMetadata.StorageLength was not updated after call to initialize().", writeLength, context.segmentAggregator.getMetadata().getStorageLength());
     }
 
@@ -152,8 +152,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.storage.create(transactionMetadata.getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
-        transactionAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
+        transactionAggregator.initialize(TIMEOUT, executorService()).join();
 
         // Verify Appends with correct parameters work as expected.
         for (int i = 0; i < appendCount; i++) {
@@ -193,8 +193,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.storage.create(transactionMetadata.getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
-        transactionAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
+        transactionAggregator.initialize(TIMEOUT, executorService()).join();
 
         // Create 2 more segments that can be used to verify MergeTransactionOperation.
         context.containerMetadata.mapStreamSegmentId(badParentName, badParentId);
@@ -223,7 +223,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 () -> {
                     @Cleanup
                     SegmentAggregator badTransactionAggregator = new SegmentAggregator(badTransactionMetadata, context.dataSource, context.storage, DEFAULT_CONFIG, context.timer);
-                    badTransactionAggregator.initialize(TIMEOUT).join();
+                    badTransactionAggregator.initialize(TIMEOUT, executorService()).join();
                     badTransactionAggregator.add(generateSimpleSeal(badTransactionId, context));
                 },
                 ex -> ex instanceof DataCorruptionException);
@@ -304,7 +304,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                     @Cleanup
                     SegmentAggregator badTransactionAggregator = new SegmentAggregator(badTransactionMetadata, context.dataSource, context.storage, DEFAULT_CONFIG, context.timer);
                     badTransactionMetadata.setDurableLogLength(100);
-                    badTransactionAggregator.initialize(TIMEOUT).join();
+                    badTransactionAggregator.initialize(TIMEOUT, executorService()).join();
 
                     StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), null);
                     badOffsetAppend.setStreamSegmentOffset(1);
@@ -358,7 +358,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
 
         @Cleanup
         ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
@@ -494,7 +494,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
 
         // Have the writes fail every few attempts with a well known exception.
         AtomicReference<IntentionalException> setException = new AtomicReference<>();
@@ -578,7 +578,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
 
         @Cleanup
         ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
@@ -636,7 +636,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
 
         // Generate and add a Seal Operation.
         StorageOperation sealOp = generateSealAndUpdateMetadata(SEGMENT_ID, context);
@@ -670,7 +670,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
 
         @Cleanup
         ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
@@ -763,10 +763,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Create and initialize all segments.
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
         for (SegmentAggregator a : context.transactionAggregators) {
             context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
-            a.initialize(TIMEOUT).join();
+            a.initialize(TIMEOUT, executorService()).join();
         }
 
         // Store written data by segment - so we can check it later.
@@ -882,10 +882,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Create and initialize all segments.
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
         for (SegmentAggregator a : context.transactionAggregators) {
             context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
-            a.initialize(TIMEOUT).join();
+            a.initialize(TIMEOUT, executorService()).join();
         }
 
         // Store written data by segment - so we can check it later.
@@ -965,7 +965,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
 
         // The writes always succeed, but every few times we return some random error, indicating that they didn't.
         AtomicInteger writeCount = new AtomicInteger();
@@ -1041,7 +1041,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
 
         // The seal succeeds, but we throw some random error, indicating that it didn't.
         context.storage.setSealInterceptor((segmentName, storage) -> {
@@ -1080,10 +1080,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Create a parent segment and one transaction segment.
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
         SegmentAggregator transactionAggregator = context.transactionAggregators[0];
         context.storage.create(transactionAggregator.getMetadata().getName(), TIMEOUT).join();
-        transactionAggregator.initialize(TIMEOUT).join();
+        transactionAggregator.initialize(TIMEOUT, executorService()).join();
 
         // Store written data by segment - so we can check it later.
         ByteArrayOutputStream transactionData = new ByteArrayOutputStream();
@@ -1155,7 +1155,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
 
         @Cleanup
         ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
@@ -1294,9 +1294,9 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         }
 
         // Now initialize the SegmentAggregators
-        context.segmentAggregator.initialize(TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
         for (SegmentAggregator a : context.transactionAggregators) {
-            a.initialize(TIMEOUT).join();
+            a.initialize(TIMEOUT, executorService()).join();
         }
 
         // Add all operations we had so far.

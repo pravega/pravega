@@ -212,22 +212,18 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     /**
      * Initializes the SegmentAggregator by pulling information from the given Storage.
      *
-     * @param timeout Timeout for the operation.
+     * @param timeout  Timeout for the operation.
+     * @param executor An executor to execute async tasks on.
      * @return A CompletableFuture that, when completed, will indicate that the operation finished successfully. If any
      * errors occurred during the operation, the Future will be completed with the appropriate exception.
      */
-    CompletableFuture<Void> initialize(Duration timeout) {
+    CompletableFuture<Void> initialize(Duration timeout, Executor executor) {
         Exceptions.checkNotClosed(isClosed(), this);
         Preconditions.checkState(this.state.get() == AggregatorState.NotInitialized, "SegmentAggregator has already been initialized.");
         assert this.handle.get() == null : "non-null handle but state == " + this.state.get();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "initialize");
 
-        return this.storage
-                .openWrite(this.metadata.getName())
-                .thenCompose(handle -> {
-                    this.handle.set(handle);
-                    return this.storage.getStreamSegmentInfo(this.metadata.getName(), timeout);
-                })
+        return openWrite(this.metadata.getName(), this.handle, executor, timeout)
                 .thenAccept(segmentInfo -> {
                     // Check & Update StorageLength in metadata.
                     if (this.metadata.getStorageLength() != segmentInfo.getLength()) {
@@ -680,12 +676,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         AtomicLong mergedLength = new AtomicLong();
         AtomicReference<SegmentHandle> transactionHandle = new AtomicReference<>();
-        return this.storage
-                .openWrite(transactionMetadata.getName())
-                .thenComposeAsync(handle -> {
-                    transactionHandle.set(handle);
-                    return this.storage.getStreamSegmentInfo(transactionMetadata.getName(), timer.getRemaining());
-                }, executor)
+        return openWrite(transactionMetadata.getName(), transactionHandle, executor, timer.getRemaining())
                 .thenAcceptAsync(transProperties -> {
                     // One last verification before the actual merger:
                     // Check that the Storage agrees with our metadata (if not, we have a problem ...)
@@ -1182,6 +1173,24 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         this.state.set(newState);
+    }
+
+    /**
+     * Opens the given segment for writing.
+     *
+     * @param segmentName The segment to open.
+     * @param handleRef   An AtomicReference that will contain the SegmentHandle for the opened segment.
+     * @param executor    An executor to run async tasks.
+     * @param timeout     Timeout for the operation.
+     * @return A Future that will contain information about the opened Segment.
+     */
+    private CompletableFuture<SegmentProperties> openWrite(String segmentName, AtomicReference<SegmentHandle> handleRef, Executor executor, Duration timeout) {
+        return this.storage
+                .openWrite(segmentName)
+                .thenComposeAsync(handle -> {
+                    handleRef.set(handle);
+                    return this.storage.getStreamSegmentInfo(segmentName, timeout);
+                }, executor);
     }
 
     //endregion
