@@ -123,18 +123,17 @@ class StorageReader implements AutoCloseable {
     private void executeStorageRead(Request request) {
         try {
             byte[] buffer = new byte[request.length];
-            CompletableFuture<Void> future = this.handle
+            this.handle
                     .thenComposeAsync(handle -> this.storage.read(handle, request.offset, buffer, 0, buffer.length, request.getTimeout()), this.executor)
-                    .thenAcceptAsync(bytesRead -> {
-                        ByteArraySegment segment = new ByteArraySegment(buffer, 0, bytesRead);
-                        request.complete(segment);
-                    }, this.executor);
+                    .thenAcceptAsync(bytesRead -> request.complete(new ByteArraySegment(buffer, 0, bytesRead)), this.executor)
+                    .whenComplete((r, ex) -> {
+                        if (ex != null) {
+                            request.fail(ex);
+                        }
 
-            // If anything happened with the read (or our handling of it), fail the request.
-            FutureHelpers.exceptionListener(future, request::fail);
-
-            // Unregister the Request after every request fulfillment.
-            future.whenComplete((r, ex) -> finalizeRequest(request));
+                        // Unregister the Request after every request fulfillment.
+                        finalizeRequest(request);
+                    });
         } catch (Throwable ex) {
             if (ExceptionHelpers.mustRethrow(ex)) {
                 throw ex;
@@ -144,7 +143,7 @@ class StorageReader implements AutoCloseable {
             finalizeRequest(request);
         }
     }
-
+    
     /**
      * Ensures that the given request has been finalized (if not, it is failed), and unregisters it from the pending reads.
      *
