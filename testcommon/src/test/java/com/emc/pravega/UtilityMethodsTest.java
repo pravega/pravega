@@ -30,12 +30,10 @@ public class UtilityMethodsTest {
      * @throws InterruptedException Required for ExecutorService.invokeAll
      * @throws ExecutionException   Required for Futures.get()
      */
-    @Test
+    @Test(timeout = 2000)
     public void getAvailableListenPortTest() throws InterruptedException, ExecutionException {
-        final int threadCount = 50;
-        AvailablePort availablePort = new AvailablePort();
-
-        Callable<Integer> task = () -> availablePort.getAvailablePort();
+        final int threadCount = 5;
+        Callable<Integer> task = () -> TestUtils.getAvailableListenPort();
         List<Callable<Integer>> tasks = Collections.nCopies(threadCount, task);
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
         List<Future<Integer>> futures = executorService.invokeAll(tasks);
@@ -49,11 +47,6 @@ public class UtilityMethodsTest {
             resultList.add(port);
         }
         assertEquals(threadCount, futures.size());
-    }
-
-    static class AvailablePort {
-        private int getAvailablePort() {
-            return TestUtils.getAvailableListenPort();
-        }
+        executorService.shutdown();
     }
 }
