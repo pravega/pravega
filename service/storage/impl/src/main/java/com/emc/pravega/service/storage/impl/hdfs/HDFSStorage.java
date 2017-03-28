@@ -153,7 +153,6 @@ class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "Cannot concat using a read-only handle.");
-        Preconditions.checkArgument(!sourceHandle.isReadOnly(), "Cannot concat using a read-only handle.");
         return runAsync(() -> concatSync(targetHandle.getSegmentName(), offset, sourceHandle.getSegmentName()), targetHandle.getSegmentName());
     }
 

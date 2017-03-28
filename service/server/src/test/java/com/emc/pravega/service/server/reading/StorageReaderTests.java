@@ -16,6 +16,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
@@ -134,6 +135,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testDependents() {
+        final Duration waitTimeout = Duration.ofSeconds(5);
         TestStorage storage = new TestStorage();
         CompletableFuture<Integer> signal = new CompletableFuture<>();
         AtomicBoolean wasReadInvoked = new AtomicBoolean();
@@ -156,16 +158,14 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         Assert.assertFalse("One or more of the reads has completed prematurely.", c1.isDone() || c2.isDone());
 
         signal.completeExceptionally(new IntentionalException());
-        Assert.assertTrue("The first read did not fail.", c1.isCompletedExceptionally());
-        Assert.assertTrue("The second read did not fail.", c2.isCompletedExceptionally());
         AssertExtensions.assertThrows(
                 "The first read was not failed with the correct exception.",
-                c1::join,
+                () -> c1.get(waitTimeout.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ex instanceof IntentionalException);
 
         AssertExtensions.assertThrows(
                 "The second read was not failed with the correct exception.",
-                c2::join,
+                () -> c2.get(waitTimeout.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ex instanceof IntentionalException);
     }
 
