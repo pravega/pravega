@@ -73,7 +73,7 @@ import static org.junit.Assert.assertTrue;
  */
 @Slf4j
 public class ControllerImplTest {
-    private final static int SERVICE_PORT = 12345;
+    private static final int SERVICE_PORT = 12345;
 
     @Rule
     public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);

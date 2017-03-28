@@ -39,7 +39,7 @@ import lombok.Cleanup;
 public class SegmentOutputStreamTest {
 
     private static final String SEGMENT = "segment";
-    private final static int SERVICE_PORT = 12345;
+    private static final int SERVICE_PORT = 12345;
 
     private static ByteBuffer getBuffer(String s) {
         return ByteBuffer.wrap(s.getBytes());

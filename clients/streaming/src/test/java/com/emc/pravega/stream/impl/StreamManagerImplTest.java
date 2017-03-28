@@ -18,7 +18,7 @@ import org.junit.Test;
 
 public class StreamManagerImplTest {
 
-    private final static int SERVICE_PORT = 12345;
+    private static final int SERVICE_PORT = 12345;
     private String defaultScope = "foo";
     private StreamManager streamManager;
     private Controller controller = null;

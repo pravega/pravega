@@ -15,7 +15,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 public class SegmentHelperMock {
-    private final static int SERVICE_PORT = 12345;
+    private static final int SERVICE_PORT = 12345;
 
     public static SegmentHelper getSegmentHelperMock() {
         SegmentHelper helper = spy(new SegmentHelper());

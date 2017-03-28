@@ -31,7 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class AsyncSegmentInputStreamTest {
-    private final static int SERVICE_PORT = 12345;
+    private static final int SERVICE_PORT = 12345;
 
     @Test(timeout = 20000)
     public void testRetry() throws ConnectionFailedException {

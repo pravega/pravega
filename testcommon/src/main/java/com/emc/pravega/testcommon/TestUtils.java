@@ -24,7 +24,6 @@ public class TestUtils {
         int freePort;
         try {
             serverSocket = new ServerSocket(0);
-            serverSocket.setReuseAddress(true);
             freePort = serverSocket.getLocalPort();
             serverSocket.close();
             return freePort;

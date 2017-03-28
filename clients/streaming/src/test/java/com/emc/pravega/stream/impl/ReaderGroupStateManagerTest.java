@@ -44,7 +44,7 @@ import static org.junit.Assert.assertTrue;
 
 @RunWith(BlockJUnit4ClassRunner.class)
 public class ReaderGroupStateManagerTest {
-    private final static int SERVICE_PORT = 12345;
+    private static final int SERVICE_PORT = 12345;
 
     @Test
     public void testSegmentSplit() throws ReinitializationRequiredException {
