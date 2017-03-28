@@ -30,7 +30,7 @@ public class UtilityMethodsTest {
      * @throws InterruptedException Required for ExecutorService.invokeAll
      * @throws ExecutionException   Required for Futures.get()
      */
-    @Test(timeout = 2000)
+    @Test(timeout = 10000)
     public void getAvailableListenPortTest() throws InterruptedException, ExecutionException {
         final int threadCount = 5;
         Callable<Integer> task = () -> TestUtils.getAvailableListenPort();
