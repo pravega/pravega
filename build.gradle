@@ -803,6 +803,6 @@ task sourceTar(type: Tar) {
     compression = Compression.GZIP
 }
 
-task javaDoc(type: Javadoc) {
+task genJavaDocs(type: Javadoc) {
     dependsOn 'clients:streaming:javadoc'
 }

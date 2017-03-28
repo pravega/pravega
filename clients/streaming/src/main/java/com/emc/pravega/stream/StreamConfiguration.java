@@ -18,25 +18,25 @@ import lombok.Data;
 public class StreamConfiguration implements Serializable {
     
     /**
-     * Api to return scope.
+     * API to return scope.
      *
      */
     private final String scope;
 
     /**
-     * Api to return stream name.
+     * API to return stream name.
      *
      */
     private final String streamName;
 
     /**
-     * Api to return scaling policy.
+     * API to return scaling policy.
      *
      */
     private final ScalingPolicy scalingPolicy;
 
     /**
-     * Api to return retention policy.
+     * API to return retention policy.
      *
      */
     private final RetentionPolicy retentionPolicy;
