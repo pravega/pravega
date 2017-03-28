@@ -9,7 +9,6 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.stream.Checkpoint;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
@@ -50,9 +49,7 @@ public class CheckpointTest {
     @Before
     public void setup() throws Exception {
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
-        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.builder().include(
-                ServiceConfig.builder().with(ServiceConfig.LISTENING_PORT, TestUtils.getAvailableListenPort()).
-                        with(ServiceConfig.CONTAINER_COUNT, 1)).build());
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize().get();
     }
 
