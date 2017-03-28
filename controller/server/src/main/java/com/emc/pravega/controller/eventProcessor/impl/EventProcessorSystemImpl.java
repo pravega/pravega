@@ -22,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class EventProcessorSystemImpl implements EventProcessorSystem {
 
-    final Controller controller;
     final ClientFactory clientFactory;
     final ReaderGroupManager readerGroupManager;
 
@@ -31,14 +30,13 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
 
     private final String scope;
 
-    public EventProcessorSystemImpl(String name, String process, String scope, Controller controller, ConnectionFactory connectionFactory) {
+    public EventProcessorSystemImpl(String name, String process, String scope, ClientFactory clientFactory, ReaderGroupManager readerGroupManager) {
         this.name = name;
         this.process = process;
 
         this.scope = scope;
-        this.controller = controller;
-        this.clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-        this.readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
+        this.clientFactory = clientFactory;
+        this.readerGroupManager = readerGroupManager;
     }
 
     @Override

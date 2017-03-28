@@ -80,13 +80,11 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * Initializes stream writers for commit and abort streams.
      * This method should be called immediately after creating StreamTransactionMetadataTasks object.
      *
-     * @param controller Local controller reference
+     * @param clientFactory Client factory reference.
      * @param config Controller event processor configuration.
      */
-    public Void initializeStreamWriters(Controller controller, ControllerEventProcessorConfig config) {
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(config.getScopeName(), controller);
-
+    public Void initializeStreamWriters(final ClientFactory clientFactory,
+                                        final ControllerEventProcessorConfig config) {
         this.commitEventEventStreamWriter = clientFactory.createEventWriter(
                 config.getCommitStreamName(),
                 ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
