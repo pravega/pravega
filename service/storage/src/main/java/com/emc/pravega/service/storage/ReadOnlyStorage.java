@@ -12,6 +12,13 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface ReadOnlyStorage {
     /**
+     * Initializes this Storage instance with the given ContainerEpoch.
+     *
+     * @param containerEpoch The Container Epoch to initialize with.
+     */
+    void initialize(long containerEpoch);
+
+    /**
      * Opens the given Segment in read-only mode without acquiring any locks or blocking on any existing write-locks and
      * makes it available for use for this instance of Storage.
      * Multiple read-only Handles can coexist at any given time and allow concurrent read-only access to the Segment,

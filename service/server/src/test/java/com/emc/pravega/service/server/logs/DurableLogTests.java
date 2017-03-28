@@ -648,6 +648,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
+        storage.initialize(0);
 
         HashSet<Long> streamSegmentIds;
         AbstractMap<Long, Long> transactions;
@@ -715,6 +716,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
+        storage.initialize(0);
 
         HashSet<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
@@ -832,6 +834,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
+        storage.initialize(0);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
@@ -944,6 +947,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
+        storage.initialize(0);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
@@ -1124,6 +1128,7 @@ public class DurableLogTests extends OperationLogTestBase {
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.cacheFactory = new InMemoryCacheFactory();
             this.storage = new InMemoryStorage(this.executorService);
+            this.storage.initialize(0);
             this.cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), this.executorService);
             this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.cacheFactory, this.storage, this.cacheManager, this.executorService);
         }

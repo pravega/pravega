@@ -40,11 +40,12 @@ import com.emc.pravega.service.server.writer.StorageWriterFactory;
 import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
+import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
-import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
+import com.emc.pravega.service.storage.mocks.ListenableStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
@@ -1166,13 +1167,15 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         return FutureHelpers.allOf(segmentsCompletion);
     }
 
-    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, InMemoryStorage storage) {
+    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
+        Assert.assertTrue("Unable to register triggers.", storage instanceof ListenableStorage);
+        ListenableStorage ls = (ListenableStorage) storage;
         if (sp.isSealed()) {
             // Sealed - add a seal trigger.
-            return storage.registerSealTrigger(sp.getName(), TIMEOUT);
+            return ls.registerSealTrigger(sp.getName(), TIMEOUT);
         } else {
             // Not sealed - add a size trigger.
-            return storage.registerSizeTrigger(sp.getName(), sp.getLength(), TIMEOUT);
+            return ls.registerSizeTrigger(sp.getName(), sp.getLength(), TIMEOUT);
         }
     }
 
@@ -1214,7 +1217,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final ReadIndexFactory readIndexFactory;
         private final WriterFactory writerFactory;
         private final CacheFactory cacheFactory;
-        private final InMemoryStorage storage;
+        private final Storage storage;
 
         TestContext() {
             this(DEFAULT_CONFIG);
@@ -1225,19 +1228,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
-            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, this.storageFactory, executorService());
-            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, executorService());
+            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, executorService());
+            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
             StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
                     this.readIndexFactory, this.writerFactory, this.storageFactory, executorService());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
-            this.storage = (InMemoryStorage) this.storageFactory.getStorageAdapter();
+            this.storage = this.storageFactory.createStorageAdapter();
         }
 
         @Override
         public void close() {
             this.container.close();
             this.dataLogFactory.close();
-            this.storageFactory.close();
+            this.storage.close();
         }
     }
 

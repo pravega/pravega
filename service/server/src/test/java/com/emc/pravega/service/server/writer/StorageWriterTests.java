@@ -737,6 +737,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.baseStorage = new InMemoryStorage(executorService());
             this.storage = new TestStorage(this.baseStorage);
+            this.storage.initialize(0);
             this.config = config;
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();

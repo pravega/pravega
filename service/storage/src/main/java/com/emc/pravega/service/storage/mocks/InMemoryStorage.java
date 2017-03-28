@@ -26,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -37,7 +38,7 @@ import lombok.ToString;
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
  */
-public class InMemoryStorage implements TruncateableStorage {
+public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     //region Members
 
     private final HashMap<String, HashMap<Long, CompletableFuture<Void>>> offsetTriggers;
@@ -48,7 +49,8 @@ public class InMemoryStorage implements TruncateableStorage {
     private final ScheduledExecutorService executor;
     private final AtomicLong currentOwnerId;
     private final SyncContext syncContext;
-    private boolean closed;
+    private final AtomicBoolean initialized;
+    private final AtomicBoolean closed;
     private boolean ownsExecutorService;
 
     //endregion
@@ -66,6 +68,8 @@ public class InMemoryStorage implements TruncateableStorage {
         this.sealTriggers = new HashMap<>();
         this.currentOwnerId = new AtomicLong(0);
         this.syncContext = new SyncContext(this.currentOwnerId::get);
+        this.initialized = new AtomicBoolean();
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -74,12 +78,10 @@ public class InMemoryStorage implements TruncateableStorage {
 
     @Override
     public void close() {
-        if (!this.closed) {
+        if (!this.closed.getAndSet(true)) {
             if (this.ownsExecutorService) {
                 this.executor.shutdown();
             }
-
-            this.closed = true;
         }
     }
 
@@ -96,8 +98,13 @@ public class InMemoryStorage implements TruncateableStorage {
     //region Storage Implementation
 
     @Override
+    public void initialize(long epoch) {
+        Preconditions.checkState(this.initialized.compareAndSet(false, true), "InMemoryStorage is already initialized.");
+    }
+
+    @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        ensurePreconditions();
         return CompletableFuture
                 .supplyAsync(() -> {
                     synchronized (this.lock) {
@@ -116,16 +123,19 @@ public class InMemoryStorage implements TruncateableStorage {
 
     @Override
     public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
+        ensurePreconditions();
         return CompletableFuture.supplyAsync(() -> getStreamSegmentData(streamSegmentName).openWrite(), this.executor);
     }
 
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
+        ensurePreconditions();
         return CompletableFuture.supplyAsync(() -> getStreamSegmentData(streamSegmentName).openRead(), this.executor);
     }
 
     @Override
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
+        ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot write using a read-only handle.");
         CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
                 getStreamSegmentData(handle.getSegmentName()).write(offset, data, length), this.executor);
@@ -135,12 +145,14 @@ public class InMemoryStorage implements TruncateableStorage {
 
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        ensurePreconditions();
         return CompletableFuture.supplyAsync(() ->
                 getStreamSegmentData(handle.getSegmentName()).read(offset, buffer, bufferOffset, length), this.executor);
     }
 
     @Override
     public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
+        ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot seal using a read-only handle.");
         CompletableFuture<SegmentProperties> result =
                 CompletableFuture.supplyAsync(() ->
@@ -151,13 +163,13 @@ public class InMemoryStorage implements TruncateableStorage {
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        ensurePreconditions();
         return CompletableFuture.supplyAsync(() -> getStreamSegmentData(streamSegmentName).getInfo(), this.executor);
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        ensurePreconditions();
         boolean exists;
         synchronized (this.lock) {
             exists = this.streamSegments.containsKey(streamSegmentName);
@@ -168,7 +180,7 @@ public class InMemoryStorage implements TruncateableStorage {
 
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        ensurePreconditions();
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "Cannot concat using a read-only handle.");
         AtomicLong newLength = new AtomicLong();
         CompletableFuture<Void> result = CompletableFuture.runAsync(() -> {
@@ -188,14 +200,14 @@ public class InMemoryStorage implements TruncateableStorage {
 
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot delete using a read-only handle.");
         return CompletableFuture.runAsync(() -> deleteInternal(handle), this.executor);
     }
 
     @Override
     public CompletableFuture<Void> truncate(String segmentName, long offset, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        ensurePreconditions();
         return CompletableFuture.runAsync(() -> getStreamSegmentData(segmentName).truncate(offset), this.executor);
     }
 
@@ -208,6 +220,7 @@ public class InMemoryStorage implements TruncateableStorage {
      * @param length The length of the data to append.
      */
     public void append(SegmentHandle handle, InputStream data, int length) {
+        ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot append using a read-only handle.");
         getStreamSegmentData(handle.getSegmentName()).append(data, length);
         this.executor.execute(
@@ -250,15 +263,7 @@ public class InMemoryStorage implements TruncateableStorage {
 
     //region Size & seal triggers
 
-    /**
-     * Registers a size trigger for the given Segment Name and Offset.
-     *
-     * @param segmentName The Name of the Segment.
-     * @param offset      The offset in the segment at which to trigger.
-     * @param timeout     The timeout for the wait.
-     * @return A CompletableFuture that will complete when the given Segment reaches at least the given minimum size.
-     * This Future will fail with a TimeoutException if the Segment did not reach the minimum size within the given timeout.
-     */
+    @Override
     public CompletableFuture<Void> registerSizeTrigger(String segmentName, long offset, Duration timeout) {
         CompletableFuture<Void> result;
         boolean newTrigger = false;
@@ -291,14 +296,7 @@ public class InMemoryStorage implements TruncateableStorage {
         return result;
     }
 
-    /**
-     * Registers a seal trigger for the given Segment Name.
-     *
-     * @param segmentName The Name of the Segment.
-     * @param timeout     The timeout for the wait.
-     * @return A CompletableFuture that will complete when the given Segment is sealed. This Future will fail with a TimeoutException
-     * if the Segment was not sealed within the given timeout.
-     */
+    @Override
     public CompletableFuture<Void> registerSealTrigger(String segmentName, Duration timeout) {
         CompletableFuture<Void> result;
         boolean newTrigger = false;
@@ -378,6 +376,11 @@ public class InMemoryStorage implements TruncateableStorage {
         });
 
         return result;
+    }
+
+    private void ensurePreconditions() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkState(this.initialized.get(), "InMemoryStorage is not initialized.");
     }
 
     //endregion

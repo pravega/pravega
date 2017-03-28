@@ -1,19 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage;
 
 /**
  * Defines a Factory for Storage Adapters.
  */
-public interface StorageFactory extends AutoCloseable {
+public interface StorageFactory {
     /**
-     * Gets a reference to an instance of a Storage class.
+     * Creates a new instance of a Storage adapter.
      */
-    Storage getStorageAdapter();
-
-    @Override
-    void close();
+    Storage createStorageAdapter();
 }

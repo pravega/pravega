@@ -1187,6 +1187,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             this.cacheFactory = new TestCacheFactory();
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.storage = new InMemoryStorage();
+            this.storage.initialize(0);
             this.cacheManager = new TestCacheManager(cachePolicy, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
         }

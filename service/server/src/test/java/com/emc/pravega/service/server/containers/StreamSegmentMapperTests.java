@@ -668,6 +668,11 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         //region Unimplemented methods
 
         @Override
+        public void initialize(long epoch) {
+            throw new NotImplementedException();
+        }
+
+        @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
             throw new NotImplementedException();
         }

@@ -80,6 +80,8 @@ public class HDFSStorageTest extends StorageTestBase {
         final String segmentName = "segment";
         try (val storage1 = createStorage(0);
              val storage2 = createStorage(1)) {
+            storage1.initialize(0);
+            storage2.initialize(1);
 
             // Create segment in Storage1 (thus Storage1 owns it for now).
             storage1.create(segmentName, TIMEOUT).join();
@@ -203,9 +205,7 @@ public class HDFSStorageTest extends StorageTestBase {
                 .with(HDFSStorageConfig.REPLICATION, 1)
                 .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
                 .build();
-        val storage = new MiniClusterPermFixer(config, executorService());
-        storage.initialize();
-        return storage;
+        return new MiniClusterPermFixer(config, executorService());
     }
 
     /**

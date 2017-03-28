@@ -28,6 +28,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
 
         @Cleanup
         val storage = new InMemoryStorage();
+        storage.initialize(0);
 
         // Part 1: Create a segment and verify all operations are allowed.
         storage.create(segment1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
