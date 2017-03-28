@@ -13,10 +13,6 @@ import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
-import com.emc.pravega.stream.impl.ClientFactoryImpl;
-import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
-import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

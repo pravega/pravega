@@ -21,10 +21,7 @@ import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
-import com.emc.pravega.stream.impl.ClientFactoryImpl;
-import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
