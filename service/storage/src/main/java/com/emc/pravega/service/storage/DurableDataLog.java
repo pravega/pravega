@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage;
 
@@ -86,6 +84,22 @@ public interface DurableDataLog extends AutoCloseable {
      * @return The requested value, or -1 if the information is unknown.
      */
     long getLastAppendSequence();
+
+    /**
+     * Gets a value indicating the current Epoch of this DurableDataLog.
+     * <p>
+     * An Epoch is a monotonically strictly number that changes (not necessarily incremented) every time the DurableDataLog
+     * is successfully initialized. This usually corresponds to a successful lock acquisition of the underlying log resource,
+     * thus fencing out any other existing instances holding that lock.
+     * <p>
+     * For example, if instance A has an epoch smaller than that of instance B, and both are competing on the same underlying
+     * log, then it is safe to assume that B has acquired the lock later than A and A can no longer use the lock. Should A
+     * re-acquire this exclusive lock, its Epoch would change to a number that is greater than B's.
+     *
+     * @return The current Epoch value. This value is set once after initialization and never changed during the lifetime
+     * of this object.
+     */
+    long getEpoch();
 
     /**
      * Closes this instance of a DurableDataLog and releases any resources it holds.

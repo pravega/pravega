@@ -38,9 +38,12 @@ import lombok.extern.slf4j.Slf4j;
 public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata, EvictableMetadata {
     //region Members
 
+    private static final long INITIAL_EPOCH = Long.MIN_VALUE;
+
     private final String traceObjectId;
     private final AtomicLong sequenceNumber;
     private final AtomicLong lastTruncatedSequenceNumber;
+    private final AtomicLong epoch;
     @GuardedBy("lock")
     private final HashMap<String, StreamSegmentMetadata> metadataByName;
     @GuardedBy("lock")
@@ -76,6 +79,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.truncationPoints = new TreeSet<>();
         this.recoveryMode = new AtomicBoolean();
         this.lastTruncatedSequenceNumber = new AtomicLong();
+        this.epoch = new AtomicLong(INITIAL_EPOCH);
     }
 
     //endregion
@@ -108,6 +112,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     @Override
     public int getContainerId() {
         return this.streamSegmentContainerId;
+    }
+
+    @Override
+    public long getContainerEpoch() {
+        return this.epoch.get();
     }
 
     @Override
@@ -236,6 +245,15 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.sequenceNumber.set(value);
     }
 
+    @Override
+    public void setContainerEpoch(long value) {
+        ensureRecoveryMode();
+        Preconditions.checkArgument(value > 0, "epoch must be a non-negative number");
+
+        // Check and update epoch atomically.
+        Preconditions.checkState(this.epoch.compareAndSet(Long.MIN_VALUE, value), "epoch has already been set.");
+    }
+
     //endregion
 
     //region EvictableMetadata Implementation
@@ -341,6 +359,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         ensureRecoveryMode();
         this.sequenceNumber.set(0);
         this.lastTruncatedSequenceNumber.set(0);
+        this.epoch.set(INITIAL_EPOCH);
         synchronized (this.lock) {
             this.metadataByName.clear();
             this.metadataById.clear();
