@@ -9,6 +9,8 @@ import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+
 import java.net.URI;
 
 /**
@@ -29,6 +31,8 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
+        Preconditions.checkNotNull(streamName);
+        Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
         return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
                                                                                                .scope(scopeName)
                                                                                                .streamName(streamName)

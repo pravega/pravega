@@ -16,6 +16,8 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import java.net.URI;
 import java.util.Set;
+
+import com.google.common.base.Preconditions;
 import org.apache.commons.lang.NotImplementedException;
 
 /**
@@ -40,6 +42,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
+        Preconditions.checkNotNull(streamName);
+        Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
         FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
                                                                                         .scope(scope)
                                                                                         .streamName(streamName)
