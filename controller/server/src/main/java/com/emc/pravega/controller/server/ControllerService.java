@@ -188,12 +188,14 @@ public class ControllerService {
 
         // If scaleGracePeriod is larger than maxScaleGracePeriod return error
         if (scaleGracePeriod > timeoutService.getMaxScaleGracePeriod()) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("scaleGracePeriod too large"));
+            return FutureHelpers.failedFuture(new IllegalArgumentException("scaleGracePeriod too large, max value is "
+                                                                            + timeoutService.getMaxScaleGracePeriod()));
         }
 
         // If lease value is too large return error
         if (lease > scaleGracePeriod || lease > maxExecutionTime || lease > timeoutService.getMaxLeaseValue()) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("lease value too large"));
+            return FutureHelpers.failedFuture(new IllegalArgumentException("lease value too large, max value is "
+            + Math.min(scaleGracePeriod, Math.min(maxExecutionTime, timeoutService.getMaxLeaseValue()))));
         }
 
         return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionTime, scaleGracePeriod, null)
