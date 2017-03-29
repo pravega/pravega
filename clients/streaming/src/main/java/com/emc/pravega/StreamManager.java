@@ -34,6 +34,7 @@ public interface StreamManager extends AutoCloseable {
      * @param scopeName  The name of the scope to create this stream in.
      * @param streamName The name of the stream to be created.
      * @param config The configuration the stream should use.
+     * @return True if stream is created
      */
     boolean createStream(String scopeName, String streamName, StreamConfiguration config);
 
@@ -47,6 +48,7 @@ public interface StreamManager extends AutoCloseable {
      * @param scopeName  The name of the scope to create this stream in.
      * @param streamName The name of the stream who's config is to be changed.
      * @param config     The new configuration.
+     * @return True if stream configuration is updated
      */
     boolean alterStream(String scopeName, String streamName, StreamConfiguration config);
 
@@ -55,6 +57,7 @@ public interface StreamManager extends AutoCloseable {
      *
      * @param scopeName  The name of the scope to create this stream in.
      * @param streamName The name of the stream which has to be sealed.
+     * @return True if stream is sealed
      */
     boolean sealStream(String scopeName, String streamName);
     
@@ -64,6 +67,7 @@ public interface StreamManager extends AutoCloseable {
      *
      * @param scopeName  The name of the scope to create this stream in.
      * @param toDelete The name of the stream to be deleted.
+     * @return True if stream is deleted
      */
     boolean deleteStream(String scopeName, String toDelete);
 
@@ -71,6 +75,7 @@ public interface StreamManager extends AutoCloseable {
      * Creates a new scope.
      *
      * @param scopeName  The name of the scope to create this stream in.
+     * @return True if scope is created
      */
     boolean createScope(String scopeName);
 
@@ -79,7 +84,8 @@ public interface StreamManager extends AutoCloseable {
      * stream.
      *
      * @param scopeName  The name of the scope to create this stream in.
-      */
+     * @return True if scope is deleted
+     */
     boolean deleteScope(String scopeName);
     
     /**
