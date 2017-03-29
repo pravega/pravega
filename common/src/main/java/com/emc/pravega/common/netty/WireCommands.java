@@ -63,6 +63,7 @@ public final class WireCommands {
     @Data
     public static final class WrongHost implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.WRONG_HOST;
+        final long requestId;
         final String segment;
         final String correctHost;
 
@@ -73,20 +74,23 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(correctHost);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             String correctHost = in.readUTF();
-            return new WrongHost(segment, correctHost);
+            return new WrongHost(requestId, segment, correctHost);
         }
     }
 
     @Data
     public static final class SegmentIsSealed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_IS_SEALED;
+        final long requestId;
         final String segment;
 
         @Override
@@ -96,18 +100,21 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
-            return new SegmentIsSealed(segment);
+            return new SegmentIsSealed(requestId, segment);
         }
     }
 
     @Data
     public static final class SegmentAlreadyExists implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_ALREADY_EXISTS;
+        final long requestId;
         final String segment;
 
         @Override
@@ -117,12 +124,14 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
-            return new SegmentAlreadyExists(segment);
+            return new SegmentAlreadyExists(requestId, segment);
         }
 
         @Override
@@ -134,6 +143,7 @@ public final class WireCommands {
     @Data
     public static final class NoSuchSegment implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.NO_SUCH_SEGMENT;
+        final long requestId;
         final String segment;
 
         @Override
@@ -143,12 +153,14 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
-            return new NoSuchSegment(segment);
+            return new NoSuchSegment(requestId, segment);
         }
 
         @Override
@@ -160,6 +172,7 @@ public final class WireCommands {
     @Data
     public static final class NoSuchTransaction implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.NO_SUCH_TRANSACTION;
+        final long requestId;
         final String txn;
 
         @Override
@@ -169,12 +182,14 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(txn);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String batch = in.readUTF();
-            return new NoSuchTransaction(batch);
+            return new NoSuchTransaction(requestId, batch);
         }
 
         @Override
@@ -253,6 +268,7 @@ public final class WireCommands {
     @Data
     public static final class SetupAppend implements Request, WireCommand {
         final WireCommandType type = WireCommandType.SETUP_APPEND;
+        final long requestId;
         final UUID connectionId;
         final String segment;
 
@@ -263,15 +279,17 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeLong(connectionId.getMostSignificantBits());
             out.writeLong(connectionId.getLeastSignificantBits());
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             UUID uuid = new UUID(in.readLong(), in.readLong());
             String segment = in.readUTF();
-            return new SetupAppend(uuid, segment);
+            return new SetupAppend(requestId, uuid, segment);
         }
     }
 
@@ -386,6 +404,7 @@ public final class WireCommands {
     @Data
     public static final class AppendSetup implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.APPEND_SETUP;
+        final long requestId;
         final String segment;
         final UUID connectionId;
         final long lastEventNumber;
@@ -397,6 +416,7 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(connectionId.getMostSignificantBits());
             out.writeLong(connectionId.getLeastSignificantBits());
@@ -404,10 +424,11 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             UUID connectionId = new UUID(in.readLong(), in.readLong());
             long lastEventNumber = in.readLong();
-            return new AppendSetup(segment, connectionId, lastEventNumber);
+            return new AppendSetup(requestId, segment, connectionId, lastEventNumber);
         }
     }
 
@@ -670,6 +691,7 @@ public final class WireCommands {
         public static final byte IN_EVENTS_PER_SEC = (byte) 2;
 
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
+        final long requestId;
         final String segment;
         final byte scaleType;
         final int targetRate;
@@ -681,23 +703,26 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeInt(targetRate);
             out.writeByte(scaleType);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             int desiredRate = in.readInt();
             byte scaleType = in.readByte();
 
-            return new CreateSegment(segment, scaleType, desiredRate);
+            return new CreateSegment(requestId, segment, scaleType, desiredRate);
         }
     }
 
     @Data
     public static final class SegmentCreated implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_CREATED;
+        final long requestId;
         final String segment;
 
         @Override
@@ -707,12 +732,14 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
-            return new SegmentCreated(segment);
+            return new SegmentCreated(requestId, segment);
         }
     }
 
@@ -720,6 +747,7 @@ public final class WireCommands {
     public static final class UpdateSegmentPolicy implements Request, WireCommand {
 
         final WireCommandType type = WireCommandType.UPDATE_SEGMENT_POLICY;
+        final long requestId;
         final String segment;
         final byte scaleType;
         final int targetRate;
@@ -731,23 +759,26 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeInt(targetRate);
             out.writeByte(scaleType);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             int desiredRate = in.readInt();
             byte scaleType = in.readByte();
 
-            return new UpdateSegmentPolicy(segment, scaleType, desiredRate);
+            return new UpdateSegmentPolicy(requestId, segment, scaleType, desiredRate);
         }
     }
 
     @Data
     public static final class SegmentPolicyUpdated implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_POLICY_UPDATED;
+        final long requestId;
         final String segment;
 
         @Override
@@ -757,18 +788,21 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
-            return new SegmentPolicyUpdated(segment);
+            return new SegmentPolicyUpdated(requestId, segment);
         }
     }
 
     @Data
     public static final class CreateTransaction implements Request, WireCommand {
         final WireCommandType type = WireCommandType.CREATE_TRANSACTION;
+        final long requestId;
         final String segment;
         final UUID txid;
 
@@ -779,21 +813,24 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new CreateTransaction(segment, txid);
+            return new CreateTransaction(requestId, segment, txid);
         }
     }
 
     @Data
     public static final class TransactionCreated implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TRANSACTION_CREATED;
+        final long requestId;
         final String segment;
         final UUID txid;
 
@@ -804,21 +841,24 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new TransactionCreated(segment, txid);
+            return new TransactionCreated(requestId, segment, txid);
         }
     }
 
     @Data
     public static final class CommitTransaction implements Request, WireCommand {
         final WireCommandType type = WireCommandType.COMMIT_TRANSACTION;
+        final long requestId;
         final String segment;
         final UUID txid;
 
@@ -829,21 +869,24 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new CommitTransaction(segment, txid);
+            return new CommitTransaction(requestId, segment, txid);
         }
     }
 
     @Data
     public static final class TransactionCommitted implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TRANSACTION_COMMITTED;
+        final long requestId;
         final String segment;
         final UUID txid;
 
@@ -854,21 +897,24 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new TransactionCommitted(segment, txid);
+            return new TransactionCommitted(requestId, segment, txid);
         }
     }
 
     @Data
     public static final class AbortTransaction implements Request, WireCommand {
         final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
+        final long requestId;
         final String segment;
         final UUID txid;
 
@@ -879,21 +925,24 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new AbortTransaction(segment, txid);
+            return new AbortTransaction(requestId, segment, txid);
         }
     }
 
     @Data
     public static final class TransactionAborted implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TRANSACTION_ABORTED;
+        final long requestId;
         final String segment;
         final UUID txid;
 
@@ -904,15 +953,17 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new TransactionAborted(segment, txid);
+            return new TransactionAborted(requestId, segment, txid);
         }
     }
 
@@ -920,6 +971,7 @@ public final class WireCommands {
     @Data
     public static final class SealSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
+        final long requestId;
         final String segment;
 
         @Override
@@ -929,18 +981,21 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new SealSegment(requestId, segment);
         }
     }
 
     @Data
     public static final class SegmentSealed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_SEALED;
+        final long requestId;
         final String segment;
 
         @Override
@@ -950,18 +1005,21 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
-            return new SegmentSealed(segment);
+            return new SegmentSealed(requestId, segment);
         }
     }
 
     @Data
     public static final class DeleteSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
+        final long requestId;
         final String segment;
         
         @Override
@@ -971,18 +1029,21 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
-            return new DeleteSegment(segment);
+            return new DeleteSegment(requestId, segment);
         }
     }
 
     @Data
     public static final class SegmentDeleted implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_DELETED;
+        final long requestId;
         final String segment;
 
         @Override
@@ -992,12 +1053,14 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String segment = in.readUTF();
-            return new SegmentDeleted(segment);
+            return new SegmentDeleted(requestId, segment);
         }
     }
     

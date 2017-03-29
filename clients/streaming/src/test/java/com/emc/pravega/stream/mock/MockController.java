@@ -42,6 +42,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
@@ -60,6 +62,7 @@ public class MockController implements Controller {
     private final Map<String, Set<Stream>> createdScopes = new HashMap<>();
     @GuardedBy("$lock")
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
+    private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
     
     @Override
     @Synchronized
@@ -165,7 +168,7 @@ public class MockController implements Controller {
                 result.complete(true);
             }
         };
-        CreateSegment command = new WireCommands.CreateSegment(name, WireCommands.CreateSegment.NO_SCALE, 0);
+        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0);
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -214,7 +217,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new TxnFailedException("Transaction already aborted."));
             }
         };
-        sendRequestOverNewConnection(new CommitTransaction(segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 
@@ -251,7 +254,7 @@ public class MockController implements Controller {
                 result.complete(null);
             }
         };
-        sendRequestOverNewConnection(new AbortTransaction(segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new AbortTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 
@@ -290,7 +293,7 @@ public class MockController implements Controller {
                 result.complete(null);
             }
         };
-        sendRequestOverNewConnection(new CreateTransaction(segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 
