@@ -14,6 +14,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
+import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
@@ -25,6 +26,7 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -87,6 +89,24 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             //TODO: It's not clear how we should be handling this case. (It should be impossible...)
             closeConnection(new IllegalArgumentException(noSuchSegment.toString()));
+        }
+        
+        @Override
+        public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
+            if (!segmentId.getScopedName().equals(segmentIsSealed.getSegment())) {
+                log.error("Operating on segmentId {} but received sealed for segment {}", segmentId, segmentIsSealed.getSegment());
+            }
+            ReadFutureImpl future;
+            synchronized (lock) {
+                future = outstandingRequests.remove(segmentIsSealed.getRequestId());
+            }
+            if (future != null) {
+                future.complete(new SegmentRead(segmentIsSealed.getSegment(),
+                        segmentIsSealed.getRequestId(),
+                        true,
+                        true,
+                        ByteBuffer.allocate(0)));
+            }
         }
 
         @Override
@@ -174,7 +194,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             outstandingRequests.put(read.request.getOffset(), read);
         }
         getConnection().thenAccept((ClientConnection c) -> {
-            log.info("Sending read request {}", read);
+            log.debug("Sending read request {}", read);
             c.sendAsync(read.request);
         });
         return read;
