@@ -69,8 +69,8 @@ public class EndToEndTxnWithScaleTest {
         clientFactory.close();
         server.close();
         try {
-            zkTestServer.close();
             controllerWrapper.close();
+            zkTestServer.close();
         } catch (Exception e) {
             // ignore it
         }
