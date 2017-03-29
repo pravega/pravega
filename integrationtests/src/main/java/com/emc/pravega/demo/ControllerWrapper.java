@@ -13,6 +13,7 @@ import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessor
 import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
+import com.emc.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
@@ -53,13 +54,13 @@ public class ControllerWrapper implements AutoCloseable {
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) {
         this(connectionString, disableEventProcessor, disableRequestHandler, true, controllerPort, serviceHost,
-                servicePort, containerCount);
+                servicePort, containerCount, -1);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
                              final boolean disableRequestHandler, final boolean disableControllerCluster,
                              final int controllerPort, final String serviceHost, final int servicePort,
-                             final int containerCount) {
+                             final int containerCount, int restPort) {
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
                 .initialSleepInterval(500)
@@ -114,6 +115,10 @@ public class ControllerWrapper implements AutoCloseable {
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder().port(controllerPort).build();
 
+        Optional<RESTServerConfig> restServerConfig = restPort > 0 ?
+                Optional.of(RESTServerConfigImpl.builder().host("localhost").port(restPort).build()) :
+                Optional.<RESTServerConfig>empty();
+
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .serviceThreadPoolSize(3)
                 .taskThreadPoolSize(3)
@@ -127,7 +132,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .eventProcessorConfig(eventProcessorConfig)
                 .requestHandlersEnabled(!disableRequestHandler)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
-                .restServerConfig(Optional.<RESTServerConfig>empty())
+                .restServerConfig(restServerConfig)
                 .build();
 
         controllerServiceMain = new ControllerServiceMain(serviceConfig);

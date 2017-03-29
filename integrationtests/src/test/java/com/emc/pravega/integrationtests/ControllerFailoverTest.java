@@ -66,13 +66,13 @@ public class ControllerFailoverTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 120000)
     public void testSessionExpiryTolerance() {
         final int controllerPort = TestUtils.randomPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, false,
-                false, controllerPort, serviceHost, servicePort, containerCount);
+                false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.randomPort());
 
         try {
             controllerWrapper.awaitRunning();
@@ -133,5 +133,28 @@ public class ControllerFailoverTest {
         }
 
         controllerWrapper.awaitTerminated();
+    }
+
+    @Test
+    public void testStop() {
+        final int controllerPort = TestUtils.randomPort();
+        final String serviceHost = "localhost";
+        final int containerCount = 4;
+        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, false,
+                false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.randomPort());
+
+        try {
+            controllerWrapper.awaitRunning();
+        } catch (IllegalStateException e) {
+            log.error("Received interrupt while awaiting start of controllerWrapper", e);
+            Assert.fail("Failed starting controllerWrapper");
+            return;
+        }
+
+        try {
+            controllerWrapper.close();
+        } catch (Exception e) {
+            Assert.fail("Failed stopping controllerWrapper");
+        }
     }
 }
