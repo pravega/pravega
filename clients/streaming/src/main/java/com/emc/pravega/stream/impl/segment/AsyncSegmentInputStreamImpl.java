@@ -120,6 +120,12 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 future.complete(segmentRead);
             }
         }
+
+        @Override
+        public void processingFailure(Exception error) {
+            log.warn("Processing failure: ", error);
+            closeConnection(error);
+        }
     }
 
     @Data

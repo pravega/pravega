@@ -167,6 +167,11 @@ public class MockController implements Controller {
             public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
                 result.complete(true);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
         CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0);
         sendRequestOverNewConnection(command, replyProcessor, result);
@@ -216,6 +221,11 @@ public class MockController implements Controller {
             public void transactionAborted(TransactionAborted transactionAborted) {
                 result.completeExceptionally(new TxnFailedException("Transaction already aborted."));
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
         sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
         return result;
@@ -252,6 +262,11 @@ public class MockController implements Controller {
             @Override
             public void transactionAborted(TransactionAborted transactionAborted) {
                 result.complete(null);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
             }
         };
         sendRequestOverNewConnection(new AbortTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
@@ -291,6 +306,11 @@ public class MockController implements Controller {
             @Override
             public void transactionCreated(TransactionCreated transactionCreated) {
                 result.complete(null);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
             }
         };
         sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);

@@ -238,7 +238,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void wrongHost(WrongHost wrongHost) {
             state.failConnection(new ConnectionFailedException()); // TODO: Probably something else.
         }
-
+        
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             state.failConnection(new SegmentSealedException());
@@ -296,6 +296,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                                  Unpooled.wrappedBuffer(entry.getValue().getData()),
                                                  entry.getValue().getExpectedOffset()));
             }
+        }
+
+        @Override
+        public void processingFailure(Exception error) {
+            state.failConnection(error);
         }
     }
     
