@@ -78,6 +78,21 @@ public class RequestHandlersInit {
                 .thenCompose(z -> SCALE_REQUEST_READER_REF.get().run());
     }
 
+    public static void shutdownRequestHandlers() throws Exception {
+        final EventStreamReader<ScaleRequest> reader = SCALE_READER_REF.getAndSet(null);
+        if (reader != null) {
+            reader.close();
+        }
+        final EventStreamWriter<ScaleRequest> writer = SCALE_WRITER_REF.getAndSet(null);
+        if (writer != null) {
+            writer.close();
+        }
+        final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = SCALE_REQUEST_READER_REF.getAndSet(null);
+        if (prevHandler != null) {
+            prevHandler.close();
+        }
+    }
+
     private static CompletableFuture<Void> createScope(ControllerService controller, ScheduledExecutorService executor) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Retry.indefinitelyWithExpBackoff(10, 10, 10000,

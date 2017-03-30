@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * Stream Controller APIs.
@@ -115,7 +114,7 @@ public interface Controller {
      *                         the scaling operation is initiated on the txn stream.
      * @return                 Transaction id.
      */
-    CompletableFuture<Pair<StreamSegments, UUID>> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
                                               final long scaleGracePeriod);
 
     /**

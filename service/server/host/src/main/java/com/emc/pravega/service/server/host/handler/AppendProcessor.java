@@ -9,6 +9,8 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -60,7 +62,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final int HIGH_WATER_MARK = 128 * 1024;
     private static final int LOW_WATER_MARK = 64 * 1024;
 
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("host");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+
+    static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
 
     private final StreamSegmentStore store;
     private final ServerConnection connection;
@@ -100,7 +105,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .whenComplete((info, u) -> {
                     try {
                         if (u != null) {
-                            handleException(newSegment, "setting up append", u);
+                            handleException(setupAppend.getRequestId(), newSegment, "setting up append", u);
                         } else {
                             long eventNumber = info.getAttributes().getOrDefault(newConnection, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
                             if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
@@ -111,10 +116,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             synchronized (lock) {
                                 latestEventNumbers.putIfAbsent(newConnection, eventNumber);
                             }
-                            connection.send(new AppendSetup(newSegment, newConnection, eventNumber));
+                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, newConnection, eventNumber));
                         }
                     } catch (Throwable e) {
-                        handleException(newSegment, "handling setupAppend result", e);
+                        handleException(setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
                     }
                 });
     }
@@ -209,11 +214,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     if (conditionalFailed) {
                         connection.send(new ConditionalCheckFailed(toWrite.getConnectionId(), toWrite.getEventNumber()));
                     } else {
-                        handleException(segment, "appending data", u);
+                        handleException(toWrite.getEventNumber(), segment, "appending data", u);
                     }
                 } else {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_WRITE_LATENCY, toWrite.getSegment()), timer.getElapsedMillis());
+                    WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
                     connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
 
                     if (statsRecorder != null) {
@@ -224,12 +229,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 pauseOrResumeReading();
                 performNextWrite();
             } catch (Throwable e) {
-                handleException(segment, "handling append result", e);
+                handleException(toWrite.getEventNumber(), segment, "handling append result", e);
             }
         });
     }
 
-    private void handleException(String segment, String doingWhat, Throwable u) {
+    private void handleException(long requestId, String segment, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
             log.error("Append processor: Error {} onsegment = '{}'", doingWhat, segment, exception);
@@ -242,14 +247,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
         if (u instanceof StreamSegmentExistsException) {
-            connection.send(new SegmentAlreadyExists(segment));
+            connection.send(new SegmentAlreadyExists(requestId, segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            connection.send(new NoSuchSegment(segment));
+            connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
-            connection.send(new SegmentIsSealed(segment));
+            connection.send(new SegmentIsSealed(requestId, segment));
         } else if (u instanceof WrongHostException) {
             WrongHostException wrongHost = (WrongHostException) u;
-            connection.send(new WrongHost(wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
+            connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         } else {
             // TODO: don't know what to do here...
             connection.close();

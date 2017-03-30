@@ -97,10 +97,11 @@ public class MultiReadersEndToEndTest {
     private void runTest(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws Exception {
         @Cleanup
-        StreamManager streamManager = StreamManager.withScope(SETUP_UTILS.getScope(), SETUP_UTILS.getControllerUri());
-        streamManager.createScope();
+        StreamManager streamManager = StreamManager.create(SETUP_UTILS.getControllerUri());
+        streamManager.createScope(SETUP_UTILS.getScope());
         streamNames.stream().forEach(stream -> {
-            streamManager.createStream(stream,
+            streamManager.createStream(SETUP_UTILS.getScope(),
+                                       stream,
                                        StreamConfiguration.builder()
                                                .scope(SETUP_UTILS.getScope())
                                                .streamName(stream)
@@ -176,19 +177,20 @@ public class MultiReadersEndToEndTest {
     
     private void runTestUsingMock(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws ExecutionException, InterruptedException {
-        int port = TestUtils.randomPort();
+        int servicePort = TestUtils.getAvailableListenPort();
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", "localhost", port);
+        MockStreamManager streamManager = new MockStreamManager("scope", "localhost", servicePort);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        streamManager.createScope();
+        streamManager.createScope("scope");
         streamNames.stream().forEach(stream -> {
-            streamManager.createStream(stream,
+            streamManager.createStream("scope",
+                                       stream,
                                        StreamConfiguration.builder()
                                        .scope("scope")
                                        .streamName(stream)

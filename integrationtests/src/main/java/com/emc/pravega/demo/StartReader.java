@@ -25,7 +25,8 @@ public class StartReader {
         MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
                                                                 "localhost",
                                                                 StartLocalService.PORT);
-        streamManager.createStream(StartLocalService.STREAM_NAME, null);
+        streamManager.createScope(StartLocalService.SCOPE);
+        streamManager.createStream(StartLocalService.SCOPE, StartLocalService.STREAM_NAME, null);
         streamManager.createReaderGroup(READER_GROUP,
                                         ReaderGroupConfig.builder().startingTime(0).build(),
                                         Collections.singleton(StartLocalService.STREAM_NAME));

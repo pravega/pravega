@@ -237,6 +237,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
             this.executor = executor;
         }
 
+        @Override
         public void complete(ReadResultEntryContents contents) {
             super.complete(contents);
         }
@@ -248,6 +249,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
             fail(new CancellationException());
         }
 
+        @Override
         public void fail(Throwable cause) {
             super.fail(cause);
         }

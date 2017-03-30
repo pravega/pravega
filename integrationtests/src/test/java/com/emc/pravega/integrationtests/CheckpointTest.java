@@ -64,7 +64,7 @@ public class CheckpointTest {
         String streamName = "abc";
         String readerName = "reader";
         String readerGroupName = "group";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -75,8 +75,8 @@ public class CheckpointTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
-        streamManager.createScope();
-        streamManager.createStream(streamName,
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName,
                                    StreamConfiguration.builder()
                                                       .scope(scope)
                                                       .streamName(streamName)

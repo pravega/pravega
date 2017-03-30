@@ -237,7 +237,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         @Cleanup("shutdown")
         ExecutorService testExecutor = Executors.newFixedThreadPool(Math.min(20, APPENDS_PER_SEGMENT));
-        val submitFutures = new ArrayList<Future>();
+        val submitFutures = new ArrayList<Future<?>>();
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             final byte fillValue = (byte) i;
             submitFutures.add(testExecutor.submit(() -> {
@@ -644,7 +644,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * * Transaction merging.
      */
     @Test
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testFutureReads() throws Exception {
         final int nonSealReadLimit = 100;
         @Cleanup
@@ -1246,7 +1245,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     //region MetadataCleanupContainer
 
     private static class MetadataCleanupContainer extends StreamSegmentContainer {
-        private Consumer<Collection<String>> metadataCleanupFinishedCallback;
+        private Consumer<Collection<String>> metadataCleanupFinishedCallback = null;
         private final ScheduledExecutorService executor;
 
         MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,

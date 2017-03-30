@@ -92,9 +92,11 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     public CompletableFuture<Void> initialize(Duration timeout) {
         return super.initialize(timeout)
                     .thenAccept(v -> {
-                        this.listener = new PravegaConnectionListener(false, this.listeningPort, getStreamSegmentStore());
+                        this.listener = new PravegaConnectionListener(false, this.listeningPort,
+                                getStreamSegmentStore());
                         this.listener.startListening();
                         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, this.listeningPort);
+                        this.streamManager.createScope(SCOPE);
                         TestLogger.log(LOG_ID, "Initialized.");
                     });
     }
@@ -107,7 +109,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
                 throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
             }
 
-            this.streamManager.createStream(streamSegmentName, null);
+            this.streamManager.createStream(SCOPE, streamSegmentName, null);
             WriterCollection producers = new WriterCollection(streamSegmentName, this.writerCount, this.streamManager);
             this.writers.putIfAbsent(streamSegmentName, producers);
         }, this.testExecutor);

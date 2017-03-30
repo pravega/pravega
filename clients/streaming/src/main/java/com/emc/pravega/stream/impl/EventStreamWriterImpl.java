@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -152,6 +151,18 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             this.controller = controller;
             this.stream = stream;
         }
+        
+        /**
+         * Create closed transaction
+         */
+        TransactionImpl(UUID txId, Controller controller, Stream stream) {
+            this.txId = txId;
+            this.inner = null;
+            this.segments = null;
+            this.controller = controller;
+            this.stream = stream;
+            this.closed.set(true);
+        }
 
         /**
          * Uses the transactionId to generate the routing key so that we only need to use one segment.
@@ -164,7 +175,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         @Override
         public void writeEvent(String routingKey, Type event) throws TxnFailedException {
             Preconditions.checkNotNull(event);
-            Preconditions.checkState(!closed.get());
+            throwIfClosed();
             Segment s = segments.getSegmentForKey(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
             transaction.writeEvent(event);
@@ -172,6 +183,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
         @Override
         public void commit() throws TxnFailedException {
+            throwIfClosed();
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
@@ -181,8 +193,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
         @Override
         public void abort() {
-            getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
-            closed.set(true);
+            if (!closed.get()) {
+                getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
+                closed.set(true);
+            }
         }
 
         @Override
@@ -192,7 +206,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
         @Override
         public void flush() throws TxnFailedException {
-            Preconditions.checkState(!closed.get());
+            throwIfClosed();
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
@@ -208,33 +222,37 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         public UUID getTxnId() {
             return txId;
         }
+        
+        private void throwIfClosed() throws TxnFailedException {
+            if (closed.get()) {
+                throw new TxnFailedException();
+            }
+        }
 
     }
 
     @Override
     public Transaction<Type> beginTxn(long timeout, long maxExecutionTime, long scaleGracePeriod) {
-        Pair<StreamSegments, UUID> segmentsAndId = getAndHandleExceptions(
+        TxnSegments txnSegments = getAndHandleExceptions(
                 controller.createTransaction(stream, timeout, maxExecutionTime, scaleGracePeriod),
                 RuntimeException::new);
-        StreamSegments segments = segmentsAndId.getLeft();
-        UUID txId = segmentsAndId.getRight();
-        
+        UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
-            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
+        for (Segment s : txnSegments.getSteamSegments().getSegments()) {
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId);
+            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl<Type>(txId, transactions, segments, controller, stream);
+        return new TransactionImpl<Type>(txnId, transactions, txnSegments.getSteamSegments(), controller, stream);
     }
     
     @Override
-    public Transaction<Type> getTxn(UUID txId) throws TxnFailedException {
+    public Transaction<Type> getTxn(UUID txId) {
         StreamSegments segments = getAndHandleExceptions(
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
         Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
         if (status != Status.OPEN) {
-            throw new TxnFailedException("Transaction " + txId + " is no longer open it is " + status);
+            return new TransactionImpl<>(txId, controller, stream);
         }
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
@@ -244,6 +262,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             transactions.put(s, impl);
         }
         return new TransactionImpl<Type>(txId, transactions, segments, controller, stream);
+        
     }
 
     @Override

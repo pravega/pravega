@@ -12,6 +12,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
@@ -51,8 +52,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -80,7 +79,7 @@ public class ControllerImpl implements Controller {
      * @param channelBuilder The channel builder to connect to the service instance.
      */
     @VisibleForTesting
-    public ControllerImpl(ManagedChannelBuilder channelBuilder) {
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
 
         // Create Async RPC client.
@@ -105,6 +104,7 @@ public class ControllerImpl implements Controller {
                         return false;
                     case SUCCESS:
                         return true;
+                    case UNRECOGNIZED:
                     default:
                         throw new ControllerFailureException("Unknown return status creating scope " + scopeName
                                                              + " " + x.getStatus());
@@ -131,6 +131,7 @@ public class ControllerImpl implements Controller {
                         return false;
                     case SUCCESS:
                         return true;
+                    case UNRECOGNIZED:
                     default:
                         throw new ControllerFailureException("Unknown return status deleting scope " + scopeName
                                                              + " " + x.getStatus());
@@ -158,6 +159,7 @@ public class ControllerImpl implements Controller {
                 return false;
             case SUCCESS:
                 return true;
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status creating stream " + streamConfig
                                                      + " " + x.getStatus());
@@ -183,6 +185,7 @@ public class ControllerImpl implements Controller {
                 throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
             case SUCCESS:
                 return true;
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status altering stream " + streamConfig
                                                      + " " + x.getStatus());
@@ -221,6 +224,7 @@ public class ControllerImpl implements Controller {
             case TXN_CONFLICT:
                 throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "
                         + stream);
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status scaling stream " + stream
                                                      + " " + x.getStatus());
@@ -247,6 +251,7 @@ public class ControllerImpl implements Controller {
                 throw new IllegalArgumentException("Stream does not exist: " + streamName);
             case SUCCESS:
                 return true;
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status scealing stream " + streamName
                                                      + " " + x.getStatus());
@@ -273,6 +278,7 @@ public class ControllerImpl implements Controller {
                 throw new IllegalArgumentException("Stream is not sealed: " + streamName);
             case SUCCESS:
                 return true;
+            case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status deleting stream " + streamName
                                                      + " " + x.getStatus());
@@ -368,30 +374,31 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Pair<StreamSegments, UUID>> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
                                                      final long scaleGracePeriod) {
         long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease, maxExecutionTime, scaleGracePeriod);
         Preconditions.checkNotNull(stream, "stream");
-        RPCAsyncCallback<com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse> callback = new RPCAsyncCallback<>();
-        client.createTransaction(CreateTxnRequest.newBuilder().setStreamInfo(
-                ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                                         .setLease(lease)
-                                         .setMaxExecutionTime(maxExecutionTime)
-                                         .setScaleGracePeriod(scaleGracePeriod)
-                                         .build(),
-                                 callback);
-        return callback.getFuture().thenApply(this::convert)
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "createTransaction", traceId));
+        RPCAsyncCallback<CreateTxnResponse> callback = new RPCAsyncCallback<>();
+        client.createTransaction(
+                CreateTxnRequest.newBuilder()
+                                .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                .setLease(lease)
+                                .setMaxExecutionTime(maxExecutionTime)
+                                .setScaleGracePeriod(scaleGracePeriod)
+                                .build(),
+                callback);
+        return callback.getFuture().thenApply(this::convert).whenComplete(
+                (x, y) -> LoggerHelpers.traceLeave(log, "createTransaction", traceId));
     }
 
-    private Pair<StreamSegments, UUID> convert(com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse response) {
+    private TxnSegments convert(CreateTxnResponse response) {
         NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
 
         for (SegmentRange r : response.getActiveSegmentsList()) {
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
         StreamSegments segments = new StreamSegments(rangeMap);
-        return new ImmutablePair<>(segments, ModelHelper.encode(response.getTxnId()));
+        return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
     }
 
     @Override

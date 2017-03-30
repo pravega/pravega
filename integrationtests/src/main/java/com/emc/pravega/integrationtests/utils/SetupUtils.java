@@ -66,24 +66,26 @@ public final class SetupUtils {
             return;
         }
 
-        // Start Pravega Service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        int servicePort = TestUtils.randomPort();
-        this.server = new PravegaConnectionListener(false, servicePort, store);
-        this.server.startListening();
-        log.info("Started Pravega Service");
-
         // Start zookeeper.
         this.zkTestServer = new TestingServer();
         this.zkTestServer.start();
 
+        // Start Pravega Service.
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+
+        serviceBuilder.initialize().get();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        int servicePort = TestUtils.getAvailableListenPort();
+        this.server = new PravegaConnectionListener(false, servicePort, store);
+        this.server.startListening();
+        log.info("Started Pravega Service");
+
         // Start Controller.
-        int controllerPort = TestUtils.randomPort();
+        int controllerPort = TestUtils.getAvailableListenPort();
         this.controllerWrapper = new ControllerWrapper(
                 this.zkTestServer.getConnectString(), true, true, controllerPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT);
+        this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(this.scope).get();
         this.controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
         log.info("Initialized Pravega Controller");
@@ -120,9 +122,9 @@ public final class SetupUtils {
         Preconditions.checkArgument(numSegments > 0);
 
         @Cleanup
-        StreamManager streamManager = StreamManager.withScope(this.scope, this.controllerUri);
-        streamManager.createScope();
-        streamManager.createStream(streamName,
+        StreamManager streamManager = StreamManager.create(this.controllerUri);
+        streamManager.createScope(this.scope);
+        streamManager.createStream(this.scope, streamName,
                 StreamConfiguration.builder()
                         .scope(this.scope)
                         .streamName(streamName)

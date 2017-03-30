@@ -17,6 +17,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
 import com.emc.pravega.testcommon.TestUtils;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -41,9 +42,9 @@ public class ControllerStreamMetadataTest {
 
     @Before
     public void setUp() throws Exception {
-        final int controllerPort = TestUtils.randomPort();
+        final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
-        final int servicePort = TestUtils.randomPort();
+        final int servicePort = TestUtils.getAvailableListenPort();
         final int containerCount = 4;
 
         try {
@@ -61,6 +62,7 @@ public class ControllerStreamMetadataTest {
             // 3. Start controller
             this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
                     controllerPort, serviceHost, servicePort, containerCount);
+            this.controllerWrapper.awaitRunning();
             this.controller = controllerWrapper.getController();
             this.streamConfiguration = StreamConfiguration.builder()
                     .scope(SCOPE)
@@ -150,9 +152,19 @@ public class ControllerStreamMetadataTest {
 
     @Test(timeout = 10000)
     public void streamManagerImpltest() {
-        StreamManager streamManager = new StreamManagerImpl(SCOPE, controller);
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(controller);
 
-        streamManager.createScope();
-        streamManager.deleteScope();
+        // Create and delete scope
+        assertTrue(streamManager.createScope(SCOPE));
+        assertTrue(streamManager.deleteScope(SCOPE));
+
+        // Create scope twice
+        assertTrue(streamManager.createScope(SCOPE));
+        assertFalse(streamManager.createScope(SCOPE));
+        assertTrue(streamManager.deleteScope(SCOPE));
+
+        // Delete twice
+        assertFalse(streamManager.deleteScope(SCOPE));
     }
 }

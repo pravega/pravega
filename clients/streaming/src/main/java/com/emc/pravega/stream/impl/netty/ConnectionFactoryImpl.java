@@ -10,9 +10,9 @@ import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CompletableFuture;
-
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLException;
-
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.AppendBatchSizeTracker;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
@@ -45,6 +45,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     private final boolean ssl;
     private EventLoopGroup group;
     private boolean nio = false;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
      * Actual implementation of ConnectionFactory interface.
@@ -65,6 +66,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     @Override
     public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri location, ReplyProcessor rp) {
         Preconditions.checkNotNull(location);
+        Exceptions.checkNotClosed(closed.get(), this);
         final SslContext sslCtx;
         if (ssl) {
             try {
@@ -102,27 +104,33 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 
         // Start the client.
         CompletableFuture<ClientConnection> result = new CompletableFuture<>();
-        b.connect(location.getEndpoint(), location.getPort()).addListener(new ChannelFutureListener() {
-            @Override
-            public void operationComplete(ChannelFuture future) {
-                if (future.isSuccess()) {
-                    result.complete(handler);
-                } else {
-                    result.completeExceptionally(future.cause());
+        try {
+            b.connect(location.getEndpoint(), location.getPort()).addListener(new ChannelFutureListener() {
+                @Override
+                public void operationComplete(ChannelFuture future) {
+                    if (future.isSuccess()) {
+                        result.complete(handler);
+                    } else {
+                        result.completeExceptionally(future.cause());
+                    }
                 }
-            }
-        });
+            });
+        } catch (Exception e) {
+            result.completeExceptionally(e);
+        }
         return result;
     }
 
     @Override
     public void close() {
-        // Shut down the event loop to terminate all threads.
-        group.shutdownGracefully();
+        if (closed.compareAndSet(false, true)) {
+            // Shut down the event loop to terminate all threads.
+            group.shutdownGracefully();
+        }
     }
 
     @Override
     protected void finalize() {
-        group.shutdownGracefully();
+        close();
     }
 }

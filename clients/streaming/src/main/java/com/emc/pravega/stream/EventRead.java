@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.stream;
 
+import java.util.concurrent.ScheduledExecutorService;
 /**
  * An event that was read from a stream or a checkpoint marker if one has been requested.
  * 
@@ -36,6 +37,8 @@ public interface EventRead<T> {
     /**
      * Returns a pointer object for the event read. The event pointer enables a random read of the
      * event at a future time.
+     *
+     * @return Pointer to an event
      */
     EventPointer getEventPointer();
 
@@ -49,7 +52,7 @@ public interface EventRead<T> {
     
     /**
      * If a checkpoint has been requested this will return the checkpointName passed to
-     * {@link ReaderGroup#initiateCheckpoint(String)} otherwise this will return null.
+     * {@link ReaderGroup#initiateCheckpoint(String,ScheduledExecutorService)} otherwise this will return null.
      * 
      * @return The name of the checkpoint
      */

@@ -151,7 +151,7 @@ public class ReadTest {
         String endpoint = "localhost";
         String scope = "scope";
         String stream = "stream";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
@@ -186,7 +186,7 @@ public class ReadTest {
         String streamName = "abc";
         String readerName = "reader";
         String readerGroup = "group";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -197,8 +197,8 @@ public class ReadTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
-        streamManager.createScope();
-        streamManager.createStream(streamName, null);
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
@@ -219,7 +219,7 @@ public class ReadTest {
         String streamName = "abc";
         String readerName = "reader";
         String readerGroup = "group";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world ";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -230,8 +230,8 @@ public class ReadTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
-        streamManager.createScope();
-        streamManager.createStream(streamName, null);
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());

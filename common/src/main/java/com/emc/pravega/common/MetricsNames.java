@@ -9,10 +9,10 @@ public final class MetricsNames {
     // Metrics in Segment Store Service
     // host stats
     public static final String SEGMENT_CREATE_LATENCY = "segment_create_latency_ms"; // Timer
+    public static final String SEGMENT_READ_LATENCY = "segment_read_latency_ms";     // Timer
+    public static final String SEGMENT_WRITE_LATENCY = "segment_write_latency_ms";   // Timer
     public static final String SEGMENT_READ_BYTES = "segment_read_bytes";            // Dynamic Counter
-    public static final String SEGMENT_READ_LATENCY = "segment_read_latency_ms";     // Dynamic Gauge
     public static final String SEGMENT_WRITE_BYTES = "segment_write_bytes";          // Dynamic Counter
-    public static final String SEGMENT_WRITE_LATENCY = "segment_write_latency_ms";   // Dynamic Gauge
 
     //hdfs stats
     public static final String HDFS_READ_LATENCY = "hdfs_read_latency_ms";   // Timer
@@ -36,9 +36,9 @@ public final class MetricsNames {
     public static final String OPEN_TRANSACTIONS = "transactions_opened";     // Dynamic Gauge
 
     // Stream segment counts (Dynamic)
-    public static final String SEGMENTS_COUNT = "segments_count";   // Dynamic Counter
-    public static final String SEGMENTS_SPLITS = "segments_splits"; // Dynamic Guage
-    public static final String SEGMENTS_MERGES = "segments_merges"; // Dynamic Guage
+    public static final String SEGMENTS_COUNT = "segments_count";   // Dynamic Gauge
+    public static final String SEGMENTS_SPLITS = "segment_splits"; // Dynamic Counter
+    public static final String SEGMENTS_MERGES = "segment_merges"; // Dynamic Counter
 
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");

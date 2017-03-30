@@ -22,15 +22,19 @@ import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 public class SegmentHelper {
+    
+    private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
 
     public Controller.NodeUri getSegmentUri(final String scope,
-                                        final String stream,
-                                        final int segmentNumber,
-                                        final HostControllerStore hostStore) {
+                                            final String stream,
+                                            final int segmentNumber,
+                                            final HostControllerStore hostStore) {
         final Host host = hostStore.getHostForSegment(scope, stream, segmentNumber);
         return Controller.NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build();
     }
@@ -68,16 +72,18 @@ public class SegmentHelper {
             public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
                 result.complete(true);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        whenComplete(sendRequestOverNewConnection(
-                new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight()),
-                replyProcessor,
-                clientCF,
-                ModelHelper.encode(uri)), result);
-
+        WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(), 
+                Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight());
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
@@ -113,14 +119,16 @@ public class SegmentHelper {
             public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
                 result.complete(true);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
-        whenComplete(sendRequestOverNewConnection(
-                new WireCommands.DeleteSegment(Segment.getScopedName(scope, stream, segmentNumber)),
-                replyProcessor,
-                clientCF,
-                ModelHelper.encode(uri)), result);
-
+        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(), 
+                Segment.getScopedName(scope, stream, segmentNumber));
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
@@ -136,10 +144,10 @@ public class SegmentHelper {
      * @return void
      */
     public CompletableFuture<Boolean> sealSegment(final String scope,
-                                                         final String stream,
-                                                         final int segmentNumber,
-                                                         final HostControllerStore hostControllerStore,
-                                                         final ConnectionFactory clientCF) {
+                                                  final String stream,
+                                                  final int segmentNumber,
+                                                  final HostControllerStore hostControllerStore,
+                                                  final ConnectionFactory clientCF) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
@@ -166,22 +174,25 @@ public class SegmentHelper {
             public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
                 result.complete(true);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
-        whenComplete(sendRequestOverNewConnection(
-                new WireCommands.SealSegment(Segment.getScopedName(scope, stream, segmentNumber)),
-                replyProcessor,
-                clientCF,
-                ModelHelper.encode(uri)), result);
+        WireCommands.SealSegment request = new WireCommands.SealSegment(idGenerator.get(), 
+                Segment.getScopedName(scope, stream, segmentNumber));
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<UUID> createTransaction(final String scope,
-                                                            final String stream,
-                                                            final int segmentNumber,
-                                                            final UUID txId,
-                                                            final HostControllerStore hostControllerStore,
-                                                            final ConnectionFactory clientCF) {
+                                                     final String stream,
+                                                     final int segmentNumber,
+                                                     final UUID txId,
+                                                     final HostControllerStore hostControllerStore,
+                                                     final ConnectionFactory clientCF) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
         final CompletableFuture<UUID> result = new CompletableFuture<>();
@@ -202,22 +213,25 @@ public class SegmentHelper {
             public void transactionCreated(WireCommands.TransactionCreated transactionCreated) {
                 result.complete(txId);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
-        whenComplete(sendRequestOverNewConnection(
-                new WireCommands.CreateTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
-                replyProcessor,
-                clientCF,
-                ModelHelper.encode(uri)), result);
+        WireCommands.CreateTransaction request = new WireCommands.CreateTransaction(idGenerator.get(), 
+                Segment.getScopedName(scope, stream, segmentNumber), txId);
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope,
-                                                                         final String stream,
-                                                                         final int segmentNumber,
-                                                                         final UUID txId,
-                                                                         final HostControllerStore hostControllerStore,
-                                                                         final ConnectionFactory clientCF) {
+                                                          final String stream,
+                                                          final int segmentNumber,
+                                                          final UUID txId,
+                                                          final HostControllerStore hostControllerStore,
+                                                          final ConnectionFactory clientCF) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
@@ -246,22 +260,25 @@ public class SegmentHelper {
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
-        whenComplete(sendRequestOverNewConnection(
-                new WireCommands.CommitTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
-                replyProcessor,
-                clientCF,
-                ModelHelper.encode(uri)), result);
+        WireCommands.CommitTransaction request = new WireCommands.CommitTransaction(idGenerator.get(), 
+                Segment.getScopedName(scope, stream, segmentNumber), txId);
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope,
-                                                                       final String stream,
-                                                                       final int segmentNumber,
-                                                                       final UUID txId,
-                                                                       final HostControllerStore hostControllerStore,
-                                                                       final ConnectionFactory clientCF) {
+                                                         final String stream,
+                                                         final int segmentNumber,
+                                                         final UUID txId,
+                                                         final HostControllerStore hostControllerStore,
+                                                         final ConnectionFactory clientCF) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
@@ -286,13 +303,16 @@ public class SegmentHelper {
             public void transactionAborted(WireCommands.TransactionAborted transactionDropped) {
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
-        whenComplete(sendRequestOverNewConnection(
-                new WireCommands.AbortTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
-                replyProcessor,
-                clientCF,
-                ModelHelper.encode(uri)), result);
+        WireCommands.AbortTransaction request = new WireCommands.AbortTransaction(idGenerator.get(), 
+                Segment.getScopedName(scope, stream, segmentNumber), txId);
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
@@ -319,70 +339,52 @@ public class SegmentHelper {
             public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated policyUpdated) {
                 result.complete(null);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        whenComplete(sendRequestOverNewConnection(
-                new WireCommands.UpdateSegmentPolicy(Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight()),
-                replyProcessor,
-                clientCF,
-                ModelHelper.encode(uri)), result);
+        WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(idGenerator.get(), 
+                Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight());
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
-    private CompletableFuture<Void> sendRequestOverNewConnection(final WireCommand request,
-                                                                 final ReplyProcessor replyProcessor,
-                                                                 final ConnectionFactory connectionFactory,
-                                                                 final PravegaNodeUri uri) {
-        CompletableFuture<ClientConnection> connect = new CompletableFuture<>();
-        CompletableFuture<Void> result = new CompletableFuture<>();
-
-        connectionFactory.establishConnection(uri, replyProcessor).whenComplete((r, e) -> {
-            if (e != null) {
-                connect.completeExceptionally(new ConnectionFailedException(e));
+    private <ResultT> void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
+                                            final CompletableFuture<ResultT> resultFuture,
+                                            final ConnectionFactory connectionFactory, final PravegaNodeUri uri) {
+        CompletableFuture<ClientConnection> connectionFuture = connectionFactory.establishConnection(uri, replyProcessor);
+        connectionFuture.whenComplete((connection, e) -> {
+            if (connection == null) {
+                resultFuture.completeExceptionally(new ConnectionFailedException(e));
             } else {
-                connect.complete(r);
-            }
-        });
-
-        connect.thenAccept(connection -> {
-            try {
-                connection.send(request);
-            } catch (ConnectionFailedException cfe) {
-                throw new WireCommandFailedException(cfe, request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-        }).whenComplete((r, e) -> {
-            if (e != null) {
-                Throwable cause = ExceptionHelpers.getRealException(e);
-                if (cause instanceof WireCommandFailedException) {
-                    result.completeExceptionally(cause);
-                } else if (cause instanceof ConnectionFailedException) {
-                    result.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
-                } else {
-                    result.completeExceptionally(new RuntimeException(cause));
-                }
-            } else {
-                result.complete(r);
-            }
-        });
-
-        return result;
-    }
-
-    private <T> void whenComplete(CompletableFuture<Void> future, CompletableFuture<T> result) {
-        future.whenComplete((res, ex) -> {
-            if (ex != null) {
-                Throwable cause = ExceptionHelpers.getRealException(ex);
-                if (cause instanceof WireCommandFailedException) {
-                    result.completeExceptionally(ex);
-                } else {
-                    result.completeExceptionally(new RuntimeException(ex));
+                try {
+                    connection.send(request);
+                } catch (ConnectionFailedException cfe) {
+                    throw new WireCommandFailedException(cfe,
+                            request.getType(),
+                            WireCommandFailedException.Reason.ConnectionFailed);
+                } catch (Exception e2) {
+                    throw new RuntimeException(e2);
                 }
             }
+        }).exceptionally(e -> {
+            Throwable cause = ExceptionHelpers.getRealException(e);
+            if (cause instanceof WireCommandFailedException) {
+                resultFuture.completeExceptionally(cause);
+            } else if (cause instanceof ConnectionFailedException) {
+                resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
+            } else {
+                resultFuture.completeExceptionally(new RuntimeException(cause));
+            }
+            return null;
+        });
+        resultFuture.whenComplete((result, e) -> {
+            connectionFuture.thenAccept(c -> c.close());
         });
     }
 

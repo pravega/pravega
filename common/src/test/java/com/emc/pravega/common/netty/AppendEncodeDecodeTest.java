@@ -106,7 +106,7 @@ public class AppendEncodeDecodeTest {
         ByteBuf buffer = Unpooled.wrappedBuffer(content);
         Append msg = new Append("segment", connectionId, 1, buffer, null);
         CommandEncoder commandEncoder = new CommandEncoder(new FixedBatchSizeTracker(3));
-        SetupAppend setupAppend = new SetupAppend(connectionId, "segment");
+        SetupAppend setupAppend = new SetupAppend(1, connectionId, "segment");
         commandEncoder.encode(null, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
         
@@ -259,7 +259,7 @@ public class AppendEncodeDecodeTest {
     }
 
     private ArrayList<Object> setupAppend(String testStream, UUID connectionId, ByteBuf fakeNetwork) throws Exception {
-        SetupAppend setupAppend = new SetupAppend(connectionId, testStream);
+        SetupAppend setupAppend = new SetupAppend(1, connectionId, testStream);
         encoder.encode(null, setupAppend, fakeNetwork);
         ArrayList<Object> received = new ArrayList<>();
         WireCommand command = CommandDecoder.parseCommand(fakeNetwork);

@@ -19,8 +19,7 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ControllerFailureException;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.StreamSegments;
-import org.apache.commons.lang3.tuple.Pair;
-
+import com.emc.pravega.stream.impl.TxnSegments;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -196,12 +195,12 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Pair<StreamSegments, UUID>> createTransaction(Stream stream, long lease, final long maxExecutionTime,
+    public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease, final long maxExecutionTime,
                                                      final long scaleGracePeriod) {
         return controller
                 .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
                 .thenApply(pair -> {
-                    return Pair.of(getStreamSegments(pair.getRight()), pair.getKey());
+                    return new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey());
                 });
     }
 

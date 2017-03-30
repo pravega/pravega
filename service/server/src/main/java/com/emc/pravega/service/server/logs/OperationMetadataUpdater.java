@@ -1131,7 +1131,9 @@ class OperationMetadataUpdater implements ContainerMetadata {
                         }
 
                         break;
+                    case Replace:
                     default:
+                        log.error("Unexpected update type: {}", updateType);
                         break;
                 }
             }

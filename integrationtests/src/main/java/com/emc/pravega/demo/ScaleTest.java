@@ -14,16 +14,14 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.stream.impl.StreamSegments;
+import com.emc.pravega.stream.impl.TxnSegments;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.test.TestingServer;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
@@ -33,8 +31,9 @@ import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExcept
  */
 @Slf4j
 public class ScaleTest {
-    @SuppressWarnings("checkstyle:ReturnCount")
+    
     public static void main(String[] args) throws Exception {
+        @Cleanup
         TestingServer zkTestServer = new TestingServer();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -46,7 +45,9 @@ public class ScaleTest {
         server.startListening();
 
         // Create controller object for testing against a separate controller report.
+        @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String scope = "scope";
@@ -86,8 +87,8 @@ public class ScaleTest {
         }
 
         // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
-        CompletableFuture<Pair<StreamSegments, UUID>> txnFuture = controller.createTransaction(stream, 5000, 3600000, 60000);
-        Pair<StreamSegments, UUID> transaction = txnFuture.get();
+        CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000, 3600000, 60000);
+        TxnSegments transaction = txnFuture.get();
         if (transaction == null) {
             log.error("Create transaction failed, exiting");
             return;
@@ -99,7 +100,7 @@ public class ScaleTest {
         CompletableFuture<Boolean> future = scaleResponseFuture.whenComplete((r, e) -> {
             if (e != null) {
                 log.error("Failed: scale with ongoing transaction.", e);
-            } else if (getAndHandleExceptions(controller.checkTransactionStatus(stream, transaction.getRight()),
+            } else if (getAndHandleExceptions(controller.checkTransactionStatus(stream, transaction.getTxnId()),
                     RuntimeException::new) != Transaction.Status.OPEN) {
                 log.info("Success: scale with ongoing transaction.");
             } else {
@@ -107,7 +108,7 @@ public class ScaleTest {
             }
         });
 
-        CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, transaction.getRight());
+        CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, transaction.getTxnId());
         statusFuture.get();
         future.get();
 

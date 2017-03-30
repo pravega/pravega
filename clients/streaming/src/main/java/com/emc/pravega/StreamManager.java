@@ -18,24 +18,25 @@ public interface StreamManager extends AutoCloseable {
     /**
      * Creates a new instance of StreamManager.
      *
-     * @param scope The Scope string.
-     * @param controllerUri The Controller URI.
+     * @param controller The Controller URI.
      * @return Instance of Stream Manager implementation.
      */
-    public static StreamManager withScope(String scope, URI controllerUri) {
-        return new StreamManagerImpl(scope, controllerUri);
+    public static StreamManager create(URI controller) {
+        return new StreamManagerImpl(controller);
     }
-
+    
     /**
      * Creates a new stream
      * <p>
      * Note: This method is idempotent assuming called with the same name and config. This method
      * may block.
      *
+     * @param scopeName  The name of the scope to create this stream in.
      * @param streamName The name of the stream to be created.
      * @param config The configuration the stream should use.
+     * @return True if stream is created
      */
-    void createStream(String streamName, StreamConfiguration config);
+    boolean createStream(String scopeName, String streamName, StreamConfiguration config);
 
     /**
      * Change the configuration for an existing stream.
@@ -44,37 +45,48 @@ public interface StreamManager extends AutoCloseable {
      * This method is idempotent assuming called with the same name and config.
      * This method may block.
      *
+     * @param scopeName  The name of the scope to create this stream in.
      * @param streamName The name of the stream who's config is to be changed.
      * @param config     The new configuration.
+     * @return True if stream configuration is updated
      */
-    void alterStream(String streamName, StreamConfiguration config);
+    boolean alterStream(String scopeName, String streamName, StreamConfiguration config);
 
     /**
      * Seal an existing stream.
      *
+     * @param scopeName  The name of the scope to create this stream in.
      * @param streamName The name of the stream which has to be sealed.
+     * @return True if stream is sealed
      */
-    void sealStream(String streamName);
+    boolean sealStream(String scopeName, String streamName);
     
     /**
      * Deletes the provided stream. No more events may be written or read.
      * Resources used by the stream will be freed.
+     *
+     * @param scopeName  The name of the scope to create this stream in.
      * @param toDelete The name of the stream to be deleted.
+     * @return True if stream is deleted
      */
-    void deleteStream(String toDelete);
+    boolean deleteStream(String scopeName, String toDelete);
 
     /**
      * Creates a new scope.
      *
+     * @param scopeName  The name of the scope to create this stream in.
+     * @return True if scope is created
      */
-    void createScope();
+    boolean createScope(String scopeName);
 
     /**
      * Deletes an existing scope. The scope must contain no
      * stream.
      *
+     * @param scopeName  The name of the scope to create this stream in.
+     * @return True if scope is deleted
      */
-    void deleteScope();
+    boolean deleteScope(String scopeName);
     
     /**
      * See @see java.lang.AutoCloseable#close() .

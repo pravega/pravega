@@ -64,7 +64,7 @@ public class TransactionTest {
         String groupName = "group";
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
@@ -74,8 +74,8 @@ public class TransactionTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(streamName, StreamConfiguration.builder().build());
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
         streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().build(), Collections.singleton(streamName));
         @Cleanup
         EventStreamWriter<String> producer = streamManager.getClientFactory()
@@ -100,7 +100,7 @@ public class TransactionTest {
         transaction.writeEvent(routingKey, txnEvent);
         transaction.commit();
         producer.writeEvent(routingKey, nonTxEvent);
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
+        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.writeEvent(routingKey, txnEvent));
 
         EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader(readerName,
                                                                                                  groupName,
@@ -128,7 +128,7 @@ public class TransactionTest {
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String event = "Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -137,8 +137,8 @@ public class TransactionTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(streamName, null);
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", streamName, null);
         @Cleanup
         EventStreamWriter<String> producer = streamManager.getClientFactory()
                                                           .createEventWriter(streamName,
@@ -155,7 +155,7 @@ public class TransactionTest {
         String endpoint = "localhost";
         String groupName = "group";
         String streamName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
@@ -165,8 +165,8 @@ public class TransactionTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        streamManager.createScope();
-        streamManager.createStream(streamName, StreamConfiguration.builder().build());
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
         streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().build(), Collections.singleton(streamName));
         @Cleanup
         EventStreamWriter<String> producer = streamManager.getClientFactory()
@@ -180,7 +180,7 @@ public class TransactionTest {
         transaction.abort();
         transaction.abort();
 
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
+        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.writeEvent(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
         @Cleanup
         EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader("reader",
