@@ -132,9 +132,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private void failConnection(Exception e) {
             ClientConnection oldConnection;
             synchronized (lock) {
-                if (!closed) {
-                    log.warn("Connection failed due to", e);
-                }
                 if (exception == null) {
                     exception = e;
                 }
