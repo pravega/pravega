@@ -65,6 +65,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         
         @Override
         public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
+            checkSegment(streamInfo.getSegmentName());
             log.trace("Received stream segment info {}", streamInfo);
             CompletableFuture<StreamSegmentInfo> future;
             synchronized (lock) {
@@ -93,9 +94,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
-            if (!segmentId.getScopedName().equals(segmentIsSealed.getSegment())) {
-                log.error("Operating on segmentId {} but received sealed for segment {}", segmentId, segmentIsSealed.getSegment());
-            }
+            checkSegment(segmentIsSealed.getSegment());
             ReadFutureImpl future;
             synchronized (lock) {
                 future = outstandingRequests.remove(segmentIsSealed.getRequestId());
@@ -111,6 +110,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void segmentRead(SegmentRead segmentRead) {
+            checkSegment(segmentRead.getSegment());
             log.trace("Received read result {}", segmentRead);
             ReadFutureImpl future;
             synchronized (lock) {
@@ -125,6 +125,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         public void processingFailure(Exception error) {
             log.warn("Processing failure: ", error);
             closeConnection(error);
+        }
+        
+        private void checkSegment(String segment) {
+            Preconditions.checkState(segmentId.getScopedName().equals(segment),
+                    "Operating on segmentId {} but received sealed for segment {}",
+                    segmentId,
+                    segment);
         }
     }
 
