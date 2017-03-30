@@ -44,12 +44,13 @@ import static org.junit.Assert.assertTrue;
 
 @RunWith(BlockJUnit4ClassRunner.class)
 public class ReaderGroupStateManagerTest {
+    private static final int SERVICE_PORT = 12345;
 
     @Test
     public void testSegmentSplit() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         Segment initialSegment = new Segment(scope, stream, 0);
         Segment successorA = new Segment(scope, stream, 1);
@@ -94,7 +95,7 @@ public class ReaderGroupStateManagerTest {
     public void testSegmentMerge() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         Segment initialSegmentA = new Segment(scope, stream, 0);
         Segment initialSegmentB = new Segment(scope, stream, 1);
@@ -148,7 +149,7 @@ public class ReaderGroupStateManagerTest {
     public void testAddReader() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
@@ -183,7 +184,7 @@ public class ReaderGroupStateManagerTest {
     public void testSegmentsAssigned() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
@@ -264,7 +265,7 @@ public class ReaderGroupStateManagerTest {
     public void testReleaseWhenReadersAdded() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
@@ -362,7 +363,7 @@ public class ReaderGroupStateManagerTest {
     public void testCheckpoint() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         Segment initialSegment = new Segment(scope, stream, 0);
         Segment successorA = new Segment(scope, stream, 1);

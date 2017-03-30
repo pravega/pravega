@@ -87,7 +87,7 @@ public class StateSynchronizerTest {
     public void testStateTracker() throws TxnFailedException {
         String endpoint = "localhost";
         String stateName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
@@ -140,7 +140,7 @@ public class StateSynchronizerTest {
     public void testReadsAllAvailable() {
         String endpoint = "localhost";
         String stateName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
@@ -167,7 +167,7 @@ public class StateSynchronizerTest {
     public void testSetSynchronizer() {
         String endpoint = "localhost";
         String stateName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
