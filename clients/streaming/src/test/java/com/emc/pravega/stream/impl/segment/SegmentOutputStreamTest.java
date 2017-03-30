@@ -103,7 +103,7 @@ public class SegmentOutputStreamTest {
         inOrder.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null));
         inOrder.verify(connection).send(new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null));
         inOrder.verify(connection).close();
-        inOrder.verify(connection).send(new SetupAppend(1, cid, SEGMENT));        
+        inOrder.verify(connection).send(new SetupAppend(2, cid, SEGMENT));        
         inOrder.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null));
         inOrder.verify(connection).send(new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null));
         inOrder.verify(connection).send(new Append(SEGMENT, cid, 3, Unpooled.wrappedBuffer(getBuffer("test3")), null));
