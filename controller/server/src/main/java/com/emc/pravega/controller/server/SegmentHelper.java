@@ -321,7 +321,9 @@ public class SegmentHelper {
         CompletableFuture<ClientConnection> connectionFuture = connectionFactory.establishConnection(uri, replyProcessor);
         connectionFuture.whenComplete((connection, e) -> {
             if (connection == null) {
-                resultFuture.completeExceptionally(new ConnectionFailedException(e));
+                resultFuture.completeExceptionally(new WireCommandFailedException(new ConnectionFailedException(e),
+                        request.getType(),
+                        WireCommandFailedException.Reason.ConnectionFailed));
             } else {
                 try {
                     connection.send(request);
