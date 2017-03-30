@@ -72,6 +72,11 @@ public class SegmentHelper {
             public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
                 result.complete(true);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
@@ -113,6 +118,11 @@ public class SegmentHelper {
             @Override
             public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
                 result.complete(true);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
             }
         };
 
@@ -164,6 +174,11 @@ public class SegmentHelper {
             public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
                 result.complete(true);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
         WireCommands.SealSegment request = new WireCommands.SealSegment(idGenerator.get(), 
@@ -197,6 +212,11 @@ public class SegmentHelper {
             @Override
             public void transactionCreated(WireCommands.TransactionCreated transactionCreated) {
                 result.complete(txId);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
             }
         };
 
@@ -240,6 +260,11 @@ public class SegmentHelper {
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
         WireCommands.CommitTransaction request = new WireCommands.CommitTransaction(idGenerator.get(), 
@@ -278,6 +303,11 @@ public class SegmentHelper {
             public void transactionAborted(WireCommands.TransactionAborted transactionDropped) {
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
 
         WireCommands.AbortTransaction request = new WireCommands.AbortTransaction(idGenerator.get(), 
@@ -308,6 +338,11 @@ public class SegmentHelper {
             @Override
             public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated policyUpdated) {
                 result.complete(null);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
             }
         };
 
