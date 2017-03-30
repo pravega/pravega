@@ -100,7 +100,7 @@ public class TransactionTest {
         transaction.writeEvent(routingKey, txnEvent);
         transaction.commit();
         producer.writeEvent(routingKey, nonTxEvent);
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
+        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.writeEvent(routingKey, txnEvent));
 
         EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader(readerName,
                                                                                                  groupName,
@@ -180,7 +180,7 @@ public class TransactionTest {
         transaction.abort();
         transaction.abort();
 
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
+        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.writeEvent(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
         @Cleanup
         EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader("reader",
