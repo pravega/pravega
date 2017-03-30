@@ -6,7 +6,6 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
@@ -34,8 +33,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class SegmentSelector {
-
-    private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
 
     private final Stream stream;
     private final Controller controller;
@@ -71,7 +68,7 @@ public class SegmentSelector {
         if (routingKey == null) {
             return currentSegments.getSegmentForKey(random.nextDouble());
         }
-        return currentSegments.getSegmentForKey(HASHER.hashToRange(routingKey));
+        return currentSegments.getSegmentForKey(routingKey);
     }
 
     @Synchronized
