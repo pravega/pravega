@@ -86,7 +86,7 @@ public class EndToEndTransactionTest {
                 EventWriterConfig.builder().build());
 
         // region Successful commit tests
-        Transaction<String> transaction = producer.beginTxn(5000, 3600000, 60000);
+        Transaction<String> transaction = producer.beginTxn(5000, 30000, 30000);
 
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
@@ -121,7 +121,7 @@ public class EndToEndTransactionTest {
 
         // region Successful abort tests
 
-        Transaction<String> transaction2 = producer.beginTxn(5000, 3600000, 60000);
+        Transaction<String> transaction2 = producer.beginTxn(5000, 30000, 30000);
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
             log.info("Producing event: " + event);

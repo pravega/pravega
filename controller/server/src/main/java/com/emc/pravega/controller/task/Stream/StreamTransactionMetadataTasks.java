@@ -22,10 +22,7 @@ import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
-import com.emc.pravega.stream.impl.ClientFactoryImpl;
-import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -84,13 +81,11 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * Initializes stream writers for commit and abort streams.
      * This method should be called immediately after creating StreamTransactionMetadataTasks object.
      *
-     * @param controller Local controller reference
+     * @param clientFactory Client factory reference.
      * @param config Controller event processor configuration.
      */
-    public Void initializeStreamWriters(Controller controller, ControllerEventProcessorConfig config) {
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(config.getScopeName(), controller);
-
+    public Void initializeStreamWriters(final ClientFactory clientFactory,
+                                        final ControllerEventProcessorConfig config) {
         this.commitEventEventStreamWriter = clientFactory.createEventWriter(
                 config.getCommitStreamName(),
                 ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,

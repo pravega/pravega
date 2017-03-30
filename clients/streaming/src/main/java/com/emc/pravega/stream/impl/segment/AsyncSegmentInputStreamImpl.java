@@ -14,6 +14,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
+import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
@@ -25,6 +26,7 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,6 +65,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         
         @Override
         public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
+            checkSegment(streamInfo.getSegmentName());
             log.trace("Received stream segment info {}", streamInfo);
             CompletableFuture<StreamSegmentInfo> future;
             synchronized (lock) {
@@ -88,9 +91,26 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             //TODO: It's not clear how we should be handling this case. (It should be impossible...)
             closeConnection(new IllegalArgumentException(noSuchSegment.toString()));
         }
+        
+        @Override
+        public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
+            checkSegment(segmentIsSealed.getSegment());
+            ReadFutureImpl future;
+            synchronized (lock) {
+                future = outstandingRequests.remove(segmentIsSealed.getRequestId());
+            }
+            if (future != null) {
+                future.complete(new SegmentRead(segmentIsSealed.getSegment(),
+                        segmentIsSealed.getRequestId(),
+                        true,
+                        true,
+                        ByteBuffer.allocate(0)));
+            }
+        }
 
         @Override
         public void segmentRead(SegmentRead segmentRead) {
+            checkSegment(segmentRead.getSegment());
             log.trace("Received read result {}", segmentRead);
             ReadFutureImpl future;
             synchronized (lock) {
@@ -99,6 +119,19 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             if (future != null) {
                 future.complete(segmentRead);
             }
+        }
+
+        @Override
+        public void processingFailure(Exception error) {
+            log.warn("Processing failure: ", error);
+            closeConnection(error);
+        }
+        
+        private void checkSegment(String segment) {
+            Preconditions.checkState(segmentId.getScopedName().equals(segment),
+                    "Operating on segmentId {} but received sealed for segment {}",
+                    segmentId,
+                    segment);
         }
     }
 
@@ -174,7 +207,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             outstandingRequests.put(read.request.getOffset(), read);
         }
         getConnection().thenAccept((ClientConnection c) -> {
-            log.info("Sending read request {}", read);
+            log.debug("Sending read request {}", read);
             c.sendAsync(read.request);
         });
         return read;

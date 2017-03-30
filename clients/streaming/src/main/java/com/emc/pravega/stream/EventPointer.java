@@ -16,6 +16,8 @@ public interface EventPointer extends Serializable {
 
     /**
      * Used internally. Do not call.
+     *
+     * @return Implementation of EventPointer interface
      */
     EventPointerInternal asImpl();
 

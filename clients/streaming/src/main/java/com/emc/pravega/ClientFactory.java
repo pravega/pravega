@@ -46,8 +46,7 @@ import java.net.URI;
  * Segments. For the most part this is an implementation detail. However its worth understanding
  * that the way a stream is divided between multiple readers in a group that wish to split the
  * messages between them is by giving different segments to different readers. For this reason when
- * creating a reader a notification is provided. {@link EventRead#isRoutingRebalance()} In the case
- * of a reader group, this is automated.
+ * creating a reader a notification is provided. In the case of a reader group, this is automated.
  * 
  * Otherwise this can be done by creating new reader by calling:
  * {@link RebalancerUtils#rebalance(java.util.Collection, int)} .

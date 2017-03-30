@@ -27,6 +27,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.testcommon.TestUtils;
 import com.google.common.base.Preconditions;
@@ -155,7 +156,9 @@ public class EventProcessorTest {
         producer.writeEvent("key", new TestEvent(-1));
         producer.flush();
 
-        EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope, controller, connectionFactory);
+        EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope,
+                new ClientFactoryImpl(scope, controller, connectionFactory),
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()
