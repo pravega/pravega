@@ -69,16 +69,15 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      *
      * @param handle  A read-write SegmentHandle that points to a Segment to Seal.
      * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the operation completed (it will contain a
-     * StreamSegmentInformation with the final state of the StreamSegment). If the operation failed, it will contain the
-     * cause of the failure. Notable exceptions:
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation
+     * failed, it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
      * </ul>
      * @throws IllegalArgumentException If handle is read-only.
      */
-    CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout);
+    CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout);
 
     /**
      * Concatenates two StreamSegments together. The Source StreamSegment will be appended as one atomic block at the end

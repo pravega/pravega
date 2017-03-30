@@ -30,6 +30,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     //region General Test arguments
 
     protected static final Duration TIMEOUT = Duration.ofSeconds(10);
+    protected static final long DEFAULT_EPOCH = 1;
     private static final int SEGMENT_COUNT = 4;
     private static final int APPENDS_PER_SEGMENT = 10;
 
@@ -49,7 +50,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testCreate() {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
-            s.initialize(0);
+            s.initialize(DEFAULT_EPOCH);
             s.create(segmentName, null).join();
             assertThrows("create() did not throw for existing StreamSegment.",
                     s.create(segmentName, null),
@@ -64,7 +65,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testOpen() {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
-            s.initialize(0);
+            s.initialize(DEFAULT_EPOCH);
 
             // Segment does not exist.
             assertThrows("openWrite() did not throw for non-existent StreamSegment.",
@@ -88,7 +89,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         int appendCount = 100;
 
         try (Storage s = createStorage()) {
-            s.initialize(0);
+            s.initialize(DEFAULT_EPOCH);
             s.create(segmentName, TIMEOUT).join();
 
             // Invalid handle.
@@ -100,7 +101,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
             assertThrows(
                     "write() did not throw for handle pointing to inexistent segment.",
-                    () -> s.write(createHandle(segmentName + "_1", false), 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
+                    () -> s.write(createHandle(segmentName + "_1", false, DEFAULT_EPOCH), 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             val writeHandle = s.openWrite(segmentName).join();
@@ -139,11 +140,11 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testRead() throws Exception {
         final String context = "Read";
         try (Storage s = createStorage()) {
-            s.initialize(0);
+            s.initialize(DEFAULT_EPOCH);
 
             // Check invalid segment name.
             assertThrows("read() did not throw for invalid segment name.",
-                    () -> s.read(createHandle("foo_read_1", true), 0, new byte[1], 0, 1, TIMEOUT),
+                    () -> s.read(createHandle("foo_read_1", true, DEFAULT_EPOCH), 0, new byte[1], 0, 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
@@ -170,7 +171,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             val testSegmentHandle = s.openRead(testSegment).join();
             byte[] testReadBuffer = new byte[10];
             assertThrows("read() allowed reading with negative read offset.",
-                    () -> s.read(createHandle(getSegmentName(0, context), true), -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
+                    () -> s.read(createHandle(getSegmentName(0, context), true, DEFAULT_EPOCH), -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with offset beyond Segment length.",
@@ -207,11 +208,11 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testSeal() throws Exception {
         final String context = "Seal";
         try (Storage s = createStorage()) {
-            s.initialize(0);
+            s.initialize(DEFAULT_EPOCH);
 
             // Check segment not exists.
             assertThrows("seal() did not throw for non-existent segment name.",
-                    () -> s.seal(createHandle("foo", false), TIMEOUT),
+                    () -> s.seal(createHandle("foo", false, DEFAULT_EPOCH), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
@@ -222,13 +223,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
                         ex -> ex instanceof IllegalArgumentException);
 
                 val writeHandle = s.openWrite(segmentName).join();
-                val segmentInfo = s.seal(writeHandle, TIMEOUT).join();
-                Assert.assertTrue("seal() did not return a segmentInfo with isSealed == true.", segmentInfo.isSealed());
+                s.seal(writeHandle, TIMEOUT).join();
 
                 //Seal is idempotent. Resealing an already sealed segment should work.
-                val segmentInfo1 = s.seal(writeHandle, TIMEOUT).join();
-                Assert.assertTrue("seal() did not return a segmentInfo with isSealed == true for an already sealed segment.", segmentInfo1.isSealed());
-
+                s.seal(writeHandle, TIMEOUT).join();
                 assertThrows("write() did not throw for a sealed StreamSegment.",
                         () -> s.write(writeHandle, s.getStreamSegmentInfo(segmentName, TIMEOUT).
                                 join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
@@ -252,7 +250,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testConcat() throws Exception {
         final String context = "Concat";
         try (Storage s = createStorage()) {
-            s.initialize(0);
+            s.initialize(DEFAULT_EPOCH);
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
 
             // Check invalid segment name.
@@ -261,11 +259,11 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
                     TIMEOUT).join().getLength());
             assertThrows("concat() did not throw for non-existent target segment name.",
-                    () -> s.concat(createHandle("foo1", false), 0, firstSegmentHandle, TIMEOUT),
+                    () -> s.concat(createHandle("foo1", false, DEFAULT_EPOCH), 0, firstSegmentHandle, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             assertThrows("concat() did not throw for invalid source StreamSegment name.",
-                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), createHandle("foo2", false), TIMEOUT),
+                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), createHandle("foo2", false, DEFAULT_EPOCH), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             ArrayList<String> concatOrder = new ArrayList<>();
@@ -369,9 +367,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      *
      * @param segmentName The name of the segment.
      * @param readOnly    Whether this is a read-only handle or not.
+     * @param epoch       Epoch.
      * @return The handle.
      */
-    protected abstract SegmentHandle createHandle(String segmentName, boolean readOnly);
+    protected abstract SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch);
 
     //endregion
 }

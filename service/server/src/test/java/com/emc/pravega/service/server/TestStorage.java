@@ -101,7 +101,7 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
+    public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.sealSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.sealAsyncErrorInjector)
                             .thenCompose(v -> {

@@ -23,8 +23,8 @@ final class HDFSExceptionHelpers {
      * @param e The exception to be translated
      * @return
      */
-    static Exception translateFromException(String streamSegmentName, Exception e) {
-        Exception retVal = e;
+    static Throwable translateFromException(String streamSegmentName, Throwable e) {
+        Throwable retVal = e;
 
         if (e instanceof RemoteException) {
             retVal = e = ((RemoteException) e).unwrapRemoteException();

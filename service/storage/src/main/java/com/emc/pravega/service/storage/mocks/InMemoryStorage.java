@@ -151,12 +151,11 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
+    public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot seal using a read-only handle.");
-        CompletableFuture<SegmentProperties> result =
-                CompletableFuture.supplyAsync(() ->
-                        getStreamSegmentData(handle.getSegmentName()).markSealed(), this.executor);
+        CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
+                getStreamSegmentData(handle.getSegmentName()).markSealed(), this.executor);
         result.thenRunAsync(() -> fireSealTrigger(handle.getSegmentName()), this.executor);
         return result;
     }
@@ -464,11 +463,10 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
             }
         }
 
-        SegmentProperties markSealed() {
+        void markSealed() {
             synchronized (this.lock) {
                 checkOpened();
                 this.sealed = true;
-                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new ImmutableDate());
             }
         }
 

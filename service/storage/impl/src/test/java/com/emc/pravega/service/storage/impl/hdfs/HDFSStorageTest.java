@@ -5,6 +5,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
@@ -15,13 +16,11 @@ import com.emc.pravega.service.storage.StorageTestBase;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
@@ -42,7 +41,6 @@ public class HDFSStorageTest extends StorageTestBase {
     public void setUp() throws Exception {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.OFF);
-        //context.reset();
 
         baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
         Configuration conf = new Configuration();
@@ -62,6 +60,65 @@ public class HDFSStorageTest extends StorageTestBase {
         }
     }
 
+    @Test // TODO: delete this.
+    public void testOngoing() {
+        String segmentName = "segment";
+
+        // Epoch: 1
+        try (val storage = createStorage()) {
+            storage.initialize(1);
+            boolean exists = storage.exists(segmentName, TIMEOUT).join();
+            System.out.println("Exists1: " + exists);
+
+            val createResult = storage.create(segmentName, TIMEOUT).join();
+            System.out.println("Create1: " + createResult);
+
+            exists = storage.exists(segmentName, TIMEOUT).join();
+            System.out.println("Exists2: " + exists);
+
+            val info1 = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            System.out.println("GetInfo1: " + info1);
+
+            val writeHandle1 = storage.openWrite(segmentName).join();
+            System.out.println("WriteHandle1: " + writeHandle1);
+        }
+
+        // Epoch: 2
+        try (val storage = createStorage()) {
+            storage.initialize(2);
+            try {
+                storage.create(segmentName, TIMEOUT).join();
+                Assert.fail();
+            } catch (Throwable ex) {
+                ex = ExceptionHelpers.getRealException(ex);
+                System.out.println("Create2 (can't create): " + ex.getMessage());
+            }
+
+            boolean exists = storage.exists(segmentName, TIMEOUT).join();
+            System.out.println("Exists3: " + exists);
+
+            val info2 = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            System.out.println("GetInfo2: " + info2);
+
+            val writeHandle2 = storage.openWrite(segmentName).join();
+            System.out.println("WriteHandle2: " + writeHandle2);
+
+            val info3 = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            System.out.println("GetInfo3: " + info3);
+
+            val readHandle1 = storage.openRead(segmentName).join();
+            System.out.println("ReadHandle1: " + readHandle1);
+
+            storage.seal(writeHandle2, TIMEOUT).join();
+            val info4 = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            System.out.println("GetInfo4: " + info4);
+
+            storage.delete(writeHandle2, TIMEOUT).join();
+            exists = storage.exists(segmentName, TIMEOUT).join();
+            System.out.println("Exists4: " + exists);
+        }
+    }
+
     //region Fencing tests
 
     /**
@@ -77,11 +134,13 @@ public class HDFSStorageTest extends StorageTestBase {
     @Test
     @Override
     public void testFencing() throws Exception {
+        final long epoch1 = 1;
+        final long epoch2 = 2;
         final String segmentName = "segment";
-        try (val storage1 = createStorage(0);
-             val storage2 = createStorage(1)) {
-            storage1.initialize(0);
-            storage2.initialize(1);
+        try (val storage1 = createStorage();
+             val storage2 = createStorage()) {
+            storage1.initialize(epoch1);
+            storage2.initialize(epoch2);
 
             // Create segment in Storage1 (thus Storage1 owns it for now).
             storage1.create(segmentName, TIMEOUT).join();
@@ -92,7 +151,7 @@ public class HDFSStorageTest extends StorageTestBase {
             verifyReadOnlyOperationsSucceed(handle1, storage1);
 
             // Storage2 should only be able to execute Read-Only operations.
-            SegmentHandle handle2 = createHandle(segmentName, false);
+            SegmentHandle handle2 = createHandle(segmentName, false, epoch2);
             verifyWriteOperationsFail(handle2, storage2);
             verifyReadOnlyOperationsSucceed(handle2, storage2);
 
@@ -187,21 +246,16 @@ public class HDFSStorageTest extends StorageTestBase {
     //endregion
 
     @Override
-    protected SegmentHandle createHandle(String segmentName, boolean readOnly) {
-        return new HDFSSegmentHandle(segmentName, readOnly);
+    protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
+        //return new HDFSSegmentHandle(segmentName, readOnly, epoch);
+        return null; //TODO: fix
     }
 
     @Override
-    @SneakyThrows(IOException.class)
     protected Storage createStorage() {
-        return createStorage(0);
-    }
-
-    private Storage createStorage(int pravegaId) throws IOException {
         // Create a config object, using all defaults, except for the HDFS URL.
         HDFSStorageConfig config = HDFSStorageConfig
                 .builder()
-                .with(HDFSStorageConfig.PRAVEGA_ID, pravegaId)
                 .with(HDFSStorageConfig.REPLICATION, 1)
                 .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
                 .build();
@@ -240,11 +294,7 @@ public class HDFSStorageTest extends StorageTestBase {
             // will gladly be modified without throwing any sort of exception, so here we are, trying to "simulate" this.
             // It should be noted though that a regular HDFS installation works just fine, which is why this code should
             // not make it in the HDFSStorage class itself.
-            try {
-                return super.getStreamSegmentInfoSync(handle.getSegmentName()).isSealed();
-            } catch (IOException ex) {
-                return false;
-            }
+            return super.getStreamSegmentInfo(handle.getSegmentName(), Duration.ofSeconds(10)).join().isSealed();
         }
     }
 }

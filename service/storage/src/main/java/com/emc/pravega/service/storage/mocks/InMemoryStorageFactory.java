@@ -85,7 +85,7 @@ public class InMemoryStorageFactory implements StorageFactory {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
+        public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
             Exceptions.checkNotClosed(this.closed.get(), this);
             return this.baseStorage.seal(handle, timeout);
         }

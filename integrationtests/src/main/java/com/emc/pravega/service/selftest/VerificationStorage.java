@@ -98,9 +98,10 @@ class VerificationStorage implements TruncateableStorage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
-        CompletableFuture<SegmentProperties> result = this.baseStorage.seal(handle, timeout);
-        result.thenAcceptAsync(sp -> triggerListeners(handle.getSegmentName(), sp.getLength(), sp.isSealed()), this.executor);
+    public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
+        CompletableFuture<Void> result = this.baseStorage.seal(handle, timeout);
+        result.thenComposeAsync(v -> this.baseStorage.getStreamSegmentInfo(handle.getSegmentName(), timeout), this.executor)
+              .thenAcceptAsync(sp -> triggerListeners(handle.getSegmentName(), sp.getLength(), sp.isSealed()), this.executor);
         return result;
     }
 

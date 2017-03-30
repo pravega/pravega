@@ -6,19 +6,23 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.SegmentHandle;
-import lombok.EqualsAndHashCode;
+import java.util.List;
 import lombok.Getter;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.http.annotation.GuardedBy;
+import org.apache.http.annotation.ThreadSafe;
 
 /**
- * SegmentHandle for HDFSStorage.
+ * Base Handle for HDFSStorage.
  */
-@EqualsAndHashCode(of = {"segmentName", "readOnly"})
+@ThreadSafe
 class HDFSSegmentHandle implements SegmentHandle {
     @Getter
     private final String segmentName;
     @Getter
     private final boolean readOnly;
+    @GuardedBy("files")
+    @Getter
+    private final List<FileInfo> files;
 
     //region Constructor
 
@@ -26,41 +30,42 @@ class HDFSSegmentHandle implements SegmentHandle {
      * Creates a new instance of the HDFSSegmentHandle class.
      *
      * @param segmentName The name of the Segment in this Handle, as perceived by users of the Segment interface.
-     * @param readOnly    If true, this handle can only be used for non-modify operations.
+     * @param files       A List of initial files for this handle.
      */
-    HDFSSegmentHandle(String segmentName, boolean readOnly) {
+    private HDFSSegmentHandle(String segmentName, boolean readOnly, List<FileInfo> files) {
         Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
+        Exceptions.checkNotNullOrEmpty(files, "files");
+
         this.segmentName = segmentName;
         this.readOnly = readOnly;
+        this.files = files;
+    }
+
+    static HDFSSegmentHandle write(String segmentName, List<FileInfo> files) {
+        return new HDFSSegmentHandle(segmentName, false, files);
+    }
+
+    static HDFSSegmentHandle read(String segmentName, List<FileInfo> files) {
+        return new HDFSSegmentHandle(segmentName, true, files);
     }
 
     //endregion
+
+    void update(List<FileInfo> files) {
+        synchronized (this.files) {
+            this.files.clear();
+            this.files.addAll(files);
+        }
+    }
+
+    FileInfo getLastFile() {
+        synchronized (this.files) {
+            return this.files.get(this.files.size() - 1);
+        }
+    }
 
     @Override
     public String toString() {
-        return String.format("(%s) %s", this.readOnly ? "R" : "RW", this.segmentName);
+        return String.format("%s (%s)", this.segmentName, this.readOnly ? "R" : "RW");
     }
-
-    //region Not yet implemented methods. TODO: implement these in the next phase.
-
-    /**
-     * Gets a value indicating whether the Segment is sealed for modifications.
-     * Note that isReadOnly() == true and isSealed() == true is a valid combination; in this case we were able to open
-     * a ReadWrite handle, but it is up to the Storage adapter to enforce Seal constraints.
-     */
-    public boolean isSealed() {
-        throw new NotImplementedException();
-    }
-
-    /**
-     * Gets a value indicating the Epoch of this handle. An Epoch is a monotonically strict increasing number that changes
-     * every time the owning SegmentContainer has been successfully recovered. The monotonicity of this number can be used
-     * as a proxy to determine the Container that should currently own the Segment should there be situations that
-     * require conflict resolution. See HDFSStorage documentation for more details.
-     */
-    public long getEpoch() {
-        throw new NotImplementedException();
-    }
-
-    //endregion
 }
