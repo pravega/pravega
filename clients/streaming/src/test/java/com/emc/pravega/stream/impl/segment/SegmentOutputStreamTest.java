@@ -39,6 +39,7 @@ import lombok.Cleanup;
 public class SegmentOutputStreamTest {
 
     private static final String SEGMENT = "segment";
+    private static final int SERVICE_PORT = 12345;
 
     private static ByteBuffer getBuffer(String s) {
         return ByteBuffer.wrap(s.getBytes());
@@ -47,7 +48,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
@@ -64,7 +65,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testConditionalSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
@@ -81,7 +82,7 @@ public class SegmentOutputStreamTest {
     @Test(timeout = 20000)
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
@@ -123,7 +124,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testClose() throws ConnectionFailedException, SegmentSealedException, InterruptedException {
         UUID cid = UUID.randomUUID();
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
@@ -180,7 +181,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);

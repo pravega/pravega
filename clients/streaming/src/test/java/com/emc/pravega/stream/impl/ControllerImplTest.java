@@ -73,6 +73,7 @@ import static org.junit.Assert.assertTrue;
  */
 @Slf4j
 public class ControllerImplTest {
+    private static final int SERVICE_PORT = 12345;
 
     @Rule
     public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
@@ -333,7 +334,8 @@ public class ControllerImplTest {
             @Override
             public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(NodeUri.newBuilder().setEndpoint("localhost").setPort(12345).build());
+                    responseObserver.onNext(NodeUri.newBuilder().setEndpoint("localhost").
+                            setPort(SERVICE_PORT).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -719,7 +721,7 @@ public class ControllerImplTest {
     public void testGetURI() throws Exception {
         CompletableFuture<PravegaNodeUri> endpointForSegment;
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
-        assertEquals(new PravegaNodeUri("localhost", 12345), endpointForSegment.get());
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
 
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/0");
         AssertExtensions.assertThrows("Should throw Exception", endpointForSegment, throwable -> true);

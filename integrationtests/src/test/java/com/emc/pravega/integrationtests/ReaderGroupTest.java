@@ -70,17 +70,17 @@ public class ReaderGroupTest {
     @Test(timeout = 20000)
     public void testEventHandoff() throws Exception {
         String endpoint = "localhost";
-        int port = TestUtils.randomPort();
+        int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
 
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
+        MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, servicePort);
         streamManager.createScope(SCOPE);
         streamManager.createStream(SCOPE, STREAM_NAME, StreamConfiguration.builder()
                                                                    .scope(SCOPE)
@@ -113,17 +113,17 @@ public class ReaderGroupTest {
     @Test
     public void testMultiSegmentsPerReader() throws InterruptedException, ExecutionException {
         String endpoint = "localhost";
-        int port = TestUtils.randomPort();
+        int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
 
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
+        MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, servicePort);
         streamManager.createScope(SCOPE);
         streamManager.createStream(SCOPE, STREAM_NAME, StreamConfiguration.builder()
                                                                    .scope(SCOPE)

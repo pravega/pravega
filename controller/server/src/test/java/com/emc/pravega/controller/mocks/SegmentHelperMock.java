@@ -15,11 +15,12 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 public class SegmentHelperMock {
+    private static final int SERVICE_PORT = 12345;
 
     public static SegmentHelper getSegmentHelperMock() {
         SegmentHelper helper = spy(new SegmentHelper());
 
-        doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(12345).build()).when(helper).getSegmentUri(
+        doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyInt(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).sealSegment(

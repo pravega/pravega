@@ -158,7 +158,7 @@ public class AppendTest {
     @Test
     public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "scope";
         String stream = "stream";
@@ -186,7 +186,7 @@ public class AppendTest {
     public void appendThroughStreamingClient() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
@@ -206,7 +206,7 @@ public class AppendTest {
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup

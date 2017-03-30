@@ -151,7 +151,7 @@ public class ReadTest {
         String endpoint = "localhost";
         String scope = "scope";
         String stream = "stream";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
@@ -186,7 +186,7 @@ public class ReadTest {
         String streamName = "abc";
         String readerName = "reader";
         String readerGroup = "group";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -219,7 +219,7 @@ public class ReadTest {
         String streamName = "abc";
         String readerName = "reader";
         String readerGroup = "group";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world ";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();

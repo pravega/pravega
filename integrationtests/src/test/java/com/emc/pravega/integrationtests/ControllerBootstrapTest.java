@@ -33,8 +33,8 @@ public class ControllerBootstrapTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream";
 
-    private final int controllerPort = TestUtils.randomPort();
-    private final int servicePort = TestUtils.randomPort();
+    private final int controllerPort = TestUtils.getAvailableListenPort();
+    private final int servicePort = TestUtils.getAvailableListenPort();
     private TestingServer zkTestServer;
     private ControllerWrapper controllerWrapper;
     private PravegaConnectionListener server;
