@@ -20,64 +20,66 @@ import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.testcommon.TestUtils;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 @Slf4j
 public class EndToEndTxnWithScaleTest {
-    static final StreamConfiguration CONFIG =
-            StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    ScalingPolicy.byEventRate(10, 2, 1)).build();
-    private ClientFactory clientFactory;
-    private Controller controller;
-    private ControllerWrapper controllerWrapper;
-    private PravegaConnectionListener server;
+
+    private final int controllerPort = TestUtils.randomPort();
+    private final String serviceHost = "localhost";
+    private final int servicePort = TestUtils.randomPort();
+    private final int containerCount = 4;
     private TestingServer zkTestServer;
-
+    private PravegaConnectionListener server;
+    private ControllerWrapper controllerWrapper;
+    private ServiceBuilder serviceBuilder;
+    
     @Before
-    public void setup() throws Exception {
+    public void setUp() throws Exception {
         zkTestServer = new TestingServer();
-        int port = TestUtils.randomPort();
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
-
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
-        server = new PravegaConnectionListener(false, 12345, store, null);
+        
+        server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
-
-        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        
+        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
+                                                                    controllerPort, serviceHost, servicePort, containerCount);
         controllerWrapper.awaitRunning();
-        controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("pravega").get();
-
-        controllerWrapper.getControllerService().createScope("test").get();
-
-        controller.createStream(CONFIG).get();
-        clientFactory = new MockClientFactory("test", controller);
     }
-
+    
     @After
-    public void teardown() {
-        clientFactory.close();
+    public void tearDown() throws Exception {
+        controllerWrapper.close();
         server.close();
-        try {
-            controllerWrapper.close();
-            zkTestServer.close();
-        } catch (Exception e) {
-            // ignore it
-        }
+        serviceBuilder.close();
+        zkTestServer.close();
     }
 
     @Test(timeout = 10000)
     public void testTxnWithScale() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scope("test")
+                                                        .streamName("test")
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("pravega").get();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream(config).get();
+        @Cleanup
+        ClientFactory clientFactory = new MockClientFactory("test", controller);
+        @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter(
                 "test", new JavaSerializer<>(), EventWriterConfig.builder().build());
         Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
