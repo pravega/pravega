@@ -3,14 +3,15 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
@@ -97,6 +98,7 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.createScope(SCOPE);
 
         streamStorePartialMock.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor);
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor);
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);

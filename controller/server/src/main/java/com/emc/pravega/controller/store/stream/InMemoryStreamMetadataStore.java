@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
-    private final Map<String, InMemoryStream> streams = new HashMap<>();
+    private final Map<String, InMemoryPersistentStream> streams = new HashMap<>();
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
@@ -48,7 +48,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (stream != null) {
             return stream;
         } else {
-            return new InMemoryStream.NonExistentStream(scope, name);
+            return new InMemoryPersistentStream(scope, name);
         }
     }
 
@@ -67,7 +67,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                    final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
-                InMemoryStream stream = new InMemoryStream(scopeName, streamName);
+                InMemoryPersistentStream stream = new InMemoryPersistentStream(scopeName, streamName);
                 stream.create(configuration, timeStamp);
                 streams.put(scopedStreamName(scopeName, streamName), stream);
                 scopes.get(scopeName).addStreamToScope(streamName);
