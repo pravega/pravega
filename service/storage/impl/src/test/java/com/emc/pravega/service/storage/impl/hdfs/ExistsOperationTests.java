@@ -15,7 +15,8 @@ import org.junit.Test;
  * Tests the ExistsOperation class.
  */
 public class ExistsOperationTests extends FileSystemOperationTestBase {
-    private static final String SEGMENT_NAME = "segment";
+    // We introduce the separator into the name here, to make sure we can still extract the values correctly from there.
+    private static final String SEGMENT_NAME = "segment"+FileSystemOperation.PART_SEPARATOR+"segment";
 
     /**
      * Tests the ExistsOperation in various scenarios.
@@ -39,10 +40,10 @@ public class ExistsOperationTests extends FileSystemOperationTestBase {
         // Malformed name (missing parts).
         final String correctFileName = context.getFileName(SEGMENT_NAME, offset);
         fs.clear();
-        fs.createNewFile(new Path(correctFileName.substring(0, correctFileName.indexOf("_"))));
+        fs.createNewFile(new Path(correctFileName.substring(0, correctFileName.indexOf(FileSystemOperation.PART_SEPARATOR))));
         Assert.assertFalse("Unexpected result for missing segment (malformed name 1).", new ExistsOperation(SEGMENT_NAME, context).call());
         fs.clear();
-        fs.createNewFile(new Path(correctFileName.substring(0, correctFileName.lastIndexOf("_"))));
+        fs.createNewFile(new Path(correctFileName.substring(0, correctFileName.lastIndexOf(FileSystemOperation.PART_SEPARATOR))));
         Assert.assertFalse("Unexpected result for missing segment (malformed name 2).", new ExistsOperation(SEGMENT_NAME, context).call());
 
         // Malformed name (non-numeric parts for offset and/or epoch).

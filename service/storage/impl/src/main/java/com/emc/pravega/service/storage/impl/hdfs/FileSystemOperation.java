@@ -27,7 +27,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 abstract class FileSystemOperation<T> {
     //region Members
 
-    private static final String PART_SEPARATOR = "_";
+    static final String PART_SEPARATOR = "_";
     private static final String NAME_FORMAT = "%s" + PART_SEPARATOR + "%s" + PART_SEPARATOR + "%s";
     private static final String EXAMPLE_NAME_FORMAT = String.format(NAME_FORMAT, "<segment-name>", "<offset>", "<epoch>");
     private static final String NUMBER_GLOB_REGEX = "[0-9]*";
@@ -170,13 +170,16 @@ abstract class FileSystemOperation<T> {
         final long offset;
         final long epoch;
         String fileName = fs.getPath().getName();
-        int pos1 = fileName.indexOf(PART_SEPARATOR);
-        if (pos1 <= 0 || pos1 >= fileName.length() - 1) {
+
+        // We read backwards, because the segment name itself may have multiple PartSeparators in it, but we only care
+        // about the last ones.
+        int pos2 = fileName.lastIndexOf(PART_SEPARATOR);
+        if (pos2 <= 0 || pos2 >= fileName.length() - 1) {
             throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
         }
 
-        int pos2 = fileName.indexOf(PART_SEPARATOR, pos1 + 1);
-        if (pos2 <= 0 || pos2 >= fileName.length() - 1) {
+        int pos1 = fileName.lastIndexOf(PART_SEPARATOR, pos2 - 1);
+        if (pos1 <= 0 || pos1 >= fileName.length() - 1) {
             throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
         }
 

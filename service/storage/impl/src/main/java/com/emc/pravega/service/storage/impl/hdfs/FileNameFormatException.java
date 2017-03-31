@@ -7,7 +7,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import java.io.IOException;
 
 /**
- * Created by andrei on 3/29/17.
+ * Exception that indicates a malformed file name.
  */
 class FileNameFormatException extends IOException {
     FileNameFormatException(String fileName, String message) {

@@ -9,7 +9,7 @@ import java.io.IOException;
 /**
  * Exception that indicates the set of files representing a Segment is corrupted.
  */
-public class SegmentFilesCorruptedException extends IOException {
+class SegmentFilesCorruptedException extends IOException {
     /**
      * Creates a new instance of the SegmentFilesCorruptedException.
      *

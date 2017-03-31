@@ -47,11 +47,6 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
         HDFSSegmentHandle handle = getTarget();
         long traceId = LoggerHelpers.traceEnter(log, "write", handle, this.offset, this.length);
         FileDescriptor lastFile = handle.getLastFile();
-//        if (lastFile.isReadOnly()) {
-//            // Don't bother going to the server; we know we can't write to this one.
-//            throw HDFSExceptionHelpers.segmentSealedException(handle.getSegmentName());
-//        }
-
         if (this.offset != lastFile.getLastOffset()) {
             throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
         }

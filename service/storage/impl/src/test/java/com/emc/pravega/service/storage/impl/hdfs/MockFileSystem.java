@@ -34,6 +34,8 @@ import org.apache.http.annotation.GuardedBy;
  */
 @ThreadSafe
 class MockFileSystem extends FileSystem {
+    //region Members
+
     private static final URI ROOT_URI = URI.create("");
     private final FileStatus ROOT = new FileStatus(0, true, 1, 1, 1, 1, FsPermission.getDirDefault(), "", "", new Path("/"));
     @GuardedBy("files")
@@ -43,11 +45,18 @@ class MockFileSystem extends FileSystem {
     @Setter
     private Function<Path, CustomAction> onDelete;
 
+    //endregion
+
+    //region Constructor
+
     MockFileSystem() {
         setConf(new Configuration());
     }
 
+    //endregion
+
     //region FileSystem Implementation
+
     @Override
     public FSDataOutputStream create(Path f, FsPermission permission, boolean overwrite, int bufferSize, short replication, long blockSize, Progressable progress) throws IOException {
         FSDataOutputStream result = new FSDataOutputStream(createInternal(f).contents, null);
@@ -155,6 +164,8 @@ class MockFileSystem extends FileSystem {
 
     //endregion
 
+    //region Other Methods and Properties
+
     int getFileCount() {
         synchronized (this.files) {
             return this.files.size();
@@ -199,6 +210,8 @@ class MockFileSystem extends FileSystem {
             return data;
         }
     }
+
+    //endregion
 
     //region FileData
 
@@ -265,9 +278,15 @@ class MockFileSystem extends FileSystem {
 
     //endregion
 
+    //region SeekableInputStream
+
+    /**
+     * Enhances the ByteArrayInputStream class with Seekable and PositionedReadable, which are both required for reading
+     * from the FileSystem.
+     */
     private static class SeekableInputStream extends ByteArrayInputStream implements Seekable, PositionedReadable {
 
-        public SeekableInputStream(byte[] bytes) {
+        SeekableInputStream(byte[] bytes) {
             super(bytes);
         }
 
@@ -311,5 +330,7 @@ class MockFileSystem extends FileSystem {
             seek(oldPos);
         }
     }
+
+    //endregion
 }
 
