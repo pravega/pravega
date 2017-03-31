@@ -51,6 +51,8 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+
+import io.grpc.util.RoundRobinLoadBalancerFactory;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -83,7 +85,10 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
 
         // Create Async RPC client.
-        client = ControllerServiceGrpc.newStub(channelBuilder.build());
+        client = ControllerServiceGrpc.newStub(channelBuilder
+                .nameResolverFactory(new ControllerResolverFactory())
+                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                .build());
     }
 
     @Override
