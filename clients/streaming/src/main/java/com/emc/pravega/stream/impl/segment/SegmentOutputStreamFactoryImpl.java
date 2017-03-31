@@ -56,6 +56,11 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
             public void transactionInfo(TransactionInfo info) {
                name.complete(info.getTransactionName());
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                name.completeExceptionally(error);
+            }
         };
         controller.getEndpointForSegment(segment.getScopedName()).thenCompose((PravegaNodeUri endpointForSegment) -> {
             return cf.establishConnection(endpointForSegment, replyProcessor);

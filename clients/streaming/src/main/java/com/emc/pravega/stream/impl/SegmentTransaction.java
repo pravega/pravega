@@ -12,7 +12,7 @@ import java.util.UUID;
 /**
  * The mirror of Transaction but that is specific to one segment.
  */
-public interface SegmentTransaction<Type> {
+public interface SegmentTransaction<Type> extends AutoCloseable {
     UUID getId();
 
     /**
@@ -31,4 +31,11 @@ public interface SegmentTransaction<Type> {
      * @throws TxnFailedException Not all of the items could be persisted because the transaction has failed. (Timed out or aborted)
      */
     void flush() throws TxnFailedException;
+    
+    /**
+     * Calls {@link #flush()} and then closes the connection.
+     */
+    @Override 
+    void close() throws TxnFailedException;
+    
 }

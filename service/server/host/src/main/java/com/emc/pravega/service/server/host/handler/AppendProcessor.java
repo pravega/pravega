@@ -105,7 +105,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .whenComplete((info, u) -> {
                     try {
                         if (u != null) {
-                            handleException(newSegment, "setting up append", u);
+                            handleException(setupAppend.getRequestId(), newSegment, "setting up append", u);
                         } else {
                             long eventNumber = info.getAttributes().getOrDefault(newConnection, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
                             if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
@@ -116,10 +116,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             synchronized (lock) {
                                 latestEventNumbers.putIfAbsent(newConnection, eventNumber);
                             }
-                            connection.send(new AppendSetup(newSegment, newConnection, eventNumber));
+                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, newConnection, eventNumber));
                         }
                     } catch (Throwable e) {
-                        handleException(newSegment, "handling setupAppend result", e);
+                        handleException(setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
                     }
                 });
     }
@@ -214,7 +214,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     if (conditionalFailed) {
                         connection.send(new ConditionalCheckFailed(toWrite.getConnectionId(), toWrite.getEventNumber()));
                     } else {
-                        handleException(segment, "appending data", u);
+                        handleException(toWrite.getEventNumber(), segment, "appending data", u);
                     }
                 } else {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
@@ -229,12 +229,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 pauseOrResumeReading();
                 performNextWrite();
             } catch (Throwable e) {
-                handleException(segment, "handling append result", e);
+                handleException(toWrite.getEventNumber(), segment, "handling append result", e);
             }
         });
     }
 
-    private void handleException(String segment, String doingWhat, Throwable u) {
+    private void handleException(long requestId, String segment, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
             log.error("Append processor: Error {} onsegment = '{}'", doingWhat, segment, exception);
@@ -247,14 +247,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
         if (u instanceof StreamSegmentExistsException) {
-            connection.send(new SegmentAlreadyExists(segment));
+            connection.send(new SegmentAlreadyExists(requestId, segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            connection.send(new NoSuchSegment(segment));
+            connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
-            connection.send(new SegmentIsSealed(segment));
+            connection.send(new SegmentIsSealed(requestId, segment));
         } else if (u instanceof WrongHostException) {
             WrongHostException wrongHost = (WrongHostException) u;
-            connection.send(new WrongHost(wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
+            connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         } else {
             // TODO: don't know what to do here...
             connection.close();
