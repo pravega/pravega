@@ -63,7 +63,7 @@ public class CreateStreamTaskTest {
     private SegmentHelper segmentHelperMock;
 
     @Before
-    public void initialize() throws Exception {
+    public void setup() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
