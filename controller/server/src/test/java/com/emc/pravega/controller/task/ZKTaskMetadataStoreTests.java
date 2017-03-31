@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.task;
 
@@ -21,19 +19,31 @@ import java.util.concurrent.ScheduledExecutorService;
 public class ZKTaskMetadataStoreTests extends TaskMetadataStoreTests {
 
     private TestingServer zkServer;
+    private ScheduledExecutorService executor;
+    private CuratorFramework cli;
 
     @Override
     public void setupTaskStore() throws Exception {
-        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+        executor = Executors.newScheduledThreadPool(10);
         zkServer = new TestingServer();
         zkServer.start();
-        CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
     }
 
     @Override
     public void cleanupTaskStore() throws IOException {
-        zkServer.close();
+        if (zkServer != null) {
+            zkServer.close();
+        }
+
+        if (executor != null) {
+            executor.shutdown();
+        }
+
+        if (cli != null) {
+            cli.close();
+        }
     }
 }

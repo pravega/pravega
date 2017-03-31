@@ -19,12 +19,13 @@ import java.io.IOException;
 public class ZKCheckpointStoreTests extends CheckpointStoreTests {
 
     private TestingServer zkServer;
+    private CuratorFramework cli;
 
     @Override
     public void setupCheckpointStore() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
-        CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
         checkpointStore = CheckpointStoreFactory.createZKStore(cli);
     }
@@ -32,5 +33,6 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
     @Override
     public void cleanupCheckpointStore() throws IOException {
         zkServer.close();
+        cli.close();
     }
 }
