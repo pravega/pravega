@@ -6,11 +6,9 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.google.common.base.Preconditions;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.Getter;
@@ -29,8 +27,8 @@ import org.apache.hadoop.fs.permission.FsPermission;
 abstract class FileSystemOperation<T> {
     //region Members
 
-    private static final String SEPARATOR = "_";
-    private static final String NAME_FORMAT = "%s" + SEPARATOR + "%s" + SEPARATOR + "%s";
+    private static final String PART_SEPARATOR = "_";
+    private static final String NAME_FORMAT = "%s" + PART_SEPARATOR + "%s" + PART_SEPARATOR + "%s";
     private static final String EXAMPLE_NAME_FORMAT = String.format(NAME_FORMAT, "<segment-name>", "<offset>", "<epoch>");
     private static final String NUMBER_GLOB_REGEX = "[0-9]*";
     private static final String SEALED_ATTRIBUTE = "user.sealed";
@@ -41,6 +39,8 @@ abstract class FileSystemOperation<T> {
     protected final OperationContext context;
 
     //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the FileSystemOperation class.
@@ -53,6 +53,8 @@ abstract class FileSystemOperation<T> {
         this.target = target;
         this.context = context;
     }
+
+    //endregion
 
     protected void checkForFenceOut(HDFSSegmentHandle handle) throws IOException, StorageNotPrimaryException {
         checkForFenceOut(handle.getSegmentName(), handle.getFiles().size(), handle.getLastFile());
@@ -67,9 +69,9 @@ abstract class FileSystemOperation<T> {
      * @throws IOException
      * @throws StorageNotPrimaryException
      */
-    protected void checkForFenceOut(String segmentName, int expectedFileCount, FileInfo lastFile) throws IOException, StorageNotPrimaryException {
+    protected List<FileDescriptor> checkForFenceOut(String segmentName, int expectedFileCount, FileDescriptor lastFile) throws IOException, StorageNotPrimaryException {
         val systemFiles = findAll(segmentName, true);
-        if (systemFiles.size() != expectedFileCount) {
+        if (expectedFileCount>=0 && systemFiles.size() != expectedFileCount) {
             // The files were changed externally (files removed or added). We cannot continue.
             throw new StorageNotPrimaryException(segmentName,
                     String.format("File count in FileSystem (%d) is different than the expected value (%d).",
@@ -83,6 +85,24 @@ abstract class FileSystemOperation<T> {
                     String.format("Last file in FileSystem (%s) has a higher epoch than that of ours (%s).",
                             lastSystemFile, lastFile));
         }
+
+        return systemFiles;
+    }
+
+    protected void createEmptyFile(String fullPath) throws IOException {
+        this.context.fileSystem
+                .create(new Path(fullPath),
+                        new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
+                        false,
+                        0,
+                        this.context.config.getReplication(),
+                        this.context.config.getBlockSize(),
+                        null)
+                .close();
+    }
+
+    protected void deleteFile(FileDescriptor file) throws IOException {
+        this.context.fileSystem.delete(new Path(file.getPath()), true);
     }
 
     /**
@@ -96,31 +116,32 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
-     * Gets an ordered list of FileInfo currently available for the given Segment, and validates that they are consistent.
+     * Gets an ordered list of FileDescriptor currently available for the given Segment, and validates that they are consistent.
      *
      * @param segmentName      The name of the Segment to retrieve for.
      * @param enforceExistence If true, it will throw a FileNotFoundException if no files are found, otherwise an empty
      *                         list is returned.
-     * @return A List of FileInfo
+     * @return A List of FileDescriptor
      * @throws IOException If an exception occurred.
      */
-    protected List<FileInfo> findAll(String segmentName, boolean enforceExistence) throws IOException {
+    protected List<FileDescriptor> findAll(String segmentName, boolean enforceExistence) throws IOException {
         FileStatus[] rawFiles = findAllRaw(segmentName);
-        if (rawFiles == null) {
+        if (rawFiles == null || rawFiles.length == 0) {
             if (enforceExistence) {
-                throw new FileNotFoundException(segmentName);
+                throw HDFSExceptionHelpers.segmentNotExistsException(segmentName);
             }
+
             return Collections.emptyList();
         }
 
         val result = Arrays.stream(rawFiles)
-                           .map(this::toFileInfo)
-                           .sorted(Comparator.comparingLong(FileInfo::getOffset))
+                           .map(this::toDescriptor)
+                           .sorted()
                            .collect(Collectors.toList());
 
         // Validate the names are consistent with the file lengths.
         long expectedOffset = 0;
-        for (FileInfo fi : result) {
+        for (FileDescriptor fi : result) {
             if (fi.getOffset() != expectedOffset) {
                 // TODO: better exception.
                 throw new IOException(String.format("Segment '%s' has invalid files. File '%s' declares offset '%d' but should be '%d'.",
@@ -134,20 +155,20 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
-     * Converts the given FileStatus into a FileInfo.
+     * Converts the given FileStatus into a FileDescriptor.
      */
     @SneakyThrows(FileNameFormatException.class)
-    private FileInfo toFileInfo(FileStatus fs) {
+    private FileDescriptor toDescriptor(FileStatus fs) {
         // Extract offset and epoch from name.
         final long offset;
         final long epoch;
         String fileName = fs.getPath().getName();
-        int pos1 = fileName.indexOf(SEPARATOR);
+        int pos1 = fileName.indexOf(PART_SEPARATOR);
         if (pos1 <= 0 || pos1 >= fileName.length() - 1) {
             throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
         }
 
-        int pos2 = fileName.indexOf(SEPARATOR, pos1 + 1);
+        int pos2 = fileName.indexOf(PART_SEPARATOR, pos1 + 1);
         if (pos2 <= 0 || pos2 >= fileName.length() - 1) {
             throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
         }
@@ -159,30 +180,30 @@ abstract class FileSystemOperation<T> {
             throw new FileNameFormatException(fileName, "Could not extract offset or epoch.", nfe);
         }
 
-        return new FileInfo(fs.getPath().toString(), offset, fs.getLen(), epoch, isReadOnly(fs));
+        return new FileDescriptor(fs.getPath().toString(), offset, fs.getLen(), epoch, isReadOnly(fs));
     }
 
-    protected boolean isSealed(FileInfo fileInfo) throws IOException {
-        byte[] data = this.context.fileSystem.getXAttr(new Path(fileInfo.getPath()), SEALED_ATTRIBUTE);
+    protected boolean isSealed(FileDescriptor fileDescriptor) throws IOException {
+        byte[] data = this.context.fileSystem.getXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE);
         return data != null && data.length > 0 && data[0] != 0;
     }
 
-    protected void makeSealed(FileInfo fileInfo) throws IOException {
-        this.context.fileSystem.setXAttr(new Path(fileInfo.getPath()), SEALED_ATTRIBUTE, new byte[]{(byte) 255});
+    protected void makeSealed(FileDescriptor fileDescriptor) throws IOException {
+        this.context.fileSystem.setXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE, new byte[]{(byte) 255});
     }
 
     protected boolean isReadOnly(FileStatus fs) {
         return fs.getPermission().getUserAction() == FsAction.READ;
     }
 
-    protected boolean makeReadOnly(FileInfo fileInfo) throws IOException {
-        Path p = new Path(fileInfo.getPath());
+    protected boolean makeReadOnly(FileDescriptor fileDescriptor) throws IOException {
+        Path p = new Path(fileDescriptor.getPath());
         if (isReadOnly(this.context.fileSystem.getFileStatus(p))) {
             return false;
         }
 
         this.context.fileSystem.setPermission(p, READONLY_PERMISSION);
-        fileInfo.markReadOnly();
+        fileDescriptor.markReadOnly();
         return true;
     }
 

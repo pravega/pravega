@@ -6,8 +6,11 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.SegmentHandle;
+import com.google.common.base.Preconditions;
+import java.util.Collection;
 import java.util.List;
 import lombok.Getter;
+import org.apache.commons.lang.StringUtils;
 import org.apache.http.annotation.GuardedBy;
 import org.apache.http.annotation.ThreadSafe;
 
@@ -16,13 +19,17 @@ import org.apache.http.annotation.ThreadSafe;
  */
 @ThreadSafe
 class HDFSSegmentHandle implements SegmentHandle {
+    //region Members
+
     @Getter
     private final String segmentName;
     @Getter
     private final boolean readOnly;
     @GuardedBy("files")
     @Getter
-    private final List<FileInfo> files;
+    private final List<FileDescriptor> files;
+
+    //endregion
 
     //region Constructor
 
@@ -30,9 +37,10 @@ class HDFSSegmentHandle implements SegmentHandle {
      * Creates a new instance of the HDFSSegmentHandle class.
      *
      * @param segmentName The name of the Segment in this Handle, as perceived by users of the Segment interface.
-     * @param files       A List of initial files for this handle.
+     * @param readOnly    Whether this handle is read-only or not.
+     * @param files       A ordered list of initial files for this handle.
      */
-    private HDFSSegmentHandle(String segmentName, boolean readOnly, List<FileInfo> files) {
+    private HDFSSegmentHandle(String segmentName, boolean readOnly, List<FileDescriptor> files) {
         Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
         Exceptions.checkNotNullOrEmpty(files, "files");
 
@@ -41,31 +49,72 @@ class HDFSSegmentHandle implements SegmentHandle {
         this.files = files;
     }
 
-    static HDFSSegmentHandle write(String segmentName, List<FileInfo> files) {
+    /**
+     * Creates a read-write handle.
+     *
+     * @param segmentName The name of the Segment to create the handle for.
+     * @param files       A ordered list of initial files for this handle.
+     * @return The new handle.
+     */
+    static HDFSSegmentHandle write(String segmentName, List<FileDescriptor> files) {
         return new HDFSSegmentHandle(segmentName, false, files);
     }
 
-    static HDFSSegmentHandle read(String segmentName, List<FileInfo> files) {
+    /**
+     * Creates a read-only handle.
+     *
+     * @param segmentName The name of the Segment to create the handle for.
+     * @param files       A ordered list of initial files for this handle.
+     * @return The new handle.
+     */
+    static HDFSSegmentHandle read(String segmentName, List<FileDescriptor> files) {
         return new HDFSSegmentHandle(segmentName, true, files);
     }
 
     //endregion
 
-    void update(List<FileInfo> files) {
-        synchronized (this.files) {
-            this.files.clear();
-            this.files.addAll(files);
-        }
-    }
+    //region Properties
 
-    FileInfo getLastFile() {
+    /**
+     * Gets the last file in the file list for this handle.
+     */
+    FileDescriptor getLastFile() {
         synchronized (this.files) {
             return this.files.get(this.files.size() - 1);
         }
     }
 
+    /**
+     * Replaces the files in this handle with the given ones.
+     *
+     * @param newFiles The new files to replace with.
+     */
+    void replaceFiles(Collection<FileDescriptor> newFiles) {
+        synchronized (this.files) {
+            this.files.clear();
+            this.files.addAll(newFiles);
+        }
+    }
+
+    /**
+     * Removes the last file from this handle.
+     */
+    void removeLastFile() {
+        synchronized (this.files) {
+            Preconditions.checkState(this.files.size() > 1, "Insufficient number of files in the handle to perform this operation.");
+            this.files.remove(this.files.size() - 1);
+        }
+    }
+
     @Override
     public String toString() {
-        return String.format("%s (%s)", this.segmentName, this.readOnly ? "R" : "RW");
+        String fileNames;
+        synchronized (this.files) {
+            fileNames = StringUtils.join(this.files, ", ");
+        }
+
+        return String.format("[%s] %s (Files: %s)", this.readOnly ? "R" : "RW", this.segmentName, fileNames);
     }
+
+    //endregion
 }

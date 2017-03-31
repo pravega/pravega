@@ -13,17 +13,18 @@ import org.apache.hadoop.hdfs.protocol.AclException;
 import org.apache.hadoop.ipc.RemoteException;
 
 /**
- * Helps to translated HDFS specific IOExceptions to StreamSegmentExceptions.
- * */
+ * Helps translate HDFS specific Exceptions to Pravega-equivalent Exceptions.
+ */
 final class HDFSExceptionHelpers {
 
     /**
-     * API to translated HDFS specific IOExceptions to StreamSegmentExceptions.
-     * @param streamSegmentName Name of the stream segment on which the exception occurs.
-     * @param e The exception to be translated
-     * @return
+     * Translates HDFS specific Exceptions to Pravega-equivalent Exceptions.
+     *
+     * @param segmentName Name of the stream segment on which the exception occurs.
+     * @param e           The exception to be translated.
+     * @return The translated exception.
      */
-    static Throwable translateFromException(String streamSegmentName, Throwable e) {
+    static Throwable translateFromException(String segmentName, Throwable e) {
         Throwable retVal = e;
 
         if (e instanceof RemoteException) {
@@ -31,17 +32,47 @@ final class HDFSExceptionHelpers {
         }
 
         if (e instanceof PathNotFoundException || e instanceof FileNotFoundException) {
-            retVal = new StreamSegmentNotExistsException(streamSegmentName, e);
+            retVal = new StreamSegmentNotExistsException(segmentName, e);
         }
 
         if (e instanceof FileAlreadyExistsException) {
-            retVal = new StreamSegmentExistsException(streamSegmentName, e);
+            retVal = new StreamSegmentExistsException(segmentName, e);
         }
 
         if (e instanceof AclException) {
-            retVal = new StreamSegmentSealedException(streamSegmentName, e);
+            retVal = new StreamSegmentSealedException(segmentName, e);
         }
 
         return retVal;
+    }
+
+    /**
+     * Returns a new instance of the HDFS equivalent of StreamSegmentExistsException.
+     *
+     * @param segmentName The name of the segment to construct the Exception for.
+     * @return The new exception.
+     */
+    static FileAlreadyExistsException segmentExistsException(String segmentName) {
+        return new FileAlreadyExistsException(segmentName);
+    }
+
+    /**
+     * Returns a new instance of the HDFS equivalent of StreamSegmentNotExistsException.
+     *
+     * @param segmentName The name of the segment to construct the Exception for.
+     * @return The new exception.
+     */
+    static FileNotFoundException segmentNotExistsException(String segmentName) {
+        return new FileNotFoundException(segmentName);
+    }
+
+    /**
+     * Returns a new instance of the HDFS equivalent of StreamSegmentSealedException.
+     *
+     * @param segmentName The name of the segment to construct the Exception for.
+     * @return The new exception.
+     */
+    static AclException segmentSealedException(String segmentName) {
+        return new AclException(segmentName);
     }
 }

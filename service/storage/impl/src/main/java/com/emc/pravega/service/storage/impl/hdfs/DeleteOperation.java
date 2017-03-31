@@ -10,7 +10,6 @@ import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import java.io.IOException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.hadoop.fs.Path;
 
 /**
  * FileSystemOperation that Deletes a Segment.
@@ -33,16 +32,16 @@ class DeleteOperation extends FileSystemOperation<HDFSSegmentHandle> implements 
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
 
         // Get an initial list of all files.
-        List<FileInfo> files = findAll(handle.getSegmentName(), true);
+        List<FileDescriptor> files = findAll(handle.getSegmentName(), true);
         while (files.size() > 0) {
             // Just in case the last file is not read-only, mark it as such, to prevent others from writing to it.
             makeReadOnly(files.get(files.size() - 1));
 
             // Delete every file in this set.
-            for (FileInfo f : files) {
+            for (FileDescriptor f : files) {
                 log.debug("Deleting file {}.", f);
                 try {
-                    this.context.fileSystem.delete(new Path(f.getPath()), true);
+                    deleteFile(f);
                 } catch (IOException ex) {
                     log.warn("Could not delete {}.", f, ex);
                 }

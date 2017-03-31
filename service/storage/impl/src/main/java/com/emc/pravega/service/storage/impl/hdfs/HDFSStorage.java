@@ -165,7 +165,7 @@ class HDFSStorage implements Storage {
                 operation.run();
                 result.complete(null);
             } catch (Throwable e) {
-                result.completeExceptionally(HDFSExceptionHelpers.translateFromException(operation.getTarget().toString(), e));
+                handleException(e, operation, result);
             }
         });
 
@@ -182,11 +182,18 @@ class HDFSStorage implements Storage {
             try {
                 result.complete(operation.call());
             } catch (Throwable e) {
-                result.completeExceptionally(HDFSExceptionHelpers.translateFromException(operation.getTarget().toString(), e));
+                handleException(e, operation, result);
             }
         });
 
         return result;
+    }
+
+    private void handleException(Throwable e, FileSystemOperation<?> operation, CompletableFuture<?> result) {
+        String segmentName = operation.getTarget() instanceof SegmentHandle
+                ? ((SegmentHandle) operation.getTarget()).getSegmentName()
+                : operation.getTarget().toString();
+        result.completeExceptionally(HDFSExceptionHelpers.translateFromException(segmentName, e));
     }
 
     private HDFSSegmentHandle asWritableHandle(SegmentHandle handle) {

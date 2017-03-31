@@ -7,7 +7,10 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -23,7 +26,7 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
      * Creates a new instance of the OpenWriteOperation class.
      *
      * @param segmentName The name of the Segment to open a WriteHandle for.
-     * @param context Context for the operation.
+     * @param context     Context for the operation.
      */
     OpenWriteOperation(String segmentName, OperationContext context) {
         super(segmentName, context);
@@ -40,6 +43,7 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
             // We care mostly about the last file in the sequence; we use this one to implement fencing.
             val allFiles = findAll(segmentName, true);
             val lastFile = allFiles.get(allFiles.size() - 1);
+            val offset = lastFile.getOffset() + lastFile.getLength();
             if (lastFile.isReadOnly()) {
                 boolean sealed = isSealed(lastFile);
                 if (sealed) {
@@ -48,9 +52,7 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
                     result = HDFSSegmentHandle.read(segmentName, allFiles);
                 } else {
                     // The last file is read-only and not sealed. This segment is fenced off and we can continue using it.
-                    // We don't want to create a new file here because we don't know what the next action on this segment
-                    // will be (ex: if we have a seal or concat, then no point in making an empty file).
-                    result = HDFSSegmentHandle.write(segmentName, allFiles);
+                    return fenceOut(segmentName, offset, allFiles);
                 }
             } else {
                 if (lastFile.getEpoch() == this.context.epoch) {
@@ -83,5 +85,40 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
 
         LoggerHelpers.traceLeave(log, "openWrite", traceId, result);
         return result;
+    }
+
+    private HDFSSegmentHandle fenceOut(String segmentName, long offset, List<FileDescriptor> allFiles) throws IOException, StorageNotPrimaryException {
+        // Create a new, empty file, and verify nobody else beat us to it.
+        val newFile = new FileDescriptor(getFileName(segmentName, offset, this.context.epoch), offset, 0, this.context.epoch, false);
+        createEmptyFile(newFile.getPath());
+        try {
+            allFiles = checkForFenceOut(segmentName, allFiles.size() + 1, newFile);
+        } catch (StorageNotPrimaryException ex) {
+            // We lost :(
+            deleteFile(newFile);
+            throw ex;
+        }
+
+        // It is possible that two competing containers get this far for the same segment and both believe they are owners of the lock.
+        // To alleviate this, make sure all existing files with a lower epoch are marked as read-only - this should prevent
+        // the lower-epoch owner to do any damage.
+        val resultFiles = new ArrayList<FileDescriptor>();
+        for (FileDescriptor existingFile : allFiles) {
+            try {
+                if (existingFile.getEpoch() < this.context.epoch) {
+                    if (existingFile.getLength() == 0) {
+                        deleteFile(existingFile);
+                        continue;
+                    } else {
+                        makeReadOnly(existingFile);
+                    }
+                }
+                resultFiles.add(existingFile);
+            } catch (FileNotFoundException ex) {
+                log.warn("File {} was removed, unable include it in the post-fence check.", existingFile, ex);
+            }
+        }
+
+        return HDFSSegmentHandle.write(segmentName, resultFiles);
     }
 }

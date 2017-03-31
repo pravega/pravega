@@ -8,11 +8,14 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.protocol.AclException;
+import org.apache.hadoop.io.IOUtils;
 
 /**
  * FileSystemOperation that appends to a Segment.
@@ -43,30 +46,32 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
     public void run() throws BadOffsetException, IOException, StorageNotPrimaryException {
         HDFSSegmentHandle handle = getTarget();
         long traceId = LoggerHelpers.traceEnter(log, "write", handle, this.offset, this.length);
-        FileInfo lastFile = handle.getLastFile();
+        FileDescriptor lastFile = handle.getLastFile();
         if (lastFile.isReadOnly()) {
-            if (isSealed(lastFile)) {
-                // 1. Segment is sealed. Nothing more we can do.
-                throw new AclException(handle.getSegmentName());
+            // Don't bother going to the server; we know we can't write to this one.
+            throw HDFSExceptionHelpers.segmentSealedException(handle.getSegmentName());
+        }
+
+        if (this.offset != lastFile.getLastOffset()) {
+            throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
+        }
+
+        try (FSDataOutputStream stream = this.context.fileSystem.append(new Path(lastFile.getPath()))) {
+            if (stream.getPos() != lastFile.getLength()) {
+                // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
+                // Update our knowledge of the filesystem and throw a BadOffsetException - this should cause upstream code
+                // to try to reconcile; if it can't then the upstream code should shut down or take other appropriate measures.
+                log.warn("File changed detected for '{}'. Expected length = {}, actual length = {}.", lastFile, lastFile.getLength(), stream.getPos());
+                lastFile.setLength(stream.getPos());
+                throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
             }
 
-            // 2. This file was fenced out using openWrite by us or some other instance, so figure it out.
-            if (lastFile.getEpoch() <= this.context.epoch) {
-                // Determine if the filesystem has changed since the last time we checked it (if someone else
-                val systemFiles = findAll(handle.getSegmentName(), true);
-                val lastSystemFile = systemFiles.get(systemFiles.size() - 1);
-                if (lastSystemFile.getEpoch() > lastFile.getEpoch()) {
-                    // The last file's epoch in the file system is higher than ours. We have been fenced out.
-                    throw new StorageNotPrimaryException(handle.getSegmentName(),
-                            String.format("Last file in FileSystem (%s) has a higher epoch than that of ours (%s).",
-                                    lastSystemFile, lastFile));
-                } else {
-                    makeReadOnly(lastSystemFile);
-                    handle.update(systemFiles);
-                }
-            } else {
-                throw new StorageNotPrimaryException(handle.getSegmentName());
-            }
+            IOUtils.copyBytes(this.data, stream, this.length);
+            stream.flush();
+            lastFile.increaseLength(this.length);
+        } catch (FileNotFoundException | AclException ex) {
+            checkForFenceOut(handle);
+            throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
         }
 
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);

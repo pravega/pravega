@@ -36,13 +36,24 @@ class SealOperation extends FileSystemOperation<HDFSSegmentHandle> implements Ru
                 // The file's read-only status changed externally. Figure out if we have been fenced out.
                 checkForFenceOut(handle);
 
-                // We are ok, just update the FileInfo internally.
+                // We are ok, just update the FileDescriptor internally.
                 lastHandleFile.markReadOnly();
             }
         }
 
         // Set the Sealed attribute on the last file and update the handle.
         makeSealed(lastHandleFile);
+        if (lastHandleFile.getLength() == 0) {
+            // Last file was actually empty, so if we have more than one file, mark the second-to-last as sealed and
+            // remove the last one.
+            val handleFiles = handle.getFiles();
+            if (handleFiles.size() > 1) {
+                makeSealed(handleFiles.get(handleFiles.size() - 2));
+                deleteFile(lastHandleFile);
+                handle.removeLastFile();
+            }
+        }
+
         LoggerHelpers.traceLeave(log, "seal", traceId, handle);
     }
 }
