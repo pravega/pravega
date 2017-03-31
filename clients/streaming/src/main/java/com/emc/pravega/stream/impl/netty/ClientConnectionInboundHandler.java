@@ -15,16 +15,14 @@ import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.google.common.base.Preconditions;
-
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -80,18 +78,14 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         }
         try {
             cmd.process(processor);
-        } catch (RuntimeException e) {
-            log.warn("Closing connection " + connectionName + " due to exception durring processing. ", e);
-            ctx.close();
+        } catch (Exception e) {
+            processor.processingFailure(e);
         }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        // Close the connection when an exception is raised.
-        log.error("Caught exception on connection: ", cause);
-        super.exceptionCaught(ctx, cause);
-        ctx.close();
+        processor.processingFailure(new ConnectionFailedException(cause));
     }
 
     @Override

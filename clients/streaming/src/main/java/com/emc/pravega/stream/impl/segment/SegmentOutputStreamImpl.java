@@ -37,6 +37,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -61,6 +63,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final String segmentName;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
+    private final Supplier<Long> requestIdGenerator = new AtomicLong(0)::incrementAndGet;
     private final UUID connectionId;
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
@@ -129,9 +132,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private void failConnection(Exception e) {
             ClientConnection oldConnection;
             synchronized (lock) {
-                if (!closed) {
-                    log.warn("Connection failed due to", e);
-                }
                 if (exception == null) {
                     exception = e;
                 }
@@ -294,6 +294,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                                  entry.getValue().getExpectedOffset()));
             }
         }
+
+        @Override
+        public void processingFailure(Exception error) {
+            state.failConnection(error);
+        }
     }
     
     /**
@@ -339,7 +344,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 });
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
-            SetupAppend cmd = new SetupAppend(connectionId, segmentName);
+            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), connectionId, segmentName);
             connection.send(cmd);
         }
     }
