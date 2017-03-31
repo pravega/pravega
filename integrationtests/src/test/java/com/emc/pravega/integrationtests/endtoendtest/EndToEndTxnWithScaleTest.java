@@ -4,21 +4,26 @@
 package com.emc.pravega.integrationtests.endtoendtest;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.stream.EventRead;
+import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.testcommon.TestUtils;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,6 +34,9 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 @Slf4j
 public class EndToEndTxnWithScaleTest {
@@ -41,23 +49,28 @@ public class EndToEndTxnWithScaleTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    
+
     @Before
     public void setUp() throws Exception {
         zkTestServer = new TestingServer();
-        
+
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        
+
         server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
-        
-        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
-                                                                    controllerPort, serviceHost, servicePort, containerCount);
+
+        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
+                false,
+                true,
+                controllerPort,
+                serviceHost,
+                servicePort,
+                containerCount);
         controllerWrapper.awaitRunning();
     }
-    
+
     @After
     public void tearDown() throws Exception {
         controllerWrapper.close();
@@ -74,14 +87,13 @@ public class EndToEndTxnWithScaleTest {
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("pravega").get();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
         @Cleanup
-        ClientFactory clientFactory = new MockClientFactory("test", controller);
+        ClientFactory clientFactory = ClientFactory.withScope("test", controller);
         @Cleanup
-        EventStreamWriter<String> test = clientFactory.createEventWriter(
-                "test", new JavaSerializer<>(), EventWriterConfig.builder().build());
+        EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
         Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
         transaction.writeEvent("0", "txntest1");
         transaction.commit();
@@ -97,5 +109,17 @@ public class EndToEndTxnWithScaleTest {
         transaction = test.beginTxn(5000, 3600000, 29000);
         transaction.writeEvent("0", "txntest2");
         transaction.commit();
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().build(), Collections.singleton("test"));
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+        EventRead<String> event = reader.readNextEvent(10000);
+        assertNotNull(event);
+        assertEquals("txntest1", event.getEvent());
+        event = reader.readNextEvent(10000);
+        assertNotNull(event);
+        assertEquals("txntest2", event.getEvent());
     }
 }
