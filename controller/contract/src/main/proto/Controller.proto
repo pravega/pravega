@@ -22,7 +22,7 @@ service ControllerService {
     rpc scale(ScaleRequest) returns (ScaleResponse);
     rpc getURI(SegmentId) returns (NodeUri);
     rpc isSegmentValid(SegmentId) returns (SegmentValidityResponse);
-    rpc createTransaction(CreateTxnRequest) returns (TxnId);
+    rpc createTransaction(CreateTxnRequest) returns (CreateTxnResponse);
     rpc commitTransaction(TxnRequest) returns (TxnStatus);
     rpc abortTransaction(TxnRequest) returns (TxnStatus);
     rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
@@ -175,6 +175,11 @@ message CreateTxnRequest {
     int64 lease = 2;
     int64 maxExecutionTime = 3;
     int64 scaleGracePeriod = 4;
+}
+
+message CreateTxnResponse {
+    TxnId txnId = 1;
+    repeated SegmentRange activeSegments = 2;
 }
 
 message TxnRequest {

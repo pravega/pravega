@@ -56,7 +56,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     @BeforeClass
     public static void setUpDistributedLog() throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
-        DLOG_PORT.set(TestUtils.randomPort());
+        DLOG_PORT.set(TestUtils.getAvailableListenPort());
         String classPath = getClassPath();
         val pb = new ProcessBuilder(
                 "java",
