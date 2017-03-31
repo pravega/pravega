@@ -117,11 +117,11 @@ public class TaskTest {
 
     @After
     public void tearDown() throws Exception {
-        zkServer.stop();
-        zkServer.close();
-        cli.close();
         streamMetadataTasks.close();
         executor.shutdown();
+        cli.close();
+        zkServer.stop();
+        zkServer.close();
     }
 
     @Test

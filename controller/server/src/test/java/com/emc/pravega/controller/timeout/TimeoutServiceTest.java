@@ -198,12 +198,12 @@ public class TimeoutServiceTest {
 
     @After
     public void tearDown() throws Exception {
-        zkTestServer.close();
+        streamMetadataTasks.close();
+        streamTransactionMetadataTasks.close();
         executor.shutdown();
         client.close();
         storeClient.close();
-        streamMetadataTasks.close();
-        streamTransactionMetadataTasks.close();
+        zkTestServer.close();
     }
 
     @Test

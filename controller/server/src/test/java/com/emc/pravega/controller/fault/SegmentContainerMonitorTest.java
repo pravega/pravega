@@ -58,8 +58,8 @@ public class SegmentContainerMonitorTest {
     @After
     public void stopZookeeper() throws Exception {
         cluster.close();
-        zkTestServer.close();
         zkClient.close();
+        zkTestServer.close();
     }
 
     @Test

@@ -34,16 +34,16 @@ public class ZKTaskMetadataStoreTests extends TaskMetadataStoreTests {
 
     @Override
     public void cleanupTaskStore() throws IOException {
+        if (cli != null) {
+            cli.close();
+        }
+
         if (zkServer != null) {
             zkServer.close();
         }
 
         if (executor != null) {
             executor.shutdown();
-        }
-
-        if (cli != null) {
-            cli.close();
         }
     }
 }
