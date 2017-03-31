@@ -310,6 +310,7 @@ public class HDFSStorageTest extends StorageTestBase {
      * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
      **/
     private static class MiniClusterPermFixer extends HDFSStorage {
+        // TODO: this can be "fixed" by subclassing HDFSStorage and returning a subclassed FileSystem which has permissions fixed natively. Otherwise we are not testing crucial paths in the code.
         MiniClusterPermFixer(HDFSStorageConfig config, Executor executor) {
             super(config, executor);
         }

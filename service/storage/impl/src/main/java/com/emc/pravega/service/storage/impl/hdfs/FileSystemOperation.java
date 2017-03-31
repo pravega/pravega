@@ -32,6 +32,7 @@ abstract class FileSystemOperation<T> {
     private static final String EXAMPLE_NAME_FORMAT = String.format(NAME_FORMAT, "<segment-name>", "<offset>", "<epoch>");
     private static final String NUMBER_GLOB_REGEX = "[0-9]*";
     private static final String SEALED_ATTRIBUTE = "user.sealed";
+    static final String CONCAT_ATTRIBUTE = "user.concat";
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
 
     @Getter
@@ -56,10 +57,6 @@ abstract class FileSystemOperation<T> {
 
     //endregion
 
-    protected void checkForFenceOut(HDFSSegmentHandle handle) throws IOException, StorageNotPrimaryException {
-        checkForFenceOut(handle.getSegmentName(), handle.getFiles().size(), handle.getLastFile());
-    }
-
     /**
      * TODO: write description. This should be the common protocol for fence-out detection used by all modify operations.
      *
@@ -71,7 +68,7 @@ abstract class FileSystemOperation<T> {
      */
     protected List<FileDescriptor> checkForFenceOut(String segmentName, int expectedFileCount, FileDescriptor lastFile) throws IOException, StorageNotPrimaryException {
         val systemFiles = findAll(segmentName, true);
-        if (expectedFileCount>=0 && systemFiles.size() != expectedFileCount) {
+        if (expectedFileCount >= 0 && systemFiles.size() != expectedFileCount) {
             // The files were changed externally (files removed or added). We cannot continue.
             throw new StorageNotPrimaryException(segmentName,
                     String.format("File count in FileSystem (%d) is different than the expected value (%d).",
@@ -139,13 +136,23 @@ abstract class FileSystemOperation<T> {
                            .sorted()
                            .collect(Collectors.toList());
 
+        val firstFile = result.get(0);
+        if (firstFile.getOffset() != 0 && isConcatSource(firstFile)) {
+            // If the first file does not have offset 0 and it looks like it was part of an unfinished concat, then, by
+            // convention, this segment does not exist. The Handle recovery for the target segment should finish up the job.
+            if (enforceExistence) {
+                throw HDFSExceptionHelpers.segmentNotExistsException(segmentName);
+            }
+
+            return Collections.emptyList();
+        }
+
         // Validate the names are consistent with the file lengths.
         long expectedOffset = 0;
         for (FileDescriptor fi : result) {
             if (fi.getOffset() != expectedOffset) {
-                // TODO: better exception.
-                throw new IOException(String.format("Segment '%s' has invalid files. File '%s' declares offset '%d' but should be '%d'.",
-                        segmentName, fi.getPath(), fi.getOffset(), expectedOffset));
+                throw new SegmentFilesCorruptedException(segmentName, fi,
+                        String.format("Declared offset is '%d' but should be '%d'.", fi.getOffset(), expectedOffset));
             }
 
             expectedOffset += fi.getLength();
@@ -184,12 +191,24 @@ abstract class FileSystemOperation<T> {
     }
 
     protected boolean isSealed(FileDescriptor fileDescriptor) throws IOException {
-        byte[] data = this.context.fileSystem.getXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE);
+        return isBooleanAttributeSet(fileDescriptor, SEALED_ATTRIBUTE);
+    }
+
+    protected boolean isConcatSource(FileDescriptor fileDescriptor) throws IOException {
+        return isBooleanAttributeSet(fileDescriptor, CONCAT_ATTRIBUTE);
+    }
+
+    private boolean isBooleanAttributeSet(FileDescriptor fileDescriptor, String attributeName) throws IOException {
+        byte[] data = this.context.fileSystem.getXAttr(new Path(fileDescriptor.getPath()), attributeName);
         return data != null && data.length > 0 && data[0] != 0;
     }
 
     protected void makeSealed(FileDescriptor fileDescriptor) throws IOException {
-        this.context.fileSystem.setXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE, new byte[]{(byte) 255});
+        setBooleanAttribute(fileDescriptor, SEALED_ATTRIBUTE, true);
+    }
+
+    private void setBooleanAttribute(FileDescriptor fileDescriptor, String attributeName, boolean value) throws IOException {
+        this.context.fileSystem.setXAttr(new Path(fileDescriptor.getPath()), attributeName, new byte[]{(byte) (value ? 255 : 0)});
     }
 
     protected boolean isReadOnly(FileStatus fs) {

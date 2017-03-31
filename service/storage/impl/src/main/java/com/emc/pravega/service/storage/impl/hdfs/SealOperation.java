@@ -7,9 +7,11 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.apache.hadoop.hdfs.protocol.AclException;
 
 /**
  * FileSystemOperation that Seals a Segment.
@@ -31,18 +33,24 @@ class SealOperation extends FileSystemOperation<HDFSSegmentHandle> implements Ru
         HDFSSegmentHandle handle = getTarget();
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         val lastHandleFile = handle.getLastFile();
-        if (!lastHandleFile.isReadOnly()) {
-            if (!makeReadOnly(lastHandleFile)) {
-                // The file's read-only status changed externally. Figure out if we have been fenced out.
-                checkForFenceOut(handle);
+        try {
+            if (!lastHandleFile.isReadOnly()) {
+                if (!makeReadOnly(lastHandleFile)) {
+                    // The file's read-only status changed externally. Figure out if we have been fenced out.
+                    checkForFenceOut(handle.getSegmentName(), -1, handle.getLastFile());
 
-                // We are ok, just update the FileDescriptor internally.
-                lastHandleFile.markReadOnly();
+                    // We are ok, just update the FileDescriptor internally.
+                    lastHandleFile.markReadOnly();
+                }
             }
+
+            // Set the Sealed attribute on the last file and update the handle.
+            makeSealed(lastHandleFile);
+        } catch (FileNotFoundException | AclException ex) {
+            checkForFenceOut(handle.getSegmentName(), handle.getFiles().size(), handle.getLastFile());
+            throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
         }
 
-        // Set the Sealed attribute on the last file and update the handle.
-        makeSealed(lastHandleFile);
         if (lastHandleFile.getLength() == 0) {
             // Last file was actually empty, so if we have more than one file, mark the second-to-last as sealed and
             // remove the last one.

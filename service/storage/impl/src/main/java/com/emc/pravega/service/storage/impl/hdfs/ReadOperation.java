@@ -64,7 +64,8 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
         while (totalBytesRead < this.length && currentFileIndex < handleFiles.size()) {
             FileDescriptor currentFile = handleFiles.get(currentFileIndex);
             long fileOffset = this.offset + totalBytesRead - currentFile.getOffset();
-            int fileReadLength = (int) Math.min(this.length - totalBytesRead, currentFile.getLength());
+            int fileReadLength = (int) Math.min(this.length - totalBytesRead, currentFile.getLength() - fileOffset);
+            assert fileOffset >= 0 && fileReadLength >= 0 : "negative file read offset or length";
 
             try (FSDataInputStream stream = this.context.fileSystem.open(new Path(currentFile.getPath()))) {
                 stream.readFully(fileOffset, this.buffer, this.bufferOffset + totalBytesRead, fileReadLength);
@@ -87,7 +88,7 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
         long lastFileOffset = handle.getLastFile().getLastOffset();
         boolean refreshed = false;
         while (this.offset + this.length > lastFileOffset) {
-            if (refreshed || handle.isReadOnly()) {
+            if (!refreshed && handle.isReadOnly()) {
                 //Read-only handles are not updated internally; they require a refresh.
                 val systemFiles = findAll(handle.getSegmentName(), true);
                 handle.replaceFiles(systemFiles);

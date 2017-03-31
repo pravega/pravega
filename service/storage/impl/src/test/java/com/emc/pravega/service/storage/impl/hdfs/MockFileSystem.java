@@ -6,12 +6,14 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -20,6 +22,8 @@ import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PositionedReadable;
+import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
@@ -28,38 +32,32 @@ import org.apache.http.annotation.GuardedBy;
 /**
  * Mock FileSystem for use in unit tests.
  */
+@ThreadSafe
 class MockFileSystem extends FileSystem {
+    private static final URI ROOT_URI = URI.create("");
     private final FileStatus ROOT = new FileStatus(0, true, 1, 1, 1, 1, FsPermission.getDirDefault(), "", "", new Path("/"));
+    @GuardedBy("files")
     private final HashMap<Path, FileData> files = new HashMap<>();
+    @Setter
+    private Function<Path, CustomAction> onCreate;
+    @Setter
+    private Function<Path, CustomAction> onDelete;
 
-    MockFileSystem(){
+    MockFileSystem() {
         setConf(new Configuration());
     }
 
     //region FileSystem Implementation
-
     @Override
-    public URI getUri() {
-        return URI.create("");
+    public FSDataOutputStream create(Path f, FsPermission permission, boolean overwrite, int bufferSize, short replication, long blockSize, Progressable progress) throws IOException {
+        FSDataOutputStream result = new FSDataOutputStream(createInternal(f).contents, null);
+        invokeCustomAction(this.onCreate, f);
+        return result;
     }
 
     @Override
     public FSDataInputStream open(Path f, int bufferSize) throws IOException {
-        return new FSDataInputStream(new ByteArrayInputStream(getFileData(f).contents.toByteArray()));
-    }
-
-    @Override
-    public FSDataOutputStream create(Path f, FsPermission permission, boolean overwrite, int bufferSize, short replication, long blockSize, Progressable progress) throws IOException {
-        synchronized (this.files) {
-            FileData data = this.files.getOrDefault(f, null);
-            if (data != null) {
-                throw new FileAlreadyExistsException(f.getName());
-            }
-
-            data = new FileData(f);
-            this.files.put(f, data);
-            return new FSDataOutputStream(data.contents, null);
-        }
+        return new FSDataInputStream(new SeekableInputStream(getFileData(f).contents.toByteArray()));
     }
 
     @Override
@@ -69,7 +67,7 @@ class MockFileSystem extends FileSystem {
             throw HDFSExceptionHelpers.segmentSealedException(f.getName());
         }
 
-        return new FSDataOutputStream(data.contents, null);
+        return new FSDataOutputStream(data.contents, null, data.contents.size());
     }
 
     @Override
@@ -88,9 +86,16 @@ class MockFileSystem extends FileSystem {
 
     @Override
     public boolean delete(Path f, boolean recursive) throws IOException {
+        boolean result;
         synchronized (this.files) {
-            return this.files.remove(f) != null;
+            result = this.files.remove(f) != null;
         }
+
+        if (result) {
+            invokeCustomAction(this.onDelete, f);
+        }
+
+        return result;
     }
 
     @Override
@@ -122,7 +127,7 @@ class MockFileSystem extends FileSystem {
     }
 
     @Override
-    public FileStatus[] listStatus(Path f) throws FileNotFoundException, IOException {
+    public FileStatus[] listStatus(Path f) throws IOException {
         synchronized (this.files) {
             val rawResult = this.files.values().stream()
                                       .filter(fd -> fd.path.toString().startsWith(f.toString()))
@@ -143,10 +148,21 @@ class MockFileSystem extends FileSystem {
         return null;
     }
 
+    @Override
+    public URI getUri() {
+        return ROOT_URI;
+    }
+
     //endregion
 
-    void clear(){
-        synchronized (this.files){
+    int getFileCount() {
+        synchronized (this.files) {
+            return this.files.size();
+        }
+    }
+
+    void clear() {
+        synchronized (this.files) {
             this.files.clear();
         }
     }
@@ -158,6 +174,28 @@ class MockFileSystem extends FileSystem {
                 throw HDFSExceptionHelpers.segmentNotExistsException(f.getName());
             }
 
+            return data;
+        }
+    }
+
+    private void invokeCustomAction(Function<Path, CustomAction> actionCreator, Path target) throws IOException {
+        if (actionCreator != null) {
+            CustomAction action = actionCreator.apply(target);
+            if (action != null) {
+                action.execute();
+            }
+        }
+    }
+
+    private FileData createInternal(Path f) throws IOException {
+        synchronized (this.files) {
+            FileData data = this.files.getOrDefault(f, null);
+            if (data != null) {
+                throw new FileAlreadyExistsException(f.getName());
+            }
+
+            data = new FileData(f);
+            this.files.put(f, data);
             return data;
         }
     }
@@ -204,5 +242,74 @@ class MockFileSystem extends FileSystem {
     }
 
     //endregion
+
+    //region Custom Actions
+
+    @RequiredArgsConstructor
+    abstract class CustomAction {
+        final Path target;
+
+        abstract void execute() throws IOException;
+    }
+
+    class CreateNewFile extends CustomAction {
+        CreateNewFile(Path target) {
+            super(target);
+        }
+
+        @Override
+        void execute() throws IOException {
+            createInternal(this.target);
+        }
+    }
+
+    //endregion
+
+    private static class SeekableInputStream extends ByteArrayInputStream implements Seekable, PositionedReadable {
+
+        public SeekableInputStream(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public void seek(long pos) throws IOException {
+            super.pos = (int) pos;
+        }
+
+        @Override
+        public long getPos() throws IOException {
+            return super.pos;
+        }
+
+        @Override
+        public boolean seekToNewSource(long targetPos) throws IOException {
+            return false;
+        }
+
+        @Override
+        public int read(long position, byte[] buffer, int offset, int length) throws IOException {
+            int oldPos = super.pos;
+            seek(position);
+            int bytesRead = super.read(buffer, offset, length);
+            seek(oldPos);
+            return bytesRead;
+        }
+
+        @Override
+        public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+            int oldPos = super.pos;
+            seek(position);
+            super.read(buffer, offset, length);
+            seek(oldPos);
+        }
+
+        @Override
+        public void readFully(long position, byte[] buffer) throws IOException {
+            int oldPos = super.pos;
+            seek(position);
+            super.read(buffer);
+            seek(oldPos);
+        }
+    }
 }
 

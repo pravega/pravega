@@ -46,10 +46,10 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
     }
 
     /**
-     * Tests CreateOperation with fencing resolution.
+     * Tests CreateOperation with fencing resolution for lower-epoch creation.
      */
     @Test
-    public void testFencedOut() throws Exception {
+    public void testLowerEpochFencedOut() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
         val context1 = newContext(1, fs);
@@ -58,11 +58,44 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
         // This should wipe out the file created by the first call.
         new CreateOperation(SEGMENT_NAME, context2).call();
 
-        // This should fail
+        // This should fail because we attempt to create the segment using a lower epoch.
         AssertExtensions.assertThrows(
                 "Lower epoch segment creation did not fail.",
                 new CreateOperation(SEGMENT_NAME, context1)::call,
                 ex -> ex instanceof StorageNotPrimaryException || ex instanceof FileAlreadyExistsException);
+    }
+
+    /**
+     * Tests CreateOperation with fencing resolution for concurrent operations.
+     */
+    @Test
+    public void testConcurrentFencedOut() throws Exception {
+        @Cleanup
+        val fs = new MockFileSystem();
+        val context1 = newContext(1, fs);
+        val context2 = newContext(2, fs);
+
+        // Part 1: CreateOperation has higher epoch than competitor -> it should succeed.
+        Path fencedOutFile = new Path(context1.getFileName(SEGMENT_NAME, 0));
+        fs.setOnCreate(path -> fs.new CreateNewFile(fencedOutFile));
+
+        // This should wipe out the file created by the first call.
+        new CreateOperation(SEGMENT_NAME, context2).call();
+        checkFileExists(context2);
+        Assert.assertFalse("Fenced-out file was not deleted (lower-epoch test).", fs.exists(fencedOutFile));
+
+        // Part 2: CreateOperation has lower epoch than competitor -> it should back off and fail
+        fs.clear();
+        Path survivingFile = new Path(context2.getFileName(SEGMENT_NAME, 0));
+        fs.setOnCreate(path -> fs.new CreateNewFile(survivingFile));
+
+        // This should wipe out the file created by the first call.
+        AssertExtensions.assertThrows(
+                "Fenced-out operation did not fail.",
+                new CreateOperation(SEGMENT_NAME, context1)::call,
+                ex -> ex instanceof StorageNotPrimaryException);
+        checkFileExists(context2);
+        Assert.assertFalse("Fenced-out file was not deleted (higher-epoch test).", fs.exists(new Path(context1.getFileName(SEGMENT_NAME, 0))));
     }
 
     private void checkFileExists(TestContext context) throws Exception {

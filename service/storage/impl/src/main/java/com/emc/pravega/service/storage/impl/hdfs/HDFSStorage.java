@@ -175,7 +175,7 @@ class HDFSStorage implements Storage {
     /**
      * Executes the given FileSystemOperation asynchronously and returns a Future that will be completed with the result.
      */
-    private <R, T extends FileSystemOperation & Callable<R>> CompletableFuture<R> supplyAsync(T operation) {
+    private <R, T extends FileSystemOperation & Callable<? extends R>> CompletableFuture<R> supplyAsync(T operation) {
         ensureInitializedAndNotClosed();
         CompletableFuture<R> result = new CompletableFuture<>();
         this.executor.execute(() -> {

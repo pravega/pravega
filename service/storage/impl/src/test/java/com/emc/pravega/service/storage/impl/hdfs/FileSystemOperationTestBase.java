@@ -15,7 +15,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
  * Base class for all tests for derived classes from FileSystemOperation.
  */
 abstract class FileSystemOperationTestBase {
-    TestContext newContext(int epoch, MockFileSystem fileSystem) {
+    TestContext newContext(long epoch, MockFileSystem fileSystem) {
         return new TestContext(epoch, fileSystem);
     }
 
@@ -31,13 +31,22 @@ abstract class FileSystemOperationTestBase {
             return this.operation.getFileName(segmentName, startOffset, this.epoch);
         }
 
+        boolean isSealed(FileDescriptor file) throws IOException {
+            return this.operation.isSealed(file);
+        }
+
         boolean isReadOnly(FileStatus fs) {
             return this.operation.isReadOnly(fs);
         }
 
-        void createEmptyFile(String segmentName, long offset) throws IOException {
+        boolean makeReadOnly(FileDescriptor file) throws IOException {
+            return this.operation.makeReadOnly(file);
+        }
+
+        Path createEmptyFile(String segmentName, long offset) throws IOException {
+            Path result = new Path(this.operation.getFileName(segmentName, offset, this.epoch));
             this.fileSystem
-                    .create(new Path(this.operation.getFileName(segmentName, offset, this.epoch)),
+                    .create(result,
                             new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                             false,
                             0,
@@ -45,6 +54,7 @@ abstract class FileSystemOperationTestBase {
                             this.config.getBlockSize(),
                             null)
                     .close();
+            return result;
         }
     }
 

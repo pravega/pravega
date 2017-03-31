@@ -50,7 +50,7 @@ class CreateOperation extends FileSystemOperation<String> implements Callable<Se
         // Determine if someone also created it at the same time, but with a different epoch.
         List<FileDescriptor> allFiles;
         try {
-            allFiles = checkForFenceOut(segmentName, 1, new FileDescriptor(fullPath, 0, 0, this.context.epoch, false));
+            allFiles = checkForFenceOut(segmentName, -1, new FileDescriptor(fullPath, 0, 0, this.context.epoch, false));
         } catch (StorageNotPrimaryException ex) {
             // We lost :(
             this.context.fileSystem.delete(new Path(fullPath), true);

@@ -5,7 +5,6 @@
 package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -19,7 +18,7 @@ import lombok.val;
  * FileSystemOperation that attempts to acquire an exclusive lock for a Segment.
  */
 @Slf4j
-class OpenWriteOperation extends FileSystemOperation<String> implements Callable<SegmentHandle> {
+class OpenWriteOperation extends FileSystemOperation<String> implements Callable<HDFSSegmentHandle> {
     private static final int MAX_OPEN_WRITE_RETRIES = 10;
 
     /**
@@ -33,16 +32,24 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
     }
 
     @Override
-    public SegmentHandle call() throws IOException, StorageNotPrimaryException {
+    public HDFSSegmentHandle call() throws IOException, StorageNotPrimaryException {
         String segmentName = getTarget();
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", segmentName);
 
-        SegmentHandle result = null;
+        HDFSSegmentHandle result = null;
         int retryCount = 0;
         while (result == null && retryCount < MAX_OPEN_WRITE_RETRIES) {
             // We care mostly about the last file in the sequence; we use this one to implement fencing.
             val allFiles = findAll(segmentName, true);
             val lastFile = allFiles.get(allFiles.size() - 1);
+            if (lastFile.getEpoch() > this.context.epoch) {
+                // Something unusual happened. A newer instance of the owning container had/has ownership of this segment,
+                // so we cannot possibly reacquire it. This is regardless of whether the last file is read-only or not.
+                throw new StorageNotPrimaryException(segmentName,
+                        String.format("Found a file with a higher epoch (%d) than ours (%d): %s.",
+                                lastFile.getEpoch(), this.context.epoch, lastFile.getPath()));
+            }
+
             val offset = lastFile.getOffset() + lastFile.getLength();
             if (lastFile.isReadOnly()) {
                 boolean sealed = isSealed(lastFile);
@@ -50,21 +57,19 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
                     // The last file is read-only and has the 'sealed' flag. This segment is sealed, as such, we cannot
                     // open it for writing, therefore open a read-only handle.
                     result = HDFSSegmentHandle.read(segmentName, allFiles);
+                } else if (lastFile.getEpoch() == this.context.epoch) {
+                    // The only way we can get in this state is if someone else fenced us out.
+                    throw new StorageNotPrimaryException(segmentName,
+                            String.format("Last file has our epoch (%d) but it is read-only: %s.", this.context.epoch, lastFile.getPath()));
                 } else {
                     // The last file is read-only and not sealed. This segment is fenced off and we can continue using it.
-                    return fenceOut(segmentName, offset, allFiles);
+                    return fenceOut(segmentName, offset);
                 }
             } else {
                 if (lastFile.getEpoch() == this.context.epoch) {
                     // The last file is not read-only and has the same epoch as us: We were the last owners of this segment;
                     // simply reuse the last file.
                     result = HDFSSegmentHandle.write(segmentName, allFiles);
-                } else if (lastFile.getEpoch() > this.context.epoch) {
-                    // Something unusual happened. A newer instance of the owning container had/has ownership of this segment,
-                    // so we cannot possibly reacquire it.
-                    throw new StorageNotPrimaryException(segmentName,
-                            String.format("Found a file with a higher epoch (%d) than ours (%d): %s.",
-                                    lastFile.getEpoch(), this.context.epoch, lastFile.getPath()));
                 } else {
                     // The last file has a lower epoch than us. Mark it as read-only, which should fence it off.
                     makeReadOnly(lastFile);
@@ -87,12 +92,19 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
         return result;
     }
 
-    private HDFSSegmentHandle fenceOut(String segmentName, long offset, List<FileDescriptor> allFiles) throws IOException, StorageNotPrimaryException {
+    private HDFSSegmentHandle fenceOut(String segmentName, long offset) throws IOException, StorageNotPrimaryException {
         // Create a new, empty file, and verify nobody else beat us to it.
         val newFile = new FileDescriptor(getFileName(segmentName, offset, this.context.epoch), offset, 0, this.context.epoch, false);
         createEmptyFile(newFile.getPath());
+        List<FileDescriptor> allFiles;
         try {
-            allFiles = checkForFenceOut(segmentName, allFiles.size() + 1, newFile);
+            allFiles = checkForFenceOut(segmentName, -1, newFile);
+            FileDescriptor lastFile = allFiles.size() == 0 ? null : allFiles.get(allFiles.size() - 1);
+            if (lastFile != null && lastFile.getEpoch() > this.context.epoch) {
+                throw new StorageNotPrimaryException(segmentName,
+                        String.format("Found a file with a higher epoch (%d) than ours (%d): %s.",
+                                lastFile.getEpoch(), this.context.epoch, lastFile.getPath()));
+            }
         } catch (StorageNotPrimaryException ex) {
             // We lost :(
             deleteFile(newFile);

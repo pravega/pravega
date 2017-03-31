@@ -47,10 +47,10 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
         HDFSSegmentHandle handle = getTarget();
         long traceId = LoggerHelpers.traceEnter(log, "write", handle, this.offset, this.length);
         FileDescriptor lastFile = handle.getLastFile();
-        if (lastFile.isReadOnly()) {
-            // Don't bother going to the server; we know we can't write to this one.
-            throw HDFSExceptionHelpers.segmentSealedException(handle.getSegmentName());
-        }
+//        if (lastFile.isReadOnly()) {
+//            // Don't bother going to the server; we know we can't write to this one.
+//            throw HDFSExceptionHelpers.segmentSealedException(handle.getSegmentName());
+//        }
 
         if (this.offset != lastFile.getLastOffset()) {
             throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
@@ -66,11 +66,18 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
                 throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
             }
 
+            if (this.length == 0) {
+                // Exit here (vs at the beginning of the method), since we want to throw appropriate exceptions in case
+                // of Sealed or BadOffset
+                // Note: IOUtils.copyBytes with length == 0 will enter an infinite loop, hence the need for this check.
+                return;
+            }
+
             IOUtils.copyBytes(this.data, stream, this.length);
             stream.flush();
             lastFile.increaseLength(this.length);
         } catch (FileNotFoundException | AclException ex) {
-            checkForFenceOut(handle);
+            checkForFenceOut(handle.getSegmentName(), handle.getFiles().size(), handle.getLastFile());
             throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
         }
 
