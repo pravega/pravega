@@ -4,11 +4,14 @@
 package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -29,12 +32,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static com.emc.pravega.controller.util.Config.SERVICE_PORT;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -101,6 +104,7 @@ public class CreateStreamTaskTest {
         streamTransactionMetadataTasks.close();
         zkClient.close();
         zkServer.close();
+        executor.shutdown();
     }
 
     @Test
@@ -112,31 +116,35 @@ public class CreateStreamTaskTest {
         // the connection to server will fail and should be retried
         controllerService.createStream(configuration1, System.currentTimeMillis());
 
-        // stall for a while before validating that the stream creation is incomplete.
-        Thread.sleep(1000);
-
-        // Stream should not have been created and while trying to access any stream metadata, we should get illegalStateException
-
-        streamStore.getConfiguration(SCOPE, stream1, null, executor)
-                .handle((res, ex) -> {
-                    assertNotEquals(ex, null);
-                    assertEquals(ExceptionHelpers.getRealException(ex).getMessage(), "stream state unknown");
-                    assertEquals(ExceptionHelpers.getRealException(ex).getClass(), IllegalStateException.class);
-                    return null;
-                }).get();
+        // Stream should not have been created and while trying to access any stream metadata
+        // we should get illegalStateException
+        try {
+            Retry.withExpBackoff(10, 10, 4)
+                    .retryingOn(DataNotFoundException.class)
+                    .throwingOn(IllegalStateException.class)
+                    .run(() -> {
+                        FutureHelpers.getAndHandleExceptions(streamStore.getConfiguration(SCOPE, stream1, null, executor),
+                                CompletionException::new);
+                        return null;
+                    });
+        } catch (CompletionException ex) {
+            assertEquals(ExceptionHelpers.getRealException(ex).getMessage(), "stream state unknown");
+            assertEquals(ExceptionHelpers.getRealException(ex).getClass(), IllegalStateException.class);
+        }
 
         // Mock createSegment to return success.
         doReturn(CompletableFuture.completedFuture(true)).when(segmentHelperMock).createSegment(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
-        // Stall for a while to ensure that the mock is invoked in the subsequent retry attempt
-        Thread.sleep(1000);
-
-        streamStore.getConfiguration(SCOPE, stream1, null, executor)
-                .handle((res, ex) -> {
-                    assertEquals(ex, null);
-                    assertEquals(res, configuration1);
+        Retry.withExpBackoff(10, 10, 4)
+                .retryingOn(IllegalStateException.class)
+                .throwingOn(RuntimeException.class)
+                .run(() -> {
+                    FutureHelpers.getAndHandleExceptions(
+                            streamStore.getConfiguration(SCOPE, stream1, null, executor)
+                                    .thenAccept(configuration -> assertEquals(configuration, configuration1)),
+                            CompletionException::new);
                     return null;
-                }).get();
+                });
     }
 }
