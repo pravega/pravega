@@ -16,6 +16,26 @@ buildscript {
     }
 }
 
+apply plugin: 'distribution'
+version = '1.2'
+distributions {
+    release {
+        contents {
+       /*     into('scripts') {
+                from {'scripts/sbin'}
+            }*/
+            into('service') {
+                from {tarTree(project(':service:server:host').files("build/distributions/host.tar"))}
+            }
+          /*  into('controller') {
+                from {tarTree(tarFileForProject(":controller:server"))}
+            }*/
+        }
+    }
+}
+
+distTar.dependsOn([":service:server:host:distTar", ":controller:server:distTar"])
+
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 
