@@ -263,8 +263,6 @@ class ZKCheckpointStore implements CheckpointStore {
             // Its ok if the node is already deleted, mask this exception.
         } catch (KeeperException.NotEmptyException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NodeNotEmpty, e);
-        } catch (CheckpointStoreException e) {
-            throw e;
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
         }

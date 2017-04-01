@@ -283,13 +283,13 @@ public final class ControllerServiceStarter extends AbstractIdleService {
 
             // Next stop all executors
             log.info("Stopping executors");
-            eventProcExecutor.shutdown();
-            requestExecutor.shutdown();
-            storeExecutor.shutdown();
-            taskExecutor.shutdown();
-            controllerServiceExecutor.shutdown();
+            eventProcExecutor.shutdownNow();
+            requestExecutor.shutdownNow();
+            storeExecutor.shutdownNow();
+            taskExecutor.shutdownNow();
+            controllerServiceExecutor.shutdownNow();
             if (clusterListenerExecutor != null) {
-                clusterListenerExecutor.shutdown();
+                clusterListenerExecutor.shutdownNow();
             }
 
             // Finally, await termination of all services

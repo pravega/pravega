@@ -67,12 +67,26 @@ public class ControllerFailoverTest {
     }
 
     @Test(timeout = 120000)
-    public void testSessionExpiryTolerance() {
+    public void testSessionExpiryToleranceMinimalServices() {
+        final int controllerPort = TestUtils.randomPort();
+        final String serviceHost = "localhost";
+        final int containerCount = 4;
+        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
+                false, controllerPort, serviceHost, servicePort, containerCount, -1);
+        testSessionExpiryTolerance(controllerWrapper, controllerPort);
+    }
+
+    @Test(timeout = 120000)
+    public void testSessionExpiryToleranceAllServices() {
         final int controllerPort = TestUtils.randomPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, false,
                 false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.randomPort());
+        testSessionExpiryTolerance(controllerWrapper, controllerPort);
+    }
+
+    private void testSessionExpiryTolerance(final ControllerWrapper controllerWrapper, final int controllerPort) {
 
         try {
             controllerWrapper.awaitRunning();
@@ -90,7 +104,7 @@ public class ControllerFailoverTest {
             Assert.fail();
         }
 
-        // Now, that session has expired, lets do some operations on
+        // Now, that session has expired, lets do some operations.
         try {
             controllerWrapper.awaitPaused();
         } catch (IllegalStateException e) {
