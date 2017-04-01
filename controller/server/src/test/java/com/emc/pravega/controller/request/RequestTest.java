@@ -45,7 +45,7 @@ public class RequestTest {
     StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
             ScalingPolicy.byEventRate(0, 2, 3)).build();
 
-    private ScheduledExecutorService executor = Executors.newScheduledThreadPool(100);
+    private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
     private TaskMetadataStore taskMetadataStore;
     private HostControllerStore hostStore;
@@ -103,6 +103,7 @@ public class RequestTest {
         streamTransactionMetadataTasks.close();
         zkClient.close();
         zkServer.close();
+        executor.shutdown();
     }
 
     @Test(timeout = 10000)
