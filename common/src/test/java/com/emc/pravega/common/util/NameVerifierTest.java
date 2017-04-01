@@ -10,7 +10,7 @@ import org.junit.Test;
 
 public class NameVerifierTest {
 
-    @Test
+    @Test(timeout = 10000)
     public void testNameVerifier() {
         try {
             NameVerifier.validateName("stream");
