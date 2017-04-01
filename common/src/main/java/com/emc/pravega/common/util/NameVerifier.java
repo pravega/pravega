@@ -17,8 +17,8 @@ public class NameVerifier {
     /**
      * Validates a name.
      *
-     * @param name Stream name to validate.
-     * @return The stream name in the case is valid.
+     * @param name Name to validate.
+     * @return The name in the case is valid.
      */
     public static String validateName(String name) {
         Preconditions.checkNotNull(name);

@@ -173,7 +173,7 @@ public class StreamMetadataTasks extends TaskBase {
         try {
             NameVerifier.validateName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.debug("Create stream failed due to invalid stream name {}", stream);
+            log.error("Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(CreateStreamStatus.Status.INVALID_STREAM_NAME);
         }
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
@@ -213,10 +213,6 @@ public class StreamMetadataTasks extends TaskBase {
                         return result;
                     }
                 });
-    }
-
-    private static boolean validateName(final String path) {
-        return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 
     private CompletableFuture<UpdateStreamStatus.Status> updateStreamConfigBody(String scope, String stream,
