@@ -139,6 +139,7 @@ public class EventProcessorTest {
             return;
         }
 
+        @Cleanup
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
