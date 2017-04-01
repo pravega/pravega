@@ -29,6 +29,7 @@ import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
+import com.emc.pravega.stream.impl.TxnSegments;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
@@ -42,6 +43,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
@@ -60,6 +63,7 @@ public class MockController implements Controller {
     private final Map<String, Set<Stream>> createdScopes = new HashMap<>();
     @GuardedBy("$lock")
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
+    private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
     
     @Override
     @Synchronized
@@ -164,21 +168,30 @@ public class MockController implements Controller {
             public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
                 result.complete(true);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
-        CreateSegment command = new WireCommands.CreateSegment(name, WireCommands.CreateSegment.NO_SCALE, 0);
+        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0);
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
 
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
-        List<Segment> segmentsInStream = getSegmentsForStream(new StreamImpl(scope, stream));
+        return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
+    }
+    
+    private StreamSegments getCurrentSegments(Stream stream) {
+        List<Segment> segmentsInStream = getSegmentsForStream(stream);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         double increment = 1.0 / segmentsInStream.size();
         for (int i = 0; i < segmentsInStream.size(); i++) {
-            segments.put((i + 1) * increment, new Segment(scope, stream, i));
+            segments.put((i + 1) * increment, new Segment(stream.getScope(), stream.getStreamName(), i));
         }
-        return CompletableFuture.completedFuture(new StreamSegments(segments));
+        return new StreamSegments(segments);
     }
 
     @Override
@@ -213,8 +226,13 @@ public class MockController implements Controller {
             public void transactionAborted(TransactionAborted transactionAborted) {
                 result.completeExceptionally(new TxnFailedException("Transaction already aborted."));
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
-        sendRequestOverNewConnection(new CommitTransaction(segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 
@@ -250,8 +268,13 @@ public class MockController implements Controller {
             public void transactionAborted(TransactionAborted transactionAborted) {
                 result.complete(null);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
-        sendRequestOverNewConnection(new AbortTransaction(segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new AbortTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 
@@ -261,14 +284,15 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease,
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease,
                                                      final long maxExecutionTime, final long scaleGracePeriod) {
         UUID txId = UUID.randomUUID();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (Segment segment : getSegmentsForStream(stream)) {
+        StreamSegments currentSegments = getCurrentSegments(stream);
+        for (Segment segment : currentSegments.getSegments()) {
             futures.add(createSegmentTx(txId, segment));            
         }
-        return FutureHelpers.allOf(futures).thenApply(v -> txId);
+        return FutureHelpers.allOf(futures).thenApply(v -> new TxnSegments(currentSegments, txId));
     }
 
     private CompletableFuture<Void> createSegmentTx(UUID txId, Segment segment) {
@@ -289,8 +313,13 @@ public class MockController implements Controller {
             public void transactionCreated(TransactionCreated transactionCreated) {
                 result.complete(null);
             }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
         };
-        sendRequestOverNewConnection(new CreateTransaction(segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 

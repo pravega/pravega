@@ -36,12 +36,12 @@ public class WireCommandsTest {
 
     @Test
     public void testSetupAppend() throws IOException {
-        testCommand(new WireCommands.SetupAppend(uuid, testString1));
+        testCommand(new WireCommands.SetupAppend(l, uuid, testString1));
     }
 
     @Test
     public void testAppendSetup() throws IOException {
-        testCommand(new WireCommands.AppendSetup(testString1, uuid, l));
+        testCommand(new WireCommands.AppendSetup(l, testString1, uuid, l));
     }
 
     @Test
@@ -101,97 +101,97 @@ public class WireCommandsTest {
 
     @Test
     public void testCreateSegment() throws IOException {
-        testCommand(new WireCommands.CreateSegment(testString1, b, i));
+        testCommand(new WireCommands.CreateSegment(l, testString1, b, i));
     }
 
     @Test
     public void testSegmentCreated() throws IOException {
-        testCommand(new WireCommands.SegmentCreated(testString1));
+        testCommand(new WireCommands.SegmentCreated(l, testString1));
     }
 
     @Test
     public void testCreateTransaction() throws IOException {
-        testCommand(new WireCommands.CreateTransaction(testString1, uuid));
+        testCommand(new WireCommands.CreateTransaction(l, testString1, uuid));
     }
 
     @Test
     public void testTransactionCreated() throws IOException {
-        testCommand(new WireCommands.TransactionCreated(testString1, uuid));
+        testCommand(new WireCommands.TransactionCreated(l, testString1, uuid));
     }
 
     @Test
     public void testCommitTransaction() throws IOException {
-        testCommand(new WireCommands.CommitTransaction(testString1, uuid));
+        testCommand(new WireCommands.CommitTransaction(l, testString1, uuid));
     }
 
     @Test
     public void testTransactionCommitted() throws IOException {
-        testCommand(new WireCommands.TransactionCommitted(testString1, uuid));
+        testCommand(new WireCommands.TransactionCommitted(l, testString1, uuid));
     }
 
     @Test
     public void testAbortTransaction() throws IOException {
-        testCommand(new WireCommands.AbortTransaction(testString1, uuid));
+        testCommand(new WireCommands.AbortTransaction(l, testString1, uuid));
     }
 
     @Test
     public void testTransactionAborted() throws IOException {
-        testCommand(new WireCommands.TransactionAborted(testString1, uuid));
+        testCommand(new WireCommands.TransactionAborted(l, testString1, uuid));
     }
 
     @Test
     public void testSealSegment() throws IOException {
-        testCommand(new WireCommands.SealSegment(testString1));
+        testCommand(new WireCommands.SealSegment(l, testString1));
     }
 
     @Test
     public void testSegmentSealed() throws IOException {
-        testCommand(new WireCommands.SegmentSealed(testString1));
+        testCommand(new WireCommands.SegmentSealed(l, testString1));
     }
 
     @Test
     public void testDeleteSegment() throws IOException {
-        testCommand(new WireCommands.DeleteSegment(testString1));
+        testCommand(new WireCommands.DeleteSegment(l, testString1));
     }
 
     @Test
     public void testSegmentDeleted() throws IOException {
-        testCommand(new WireCommands.SegmentDeleted(testString1));
+        testCommand(new WireCommands.SegmentDeleted(l, testString1));
     }
 
     @Test
     public void testUpdateSegmentPolicy() throws IOException {
-        testCommand(new WireCommands.UpdateSegmentPolicy(testString1, b, i));
+        testCommand(new WireCommands.UpdateSegmentPolicy(l, testString1, b, i));
     }
 
     @Test
     public void testSegmentPolicyUpdated() throws IOException {
-        testCommand(new WireCommands.SegmentPolicyUpdated(testString1));
+        testCommand(new WireCommands.SegmentPolicyUpdated(l, testString1));
     }
 
     @Test
     public void testWrongHost() throws IOException {
-        testCommand(new WireCommands.WrongHost("Foo", testString1));
+        testCommand(new WireCommands.WrongHost(l, "Foo", testString1));
     }
 
     @Test
     public void testSegmentIsSealed() throws IOException {
-        testCommand(new WireCommands.SegmentIsSealed(testString1));
+        testCommand(new WireCommands.SegmentIsSealed(l, testString1));
     }
 
     @Test
     public void testSegmentAlreadyExists() throws IOException {
-        testCommand(new WireCommands.SegmentAlreadyExists(testString1));
+        testCommand(new WireCommands.SegmentAlreadyExists(l, testString1));
     }
 
     @Test
     public void testNoSuchSegment() throws IOException {
-        testCommand(new WireCommands.NoSuchSegment(testString1));
+        testCommand(new WireCommands.NoSuchSegment(l, testString1));
     }
 
     @Test
     public void testNoSuchTransaction() throws IOException {
-        testCommand(new WireCommands.NoSuchTransaction(testString1));
+        testCommand(new WireCommands.NoSuchTransaction(l, testString1));
     }
 
     @Test

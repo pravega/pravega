@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.util.Retry;
@@ -24,8 +25,10 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +55,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
     private final SegmentHelper segmentHelper;
+    private final Controller controller;
     private final ConnectionFactory connectionFactory;
+    private final ClientFactory clientFactory;
     private final ScheduledExecutorService executor;
 
     private EventProcessorGroup<CommitEvent> commitEventEventProcessors;
@@ -73,8 +78,11 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
+        this.controller = controller;
         this.connectionFactory = connectionFactory;
-        this.system = new EventProcessorSystemImpl("Controller", host, config.getScopeName(), controller, connectionFactory);
+        this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
+        this.system = new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
+                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory));
         this.executor = executor;
     }
 
@@ -115,9 +123,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
         }
     }
 
-    private static CompletableFuture<Void> createStreams(final Controller controller,
-                                                         final ControllerEventProcessorConfig config,
-                                                         final ScheduledExecutorService executor) {
+    private CompletableFuture<Void> createStreams() {
         StreamConfiguration commitStreamConfig =
                 StreamConfiguration.builder()
                         .scope(config.getScopeName())
@@ -132,37 +138,29 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .scalingPolicy(config.getAbortStreamScalingPolicy())
                         .build();
 
-        return createScope(controller, config.getScopeName(), executor)
-                .thenComposeAsync(ignore ->
-                        CompletableFuture.allOf(createStream(controller, commitStreamConfig, executor),
-                                createStream(controller, abortStreamConfig, executor)), executor);
+        return createScope(config.getScopeName())
+                .thenCompose(ignore ->
+                        CompletableFuture.allOf(createStream(commitStreamConfig),
+                                createStream(abortStreamConfig)));
     }
 
-    private static CompletableFuture<Void> createScope(final Controller controller,
-                                                       final String scopeName,
-                                                       final ScheduledExecutorService executor) {
+    private CompletableFuture<Void> createScope(final String scopeName) {
         return FutureHelpers.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor scope " + scopeName, e))
                 .runAsync(() -> controller.createScope(scopeName), executor));
     }
 
-    private static CompletableFuture<Void> createStream(final Controller controller,
-                                                        final StreamConfiguration streamConfig,
-                                                        final ScheduledExecutorService executor) {
+    private CompletableFuture<Void> createStream(final StreamConfiguration streamConfig) {
         return FutureHelpers.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
                 .runAsync(() -> controller.createStream(streamConfig), executor));
     }
 
 
-    public static CompletableFuture<Void> bootstrap(final Controller localController,
-                                                    final ControllerEventProcessorConfig config,
-                                                    final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                                    final ScheduledExecutorService executor) {
-        log.info("Bootstrapping controller event processors");
-        return ControllerEventProcessors.createStreams(localController, config, executor)
-                .thenAcceptAsync(x -> streamTransactionMetadataTasks.initializeStreamWriters(localController, config),
-                        executor);
+    public CompletableFuture<Void> bootstrap(final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+            log.info("Bootstrapping controller event processors");
+        return createStreams().thenAcceptAsync(x ->
+                streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config), executor);
     }
 
     public void handleOrphanedReaders(final Set<String> activeProcesses) {

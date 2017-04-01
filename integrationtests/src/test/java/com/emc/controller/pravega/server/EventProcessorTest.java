@@ -27,6 +27,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.testcommon.TestUtils;
 import com.google.common.base.Preconditions;
@@ -94,11 +95,11 @@ public class EventProcessorTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        int servicePort = TestUtils.randomPort();
+        int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
-        int controllerPort = TestUtils.randomPort();
+        int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(
                 zkTestServer.getConnectString(),
@@ -155,7 +156,9 @@ public class EventProcessorTest {
         producer.writeEvent("key", new TestEvent(-1));
         producer.flush();
 
-        EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope, controller, connectionFactory);
+        EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope,
+                new ClientFactoryImpl(scope, controller, connectionFactory),
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()

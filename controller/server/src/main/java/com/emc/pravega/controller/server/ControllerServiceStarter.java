@@ -188,8 +188,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
-                ControllerEventProcessors.bootstrap(localController, serviceConfig.getEventProcessorConfig().get(),
-                        streamTransactionMetadataTasks, eventProcExecutor)
+                controllerEventProcessors.bootstrap(streamTransactionMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
             }
 

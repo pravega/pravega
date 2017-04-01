@@ -19,6 +19,7 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ControllerFailureException;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.StreamSegments;
+import com.emc.pravega.stream.impl.TxnSegments;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -182,22 +183,25 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName) {
         return controller.getCurrentSegments(scope, streamName)
-                .thenApply((List<SegmentRange> ranges) -> {
-                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                    for (SegmentRange r : ranges) {
-                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
-                    }
-                    return rangeMap;
-                })
-                .thenApply(StreamSegments::new);
+                .thenApply(this::getStreamSegments);
+    }
+
+    private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
+        NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+        for (SegmentRange r : ranges) {
+            rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+        }
+        return new StreamSegments(rangeMap);
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long lease, final long maxExecutionTime,
+    public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease, final long maxExecutionTime,
                                                      final long scaleGracePeriod) {
         return controller
                 .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
-                .thenApply(ModelHelper::encode);
+                .thenApply(pair -> {
+                    return new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey());
+                });
     }
 
     @Override

@@ -31,7 +31,7 @@ public class ControllerFailoverTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream";
 
-    private final int servicePort = TestUtils.randomPort();
+    private final int servicePort = TestUtils.getAvailableListenPort();
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
 
@@ -68,7 +68,7 @@ public class ControllerFailoverTest {
 
     @Test(timeout = 120000)
     public void testSessionExpiryToleranceMinimalServices() {
-        final int controllerPort = TestUtils.randomPort();
+        final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
@@ -78,11 +78,11 @@ public class ControllerFailoverTest {
 
     @Test(timeout = 120000)
     public void testSessionExpiryToleranceAllServices() {
-        final int controllerPort = TestUtils.randomPort();
+        final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, false,
-                false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.randomPort());
+                false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
         testSessionExpiryTolerance(controllerWrapper, controllerPort);
     }
 
@@ -151,11 +151,11 @@ public class ControllerFailoverTest {
 
     @Test
     public void testStop() {
-        final int controllerPort = TestUtils.randomPort();
+        final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, false,
-                false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.randomPort());
+                false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
 
         try {
             controllerWrapper.awaitRunning();

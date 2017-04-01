@@ -34,9 +34,9 @@ import static org.junit.Assert.assertTrue;
 
 public class ControllerServiceTest {
 
-    private final int controllerPort = TestUtils.randomPort();
+    private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
-    private final int servicePort = TestUtils.randomPort();
+    private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;

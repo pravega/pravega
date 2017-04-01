@@ -29,6 +29,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.server.store.StreamSegmentService;
 import com.emc.pravega.testcommon.InlineExecutor;
+import com.emc.pravega.testcommon.TestUtils;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -151,11 +152,11 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
-        processor.createSegment(new CreateSegment(streamSegmentName, CreateSegment.NO_SCALE, 0));
+        processor.createSegment(new CreateSegment(1, streamSegmentName, CreateSegment.NO_SCALE, 0));
         assertTrue(append(streamSegmentName, 1, store));
         processor.getStreamSegmentInfo(new GetStreamSegmentInfo(1, streamSegmentName));
         assertTrue(append(streamSegmentName, 2, store));
-        order.verify(connection).send(new SegmentCreated(streamSegmentName));
+        order.verify(connection).send(new SegmentCreated(1, streamSegmentName));
         order.verify(connection).send(Mockito.any(StreamSegmentInfo.class));
 
         // TestCreateSealDelete may executed before this test case,
@@ -178,17 +179,17 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
         // Execute create/seal/delete Segment command.
-        processor.createSegment(new CreateSegment(streamSegmentName, CreateSegment.NO_SCALE, 0));
+        processor.createSegment(new CreateSegment(1, streamSegmentName, CreateSegment.NO_SCALE, 0));
         assertTrue(append(streamSegmentName, 1, store));
-        processor.sealSegment(new SealSegment(streamSegmentName));
+        processor.sealSegment(new SealSegment(2, streamSegmentName));
         assertFalse(append(streamSegmentName, 2, store));
-        processor.deleteSegment(new DeleteSegment(streamSegmentName));
+        processor.deleteSegment(new DeleteSegment(3, streamSegmentName));
         assertFalse(append(streamSegmentName, 3, store));
 
         // Verify connection response with same order.
-        order.verify(connection).send(new SegmentCreated(streamSegmentName));
-        order.verify(connection).send(new SegmentSealed(streamSegmentName));
-        order.verify(connection).send(new SegmentDeleted(streamSegmentName));
+        order.verify(connection).send(new SegmentCreated(1, streamSegmentName));
+        order.verify(connection).send(new SegmentSealed(2, streamSegmentName));
+        order.verify(connection).send(new SegmentDeleted(3, streamSegmentName));
     }
 
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
@@ -203,7 +204,8 @@ public class PravegaRequestProcessorTest {
                 .builder()
                 .include(ServiceConfig.builder()
                                       .with(ServiceConfig.CONTAINER_COUNT, 1)
-                                      .with(ServiceConfig.THREAD_POOL_SIZE, 3))
+                                      .with(ServiceConfig.THREAD_POOL_SIZE, 3)
+                                      .with(ServiceConfig.LISTENING_PORT, TestUtils.getAvailableListenPort()))
                 .build();
     }
 

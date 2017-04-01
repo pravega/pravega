@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 import lombok.EqualsAndHashCode;
@@ -18,6 +19,7 @@ import java.util.NavigableMap;
  */
 @EqualsAndHashCode
 public class StreamSegments {
+    private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
     private final NavigableMap<Double, Segment> segments;
 
     /**
@@ -37,6 +39,10 @@ public class StreamSegments {
             Preconditions.checkArgument(segments.lastKey() >= 1.0, "Last segment missing.");
             Preconditions.checkArgument(segments.lastKey() < 1.00001, "Segments should only go up to 1.0");
         }
+    }
+    
+    public Segment getSegmentForKey(String key) {
+        return getSegmentForKey(HASHER.hashToRange(key));
     }
 
     public Segment getSegmentForKey(double key) {
