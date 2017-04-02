@@ -7,14 +7,19 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -252,6 +257,16 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
+     * Removes the sealed attribute from the file represented by the given descriptor.
+     *
+     * @param fileDescriptor The FileDescriptor of the file to unseal.
+     * @throws IOException If an exception occurred.
+     */
+    private void makeUnsealed(FileDescriptor fileDescriptor) throws IOException {
+        this.context.fileSystem.removeXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE);
+    }
+
+    /**
      * Determines whether the given FileStatus indicates the file is read-only.
      *
      * @param fs The FileStatus to check.
@@ -287,21 +302,89 @@ abstract class FileSystemOperation<T> {
     /**
      * Initiates or resumes a concatenation operation on the given handle.
      * TODO: incorporate into openRead and openWrite.
+     * TODO: proof-read this and test.
+     *
      * @param targetHandle
      * @throws IOException
      */
-    void resumeConcatenation(HDFSSegmentHandle targetHandle) throws IOException {
-        // 1. currentFile = targetHandle.lastFile.
-        // 2. Ensure currentFile is read-only. Get concatNextAttribute.
-        // 3. Find sourceFile as indicated by concatNextAttribute.
-        // 4. Validate sourceFile is read-only.
-        // 5. Rename sourceFile as appropriate and add to the handle.
-        // 6. currentFile == sourceFile
-        // 7. Go to 3 unless currentFile is sealed.
-        // 8. Unseal last file
+    void resumeConcatenation(HDFSSegmentHandle targetHandle) throws IOException, StorageNotPrimaryException {
+        Preconditions.checkArgument(!targetHandle.isReadOnly(), "targetHandle must not be read-only.");
+
+        // Two-stage process: gather all information and then apply.
+        // Step 1: Generate list of renames. This also pre-validates input so we don't detect a corruption mid-way.
+        // Start with the last file of the handle, and follow the "concat.next" attribute until we no longer detect one
+        // or find a file that has the 'sealed' attribute.
+        val renames = new ArrayList<Map.Entry<Path, Path>>();
+        val processedFiles = new HashSet<String>();
+        FileDescriptor current = targetHandle.getLastFile();
+        while (!isSealed(current)) {
+            if (!processedFiles.add(current.getPath())) {
+                throw new SegmentFilesCorruptedException(targetHandle.getSegmentName(), current,
+                        String.format("Circular dependency found. File '%s' was seen more than once.", current));
+            }
+
+            String concatNextPath = getConcatNext(current);
+            if (concatNextPath == null) {
+                // We are done gathering.
+                break;
+            }
+
+            // Find sourceFile as indicated by concatNextAttribute.
+            Path nextPath = new Path(concatNextPath);
+
+            // Generate the new name of the file, validate it, and record the rename mapping.
+            long offset = current.getLastOffset();
+            String newFileName = getFileName(targetHandle.getSegmentName(), offset, this.context.epoch);
+            Path newPath = new Path(newFileName);
+            if (!processedFiles.add(newFileName)) {
+                throw new SegmentFilesCorruptedException(targetHandle.getSegmentName(), current,
+                        String.format("Circular dependency found. File '%s' was seen more than once.", newFileName));
+            }
+            if (this.context.fileSystem.exists(newPath)) {
+                throw new FileAlreadyExistsException(newPath.toString());
+            }
+
+            renames.add(new AbstractMap.SimpleImmutableEntry<>(nextPath, newPath));
+            current = toDescriptor(this.context.fileSystem.getFileStatus(nextPath));
+        }
+
+        // Step 2: Execute the renames.
+        for (Map.Entry<Path, Path> toRename : renames) {
+            Path source = toRename.getKey();
+            Path destination = toRename.getValue();
+            FileDescriptor lastFile = targetHandle.getLastFile();
+            if (!lastFile.isReadOnly()) {
+                makeReadOnly(lastFile);
+            }
+
+            if (!this.context.fileSystem.rename(source, destination)) {
+                throw new FileAlreadyExistsException(destination.toString());
+            }
+
+            FileDescriptor newFile = toDescriptor(this.context.fileSystem.getFileLinkStatus(destination));
+            if (newFile.getOffset() != lastFile.getLastOffset() || newFile.getEpoch() != this.context.epoch) {
+                throw new SegmentFilesCorruptedException(targetHandle.getSegmentName(), newFile,
+                        String.format("Rename operation failed. Renamed file has unexpected parameters. Offset=%d/%d, Epoch=%d/%d.",
+                                newFile.getOffset(), lastFile.getLastOffset(), newFile.getEpoch(), this.context.epoch));
+            }
+
+            // Rename successful. Cleanup and update the handle.
+            removeConcatNext(lastFile);
+            targetHandle.addLastFile(newFile);
+        }
+
+        // Cleanup: Unseal last file, and create empty new active file.
+        FileDescriptor lastFile = targetHandle.getLastFile();
+        makeReadOnly(lastFile);
+        makeUnsealed(lastFile);
+        removeConcatNext(lastFile);
+
         // 9. Create new empty file (read-write)
-        throw new IOException("TBD");
+        String newActiveFile = getFileName(targetHandle.getSegmentName(), lastFile.getLastOffset(), this.context.epoch);
+        createEmptyFile(newActiveFile);
+        targetHandle.addLastFile(toDescriptor(this.context.fileSystem.getFileStatus(new Path(newActiveFile))));
     }
+
 
     /**
      * Sets an attribute on the given file to indicate which file is next in the concatenation order.
@@ -326,7 +409,18 @@ abstract class FileSystemOperation<T> {
         if (data == null || data.length == 0) {
             return null;
         }
+
         return new String(data);
+    }
+
+    /**
+     * Removes the concatNext attribute from the given file.
+     *
+     * @param fileDescriptor The FileDescriptor of the file to remove the attribute from.
+     * @throws IOException If an exception occurred.
+     */
+    private void removeConcatNext(FileDescriptor fileDescriptor) throws IOException {
+        this.context.fileSystem.removeXAttr(new Path(fileDescriptor.getPath()), CONCAT_ATTRIBUTE);
     }
 
     /**

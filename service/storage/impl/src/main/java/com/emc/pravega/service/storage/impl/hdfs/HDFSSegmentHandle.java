@@ -106,6 +106,28 @@ class HDFSSegmentHandle implements SegmentHandle {
         }
     }
 
+    /**
+     * Adds a new file at the end of this handle.
+     *
+     * @param fileDescriptor The FileDescriptor of the file to add.
+     */
+    void addLastFile(FileDescriptor fileDescriptor) {
+        synchronized (this.files) {
+            FileDescriptor lastFile = getLastFile();
+            Preconditions.checkState(lastFile.isReadOnly(), "Cannot add a new file if the current last file is not read-only.");
+
+            long expectedOffset = lastFile.getLastOffset();
+            Preconditions.checkArgument(fileDescriptor.getOffset() == expectedOffset,
+                    "Invalid offset. Expected %s, actual %s.", expectedOffset, fileDescriptor.getOffset());
+
+            long expectedMinEpoch = lastFile.getEpoch();
+            Preconditions.checkArgument(fileDescriptor.getEpoch() >= expectedMinEpoch,
+                    "Invalid epoch. Expected at least %s, actual %s.", expectedMinEpoch, fileDescriptor.getEpoch());
+
+            this.files.add(fileDescriptor);
+        }
+    }
+
     @Override
     public String toString() {
         String fileNames;
