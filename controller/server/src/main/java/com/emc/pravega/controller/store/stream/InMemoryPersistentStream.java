@@ -227,7 +227,7 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit, final Optional<Integer> version) {
 
         return getActiveTx(txId)
-                .thenCompose(x -> {
+                .thenAccept(x -> {
                     if (version.isPresent() && version.get().intValue() != x.getVersion()) {
                         throw new WriteConflictException(txId.toString());
                     }
@@ -238,7 +238,6 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
                             previous.getScaleGracePeriod(),
                             commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
                     activeTxns.put(txId.toString(), new Data<>(updated.toByteArray(), x.getVersion()));
-                    return null;
                 });
     }
 
