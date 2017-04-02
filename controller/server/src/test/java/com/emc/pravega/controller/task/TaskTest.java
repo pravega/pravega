@@ -33,7 +33,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.Arrays;
@@ -73,12 +72,13 @@ public class TaskTest {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final SegmentHelper segmentHelperMock;
+    private final CuratorFramework cli;
 
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
 
-        CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
@@ -88,9 +88,8 @@ public class TaskTest {
                 executor, HOSTNAME, new ConnectionFactoryImpl(false));
     }
 
-
     @Before
-    public void prepareStreamStore() {
+    public void setUp() {
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
@@ -117,7 +116,10 @@ public class TaskTest {
     }
 
     @After
-    public void stopZKServer() throws IOException {
+    public void tearDown() throws Exception {
+        streamMetadataTasks.close();
+        executor.shutdown();
+        cli.close();
         zkServer.stop();
         zkServer.close();
     }

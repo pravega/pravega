@@ -38,6 +38,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
 
     @Override
     public void cleanupCheckpointStore() throws IOException {
+        cli.close();
         zkServer.close();
     }
 

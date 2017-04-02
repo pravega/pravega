@@ -49,6 +49,11 @@ public abstract class StreamMetadataStoreTest {
     @After
     public abstract void cleanupTaskStore() throws IOException;
 
+    @After
+    public void tearDown() {
+        executor.shutdown();
+    }
+
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
