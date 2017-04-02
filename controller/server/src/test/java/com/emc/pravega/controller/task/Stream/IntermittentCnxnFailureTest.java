@@ -44,7 +44,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
-public class CreateStreamTaskTest {
+public class IntermittentCnxnFailureTest {
 
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
