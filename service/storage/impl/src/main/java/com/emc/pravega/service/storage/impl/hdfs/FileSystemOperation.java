@@ -32,7 +32,7 @@ abstract class FileSystemOperation<T> {
     private static final String EXAMPLE_NAME_FORMAT = String.format(NAME_FORMAT, "<segment-name>", "<offset>", "<epoch>");
     private static final String NUMBER_GLOB_REGEX = "[0-9]*";
     private static final String SEALED_ATTRIBUTE = "user.sealed";
-    static final String CONCAT_ATTRIBUTE = "user.concat";
+    static final String CONCAT_ATTRIBUTE = "user.concat.next";
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
 
     @Getter
@@ -57,56 +57,13 @@ abstract class FileSystemOperation<T> {
 
     //endregion
 
-    /**
-     * TODO: write description. This should be the common protocol for fence-out detection used by all modify operations.
-     *
-     * @param segmentName
-     * @param expectedFileCount
-     * @param lastFile
-     * @throws IOException
-     * @throws StorageNotPrimaryException
-     */
-    protected List<FileDescriptor> checkForFenceOut(String segmentName, int expectedFileCount, FileDescriptor lastFile) throws IOException, StorageNotPrimaryException {
-        val systemFiles = findAll(segmentName, true);
-        if (expectedFileCount >= 0 && systemFiles.size() != expectedFileCount) {
-            // The files were changed externally (files removed or added). We cannot continue.
-            throw new StorageNotPrimaryException(segmentName,
-                    String.format("File count in FileSystem (%d) is different than the expected value (%d).",
-                            systemFiles.size(), expectedFileCount));
-        }
-
-        val lastSystemFile = systemFiles.get(systemFiles.size() - 1);
-        if (lastSystemFile.getEpoch() > lastFile.getEpoch()) {
-            // The last file's epoch in the file system is higher than ours. We have been fenced out.
-            throw new StorageNotPrimaryException(segmentName,
-                    String.format("Last file in FileSystem (%s) has a higher epoch than that of ours (%s).",
-                            lastSystemFile, lastFile));
-        }
-
-        return systemFiles;
-    }
-
-    protected void createEmptyFile(String fullPath) throws IOException {
-        this.context.fileSystem
-                .create(new Path(fullPath),
-                        new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
-                        false,
-                        0,
-                        this.context.config.getReplication(),
-                        this.context.config.getBlockSize(),
-                        null)
-                .close();
-    }
-
-    protected void deleteFile(FileDescriptor file) throws IOException {
-        this.context.fileSystem.delete(new Path(file.getPath()), true);
-    }
+    //region File Organization and Fencing
 
     /**
      * Gets an array (not necessarily ordered) of FileStatus objects currently available for the given Segment.
      * These must be in the format specified by NAME_FORMAT (see EXAMPLE_NAME_FORMAT).
      */
-    protected FileStatus[] findAllRaw(String segmentName) throws IOException {
+    FileStatus[] findAllRaw(String segmentName) throws IOException {
         assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
         String pattern = String.format(NAME_FORMAT, getPathPrefix(segmentName), NUMBER_GLOB_REGEX, NUMBER_GLOB_REGEX);
         return this.context.fileSystem.globStatus(new Path(pattern));
@@ -121,7 +78,7 @@ abstract class FileSystemOperation<T> {
      * @return A List of FileDescriptor
      * @throws IOException If an exception occurred.
      */
-    protected List<FileDescriptor> findAll(String segmentName, boolean enforceExistence) throws IOException {
+    List<FileDescriptor> findAll(String segmentName, boolean enforceExistence) throws IOException {
         FileStatus[] rawFiles = findAllRaw(segmentName);
         if (rawFiles == null || rawFiles.length == 0) {
             if (enforceExistence) {
@@ -132,9 +89,9 @@ abstract class FileSystemOperation<T> {
         }
 
         val result = Arrays.stream(rawFiles)
-                           .map(this::toDescriptor)
-                           .sorted()
-                           .collect(Collectors.toList());
+                .map(this::toDescriptor)
+                .sorted()
+                .collect(Collectors.toList());
 
         val firstFile = result.get(0);
         if (firstFile.getOffset() != 0 && isConcatSource(firstFile)) {
@@ -193,32 +150,126 @@ abstract class FileSystemOperation<T> {
         return new FileDescriptor(fs.getPath().toString(), offset, fs.getLen(), epoch, isReadOnly(fs));
     }
 
-    protected boolean isSealed(FileDescriptor fileDescriptor) throws IOException {
-        return isBooleanAttributeSet(fileDescriptor, SEALED_ATTRIBUTE);
+    /**
+     * Verifies that the current segment has not been fenced out by another instance.
+     *
+     * @param segmentName       The name of the segment.
+     * @param expectedFileCount The expected number of files in the file system. -1 means ignore.
+     * @param lastFile          The last known file for this segment. This one's epoch will be compared against the files
+     *                          currently in the file system.
+     * @throws IOException                If a general exception occurred.
+     * @throws StorageNotPrimaryException If this segment has been fenced out, using the arguments supplied above.
+     */
+    List<FileDescriptor> checkForFenceOut(String segmentName, int expectedFileCount, FileDescriptor lastFile) throws IOException, StorageNotPrimaryException {
+        val systemFiles = findAll(segmentName, true);
+        if (expectedFileCount >= 0 && systemFiles.size() != expectedFileCount) {
+            // The files were changed externally (files removed or added). We cannot continue.
+            throw new StorageNotPrimaryException(segmentName,
+                    String.format("File count in FileSystem (%d) is different than the expected value (%d).",
+                            systemFiles.size(), expectedFileCount));
+        }
+
+        val lastSystemFile = systemFiles.get(systemFiles.size() - 1);
+        if (lastSystemFile.getEpoch() > lastFile.getEpoch()) {
+            // The last file's epoch in the file system is higher than ours. We have been fenced out.
+            throw new StorageNotPrimaryException(segmentName,
+                    String.format("Last file in FileSystem (%s) has a higher epoch than that of ours (%s).",
+                            lastSystemFile, lastFile));
+        }
+
+        return systemFiles;
     }
 
-    protected boolean isConcatSource(FileDescriptor fileDescriptor) throws IOException {
-        return isBooleanAttributeSet(fileDescriptor, CONCAT_ATTRIBUTE);
+    /**
+     * Gets the full HDFS Path to a file for the given Segment, startOffset and epoch.
+     */
+    String getFileName(String segmentName, long startOffset, long epoch) {
+        assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
+        assert startOffset >= 0 : "startOffset must be non-negative " + startOffset;
+        assert epoch >= 0 : "epoch must be non-negative " + epoch;
+        return String.format(NAME_FORMAT, getPathPrefix(segmentName), startOffset, epoch);
     }
 
-    private boolean isBooleanAttributeSet(FileDescriptor fileDescriptor, String attributeName) throws IOException {
-        byte[] data = this.context.fileSystem.getXAttr(new Path(fileDescriptor.getPath()), attributeName);
+    /**
+     * Gets an HDFS-friendly path prefix for the given Segment name by pre-pending the HDFS root from the config.
+     */
+    private String getPathPrefix(String segmentName) {
+        return this.context.config.getHdfsRoot() + Path.SEPARATOR + segmentName;
+    }
+
+    //endregion
+
+    //region File Attributes
+
+    /**
+     * Creates a new file with given path having a read-write permission.
+     *
+     * @param fullPath The path of the file to create.
+     * @throws IOException If an exception occurred.
+     */
+    void createEmptyFile(String fullPath) throws IOException {
+        this.context.fileSystem
+                .create(new Path(fullPath),
+                        new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
+                        false,
+                        0,
+                        this.context.config.getReplication(),
+                        this.context.config.getBlockSize(),
+                        null)
+                .close();
+    }
+
+    /**
+     * Deletes a file from the file system.
+     *
+     * @param file The path of the file to delete.
+     * @throws IOException If an exception occurred.
+     */
+    void deleteFile(FileDescriptor file) throws IOException {
+        this.context.fileSystem.delete(new Path(file.getPath()), true);
+    }
+
+    /**
+     * Determines whether the file represented by the given FileDescriptor has the Sealed attribute set.
+     *
+     * @param fileDescriptor The FileDescriptor of the file toe make sealed.
+     * @return True or False.
+     * @throws IOException If an exception occurred.
+     */
+    boolean isSealed(FileDescriptor fileDescriptor) throws IOException {
+        byte[] data = this.context.fileSystem.getXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE);
         return data != null && data.length > 0 && data[0] != 0;
     }
 
-    protected void makeSealed(FileDescriptor fileDescriptor) throws IOException {
-        setBooleanAttribute(fileDescriptor, SEALED_ATTRIBUTE, true);
+    /**
+     * Sets the Sealed attribute on the file represented by the given descriptor.
+     *
+     * @param fileDescriptor The FileDescriptor of the file to make sealed.
+     * @throws IOException If an exception occurred.
+     */
+    void makeSealed(FileDescriptor fileDescriptor) throws IOException {
+        this.context.fileSystem.setXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE, new byte[]{(byte) (255)});
     }
 
-    private void setBooleanAttribute(FileDescriptor fileDescriptor, String attributeName, boolean value) throws IOException {
-        this.context.fileSystem.setXAttr(new Path(fileDescriptor.getPath()), attributeName, new byte[]{(byte) (value ? 255 : 0)});
-    }
-
-    protected boolean isReadOnly(FileStatus fs) {
+    /**
+     * Determines whether the given FileStatus indicates the file is read-only.
+     *
+     * @param fs The FileStatus to check.
+     * @return True or false.
+     */
+    boolean isReadOnly(FileStatus fs) {
         return fs.getPermission().getUserAction() == FsAction.READ;
     }
 
-    protected boolean makeReadOnly(FileDescriptor fileDescriptor) throws IOException {
+    /**
+     * Makes the file represented by the given FileDescriptor read-only.
+     *
+     * @param fileDescriptor The FileDescriptor of the file to set. If this method returns true, this FileDescriptor will
+     *                       also be updated to indicate the file is read-only.
+     * @return True if the file was not read-only before (and it is now), or false if the file was already read-only.
+     * @throws IOException If an exception occurred.
+     */
+    boolean makeReadOnly(FileDescriptor fileDescriptor) throws IOException {
         Path p = new Path(fileDescriptor.getPath());
         if (isReadOnly(this.context.fileSystem.getFileStatus(p))) {
             return false;
@@ -229,22 +280,70 @@ abstract class FileSystemOperation<T> {
         return true;
     }
 
+    //endregion
+
+    // Concatenation
+
     /**
-     * Gets the full HDFS Path to a file for the given Segment, startOffset and epoch.
+     * Initiates or resumes a concatenation operation on the given handle.
+     * TODO: incorporate into openRead and openWrite.
+     * @param targetHandle
+     * @throws IOException
      */
-    protected String getFileName(String segmentName, long startOffset, long epoch) {
-        assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
-        assert startOffset >= 0 : "startOffset must be non-negative " + startOffset;
-        assert epoch >= 0 : "epoch must be non-negative " + epoch;
-        return String.format(NAME_FORMAT, getPathPrefix(segmentName), startOffset, epoch);
+    void resumeConcatenation(HDFSSegmentHandle targetHandle) throws IOException {
+        // 1. currentFile = targetHandle.lastFile.
+        // 2. Ensure currentFile is read-only. Get concatNextAttribute.
+        // 3. Find sourceFile as indicated by concatNextAttribute.
+        // 4. Validate sourceFile is read-only.
+        // 5. Rename sourceFile as appropriate and add to the handle.
+        // 6. currentFile == sourceFile
+        // 7. Go to 3 unless currentFile is sealed.
+        // 8. Unseal last file
+        // 9. Create new empty file (read-write)
+        throw new IOException("TBD");
     }
 
     /**
-     * Gets an HDFS-friendly path prefix for the given Segment name by pre-pending the HDFS root from the config.
+     * Sets an attribute on the given file to indicate which file is next in the concatenation order.
+     *
+     * @param file     The FileDescriptor of the file to set the attribute on.
+     * @param nextFile The FileDescriptor of the file to point the attribute to.
+     * @throws IOException If an exception occurred.
      */
-    protected String getPathPrefix(String segmentName) {
-        return this.context.config.getHdfsRoot() + Path.SEPARATOR + segmentName;
+    void setConcatNext(FileDescriptor file, FileDescriptor nextFile) throws IOException {
+        this.context.fileSystem.setXAttr(new Path(file.getPath()), CONCAT_ATTRIBUTE, nextFile.getPath().getBytes());
     }
+
+    /**
+     * Gets the value of the concatNext attribute on the given file.
+     *
+     * @param fileDescriptor The FileDescriptor of the file to get the attribute for.
+     * @return The value of the attribute, or null if no such attribute is set.
+     * @throws IOException If an exception occurred.
+     */
+    private String getConcatNext(FileDescriptor fileDescriptor) throws IOException {
+        byte[] data = this.context.fileSystem.getXAttr(new Path(fileDescriptor.getPath()), CONCAT_ATTRIBUTE);
+        if (data == null || data.length == 0) {
+            return null;
+        }
+        return new String(data);
+    }
+
+    /**
+     * Gets a value indicating whether the concatNext attribute is present - this indicates that this file is part of a
+     * segment that was chosen as a source of concatenation.
+     *
+     * @param fileDescriptor The FileDescriptor of the file to check.
+     * @return True if the attribute is set, false otherwise.
+     * @throws IOException If an exception occurred.
+     */
+    private boolean isConcatSource(FileDescriptor fileDescriptor) throws IOException {
+        return getConcatNext(fileDescriptor) != null;
+    }
+
+    //endregion
+
+    //region OperationContext
 
     /**
      * Context for each operation.
@@ -255,4 +354,6 @@ abstract class FileSystemOperation<T> {
         final FileSystem fileSystem;
         final HDFSStorageConfig config;
     }
+
+    //endregion
 }

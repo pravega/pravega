@@ -5,6 +5,7 @@
 package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
@@ -51,6 +52,7 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
             throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
         }
 
+        Timer timer = new Timer();
         try (FSDataOutputStream stream = this.context.fileSystem.append(new Path(lastFile.getPath()))) {
             if (stream.getPos() != lastFile.getLength()) {
                 // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
@@ -76,6 +78,8 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
             throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
         }
 
+        Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+        Metrics.WRITE_BYTES.add(this.length);
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);
     }
 }

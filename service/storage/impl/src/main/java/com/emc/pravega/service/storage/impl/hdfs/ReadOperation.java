@@ -5,6 +5,7 @@
 package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.util.Collections;
 import java.io.EOFException;
 import java.io.IOException;
@@ -51,7 +52,8 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
     @Override
     public Integer call() throws IOException {
         HDFSSegmentHandle handle = getTarget();
-        long traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
+        long traceId = LoggerHelpers.traceEnter(log, "read", handle, this.offset, this.length);
+        Timer timer = new Timer();
 
         // Make sure arguments are valid. Refresh the handle if needed (and allowed).
         validateOffsetAndRefresh(handle);
@@ -80,7 +82,9 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
             currentFileIndex++;
         }
 
-        LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, totalBytesRead);
+        Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+        Metrics.READ_BYTES.add(totalBytesRead);
+        LoggerHelpers.traceLeave(log, "read", traceId, handle, this.offset, totalBytesRead);
         return totalBytesRead;
     }
 

@@ -155,7 +155,7 @@ class HDFSStorage implements Storage {
     //region Helpers
 
     /**
-     * Executes the given FileSystem asynchronously and returns a Future that will be completed when it finishes.
+     * Executes the given FileSystemOperation asynchronously and returns a Future that will be completed when it finishes.
      */
     private <T extends FileSystemOperation & RunnableWithException> CompletableFuture<Void> runAsync(T operation) {
         ensureInitializedAndNotClosed();
@@ -196,11 +196,17 @@ class HDFSStorage implements Storage {
         result.completeExceptionally(HDFSExceptionHelpers.translateFromException(segmentName, e));
     }
 
+    /**
+     * Casts the given handle as a HDFSSegmentHandle that has isReadOnly == false.
+     */
     private HDFSSegmentHandle asWritableHandle(SegmentHandle handle) {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
         return asReadableHandle(handle);
     }
 
+    /**
+     * Casts the given handle as a HDFSSegmentHandle irrespective of its isReadOnly value.
+     */
     private HDFSSegmentHandle asReadableHandle(SegmentHandle handle) {
         Preconditions.checkArgument(handle instanceof HDFSSegmentHandle, "handle must be of type HDFSSegmentHandle.");
         return (HDFSSegmentHandle) handle;
@@ -209,19 +215,6 @@ class HDFSStorage implements Storage {
     private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.context != null, "HDFSStorage is not initialized.");
-    }
-
-    //endregion
-
-    //TODO: reintegrate metrics.
-    //region Metrics
-
-    private static class Metrics {
-        private static final StatsLogger HDFS_LOGGER = MetricsProvider.createStatsLogger("hdfs");
-        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats(MetricsNames.HDFS_READ_LATENCY);
-        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats(MetricsNames.HDFS_WRITE_LATENCY);
-        static final Counter READ_BYTES = HDFS_LOGGER.createCounter(MetricsNames.HDFS_READ_BYTES);
-        static final Counter WRITE_BYTES = HDFS_LOGGER.createCounter(MetricsNames.HDFS_WRITE_BYTES);
     }
 
     //endregion
