@@ -62,9 +62,10 @@ public class StreamMetadataTasksTest {
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private TimeoutService timeoutService;
+    private ConnectionFactoryImpl connectionFactory;
 
     @Before
-    public void initialize() throws Exception {
+    public void setup() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
@@ -80,7 +81,7 @@ public class StreamMetadataTasksTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStorePartialMock, hostStore,
                 taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory);
@@ -113,6 +114,8 @@ public class StreamMetadataTasksTest {
         streamTransactionMetadataTasks.close();
         zkClient.close();
         zkServer.close();
+        connectionFactory.close();
+        executor.shutdown();
     }
 
     @Test

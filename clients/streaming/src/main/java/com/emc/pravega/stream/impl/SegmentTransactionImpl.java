@@ -49,4 +49,13 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
         }
     }
 
+    @Override
+    public void close() throws TxnFailedException {
+        try {
+            out.close();
+        } catch (SegmentSealedException e) {
+            throw new TxnFailedException(e);
+        }
+    }
+
 }

@@ -99,7 +99,7 @@ public class AppendTest {
         EmbeddedChannel channel = createChannel(store);
 
         UUID uuid = UUID.randomUUID();
-        NoSuchSegment setup = (NoSuchSegment) sendRequest(channel, new SetupAppend(uuid, segment));
+        NoSuchSegment setup = (NoSuchSegment) sendRequest(channel, new SetupAppend(1, uuid, segment));
 
         assertEquals(segment, setup.getSegment());
     }
@@ -112,11 +112,11 @@ public class AppendTest {
 
         EmbeddedChannel channel = createChannel(store);
 
-        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment, CreateSegment.NO_SCALE, 0));
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0));
         assertEquals(segment, created.getSegment());
 
         UUID uuid = UUID.randomUUID();
-        AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(uuid, segment));
+        AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment));
 
         assertEquals(segment, setup.getSegment());
         assertEquals(uuid, setup.getConnectionId());

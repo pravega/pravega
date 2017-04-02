@@ -16,14 +16,18 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class InMemoryTaskMetadataStoreTests extends TaskMetadataStoreTests {
 
+    private ScheduledExecutorService executor;
+
     @Override
     public void setupTaskStore() throws Exception {
-        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+        executor = Executors.newScheduledThreadPool(10);
         taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor);
     }
 
     @Override
     public void cleanupTaskStore() throws IOException {
-
+        if (executor != null) {
+            executor.shutdown();
+        }
     }
 }

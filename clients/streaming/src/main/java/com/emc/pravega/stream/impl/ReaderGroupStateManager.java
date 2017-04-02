@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import lombok.Getter;
 import lombok.val;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
@@ -61,6 +62,7 @@ public class ReaderGroupStateManager {
     static final Duration UPDATE_TIME = Duration.ofMillis(30000);
     private final Object decisionLock = new Object();
     private final HashHelper hashHelper;
+    @Getter
     private final String readerId;
     private final StateSynchronizer<ReaderGroupState> sync;
     private final Controller controller;

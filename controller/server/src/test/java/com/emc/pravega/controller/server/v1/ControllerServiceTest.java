@@ -128,6 +128,7 @@ public class ControllerServiceTest {
         connectionFactory.close();
         zkClient.close();
         zkServer.close();
+        executor.shutdown();
     }
 
     @Test
