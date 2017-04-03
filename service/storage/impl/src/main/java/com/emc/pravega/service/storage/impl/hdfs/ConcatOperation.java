@@ -145,7 +145,7 @@ public class ConcatOperation extends FileSystemOperation<HDFSSegmentHandle> impl
     private List<RenamePair> collect(HDFSSegmentHandle targetHandle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "collect", targetHandle);
         val result = new ArrayList<RenamePair>();
-        val seenFiles = targetHandle.getFiles().stream().map(FileDescriptor::getPath).collect(Collectors.toSet());
+        val seenFiles = targetHandle.getFiles().stream().map(f -> f.getPath().toString()).collect(Collectors.toSet());
         FileDescriptor current = targetHandle.getLastFile();
         long offset = current.getLastOffset();
         while (!isSealed(current)) {
@@ -165,11 +165,10 @@ public class ConcatOperation extends FileSystemOperation<HDFSSegmentHandle> impl
             if (result.size() == 0 && current.getLength() == 0) {
                 // This is the first file to process; current points to the last file in the handle, which is empty.
                 // In this case, we can simply replace that file.
-                result.add(new RenamePair(nextPath, new Path(current.getPath()), true));
+                result.add(new RenamePair(nextPath, current.getPath(), true));
             } else {
                 // Generate the new name of the file, validate it, and record the rename mapping.
-                String newFileName = getFileName(targetHandle.getSegmentName(), offset, this.context.epoch);
-                Path newPath = new Path(newFileName);
+                Path newPath = getFilePath(targetHandle.getSegmentName(), offset, this.context.epoch);
                 if (this.context.fileSystem.exists(newPath)) {
                     throw new FileAlreadyExistsException(newPath.toString());
                 }
@@ -241,9 +240,9 @@ public class ConcatOperation extends FileSystemOperation<HDFSSegmentHandle> impl
         removeConcatNext(lastFile);
 
         // Create new empty file (read-write).
-        String newActiveFile = getFileName(targetHandle.getSegmentName(), lastFile.getLastOffset(), this.context.epoch);
+        Path newActiveFile = getFilePath(targetHandle.getSegmentName(), lastFile.getLastOffset(), this.context.epoch);
         createEmptyFile(newActiveFile);
-        targetHandle.addLastFile(toDescriptor(this.context.fileSystem.getFileStatus(new Path(newActiveFile))));
+        targetHandle.addLastFile(toDescriptor(this.context.fileSystem.getFileStatus(newActiveFile)));
         LoggerHelpers.traceLeave(log, "cleanup", traceId, targetHandle);
     }
 

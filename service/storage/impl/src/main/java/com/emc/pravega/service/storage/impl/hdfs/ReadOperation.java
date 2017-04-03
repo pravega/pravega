@@ -13,7 +13,6 @@ import java.util.concurrent.Callable;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.Path;
 
 /**
  * FileSystemOperation that Reads from a Segment.
@@ -69,7 +68,7 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
             int fileReadLength = (int) Math.min(this.length - totalBytesRead, currentFile.getLength() - fileOffset);
             assert fileOffset >= 0 && fileReadLength >= 0 : "negative file read offset or length";
 
-            try (FSDataInputStream stream = this.context.fileSystem.open(new Path(currentFile.getPath()))) {
+            try (FSDataInputStream stream = this.context.fileSystem.open(currentFile.getPath())) {
                 stream.readFully(fileOffset, this.buffer, this.bufferOffset + totalBytesRead, fileReadLength);
                 totalBytesRead += fileReadLength;
             } catch (EOFException ex) {

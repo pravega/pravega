@@ -43,7 +43,7 @@ class CreateOperation extends FileSystemOperation<String> implements Callable<Se
         }
 
         // Create the first file in the segment.
-        String fullPath = getFileName(segmentName, 0, this.context.epoch);
+        Path fullPath = getFilePath(segmentName, 0, this.context.epoch);
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, fullPath);
         createEmptyFile(fullPath);
 
@@ -53,7 +53,7 @@ class CreateOperation extends FileSystemOperation<String> implements Callable<Se
             allFiles = checkForFenceOut(segmentName, -1, new FileDescriptor(fullPath, 0, 0, this.context.epoch, false));
         } catch (StorageNotPrimaryException ex) {
             // We lost :(
-            this.context.fileSystem.delete(new Path(fullPath), true);
+            this.context.fileSystem.delete(fullPath, true);
             throw ex;
         }
 
@@ -68,7 +68,7 @@ class CreateOperation extends FileSystemOperation<String> implements Callable<Se
                         deleteFile(existingFile);
                     } else {
                         // Back off the change in case we found a non-empty file with lower epoch.
-                        this.context.fileSystem.delete(new Path(fullPath), true);
+                        this.context.fileSystem.delete(fullPath, true);
                         throw HDFSExceptionHelpers.segmentExistsException(segmentName);
                     }
                 }

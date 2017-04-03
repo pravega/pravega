@@ -8,6 +8,7 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.val;
+import org.apache.hadoop.fs.Path;
 import org.junit.Test;
 
 /**
@@ -76,7 +77,7 @@ public class HDFSSegmentHandleTests {
     private List<FileDescriptor> createFiles(int start, int count) {
         val result = new ArrayList<FileDescriptor>();
         for (int i = start; i < start + count; i++) {
-            result.add(new FileDescriptor("foo" + i, i, 1, i, true));
+            result.add(new FileDescriptor(new Path("foo" + i), i, 1, i, true));
         }
 
         return result;

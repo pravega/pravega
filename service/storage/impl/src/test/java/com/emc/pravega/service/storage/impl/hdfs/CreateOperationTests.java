@@ -76,7 +76,7 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
         val context2 = newContext(2, fs);
 
         // Part 1: CreateOperation has higher epoch than competitor -> it should succeed.
-        Path fencedOutFile = new Path(context1.getFileName(SEGMENT_NAME, 0));
+        Path fencedOutFile = context1.getFileName(SEGMENT_NAME, 0);
         fs.setOnCreate(path -> fs.new CreateNewFile(fencedOutFile));
 
         // This should wipe out the file created by the first call.
@@ -86,7 +86,7 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
 
         // Part 2: CreateOperation has lower epoch than competitor -> it should back off and fail
         fs.clear();
-        Path survivingFile = new Path(context2.getFileName(SEGMENT_NAME, 0));
+        Path survivingFile = context2.getFileName(SEGMENT_NAME, 0);
         fs.setOnCreate(path -> fs.new CreateNewFile(survivingFile));
 
         // This should wipe out the file created by the first call.
@@ -95,12 +95,12 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
                 new CreateOperation(SEGMENT_NAME, context1)::call,
                 ex -> ex instanceof StorageNotPrimaryException);
         checkFileExists(context2);
-        Assert.assertFalse("Fenced-out file was not deleted (higher-epoch test).", fs.exists(new Path(context1.getFileName(SEGMENT_NAME, 0))));
+        Assert.assertFalse("Fenced-out file was not deleted (higher-epoch test).", fs.exists(context1.getFileName(SEGMENT_NAME, 0)));
     }
 
     private void checkFileExists(TestContext context) throws Exception {
-        String expectedFileName = context.getFileName(SEGMENT_NAME, 0);
-        val fsStatus = context.fileSystem.getFileStatus(new Path(expectedFileName));
+        Path expectedFileName = context.getFileName(SEGMENT_NAME, 0);
+        val fsStatus = context.fileSystem.getFileStatus(expectedFileName);
         Assert.assertEquals("Created file is not empty.", 0, fsStatus.getLen());
         Assert.assertFalse("Created file is read-only.", context.isReadOnly(fsStatus));
     }

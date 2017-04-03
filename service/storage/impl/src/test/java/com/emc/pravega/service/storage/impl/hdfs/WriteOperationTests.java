@@ -37,7 +37,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
         new CreateOperation(SEGMENT_NAME, newContext(0, fs)).call();
         int offset = 0;
         val writtenData = new ByteArrayOutputStream();
-        ArrayList<String> files = new ArrayList<>();
+        ArrayList<Path> files = new ArrayList<>();
         for (int fileId = 0; fileId < FILE_COUNT; fileId++) {
             val context = newContext(fileId, fs);
             val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
@@ -65,15 +65,14 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
         // Check written data via file system reads. ReadOperationTests verifies the same using ReadOperations.
         byte[] expectedData = writtenData.toByteArray();
         int expectedDataOffset = 0;
-        for (String file : files) {
-            Path p = new Path(file);
+        for (Path p : files) {
             int len = (int) fs.getFileStatus(p).getLen();
-            Assert.assertEquals("Unexpected length for file " + file, WRITE_SIZE * WRITES_PER_FILE, len);
+            Assert.assertEquals("Unexpected length for file " + p, WRITE_SIZE * WRITES_PER_FILE, len);
             @Cleanup
-            val inputStream = fs.open(new Path(file), WRITE_SIZE);
+            val inputStream = fs.open(p, WRITE_SIZE);
             byte[] fileReadBuffer = new byte[len];
             inputStream.readFully(0, fileReadBuffer);
-            AssertExtensions.assertArrayEquals("Unexpected contents for file " + file, expectedData, expectedDataOffset, fileReadBuffer, 0, len);
+            AssertExtensions.assertArrayEquals("Unexpected contents for file " + p, expectedData, expectedDataOffset, fileReadBuffer, 0, len);
             expectedDataOffset += len;
         }
     }
@@ -99,7 +98,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
                 ex -> ex instanceof StorageNotPrimaryException);
 
         Assert.assertEquals("Unexpected number of files in the filesystem.", 1, fs.getFileCount());
-        Assert.assertEquals("Unexpected size of the file in the filesystem.", 0, fs.getFileStatus(new Path(handle2.getLastFile().getPath())).getLen());
+        Assert.assertEquals("Unexpected size of the file in the filesystem.", 0, fs.getFileStatus(handle2.getLastFile().getPath()).getLen());
     }
 
     /**
@@ -124,7 +123,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
                 ex -> ex instanceof StorageNotPrimaryException);
 
         Assert.assertEquals("Unexpected number of files in the filesystem.", 2, fs.getFileCount());
-        Assert.assertEquals("Unexpected size of the first file in the filesystem.", 1, fs.getFileStatus(new Path(handle1.getLastFile().getPath())).getLen());
-        Assert.assertEquals("Unexpected size of the last file in the filesystem.", 0, fs.getFileStatus(new Path(handle2.getLastFile().getPath())).getLen());
+        Assert.assertEquals("Unexpected size of the first file in the filesystem.", 1, fs.getFileStatus(handle1.getLastFile().getPath()).getLen());
+        Assert.assertEquals("Unexpected size of the last file in the filesystem.", 0, fs.getFileStatus(handle2.getLastFile().getPath()).getLen());
     }
 }

@@ -38,7 +38,7 @@ public class ExistsOperationTests extends FileSystemOperationTestBase {
                 new ExistsOperation(SEGMENT_NAME, context).call());
 
         // Malformed name (missing parts).
-        final String correctFileName = context.getFileName(SEGMENT_NAME, offset);
+        final String correctFileName = context.getFileName(SEGMENT_NAME, offset).toString();
         fs.clear();
         fs.createNewFile(new Path(correctFileName.substring(0, correctFileName.indexOf(FileSystemOperation.PART_SEPARATOR))));
         Assert.assertFalse("Unexpected result for missing segment (malformed name 1).", new ExistsOperation(SEGMENT_NAME, context).call());

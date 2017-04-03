@@ -5,6 +5,7 @@
 package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.testcommon.AssertExtensions;
+import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -17,7 +18,7 @@ public class FileDescriptorTests {
      */
     @Test
     public void testMutators() {
-        FileDescriptor fd = new FileDescriptor("foo", 1, 2, 3, false);
+        FileDescriptor fd = new FileDescriptor(new Path("foo"), 1, 2, 3, false);
 
         // Length & LastOffset
         Assert.assertEquals("Unexpected initial value for getLastOffset.", 3, fd.getLastOffset());

@@ -89,6 +89,7 @@ class HDFSStorage implements Storage {
         Preconditions.checkArgument(epoch > 0, "epoch must be a positive number.");
         Configuration conf = new Configuration();
         conf.set("fs.default.name", this.config.getHdfsHostURL());
+        conf.set("fs.default.fs", this.config.getHdfsHostURL());
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
         this.context = new FileSystemOperation.OperationContext(epoch, openFileSystem(conf), this.config);
         log.info("Initialized (HDFSHost = '{}', Epoch = {}).", this.config.getHdfsHostURL(), epoch);

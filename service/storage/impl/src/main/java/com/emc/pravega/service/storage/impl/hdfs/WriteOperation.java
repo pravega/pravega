@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.protocol.AclException;
 import org.apache.hadoop.io.IOUtils;
 
@@ -53,7 +52,7 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
         }
 
         Timer timer = new Timer();
-        try (FSDataOutputStream stream = this.context.fileSystem.append(new Path(lastFile.getPath()))) {
+        try (FSDataOutputStream stream = this.context.fileSystem.append(lastFile.getPath())) {
             if (stream.getPos() != lastFile.getLength()) {
                 // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
                 // Update our knowledge of the filesystem and throw a BadOffsetException - this should cause upstream code

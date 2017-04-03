@@ -149,7 +149,7 @@ abstract class FileSystemOperation<T> {
             throw new FileNameFormatException(fileName, "Could not extract offset or epoch.", nfe);
         }
 
-        return new FileDescriptor(fs.getPath().toString(), offset, fs.getLen(), epoch, isReadOnly(fs));
+        return new FileDescriptor(fs.getPath(), offset, fs.getLen(), epoch, isReadOnly(fs));
     }
 
     /**
@@ -188,9 +188,9 @@ abstract class FileSystemOperation<T> {
      * @param fullPath The path of the file to create.
      * @throws IOException If an exception occurred.
      */
-    void createEmptyFile(String fullPath) throws IOException {
+    void createEmptyFile(Path fullPath) throws IOException {
         this.context.fileSystem
-                .create(new Path(fullPath),
+                .create(fullPath,
                         new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                         false,
                         0,
@@ -204,11 +204,11 @@ abstract class FileSystemOperation<T> {
     /**
      * Gets the full HDFS Path to a file for the given Segment, startOffset and epoch.
      */
-    String getFileName(String segmentName, long startOffset, long epoch) {
+    Path getFilePath(String segmentName, long startOffset, long epoch) {
         assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
         assert startOffset >= 0 : "startOffset must be non-negative " + startOffset;
         assert epoch >= 0 : "epoch must be non-negative " + epoch;
-        return String.format(NAME_FORMAT, getPathPrefix(segmentName), startOffset, epoch);
+        return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), startOffset, epoch));
     }
 
     /**
@@ -229,7 +229,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     void deleteFile(FileDescriptor file) throws IOException {
-        this.context.fileSystem.delete(new Path(file.getPath()), true);
+        this.context.fileSystem.delete(file.getPath(), true);
         log.debug("Deleted '{}'.", file.getPath());
     }
 
@@ -241,7 +241,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     boolean isSealed(FileDescriptor file) throws IOException {
-        byte[] data = this.context.fileSystem.getXAttr(new Path(file.getPath()), SEALED_ATTRIBUTE);
+        byte[] data = this.context.fileSystem.getXAttr(file.getPath(), SEALED_ATTRIBUTE);
         return data != null && data.length > 0 && data[0] != 0;
     }
 
@@ -252,7 +252,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     void makeSealed(FileDescriptor file) throws IOException {
-        this.context.fileSystem.setXAttr(new Path(file.getPath()), SEALED_ATTRIBUTE, new byte[]{(byte) (255)});
+        this.context.fileSystem.setXAttr(file.getPath(), SEALED_ATTRIBUTE, new byte[]{(byte) (255)});
         log.debug("MakeSealed '{}'.", file.getPath());
     }
 
@@ -263,7 +263,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     void makeUnsealed(FileDescriptor file) throws IOException {
-        this.context.fileSystem.removeXAttr(new Path(file.getPath()), SEALED_ATTRIBUTE);
+        this.context.fileSystem.removeXAttr(file.getPath(), SEALED_ATTRIBUTE);
         log.debug("MakeUnsealed '{}'.", file.getPath());
     }
 
@@ -286,12 +286,11 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     boolean makeReadOnly(FileDescriptor file) throws IOException {
-        Path p = new Path(file.getPath());
-        if (isReadOnly(this.context.fileSystem.getFileStatus(p))) {
+        if (isReadOnly(this.context.fileSystem.getFileStatus(file.getPath()))) {
             return false;
         }
 
-        this.context.fileSystem.setPermission(p, READONLY_PERMISSION);
+        this.context.fileSystem.setPermission(file.getPath(), READONLY_PERMISSION);
         log.debug("MakeReadOnly '{}'.", file.getPath());
         file.markReadOnly();
         return true;
@@ -305,7 +304,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     void setConcatNext(FileDescriptor file, FileDescriptor nextFile) throws IOException {
-        this.context.fileSystem.setXAttr(new Path(file.getPath()), CONCAT_ATTRIBUTE, nextFile.getPath().getBytes());
+        this.context.fileSystem.setXAttr(file.getPath(), CONCAT_ATTRIBUTE, nextFile.getPath().toString().getBytes());
         log.debug("SetConcatNext '{}' to '{}'.", file.getPath(), nextFile.getPath());
     }
 
@@ -317,7 +316,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     String getConcatNext(FileDescriptor file) throws IOException {
-        byte[] data = this.context.fileSystem.getXAttr(new Path(file.getPath()), CONCAT_ATTRIBUTE);
+        byte[] data = this.context.fileSystem.getXAttr(file.getPath(), CONCAT_ATTRIBUTE);
         if (data == null || data.length == 0) {
             return null;
         }
@@ -332,7 +331,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     void removeConcatNext(FileDescriptor file) throws IOException {
-        this.context.fileSystem.removeXAttr(new Path(file.getPath()), CONCAT_ATTRIBUTE);
+        this.context.fileSystem.removeXAttr(file.getPath(), CONCAT_ATTRIBUTE);
         log.debug("RemoveConcatNext '{}' to '{}'.", file.getPath());
     }
 

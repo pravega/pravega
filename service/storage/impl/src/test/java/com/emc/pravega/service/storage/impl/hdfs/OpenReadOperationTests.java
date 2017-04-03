@@ -30,7 +30,7 @@ public class OpenReadOperationTests extends FileSystemOperationTestBase {
         val fs = new MockFileSystem();
 
         long expectedLength = 0;
-        val fileList = new ArrayList<String>();
+        val fileList = new ArrayList<Path>();
         new CreateOperation(SEGMENT_NAME, newContext(0, fs)).call();
         for (int i = 0; i < FILE_COUNT; i++) {
             val context = newContext(i, fs);
@@ -59,7 +59,7 @@ public class OpenReadOperationTests extends FileSystemOperationTestBase {
         }
 
         // Delete first file.
-        fs.delete(new Path(fileList.get(0)), true);
+        fs.delete(fileList.get(0), true);
         AssertExtensions.assertThrows(
                 "GetInfo succeeded on corrupted segment.",
                 new OpenReadOperation(SEGMENT_NAME, openContext)::call,

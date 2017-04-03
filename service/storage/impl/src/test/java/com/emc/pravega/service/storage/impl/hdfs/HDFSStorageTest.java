@@ -5,7 +5,6 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
@@ -17,9 +16,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
+import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -42,6 +40,8 @@ import org.slf4j.LoggerFactory;
 public class HDFSStorageTest extends StorageTestBase {
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
+    private Configuration hdfsConfig;
+    private HDFSStorageConfig adapterConfig;
 
     @Before
     public void setUp() throws Exception {
@@ -54,6 +54,17 @@ public class HDFSStorageTest extends StorageTestBase {
         conf.setBoolean("dfs.permissions.enabled", true);
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
         hdfsCluster = builder.build();
+
+        hdfsConfig = new Configuration();
+        hdfsConfig.set("fs.default.name", String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
+        hdfsConfig.set("fs.default.fs", String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
+        hdfsConfig.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
+
+        adapterConfig = HDFSStorageConfig
+                .builder()
+                .with(HDFSStorageConfig.REPLICATION, 1)
+                .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
+                .build();
     }
 
     @After
@@ -63,104 +74,6 @@ public class HDFSStorageTest extends StorageTestBase {
             hdfsCluster = null;
             FileHelpers.deleteFileOrDirectory(baseDir);
             baseDir = null;
-        }
-    }
-
-    @Test // TODO: delete this.
-    public void testOngoing() {
-        String segmentName = "TestSegment";
-
-        AtomicInteger epoch = new AtomicInteger(0);
-        AtomicLong offset = new AtomicLong(0);
-        AtomicInteger writeId = new AtomicInteger(0);
-        Supplier<byte[]> nextWriteData = () -> ("Write_" + Integer.toString(writeId.incrementAndGet())).getBytes();
-
-        // Epoch: 1
-        try (val storage = createStorage()) {
-            storage.initialize(epoch.incrementAndGet());
-            System.err.println("Exists (pre-create): " + storage.exists(segmentName, TIMEOUT).join());
-            System.err.println("Create: " + storage.create(segmentName, TIMEOUT).join());
-            System.err.println("Exists (post-create): " + storage.exists(segmentName, TIMEOUT).join());
-            System.err.println("GetInfo (post-create): " + storage.getStreamSegmentInfo(segmentName, TIMEOUT).join());
-
-            val writeHandle1 = storage.openWrite(segmentName).join();
-            System.err.println("WriteHandle (epoch 1): " + writeHandle1);
-        }
-
-        // Epoch: 3
-        try (val storage = createStorage()) {
-            storage.initialize(epoch.incrementAndGet());
-            try {
-                storage.create(segmentName, TIMEOUT).join();
-                Assert.fail();
-            } catch (Throwable ex) {
-                ex = ExceptionHelpers.getRealException(ex);
-                System.err.println("Create (epoch 2): " + ex.getClass().getSimpleName() + " " + ex.getMessage());
-            }
-
-            System.err.println("GetInfo (epoch 2): " + storage.getStreamSegmentInfo(segmentName, TIMEOUT).join());
-
-            val writeHandle = storage.openWrite(segmentName).join();
-            System.err.println("WriteHandle (epoch 2): " + writeHandle);
-
-            // Do some writes.
-            for (int i = 0; i < 10; i++) {
-                byte[] data = nextWriteData.get();
-                System.err.println("Write at offset " + offset.get() + ": " + new String(data));
-                storage.write(writeHandle, offset.get(), new ByteArrayInputStream(data), data.length, TIMEOUT).join();
-                offset.addAndGet(data.length);
-            }
-        }
-
-        // Epoch: 3
-        try (val storage = createStorage()) {
-            storage.initialize(epoch.incrementAndGet());
-            System.err.println("GetInfo (epoch 3): " + storage.getStreamSegmentInfo(segmentName, TIMEOUT).join());
-
-            val writeHandle = storage.openWrite(segmentName).join();
-            System.err.println("WriteHandle (epoch 3): " + writeHandle);
-            System.err.println("GetInfo (post-open-write): " + storage.getStreamSegmentInfo(segmentName, TIMEOUT).join());
-
-            val readHandle1 = storage.openRead(segmentName).join();
-            System.err.println("ReadHandle (post-open-read): " + readHandle1);
-
-            // Do some writes.
-            for (int i = 0; i < 10; i++) {
-                byte[] data = nextWriteData.get();
-                System.err.println("Write at offset " + offset.get() + ": " + new String(data));
-                storage.write(writeHandle, offset.get(), new ByteArrayInputStream(data), data.length, TIMEOUT).join();
-                offset.addAndGet(data.length);
-            }
-
-            // Do some reading.
-            byte[] readBuffer = new byte[(int) offset.get()];
-            int readBytes = storage.read(readHandle1, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-            System.err.println("ReadHandle (post-read): " + readHandle1);
-            System.err.println(String.format("Read Result (%d bytes): %s", readBytes, new String(readBuffer, 0, readBytes)));
-
-            storage.seal(writeHandle, TIMEOUT).join();
-            System.err.println("GetInfo4 (post-seal): " + storage.getStreamSegmentInfo(segmentName, TIMEOUT).join());
-            System.err.println("Seal.WriteHandle (post-seal): " + writeHandle);
-            System.err.println("New.WriteHandle (post-seal): " + storage.openWrite(segmentName).join());
-
-            try {
-                storage.write(writeHandle, offset.get(), new ByteArrayInputStream("fail".getBytes()), 4, TIMEOUT).join();
-                Assert.fail("No exception caught.");
-            } catch (Throwable ex) {
-                ex = ExceptionHelpers.getRealException(ex);
-                System.err.println("Write (epoch 2, post-seal): " + ex.getClass().getSimpleName() + " " + ex.getMessage());
-            }
-
-            storage.delete(writeHandle, TIMEOUT).join();
-            System.err.println("Exists (post-delete): " + storage.exists(segmentName, TIMEOUT).join());
-
-            try {
-                storage.write(writeHandle, offset.get(), new ByteArrayInputStream("fail".getBytes()), 4, TIMEOUT).join();
-                Assert.fail();
-            } catch (Throwable ex) {
-                ex = ExceptionHelpers.getRealException(ex);
-                System.err.println("Write (epoch 3, post-delete): " + ex.getClass().getSimpleName() + " " + ex.getMessage());
-            }
         }
     }
 
@@ -291,40 +204,50 @@ public class HDFSStorageTest extends StorageTestBase {
     //endregion
 
     @Override
+    @SneakyThrows(IOException.class)
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
-        //return new HDFSSegmentHandle(segmentName, readOnly, epoch);
-        return null; //TODO: fix
+        @Cleanup
+        FileSystem fsf = FileSystem.get(this.hdfsConfig);
+        FileSystemOperation.OperationContext context = new FileSystemOperation.OperationContext(epoch, fsf, this.adapterConfig);
+        val mo = new MockOperation(new Object(), context);
+        val allFiles = mo.findAll(segmentName, false);
+        if (readOnly) {
+            return HDFSSegmentHandle.read(segmentName, allFiles);
+        } else {
+            return HDFSSegmentHandle.write(segmentName, allFiles);
+        }
     }
 
     @Override
     protected Storage createStorage() {
-        // Create a config object, using all defaults, except for the HDFS URL.
-        HDFSStorageConfig config = HDFSStorageConfig
-                .builder()
-                .with(HDFSStorageConfig.REPLICATION, 1)
-                .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
-                .build();
-        return new TestHDFSStorage(config, executorService());
+        return new TestHDFSStorage(this.adapterConfig, executorService());
+    }
+
+    private static class MockOperation extends FileSystemOperation<Object> {
+        MockOperation(Object target, OperationContext context) {
+            super(target, context);
+        }
     }
 
     /**
-     * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.
-     * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
+     * Special HDFSStorage that uses a modified version of the MiniHDFSCluster DistributedFileSystem which fixes the
+     * 'read-only' permission issues observed with that one.
      **/
     private static class TestHDFSStorage extends HDFSStorage {
         TestHDFSStorage(HDFSStorageConfig config, Executor executor) {
             super(config, executor);
         }
-
-        @Override
-        protected FileSystem openFileSystem(Configuration conf) throws IOException {
-            return new FileSystemFixer(conf);
-        }
+        //
+        //        @Override
+        //        protected FileSystem openFileSystem(Configuration conf) throws IOException {
+        //            return new FileSystemFixer(conf);
+        //        }
     }
 
     private static class FileSystemFixer extends DistributedFileSystem {
+        @SneakyThrows(IOException.class)
         FileSystemFixer(Configuration conf) {
-            setConf(conf);
+            initialize(FileSystem.getDefaultUri(conf), conf);
         }
 
         @Override

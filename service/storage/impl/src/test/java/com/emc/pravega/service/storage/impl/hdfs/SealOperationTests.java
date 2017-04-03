@@ -9,7 +9,6 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import lombok.Cleanup;
 import lombok.val;
-import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -94,7 +93,7 @@ public class SealOperationTests extends FileSystemOperationTestBase {
                 ex -> ex instanceof StorageNotPrimaryException);
 
         Assert.assertFalse("Last file in emptySegmentHandle1 was marked as read-only.", emptySegmentHandle1.getLastFile().isReadOnly());
-        Assert.assertFalse("Last file in file system (empty segment) was set as 'sealed'.", fs.exists(new Path(emptySegmentHandle1.getLastFile().getPath())));
+        Assert.assertFalse("Last file in file system (empty segment) was set as 'sealed'.", fs.exists(emptySegmentHandle1.getLastFile().getPath()));
 
         // Part 1: non-empty segment first file (it will be marked read-only when OpenWrite is invoked with epoch 2)
         new CreateOperation(nonEmptySegment, context1).call();

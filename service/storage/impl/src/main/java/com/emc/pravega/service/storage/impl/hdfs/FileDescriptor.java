@@ -6,6 +6,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.google.common.base.Preconditions;
 import lombok.Getter;
+import org.apache.hadoop.fs.Path;
 import org.apache.http.annotation.GuardedBy;
 import org.apache.http.annotation.ThreadSafe;
 
@@ -19,7 +20,7 @@ class FileDescriptor implements Comparable<FileDescriptor> {
      * The full HDFS path to this file.
      */
     @Getter
-    private final String path;
+    private final Path path;
 
     /**
      * Segment offset of the first byte of this file. This is derived from the name.
@@ -51,7 +52,7 @@ class FileDescriptor implements Comparable<FileDescriptor> {
      * @param epoch    The epoch the file was created in.
      * @param readOnly Whether the file is read-only.
      */
-    FileDescriptor(String path, long offset, long length, long epoch, boolean readOnly) {
+    FileDescriptor(Path path, long offset, long length, long epoch, boolean readOnly) {
         this.path = path;
         this.offset = offset;
         this.length = length;

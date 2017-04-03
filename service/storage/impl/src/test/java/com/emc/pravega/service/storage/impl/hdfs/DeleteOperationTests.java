@@ -10,7 +10,6 @@ import java.io.FileNotFoundException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.val;
-import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -54,7 +53,7 @@ public class DeleteOperationTests extends FileSystemOperationTestBase {
         fs.setOnDelete(path -> {
             if (!interfered.getAndSet(true)) {
                 // Create exactly one file back.
-                return fs.new CreateNewFile(new Path(deleteContext.getFileName(SEGMENT_NAME, 0)));
+                return fs.new CreateNewFile(deleteContext.getFileName(SEGMENT_NAME, 0));
             }
 
             return null;

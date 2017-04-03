@@ -38,7 +38,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
                 ex -> ex instanceof StorageNotPrimaryException);
 
         Assert.assertEquals("Unexpected number of files in the file system.", 1, fs.getFileCount());
-        Assert.assertTrue("Higher epoch file was deleted.", fs.exists(new Path(writeHandle.getLastFile().getPath())));
+        Assert.assertTrue("Higher epoch file was deleted.", fs.exists(writeHandle.getLastFile().getPath()));
     }
 
     /**
@@ -61,7 +61,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
         Assert.assertEquals("OpenWrite returned a handle with the wrong file.",
                 lowContextHandle.getLastFile().getPath(), highContextHandle.getLastFile().getPath());
         Assert.assertEquals("Unexpected number of files in the file system.", 1, fs.getFileCount());
-        Assert.assertTrue("Higher epoch file was deleted.", fs.exists(new Path(lowContextHandle.getLastFile().getPath())));
+        Assert.assertTrue("Higher epoch file was deleted.", fs.exists(lowContextHandle.getLastFile().getPath()));
     }
 
     /**
@@ -96,14 +96,14 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
         val fs = new MockFileSystem();
         val context = newContext(1, fs);
         new CreateOperation(SEGMENT_NAME, context).call();
-        String expectedFile = context.getFileName(SEGMENT_NAME, 0);
+        Path expectedFile = context.getFileName(SEGMENT_NAME, 0);
         val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
 
         Assert.assertEquals("Unexpected number of files in the handle.", 1, handle.getFiles().size());
         Assert.assertEquals("Unexpected file in handle.", expectedFile, handle.getLastFile().getPath());
 
         Assert.assertEquals("Unexpected number of files in the file system.", 1, fs.getFileCount());
-        Assert.assertTrue("Unexpected file in filesystem.", fs.exists(new Path(expectedFile)));
+        Assert.assertTrue("Unexpected file in filesystem.", fs.exists(expectedFile));
     }
 
     /**
@@ -134,7 +134,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
 
         val context2 = newContext(context1.epoch + 1, fs);
         val context3 = newContext(context2.epoch + 1, fs);
-        Path survivingFilePath = new Path(context3.getFileName(SEGMENT_NAME, 0));
+        Path survivingFilePath = context3.getFileName(SEGMENT_NAME, 0);
         fs.setOnCreate(path -> fs.new CreateNewFile(survivingFilePath));
         AssertExtensions.assertThrows(
                 "OpenWrite did not fail when a concurrent higher epoch file was created.",
@@ -144,7 +144,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
         // In a real-world situation, we'd have just one surviving file. However we were not able to successfully carry
         // out the fencing operation, hence no cleanup could be done (testConcurrentFenceOutHigher should check this though).
         Assert.assertEquals("Unexpected number of files in the file system.", 2, fs.getFileCount());
-        Assert.assertTrue("Original file was deleted.", fs.exists(new Path(context1.getFileName(SEGMENT_NAME, 0))));
+        Assert.assertTrue("Original file was deleted.", fs.exists(context1.getFileName(SEGMENT_NAME, 0)));
         Assert.assertTrue("Higher epoch file was deleted.", fs.exists(survivingFilePath));
     }
 
@@ -162,12 +162,12 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
 
         val context2 = newContext(context1.epoch + 1, fs);
         val context3 = newContext(context2.epoch + 1, fs);
-        fs.setOnCreate(path -> fs.new CreateNewFile(new Path(context2.getFileName(SEGMENT_NAME, 0))));
+        fs.setOnCreate(path -> fs.new CreateNewFile(context2.getFileName(SEGMENT_NAME, 0)));
         val handle = new OpenWriteOperation(SEGMENT_NAME, context3).call();
 
-        String survivingFile = context3.getFileName(SEGMENT_NAME, 0);
+        Path survivingFile = context3.getFileName(SEGMENT_NAME, 0);
         Assert.assertEquals("Unexpected number of files in the file system.", 1, fs.getFileCount());
-        Assert.assertTrue("Higher epoch file was deleted.", fs.exists(new Path(survivingFile)));
+        Assert.assertTrue("Higher epoch file was deleted.", fs.exists(survivingFile));
         Assert.assertEquals("Unexpected number of files in the handle.", 1, handle.getFiles().size());
         Assert.assertEquals("Unexpected file in the handle.", survivingFile, handle.getLastFile().getPath());
     }
@@ -178,7 +178,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
         val handle2 = new OpenWriteOperation(SEGMENT_NAME, context2).call();
         Assert.assertNotEquals("Fencing out empty file did not cause a new one to be created.", originalHandle.getLastFile().getPath(), handle2.getLastFile().getPath());
         Assert.assertEquals("Unexpected number of files in the file system after fencing out empty file.", 1, fs.getFileCount());
-        Assert.assertTrue("Higher epoch file is not present after fencing out empty file.", fs.exists(new Path(handle2.getLastFile().getPath())));
+        Assert.assertTrue("Higher epoch file is not present after fencing out empty file.", fs.exists(handle2.getLastFile().getPath()));
 
         // Non-empty file: keep and ensure read-only.
         new WriteOperation(handle2, 0, new ByteArrayInputStream(new byte[1]), 1, context2).run();
@@ -193,8 +193,8 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
 
         // Check file system.
         Assert.assertEquals("Unexpected number of files in the file system after fencing out non-empty file.", 2, fs.getFileCount());
-        Assert.assertTrue("Lower epoch file is not present after fencing out non-empty file.", fs.exists(new Path(handle2.getLastFile().getPath())));
-        Assert.assertTrue("Lower epoch file is not marked read-only after being fenced-out.", context3.isReadOnly(fs.getFileStatus(new Path(handle2.getLastFile().getPath()))));
-        Assert.assertTrue("Higher epoch file is not present after fencing out non-empty file.", fs.exists(new Path(handle3.getLastFile().getPath())));
+        Assert.assertTrue("Lower epoch file is not present after fencing out non-empty file.", fs.exists(handle2.getLastFile().getPath()));
+        Assert.assertTrue("Lower epoch file is not marked read-only after being fenced-out.", context3.isReadOnly(fs.getFileStatus(handle2.getLastFile().getPath())));
+        Assert.assertTrue("Higher epoch file is not present after fencing out non-empty file.", fs.exists(handle3.getLastFile().getPath()));
     }
 }

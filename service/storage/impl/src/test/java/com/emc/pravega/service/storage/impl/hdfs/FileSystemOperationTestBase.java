@@ -16,7 +16,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
  * Base class for all tests for derived classes from FileSystemOperation.
  */
 abstract class FileSystemOperationTestBase {
-    TestContext newContext(long epoch, MockFileSystem fileSystem) {
+    static TestContext newContext(long epoch, MockFileSystem fileSystem) {
         return new TestContext(epoch, fileSystem);
     }
 
@@ -28,8 +28,8 @@ abstract class FileSystemOperationTestBase {
             this.operation = new DummyOperation("", this);
         }
 
-        String getFileName(String segmentName, long startOffset) {
-            return this.operation.getFileName(segmentName, startOffset, this.epoch);
+        Path getFileName(String segmentName, long startOffset) {
+            return this.operation.getFilePath(segmentName, startOffset, this.epoch);
         }
 
         boolean isSealed(FileDescriptor file) throws IOException {
@@ -49,7 +49,7 @@ abstract class FileSystemOperationTestBase {
         }
 
         Path createEmptyFile(String segmentName, long offset) throws IOException {
-            Path result = new Path(this.operation.getFileName(segmentName, offset, this.epoch));
+            Path result = this.operation.getFilePath(segmentName, offset, this.epoch);
             this.fileSystem
                     .create(result,
                             new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
