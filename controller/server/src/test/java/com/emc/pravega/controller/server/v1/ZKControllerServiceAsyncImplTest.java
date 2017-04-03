@@ -91,7 +91,9 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
 
     @Override
     public void tearDown() throws Exception {
-        executorService.shutdown();
+        if (executorService != null) {
+            executorService.shutdown();
+        }
         if (cluster != null) {
             cluster.close();
         }

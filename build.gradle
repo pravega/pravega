@@ -162,6 +162,9 @@ project('common') {
             }
         }
     }
+    javadoc {
+        exclude 'com/emc/pravega/common/*'
+    }
 }
 
 project('clients:streaming') {
@@ -185,6 +188,7 @@ project('clients:streaming') {
         }
     }
     javadoc {
+        title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
         source  =  project(':clients:streaming').sourceSets.main.java
@@ -494,6 +498,9 @@ project('controller:contract') {
                 from components.java
             }
         }
+    }
+    javadoc {
+        exclude 'com/emc/pravega/controller/*'
     }
 }
 

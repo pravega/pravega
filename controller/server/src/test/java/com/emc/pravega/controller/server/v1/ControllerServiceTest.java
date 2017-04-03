@@ -61,7 +61,6 @@ public class ControllerServiceTest {
     private final CuratorFramework zkClient;
     private final TestingServer zkServer;
 
-
     public ControllerServiceTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
@@ -123,6 +122,7 @@ public class ControllerServiceTest {
         connectionFactory.close();
         zkClient.close();
         zkServer.close();
+        executor.shutdown();
     }
 
     @Test

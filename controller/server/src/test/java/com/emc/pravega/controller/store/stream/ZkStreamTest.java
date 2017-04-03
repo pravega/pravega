@@ -59,6 +59,7 @@ public class ZkStreamTest {
     public void stopZookeeper() throws Exception {
         cli.close();
         zkTestServer.close();
+        executor.shutdown();
     }
 
     @Test

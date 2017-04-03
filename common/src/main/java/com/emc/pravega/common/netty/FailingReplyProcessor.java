@@ -58,12 +58,12 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void appendSetup(AppendSetup appendSetup) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + appendSetup);
     }
 
     @Override
     public void dataAppended(DataAppended dataAppended) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + dataAppended);
     }
     
     @Override
@@ -73,58 +73,58 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void segmentRead(SegmentRead data) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + data);
     }
 
     @Override
     public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + streamInfo);
     }
 
     @Override
     public void transactionInfo(TransactionInfo transactionInfo) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + transactionInfo);
     }
 
     
     @Override
     public void segmentCreated(SegmentCreated streamsSegmentCreated) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + streamsSegmentCreated);
     }
 
     @Override
     public void transactionCreated(TransactionCreated transactionCreated) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + transactionCreated);
     }
 
     @Override
-    public void transactionCommitted(TransactionCommitted batchMerged) {
-        throw new IllegalStateException("Unexpected operation");
+    public void transactionCommitted(TransactionCommitted transactionCommitted) {
+        throw new IllegalStateException("Unexpected operation: " + transactionCommitted);
     }
 
     @Override
     public void transactionAborted(TransactionAborted transactionAborted) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + transactionAborted);
     }
     
     @Override
     public void segmentSealed(SegmentSealed segmentSealed) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + segmentSealed);
     }
 
     @Override
     public void segmentDeleted(SegmentDeleted segmentDeleted) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + segmentDeleted);
     }
 
     @Override
     public void segmentPolicyUpdated(SegmentPolicyUpdated segment) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + segment);
     }
 
     @Override
     public void keepAlive(KeepAlive keepAlive) {
-        throw new IllegalStateException("Unexpected operation");
+        throw new IllegalStateException("Unexpected operation: " + keepAlive);
     }
 
 }

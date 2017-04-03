@@ -185,7 +185,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         public void commit() throws TxnFailedException {
             throwIfClosed();
             for (SegmentTransaction<Type> tx : inner.values()) {
-                tx.flush();
+                tx.close();
             }
             getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
             closed.set(true);
@@ -194,6 +194,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         @Override
         public void abort() {
             if (!closed.get()) {
+                for (SegmentTransaction<Type> tx : inner.values()) {
+                    try {
+                        tx.close();
+                    } catch (TxnFailedException e) {
+                        log.debug("Got exception while writing to transaction on abort: {}", e.getMessage());
+                    }
+                }
                 getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
                 closed.set(true);
             }

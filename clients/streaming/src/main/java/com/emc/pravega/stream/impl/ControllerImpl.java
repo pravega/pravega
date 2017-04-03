@@ -310,7 +310,7 @@ public class ControllerImpl implements Controller {
                                                        .build();
         client.getSegments(request, callback);
         return callback.getFuture().thenApply(segments -> {
-            log.debug("Received the following data from the controller {}", segments);
+            log.debug("Received the following data from the controller {}", segments.getSegmentsList());
             return segments.getSegmentsList()
                            .stream()
                            .collect(Collectors.toMap(location -> ModelHelper.encode(location.getSegmentId()),
@@ -326,7 +326,7 @@ public class ControllerImpl implements Controller {
         client.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment), callback);
         return callback.getFuture()
                        .thenApply(successors -> {
-                           log.debug("Received the following data from the controller {}", successors);
+                           log.debug("Received the following data from the controller {}", successors.getSegmentsList());
                            Map<Segment, List<Integer>> result = new HashMap<>();
                            for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
                                result.put(ModelHelper.encode(entry.getSegmentId()), entry.getValueList());
@@ -346,6 +346,7 @@ public class ControllerImpl implements Controller {
         client.getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
         return callback.getFuture()
             .thenApply(ranges -> {
+                log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
                 NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
                 for (SegmentRange r : ranges.getSegmentRangesList()) {
                     rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
