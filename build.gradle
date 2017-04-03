@@ -17,16 +17,16 @@ buildscript {
 }
 
 apply plugin: 'distribution'
-version = '1.2'
+version = pravegaVersion
 distributions {
     release {
 	ant.get(src: 'http://apache.mirrors.pair.com/hadoop/core/hadoop-2.7.3/hadoop-2.7.3.tar.gz', dest: 'cache/hadoop-2.7.3.tar.gz', skipexisting: 'true')
 	ant.get(src: 'https://github.com/twitter/distributedlog/releases/download/0.3.51-RC1/distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip',
 		dest: 'cache/distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip', skipexisting: 'true')
         contents {
-       /*     into('scripts') {
-                from {'scripts/sbin'}
-            }*/
+            into('scripts') {
+                from {'vagrant/scripts'}
+            }
             into('service') {
                 from {tarTree(project(':service:server:host').file("build/distributions/host.tar"))}
             }
