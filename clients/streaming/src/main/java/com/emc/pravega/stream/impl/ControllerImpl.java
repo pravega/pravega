@@ -43,6 +43,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+
+import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,12 +69,18 @@ public class ControllerImpl implements Controller {
     /**
      * Creates a new instance of the Controller client class.
      *
-     * @param host The controller rpc host name.
-     * @param port The controller rpc port number.
+     * @param controllerURI The controller rpc URI. This can be of 2 types
+     *                      1. tcp://ip1:port1,ip2:port2,...
+     *                          This is used if the controller endpoints are static and can be directly accessed.
+     *                      2. pravega://ip1:port1,ip2:port2,...
+     *                          This is used to autodiscovery the controller endpoints from an initial controller list.
      */
-    public ControllerImpl(final String host, final int port) {
-        this(ManagedChannelBuilder.forAddress(host, port).usePlaintext(true));
-        log.info("Controller client connecting to server at {}:{}", host, port);
+    public ControllerImpl(final URI controllerURI) {
+        this(ManagedChannelBuilder.forTarget(controllerURI.toString())
+                .nameResolverFactory(new ControllerResolverFactory())
+                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                .usePlaintext(true));
+        log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
     /**
@@ -85,10 +93,7 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
 
         // Create Async RPC client.
-        client = ControllerServiceGrpc.newStub(channelBuilder
-                .nameResolverFactory(new ControllerResolverFactory())
-                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                .build());
+        client = ControllerServiceGrpc.newStub(channelBuilder.build());
     }
 
     @Override

@@ -3,6 +3,9 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -28,6 +31,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -47,6 +51,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
     private TimeoutService timeoutService;
+    private Cluster cluster;
 
     @Override
     public void setup() throws Exception {
@@ -73,14 +78,23 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 
+        cluster = new ClusterZKImpl(zkClient);
+        final CountDownLatch latch = new CountDownLatch(1);
+        cluster.addListener((type, host) -> latch.countDown());
+        cluster.registerHost(new Host("localhost", 9090));
+        latch.await();
+
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      timeoutService, new SegmentHelper(), executorService));
+                                      timeoutService, new SegmentHelper(), executorService, cluster));
     }
 
     @Override
     public void tearDown() throws Exception {
         executorService.shutdown();
+        if (cluster != null) {
+            cluster.close();
+        }
         if (timeoutService != null) {
             timeoutService.stopAsync();
             timeoutService.awaitTerminated();

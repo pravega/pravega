@@ -3,6 +3,9 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.InMemoryClusterImpl;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -38,6 +41,7 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
     private TimeoutService timeoutService;
+    private Cluster cluster;
 
     @Override
     public void setup() throws Exception {
@@ -58,9 +62,10 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
 
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
+        cluster = new InMemoryClusterImpl(new Host("localhost", 9090));
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      timeoutService, new SegmentHelper(), executorService));
+                                      timeoutService, new SegmentHelper(), executorService, cluster));
     }
 
     @Override

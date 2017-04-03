@@ -61,7 +61,7 @@ public interface ClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static ClientFactory withScope(String scope, URI controllerUri) {
-        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri.getHost(), controllerUri.getPort()));
+        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri));
     }
 
     static ClientFactory withScope(String scope, Controller controller) {
