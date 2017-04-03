@@ -67,6 +67,7 @@ public class ControllerService {
             return FutureHelpers.failedFuture(new IllegalStateException("Controller cluster not initialized"));
         }
 
+        // TODO: This implementation will be updated once PR - https://github.com/pravega/pravega/pull/804 is complete.
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return cluster.getClusterMembers().stream()
