@@ -32,13 +32,12 @@ public class DeleteOperationTests extends FileSystemOperationTestBase {
 
         // Delete it.
         val deleteContext = newContext(FILE_COUNT, fs);
-        val handle = new OpenWriteOperation(SEGMENT_NAME, deleteContext).call();
-        new DeleteOperation(handle, deleteContext).run();
+        new DeleteOperation(SEGMENT_NAME, deleteContext).run();
         Assert.assertEquals("Not all files were deleted.", 0, fs.getFileCount());
 
         AssertExtensions.assertThrows(
                 "Delete worked on non-existent segment.",
-                new DeleteOperation(handle, deleteContext)::run,
+                new DeleteOperation(SEGMENT_NAME, deleteContext)::run,
                 ex -> ex instanceof FileNotFoundException);
     }
 
@@ -61,8 +60,7 @@ public class DeleteOperationTests extends FileSystemOperationTestBase {
             return null;
         });
 
-        val handle = new OpenWriteOperation(SEGMENT_NAME, deleteContext).call();
-        new DeleteOperation(handle, deleteContext).run();
+        new DeleteOperation(SEGMENT_NAME, deleteContext).run();
         Assert.assertEquals("Not all files were deleted.", 0, fs.getFileCount());
     }
 

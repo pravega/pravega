@@ -4,12 +4,7 @@
 package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.MetricsNames;
 import com.emc.pravega.common.function.RunnableWithException;
-import com.emc.pravega.common.metrics.Counter;
-import com.emc.pravega.common.metrics.MetricsProvider;
-import com.emc.pravega.common.metrics.OpStatsLogger;
-import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
@@ -95,9 +90,12 @@ class HDFSStorage implements Storage {
         Configuration conf = new Configuration();
         conf.set("fs.default.name", this.config.getHdfsHostURL());
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
-
-        this.context = new FileSystemOperation.OperationContext(epoch, FileSystem.get(conf), this.config);
+        this.context = new FileSystemOperation.OperationContext(epoch, openFileSystem(conf), this.config);
         log.info("Initialized (HDFSHost = '{}', Epoch = {}).", this.config.getHdfsHostURL(), epoch);
+    }
+
+    protected FileSystem openFileSystem(Configuration conf) throws IOException {
+        return FileSystem.get(conf);
     }
 
     @Override
@@ -126,13 +124,13 @@ class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
-        return runAsync(new ConcatOperation(asWritableHandle(targetHandle), offset, asReadableHandle(sourceHandle), this.context));
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
+        return runAsync(new ConcatOperation(asWritableHandle(targetHandle), offset, sourceSegment, this.context));
     }
 
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-        return runAsync(new DeleteOperation(asWritableHandle(handle), this.context));
+        return runAsync(new DeleteOperation(asWritableHandle(handle).getSegmentName(), this.context));
     }
 
     @Override

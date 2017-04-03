@@ -922,7 +922,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         transactionMetadata.markDeleted();
         context.storage.seal(transactionWriteHandle, TIMEOUT).join();
         val parentWriteHandle = context.storage.openWrite(parentMetadata.getName()).join();
-        context.storage.concat(parentWriteHandle, 0, transactionWriteHandle, TIMEOUT).join();
+        context.storage.concat(parentWriteHandle, 0, transactionWriteHandle.getSegmentName(), TIMEOUT).join();
         parentMetadata.setStorageLength(parentMetadata.getDurableLogLength());
 
         context.readIndex.completeMerge(parentId, transactionId);

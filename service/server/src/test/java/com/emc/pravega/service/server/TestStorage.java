@@ -73,7 +73,6 @@ public class TestStorage implements Storage {
                             .thenCompose(v -> this.wrappedStorage.create(streamSegmentName, timeout));
     }
 
-
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
         return this.wrappedStorage.openRead(streamSegmentName);
@@ -116,18 +115,18 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.concatSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.concatAsyncErrorInjector)
                             .thenCompose(v -> {
                                 ConcatInterceptor ci = this.concatInterceptor;
                                 CompletableFuture<Void> result = null;
                                 if (ci != null) {
-                                    result = ci.apply(targetHandle.getSegmentName(), offset, sourceHandle.getSegmentName(), this.wrappedStorage);
+                                    result = ci.apply(targetHandle.getSegmentName(), offset, sourceSegment, this.wrappedStorage);
                                 }
 
                                 return result != null ? result : CompletableFuture.completedFuture(null);
-                            }).thenCompose(v -> this.wrappedStorage.concat(targetHandle, offset, sourceHandle, timeout));
+                            }).thenCompose(v -> this.wrappedStorage.concat(targetHandle, offset, sourceSegment, timeout));
     }
 
     @Override

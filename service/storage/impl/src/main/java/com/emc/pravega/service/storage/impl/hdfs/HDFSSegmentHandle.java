@@ -97,10 +97,35 @@ class HDFSSegmentHandle implements SegmentHandle {
     }
 
     /**
+     * Replaces the last file with the given one.
+     *
+     * @param fileDescriptor The file to replace with.
+     */
+    void replaceLastFile(FileDescriptor fileDescriptor) {
+        synchronized (this.files) {
+            Preconditions.checkState(this.files.size() > 0, "Insufficient number of files in the handle to perform this operation.");
+            int lastIndex = this.files.size() - 1;
+            FileDescriptor lastFile = this.files.get(lastIndex);
+
+            long expectedOffset = lastFile.getOffset();
+            Preconditions.checkArgument(fileDescriptor.getOffset() == expectedOffset,
+                    "Invalid offset. Expected %s, actual %s.", expectedOffset, fileDescriptor.getOffset());
+
+            long expectedMinEpoch = lastFile.getEpoch();
+            Preconditions.checkArgument(fileDescriptor.getEpoch() >= expectedMinEpoch,
+                    "Invalid epoch. Expected at least %s, actual %s.", expectedMinEpoch, fileDescriptor.getEpoch());
+
+            this.files.remove(lastIndex);
+            this.files.add(fileDescriptor);
+        }
+    }
+
+    /**
      * Removes the last file from this handle.
      */
     void removeLastFile() {
         synchronized (this.files) {
+            // Need at least one file in the handle at any given time.
             Preconditions.checkState(this.files.size() > 1, "Insufficient number of files in the handle to perform this operation.");
             this.files.remove(this.files.size() - 1);
         }

@@ -84,23 +84,23 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * of the Target StreamSegment (but only if its length equals the given offset), after which the Source StreamSegment
      * will cease to exist. Prior to this operation, the Source StreamSegment must be sealed.
      *
-     * @param targetHandle A read-write SegmentHandle that points to the Target StreamSegment. After this operation
-     *                     is complete, this is the surviving StreamSegment.
-     * @param offset       The offset in the Target StreamSegment to concat at.
-     * @param sourceHandle A read-write SegmentHandle that points to the Source StreamSegment. This StreamSegment will be
-     *                     concatenated to the Target StreamSegment. After this operation is complete, this StreamSegment
-     *                     will no longer exist..
-     * @param timeout      Timeout for the operation.
+     * @param targetHandle  A read-write SegmentHandle that points to the Target StreamSegment. After this operation
+     *                      is complete, this is the surviving StreamSegment.
+     * @param offset        The offset in the Target StreamSegment to concat at.
+     * @param sourceSegment The Source StreamSegment. This StreamSegment will be concatenated to the Target StreamSegment.
+     *                      After this operation is complete, this StreamSegment will no longer exist.
+     * @param timeout       Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> BadOffsetException: When the given offset does not match the actual length of the target segment in storage.
      * <li> StreamSegmentNotExistsException: When the either the source Segment or the target Segment do not exist in Storage.
      * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for the target Segment (it was fenced out).
+     * <li> IllegalStateException: When the Source Segment is not Sealed.
      * </ul>
      * @throws IllegalArgumentException If targetHandle is read-only.
      */
-    CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout);
+    CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout);
 
     /**
      * Deletes a StreamSegment.

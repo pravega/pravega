@@ -259,11 +259,11 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
                     TIMEOUT).join().getLength());
             assertThrows("concat() did not throw for non-existent target segment name.",
-                    () -> s.concat(createHandle("foo1", false, DEFAULT_EPOCH), 0, firstSegmentHandle, TIMEOUT),
+                    () -> s.concat(createHandle("foo1", false, DEFAULT_EPOCH), 0, firstSegmentName, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             assertThrows("concat() did not throw for invalid source StreamSegment name.",
-                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), createHandle("foo2", false, DEFAULT_EPOCH), TIMEOUT),
+                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), "foo2", TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             ArrayList<String> concatOrder = new ArrayList<>();
@@ -274,17 +274,17 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
                     continue;
                 }
 
-                val sourceWriteHandle = s.openWrite(sourceSegment).join();
                 assertThrows("Concat allowed when source segment is not sealed.",
-                        () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceWriteHandle, TIMEOUT),
+                        () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT),
                         ex -> ex instanceof IllegalStateException);
 
                 // Seal the source segment and then re-try the concat
+                val sourceWriteHandle = s.openWrite(sourceSegment).join();
                 s.seal(sourceWriteHandle, TIMEOUT).join();
                 SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceSegment, TIMEOUT).join();
 
-                s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceWriteHandle, TIMEOUT).join();
+                s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT).join();
                 concatOrder.add(sourceSegment);
                 SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 Assert.assertFalse("concat() did not delete source segment", s.exists(sourceSegment, TIMEOUT).join());

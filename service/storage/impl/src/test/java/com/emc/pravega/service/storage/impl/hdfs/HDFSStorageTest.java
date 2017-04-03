@@ -6,9 +6,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.FileHelpers;
-import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
@@ -16,17 +14,22 @@ import com.emc.pravega.service.storage.StorageTestBase;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.InputStream;
+import java.io.IOException;
 import java.nio.file.Files;
-import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.protocol.AclException;
+import org.apache.hadoop.util.Progressable;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -129,10 +132,9 @@ public class HDFSStorageTest extends StorageTestBase {
                 offset.addAndGet(data.length);
             }
 
-
             // Do some reading.
-            byte[] readBuffer = new byte[(int)offset.get()];
-            int readBytes = storage.read(readHandle1,0,readBuffer,0,readBuffer.length, TIMEOUT).join();
+            byte[] readBuffer = new byte[(int) offset.get()];
+            int readBytes = storage.read(readHandle1, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
             System.err.println("ReadHandle (post-read): " + readHandle1);
             System.err.println(String.format("Read Result (%d bytes): %s", readBytes, new String(readBuffer, 0, readBytes)));
 
@@ -237,7 +239,7 @@ public class HDFSStorageTest extends StorageTestBase {
         val concatHandle = storage.openWrite(concatName).join();
         storage.write(concatHandle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
         storage.seal(concatHandle, TIMEOUT).join();
-        storage.concat(handle, si.getLength() + data.length, concatHandle, TIMEOUT).join();
+        storage.concat(handle, si.getLength() + data.length, concatHandle.getSegmentName(), TIMEOUT).join();
     }
 
     private void verifyWriteOperationsFail(SegmentHandle handle, Storage storage) {
@@ -256,7 +258,7 @@ public class HDFSStorageTest extends StorageTestBase {
         storage.seal(concatHandle, TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "Concat was not fenced out.",
-                () -> storage.concat(handle, si.getLength() + data.length, concatHandle, TIMEOUT),
+                () -> storage.concat(handle, si.getLength() + data.length, concatHandle.getSegmentName(), TIMEOUT),
                 ex -> ex instanceof StorageNotPrimaryException);
         storage.delete(concatHandle, TIMEOUT).join();
     }
@@ -302,43 +304,41 @@ public class HDFSStorageTest extends StorageTestBase {
                 .with(HDFSStorageConfig.REPLICATION, 1)
                 .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
                 .build();
-        return new HDFSStorage(config, executorService());
+        return new TestHDFSStorage(config, executorService());
     }
 
     /**
      * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.
      * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
      **/
-    private static class MiniClusterPermFixer extends HDFSStorage {
-        // TODO: this can be "fixed" by subclassing HDFSStorage and returning a subclassed FileSystem which has permissions fixed natively. Otherwise we are not testing crucial paths in the code.
-        MiniClusterPermFixer(HDFSStorageConfig config, Executor executor) {
+    private static class TestHDFSStorage extends HDFSStorage {
+        TestHDFSStorage(HDFSStorageConfig config, Executor executor) {
             super(config, executor);
         }
 
         @Override
-        public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-            if (isSealed(handle)) {
-                return FutureHelpers.failedFuture(new StreamSegmentSealedException(handle.getSegmentName()));
-            }
+        protected FileSystem openFileSystem(Configuration conf) throws IOException {
+            return new FileSystemFixer(conf);
+        }
+    }
 
-            return super.write(handle, offset, data, length, timeout);
+    private static class FileSystemFixer extends DistributedFileSystem {
+        FileSystemFixer(Configuration conf) {
+            setConf(conf);
         }
 
         @Override
-        public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
-            if (isSealed(targetHandle)) {
-                return FutureHelpers.failedFuture(new StreamSegmentSealedException(targetHandle.getSegmentName()));
+        public FSDataOutputStream append(Path f, int bufferSize, Progressable progress) throws IOException {
+            if (getFileStatus(f).getPermission().getUserAction() == FsAction.READ) {
+                throw new AclException(f.getName());
             }
 
-            return super.concat(targetHandle, offset, sourceHandle, timeout);
+            return super.append(f, bufferSize, progress);
         }
 
-        private boolean isSealed(SegmentHandle handle) {
-            // It turns out MiniHDFSCluster does not respect file attributes when it comes to writing: a R--R--R-- file
-            // will gladly be modified without throwing any sort of exception, so here we are, trying to "simulate" this.
-            // It should be noted though that a regular HDFS installation works just fine, which is why this code should
-            // not make it in the HDFSStorage class itself.
-            return super.getStreamSegmentInfo(handle.getSegmentName(), Duration.ofSeconds(10)).join().isSealed();
+        @Override
+        public void concat(final Path trg, final Path[] psrcs) throws IOException {
+            throw new UnsupportedOperationException("Operation disallowed.");
         }
     }
 }

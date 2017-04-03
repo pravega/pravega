@@ -7,19 +7,15 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
-import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -29,6 +25,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 /**
  * Base for any Operation that accesses the FileSystem.
  */
+@Slf4j
 abstract class FileSystemOperation<T> {
     //region Members
 
@@ -94,9 +91,9 @@ abstract class FileSystemOperation<T> {
         }
 
         val result = Arrays.stream(rawFiles)
-                .map(this::toDescriptor)
-                .sorted()
-                .collect(Collectors.toList());
+                           .map(this::toDescriptor)
+                           .sorted()
+                           .collect(Collectors.toList());
 
         val firstFile = result.get(0);
         if (firstFile.getOffset() != 0 && isConcatSource(firstFile)) {
@@ -127,7 +124,7 @@ abstract class FileSystemOperation<T> {
      * Converts the given FileStatus into a FileDescriptor.
      */
     @SneakyThrows(FileNameFormatException.class)
-    private FileDescriptor toDescriptor(FileStatus fs) {
+    FileDescriptor toDescriptor(FileStatus fs) {
         // Extract offset and epoch from name.
         final long offset;
         final long epoch;
@@ -186,6 +183,25 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
+     * Creates a new file with given path having a read-write permission.
+     *
+     * @param fullPath The path of the file to create.
+     * @throws IOException If an exception occurred.
+     */
+    void createEmptyFile(String fullPath) throws IOException {
+        this.context.fileSystem
+                .create(new Path(fullPath),
+                        new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
+                        false,
+                        0,
+                        this.context.config.getReplication(),
+                        this.context.config.getBlockSize(),
+                        null)
+                .close();
+        log.debug("Created '{}'.", fullPath);
+    }
+
+    /**
      * Gets the full HDFS Path to a file for the given Segment, startOffset and epoch.
      */
     String getFileName(String segmentName, long startOffset, long epoch) {
@@ -207,24 +223,6 @@ abstract class FileSystemOperation<T> {
     //region File Attributes
 
     /**
-     * Creates a new file with given path having a read-write permission.
-     *
-     * @param fullPath The path of the file to create.
-     * @throws IOException If an exception occurred.
-     */
-    void createEmptyFile(String fullPath) throws IOException {
-        this.context.fileSystem
-                .create(new Path(fullPath),
-                        new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
-                        false,
-                        0,
-                        this.context.config.getReplication(),
-                        this.context.config.getBlockSize(),
-                        null)
-                .close();
-    }
-
-    /**
      * Deletes a file from the file system.
      *
      * @param file The path of the file to delete.
@@ -232,38 +230,41 @@ abstract class FileSystemOperation<T> {
      */
     void deleteFile(FileDescriptor file) throws IOException {
         this.context.fileSystem.delete(new Path(file.getPath()), true);
+        log.debug("Deleted '{}'.", file.getPath());
     }
 
     /**
      * Determines whether the file represented by the given FileDescriptor has the Sealed attribute set.
      *
-     * @param fileDescriptor The FileDescriptor of the file toe make sealed.
+     * @param file The FileDescriptor of the file toe make sealed.
      * @return True or False.
      * @throws IOException If an exception occurred.
      */
-    boolean isSealed(FileDescriptor fileDescriptor) throws IOException {
-        byte[] data = this.context.fileSystem.getXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE);
+    boolean isSealed(FileDescriptor file) throws IOException {
+        byte[] data = this.context.fileSystem.getXAttr(new Path(file.getPath()), SEALED_ATTRIBUTE);
         return data != null && data.length > 0 && data[0] != 0;
     }
 
     /**
      * Sets the Sealed attribute on the file represented by the given descriptor.
      *
-     * @param fileDescriptor The FileDescriptor of the file to make sealed.
+     * @param file The FileDescriptor of the file to make sealed.
      * @throws IOException If an exception occurred.
      */
-    void makeSealed(FileDescriptor fileDescriptor) throws IOException {
-        this.context.fileSystem.setXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE, new byte[]{(byte) (255)});
+    void makeSealed(FileDescriptor file) throws IOException {
+        this.context.fileSystem.setXAttr(new Path(file.getPath()), SEALED_ATTRIBUTE, new byte[]{(byte) (255)});
+        log.debug("MakeSealed '{}'.", file.getPath());
     }
 
     /**
      * Removes the sealed attribute from the file represented by the given descriptor.
      *
-     * @param fileDescriptor The FileDescriptor of the file to unseal.
+     * @param file The FileDescriptor of the file to unseal.
      * @throws IOException If an exception occurred.
      */
-    private void makeUnsealed(FileDescriptor fileDescriptor) throws IOException {
-        this.context.fileSystem.removeXAttr(new Path(fileDescriptor.getPath()), SEALED_ATTRIBUTE);
+    void makeUnsealed(FileDescriptor file) throws IOException {
+        this.context.fileSystem.removeXAttr(new Path(file.getPath()), SEALED_ATTRIBUTE);
+        log.debug("MakeUnsealed '{}'.", file.getPath());
     }
 
     /**
@@ -279,112 +280,22 @@ abstract class FileSystemOperation<T> {
     /**
      * Makes the file represented by the given FileDescriptor read-only.
      *
-     * @param fileDescriptor The FileDescriptor of the file to set. If this method returns true, this FileDescriptor will
-     *                       also be updated to indicate the file is read-only.
+     * @param file The FileDescriptor of the file to set. If this method returns true, this FileDescriptor will
+     *             also be updated to indicate the file is read-only.
      * @return True if the file was not read-only before (and it is now), or false if the file was already read-only.
      * @throws IOException If an exception occurred.
      */
-    boolean makeReadOnly(FileDescriptor fileDescriptor) throws IOException {
-        Path p = new Path(fileDescriptor.getPath());
+    boolean makeReadOnly(FileDescriptor file) throws IOException {
+        Path p = new Path(file.getPath());
         if (isReadOnly(this.context.fileSystem.getFileStatus(p))) {
             return false;
         }
 
         this.context.fileSystem.setPermission(p, READONLY_PERMISSION);
-        fileDescriptor.markReadOnly();
+        log.debug("MakeReadOnly '{}'.", file.getPath());
+        file.markReadOnly();
         return true;
     }
-
-    //endregion
-
-    // Concatenation
-
-    /**
-     * Initiates or resumes a concatenation operation on the given handle.
-     * TODO: incorporate into openRead and openWrite.
-     * TODO: proof-read this and test.
-     *
-     * @param targetHandle
-     * @throws IOException
-     */
-    void resumeConcatenation(HDFSSegmentHandle targetHandle) throws IOException, StorageNotPrimaryException {
-        Preconditions.checkArgument(!targetHandle.isReadOnly(), "targetHandle must not be read-only.");
-
-        // Two-stage process: gather all information and then apply.
-        // Step 1: Generate list of renames. This also pre-validates input so we don't detect a corruption mid-way.
-        // Start with the last file of the handle, and follow the "concat.next" attribute until we no longer detect one
-        // or find a file that has the 'sealed' attribute.
-        val renames = new ArrayList<Map.Entry<Path, Path>>();
-        val processedFiles = new HashSet<String>();
-        FileDescriptor current = targetHandle.getLastFile();
-        while (!isSealed(current)) {
-            if (!processedFiles.add(current.getPath())) {
-                throw new SegmentFilesCorruptedException(targetHandle.getSegmentName(), current,
-                        String.format("Circular dependency found. File '%s' was seen more than once.", current));
-            }
-
-            String concatNextPath = getConcatNext(current);
-            if (concatNextPath == null) {
-                // We are done gathering.
-                break;
-            }
-
-            // Find sourceFile as indicated by concatNextAttribute.
-            Path nextPath = new Path(concatNextPath);
-
-            // Generate the new name of the file, validate it, and record the rename mapping.
-            long offset = current.getLastOffset();
-            String newFileName = getFileName(targetHandle.getSegmentName(), offset, this.context.epoch);
-            Path newPath = new Path(newFileName);
-            if (!processedFiles.add(newFileName)) {
-                throw new SegmentFilesCorruptedException(targetHandle.getSegmentName(), current,
-                        String.format("Circular dependency found. File '%s' was seen more than once.", newFileName));
-            }
-            if (this.context.fileSystem.exists(newPath)) {
-                throw new FileAlreadyExistsException(newPath.toString());
-            }
-
-            renames.add(new AbstractMap.SimpleImmutableEntry<>(nextPath, newPath));
-            current = toDescriptor(this.context.fileSystem.getFileStatus(nextPath));
-        }
-
-        // Step 2: Execute the renames.
-        for (Map.Entry<Path, Path> toRename : renames) {
-            Path source = toRename.getKey();
-            Path destination = toRename.getValue();
-            FileDescriptor lastFile = targetHandle.getLastFile();
-            if (!lastFile.isReadOnly()) {
-                makeReadOnly(lastFile);
-            }
-
-            if (!this.context.fileSystem.rename(source, destination)) {
-                throw new FileAlreadyExistsException(destination.toString());
-            }
-
-            FileDescriptor newFile = toDescriptor(this.context.fileSystem.getFileLinkStatus(destination));
-            if (newFile.getOffset() != lastFile.getLastOffset() || newFile.getEpoch() != this.context.epoch) {
-                throw new SegmentFilesCorruptedException(targetHandle.getSegmentName(), newFile,
-                        String.format("Rename operation failed. Renamed file has unexpected parameters. Offset=%d/%d, Epoch=%d/%d.",
-                                newFile.getOffset(), lastFile.getLastOffset(), newFile.getEpoch(), this.context.epoch));
-            }
-
-            // Rename successful. Cleanup and update the handle.
-            removeConcatNext(lastFile);
-            targetHandle.addLastFile(newFile);
-        }
-
-        // Cleanup: Unseal last file, and create empty new active file.
-        FileDescriptor lastFile = targetHandle.getLastFile();
-        makeReadOnly(lastFile);
-        makeUnsealed(lastFile);
-        removeConcatNext(lastFile);
-
-        // 9. Create new empty file (read-write)
-        String newActiveFile = getFileName(targetHandle.getSegmentName(), lastFile.getLastOffset(), this.context.epoch);
-        createEmptyFile(newActiveFile);
-        targetHandle.addLastFile(toDescriptor(this.context.fileSystem.getFileStatus(new Path(newActiveFile))));
-    }
-
 
     /**
      * Sets an attribute on the given file to indicate which file is next in the concatenation order.
@@ -395,17 +306,18 @@ abstract class FileSystemOperation<T> {
      */
     void setConcatNext(FileDescriptor file, FileDescriptor nextFile) throws IOException {
         this.context.fileSystem.setXAttr(new Path(file.getPath()), CONCAT_ATTRIBUTE, nextFile.getPath().getBytes());
+        log.debug("SetConcatNext '{}' to '{}'.", file.getPath(), nextFile.getPath());
     }
 
     /**
      * Gets the value of the concatNext attribute on the given file.
      *
-     * @param fileDescriptor The FileDescriptor of the file to get the attribute for.
+     * @param file The FileDescriptor of the file to get the attribute for.
      * @return The value of the attribute, or null if no such attribute is set.
      * @throws IOException If an exception occurred.
      */
-    private String getConcatNext(FileDescriptor fileDescriptor) throws IOException {
-        byte[] data = this.context.fileSystem.getXAttr(new Path(fileDescriptor.getPath()), CONCAT_ATTRIBUTE);
+    String getConcatNext(FileDescriptor file) throws IOException {
+        byte[] data = this.context.fileSystem.getXAttr(new Path(file.getPath()), CONCAT_ATTRIBUTE);
         if (data == null || data.length == 0) {
             return null;
         }
@@ -416,11 +328,12 @@ abstract class FileSystemOperation<T> {
     /**
      * Removes the concatNext attribute from the given file.
      *
-     * @param fileDescriptor The FileDescriptor of the file to remove the attribute from.
+     * @param file The FileDescriptor of the file to remove the attribute from.
      * @throws IOException If an exception occurred.
      */
-    private void removeConcatNext(FileDescriptor fileDescriptor) throws IOException {
-        this.context.fileSystem.removeXAttr(new Path(fileDescriptor.getPath()), CONCAT_ATTRIBUTE);
+    void removeConcatNext(FileDescriptor file) throws IOException {
+        this.context.fileSystem.removeXAttr(new Path(file.getPath()), CONCAT_ATTRIBUTE);
+        log.debug("RemoveConcatNext '{}' to '{}'.", file.getPath());
     }
 
     /**
@@ -431,7 +344,7 @@ abstract class FileSystemOperation<T> {
      * @return True if the attribute is set, false otherwise.
      * @throws IOException If an exception occurred.
      */
-    private boolean isConcatSource(FileDescriptor fileDescriptor) throws IOException {
+    boolean isConcatSource(FileDescriptor fileDescriptor) throws IOException {
         return getConcatNext(fileDescriptor) != null;
     }
 

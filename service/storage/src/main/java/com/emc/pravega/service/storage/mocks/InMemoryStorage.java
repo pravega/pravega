@@ -178,21 +178,21 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         ensurePreconditions();
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "Cannot concat using a read-only handle.");
         AtomicLong newLength = new AtomicLong();
         CompletableFuture<Void> result = CompletableFuture.runAsync(() -> {
-            StreamSegmentData sourceData = getStreamSegmentData(sourceHandle.getSegmentName());
+            StreamSegmentData sourceData = getStreamSegmentData(sourceSegment);
             StreamSegmentData targetData = getStreamSegmentData(targetHandle.getSegmentName());
             targetData.concat(sourceData, offset);
-            deleteInternal(sourceHandle);
+            deleteInternal(new InMemorySegmentHandle(sourceSegment, false));
             newLength.set(targetData.getInfo().getLength());
         }, this.executor);
 
         result.thenRunAsync(() -> {
             fireOffsetTriggers(targetHandle.getSegmentName(), newLength.get());
-            fireSealTrigger(sourceHandle.getSegmentName());
+            fireSealTrigger(sourceSegment);
         }, this.executor);
         return result;
     }

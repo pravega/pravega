@@ -106,9 +106,9 @@ class VerificationStorage implements TruncateableStorage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
-        unregisterAllListeners(sourceHandle.getSegmentName());
-        CompletableFuture<Void> result = this.baseStorage.concat(targetHandle, offset, sourceHandle, timeout);
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
+        unregisterAllListeners(sourceSegment);
+        CompletableFuture<Void> result = this.baseStorage.concat(targetHandle, offset, sourceSegment, timeout);
         result.thenComposeAsync(v -> this.baseStorage.getStreamSegmentInfo(targetHandle.getSegmentName(), timeout), this.executor)
               .thenAcceptAsync(sp -> triggerListeners(targetHandle.getSegmentName(), sp.getLength(), false), this.executor);
         return result;

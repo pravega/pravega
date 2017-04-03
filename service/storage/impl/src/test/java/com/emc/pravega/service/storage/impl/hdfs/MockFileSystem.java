@@ -10,10 +10,12 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -44,6 +46,8 @@ class MockFileSystem extends FileSystem {
     private Function<Path, CustomAction> onCreate;
     @Setter
     private Function<Path, CustomAction> onDelete;
+    @Setter
+    private Function<Path, CustomAction> onRename;
 
     //endregion
 
@@ -87,10 +91,12 @@ class MockFileSystem extends FileSystem {
             }
 
             FileData toRename = getFileData(src);
-            this.files.put(dst, toRename);
+            this.files.put(dst, new FileData(dst, toRename));
             this.files.remove(src);
-            return true;
         }
+
+        invokeCustomAction(this.onRename, src);
+        return true;
     }
 
     @Override
@@ -128,6 +134,11 @@ class MockFileSystem extends FileSystem {
     @Override
     public byte[] getXAttr(Path path, String name) throws IOException {
         return getFileData(path).getAttribute(name);
+    }
+
+    @Override
+    public void removeXAttr(Path path, String name) throws IOException {
+        getFileData(path).removeAttribute(name);
     }
 
     @Override
@@ -229,9 +240,23 @@ class MockFileSystem extends FileSystem {
             this.permission = FsPermission.getFileDefault();
         }
 
+        @SneakyThrows(IOException.class)
+        FileData(Path path, FileData source) {
+            this.path = path;
+            this.permission = source.permission;
+            this.attributes.putAll(source.attributes);
+            this.contents.write(source.contents.toByteArray());
+        }
+
         void setAttribute(String name, byte[] data) {
             synchronized (this.attributes) {
                 this.attributes.put(name, data);
+            }
+        }
+
+        void removeAttribute(String name) {
+            synchronized (this.attributes) {
+                this.attributes.remove(name);
             }
         }
 
@@ -251,6 +276,11 @@ class MockFileSystem extends FileSystem {
             synchronized (this.contents) {
                 return new FileStatus(contents.size(), false, 1, 1, 1, 1, this.permission, "", "", path);
             }
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%s (Length = %s)", this.path, this.contents);
         }
     }
 
@@ -273,6 +303,23 @@ class MockFileSystem extends FileSystem {
         @Override
         void execute() throws IOException {
             createInternal(this.target);
+        }
+    }
+
+    class ThrowException extends CustomAction {
+        private final Supplier<IOException> exceptionSupplier;
+
+        ThrowException(Path target, Supplier<IOException> exceptionSupplier) {
+            super(target);
+            this.exceptionSupplier = exceptionSupplier;
+        }
+
+        @Override
+        void execute() throws IOException {
+            IOException ex = this.exceptionSupplier.get();
+            if (ex != null) {
+                throw ex;
+            }
         }
     }
 

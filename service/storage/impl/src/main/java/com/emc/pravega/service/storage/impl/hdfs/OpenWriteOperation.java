@@ -58,9 +58,15 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
                     // open it for writing, therefore open a read-only handle.
                     result = HDFSSegmentHandle.read(segmentName, allFiles);
                 } else if (lastFile.getEpoch() == this.context.epoch) {
-                    // The only way we can get in this state is if someone else fenced us out.
-                    throw new StorageNotPrimaryException(segmentName,
-                            String.format("Last file has our epoch (%d) but it is read-only: %s.", this.context.epoch, lastFile.getPath()));
+                    // There are two reasons we could get in here: either after a concat that failed mid-way, or because
+                    // someone else fenced us out.
+                    if (isConcatSource(lastFile)) {
+                        // This file looks like it came from a partially completed concat operation. Attempt to recover it.
+                        result = recoverConcatOperation(segmentName, allFiles);
+                    } else {
+                        throw new StorageNotPrimaryException(segmentName,
+                                String.format("Last file has our epoch (%d) but it is read-only: %s.", this.context.epoch, lastFile.getPath()));
+                    }
                 } else {
                     // The last file is read-only and not sealed. This segment is fenced off and we can continue using it.
                     return fenceOut(segmentName, offset);
@@ -132,5 +138,13 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
         }
 
         return HDFSSegmentHandle.write(segmentName, resultFiles);
+    }
+
+    private HDFSSegmentHandle recoverConcatOperation(String segmentName, List<FileDescriptor> allFiles) throws IOException, StorageNotPrimaryException {
+        HDFSSegmentHandle candidateHandle = HDFSSegmentHandle.write(segmentName, allFiles);
+        val op = new ConcatOperation(candidateHandle, this.context);
+        op.resumeConcatenation();
+        checkForFenceOut(candidateHandle.getSegmentName(), candidateHandle.getFiles().size(), candidateHandle.getLastFile());
+        return candidateHandle;
     }
 }

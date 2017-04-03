@@ -5,6 +5,7 @@
 package com.emc.pravega.service.storage.impl.hdfs;
 
 import java.io.IOException;
+import java.util.List;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -43,6 +44,10 @@ abstract class FileSystemOperationTestBase {
             return this.operation.makeReadOnly(file);
         }
 
+        void setConcatNext(FileDescriptor file, FileDescriptor nextFile) throws IOException {
+            this.operation.setConcatNext(file, nextFile);
+        }
+
         Path createEmptyFile(String segmentName, long offset) throws IOException {
             Path result = new Path(this.operation.getFileName(segmentName, offset, this.epoch));
             this.fileSystem
@@ -55,6 +60,10 @@ abstract class FileSystemOperationTestBase {
                             null)
                     .close();
             return result;
+        }
+
+        List<FileDescriptor> findAllFiles(String segmentName) throws IOException {
+            return this.operation.findAll(segmentName, false);
         }
     }
 

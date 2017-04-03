@@ -1103,7 +1103,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // The concat succeeds, but we throw some random error, indicating that it didn't.
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
-            storage.concat(writeHandle(targetSegment), offset, writeHandle(sourceSegment), TIMEOUT).join();
+            storage.concat(writeHandle(targetSegment), offset, sourceSegment, TIMEOUT).join();
             throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
         });
 
