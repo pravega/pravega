@@ -57,6 +57,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("controller");
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
     private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
+    private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
@@ -135,7 +136,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                 final String name,
                                                 final OperationContext context,
                                                 final Executor executor) {
-        return withCompletion(getStream(scope, name, context).delete(), executor);
+        return withCompletion(getStream(scope, name, context).delete(), executor)
+                .thenApply(result -> {
+                    DELETE_STREAM.reportSuccessValue(1);
+                    return result;
+                });
     }
 
     @Override

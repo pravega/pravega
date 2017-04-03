@@ -5,6 +5,8 @@
  */
 package com.emc.pravega.controller.timeout;
 
+import com.emc.pravega.common.metrics.DynamicLogger;
+import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.OperationOnTxNotAllowedException;
 import com.emc.pravega.controller.store.stream.TransactionNotFoundException;
@@ -33,6 +35,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import static com.emc.pravega.common.MetricsNames.TIMEDOUT_TRANSACTIONS;
+import static com.emc.pravega.common.MetricsNames.nameFromStream;
+
 /**
  * Transaction ping manager. It maintains a local hashed timer wheel to manage txn timeouts.
  * It provides the following two methods.
@@ -51,7 +56,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     private static final boolean LEAK_DETECTION = true;
 
     // endregion
-
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final HashedWheelTimer hashedWheelTimer;
     private final ConcurrentHashMap<String, TxnData> map;
@@ -101,6 +106,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                                 hashedWheelTimer.newTimeout(this, 2 * TICK_DURATION, TIME_UNIT);
                             }
                         } else {
+                            DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(TIMEDOUT_TRANSACTIONS, scope, stream), 1);
                             log.debug("Successfully executed abort on tx {} ", key);
                             map.remove(key);
                             notifyCompletion(null);
