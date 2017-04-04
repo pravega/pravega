@@ -20,6 +20,7 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
 
 /**
  * ControllerServiceMonitor, entry point into the controller service.
@@ -35,6 +36,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
     private final String objectId;
     private final ControllerServiceConfig serviceConfig;
+    private final BiFunction<ControllerServiceConfig, StoreClient, ControllerServiceStarter> starterFactory;
     private ControllerServiceStarter starter;
     private final CompletableFuture<Void> serviceStopFuture;
     private StoreClient storeClient;
@@ -72,8 +74,15 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     }
 
     public ControllerServiceMain(ControllerServiceConfig serviceConfig) {
+        this(serviceConfig, ControllerServiceStarter::new);
+    }
+
+    @VisibleForTesting
+    ControllerServiceMain(final ControllerServiceConfig serviceConfig,
+                          final BiFunction<ControllerServiceConfig, StoreClient, ControllerServiceStarter> starterFactory) {
         this.objectId = "ControllerServiceMain";
         this.serviceConfig = serviceConfig;
+        this.starterFactory = starterFactory;
         this.serviceStopFuture = new CompletableFuture<>();
         this.serviceState = ServiceState.NEW;
     }
@@ -103,7 +112,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                     client.blockUntilConnected();
 
                     // Start controller services.
-                    starter = new ControllerServiceStarter(serviceConfig, storeClient);
+                    starter = starterFactory.apply(serviceConfig, storeClient);
                     log.info("Starting controller services");
                     notifyServiceStateChange(ServiceState.STARTING);
                     starter.startAsync();
@@ -145,7 +154,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
 
                 // Start controller services.
-                starter = new ControllerServiceStarter(serviceConfig, storeClient);
+                starter = starterFactory.apply(serviceConfig, storeClient);
                 log.info("Starting controller services");
                 notifyServiceStateChange(ServiceState.STARTING);
                 starter.startAsync();
