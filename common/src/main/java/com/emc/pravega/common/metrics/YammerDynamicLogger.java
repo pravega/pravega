@@ -20,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class YammerDynamicLogger implements DynamicLogger {
     private final long cacheSize;
-    private final long ttlSeconds;
 
     private final MetricRegistry metrics;
     private final StatsLogger underlying;
@@ -44,7 +43,7 @@ public class YammerDynamicLogger implements DynamicLogger {
                         Counter counter = removal.getValue();
                         Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
                         metrics.remove(counter.getName());
-                        log.debug("TTL expired, removed Counter: {}.", counter.getName());
+                        log.debug("Removed Counter: {}.", counter.getName());
                     }
                 }).
                 build();
@@ -56,7 +55,7 @@ public class YammerDynamicLogger implements DynamicLogger {
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
                         metrics.remove(gauge.getName());
-                        log.debug("TTL expired, removed Gauge: {}.", gauge.getName());
+                        log.debug("Removed Gauge: {}.", gauge.getName());
                     }
                 }).
                 build();
@@ -68,7 +67,7 @@ public class YammerDynamicLogger implements DynamicLogger {
                 public void onRemoval(RemovalNotification<String, Meter> removal) {
                     Meter meter = removal.getValue();
                     metrics.remove(meter.getName());
-                    log.debug("TTL expired, removed Meter: {}.", meter.getName());
+                    log.debug("Removed Meter: {}.", meter.getName());
                 }
             }).
             build();

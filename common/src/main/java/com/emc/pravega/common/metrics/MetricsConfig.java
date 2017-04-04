@@ -158,7 +158,6 @@ public class MetricsConfig {
     private MetricsConfig(TypedProperties properties) throws ConfigurationException {
         this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS);
         this.dynamicCacheSize = properties.getLong(DYNAMIC_CACHE_SIZE);
-        this.dynamicTTLSeconds = properties.getLong(DYNAMIC_TTL_SECONDS);
         this.statsOutputFrequencySeconds = properties.getInt(OUTPUT_FREQUENCY);
         this.metricsPrefix = properties.get(METRICS_PREFIX);
         this.csvEndpoint = properties.get(CSV_ENDPOINT);
