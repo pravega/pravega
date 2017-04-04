@@ -50,7 +50,7 @@ public class InMemoryStreamTest {
         store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
 
         try {
-            store.getConfiguration(SCOPE, streamName, null, executor).get();
+            store.getActiveSegments(SCOPE, streamName, null, executor).get();
             fail();
         } catch (Exception e) {
             Throwable cause = ExceptionHelpers.getRealException(e);
