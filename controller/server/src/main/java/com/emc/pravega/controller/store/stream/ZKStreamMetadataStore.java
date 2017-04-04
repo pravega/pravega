@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
