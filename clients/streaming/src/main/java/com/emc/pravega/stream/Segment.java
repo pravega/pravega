@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.stream;
 
-import com.google.common.base.Preconditions;
+import com.emc.pravega.common.util.NameVerifier;
 import com.google.common.base.Strings;
 
 import java.io.Serializable;
@@ -32,8 +32,7 @@ public class Segment implements Serializable {
      * @param number     ID number for the segment.
      */
     public Segment(String scope, String streamName, int number) {
-        Preconditions.checkNotNull(streamName);
-        Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
+        NameVerifier.validateName(streamName);
         this.scope = scope;
         this.streamName = streamName;
         this.segmentNumber = number;

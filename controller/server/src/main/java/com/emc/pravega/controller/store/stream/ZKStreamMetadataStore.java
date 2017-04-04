@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -45,8 +44,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                     if (scopeExists) {
                         return scopeName;
                     } else {
-                        FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND, "/store/%s"));
-                        return null;
+                        throw StoreException.create(StoreException.Type.NODE_NOT_FOUND, "/store/%s");
                     }
                 });
     }
