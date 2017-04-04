@@ -69,7 +69,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
         final long retryMaxDelay = 100000;
 
         return Retry.withExpBackoff(retryInitialDelay, retryMultiplier, retryMaxAttempts, retryMaxDelay)
-                .retryingOn(WireCommandFailedException.class)
+                .retryWhen(RetryableException::isRetryable)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> segmentHelper.abortTransaction(scope,
                         stream,

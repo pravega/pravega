@@ -8,6 +8,7 @@ package com.emc.pravega.controller.server.eventProcessor;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -69,7 +70,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         final long retryMaxDelay = 100000;
 
         return Retry.withExpBackoff(retryInitialDelay, retryMultiplier, retryMaxAttempts, retryMaxDelay)
-                .retryingOn(WireCommandFailedException.class)
+                .retryWhen(RetryableException::isRetryable)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> segmentHelper.commitTransaction(scope,
                         stream,
