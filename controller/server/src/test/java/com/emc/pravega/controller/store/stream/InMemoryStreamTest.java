@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -52,7 +53,8 @@ public class InMemoryStreamTest {
             store.getConfiguration(SCOPE, streamName, null, executor).get();
             fail();
         } catch (Exception e) {
-            assertTrue(e.getCause() != null && e.getCause() instanceof IllegalStateException);
+            Throwable cause = ExceptionHelpers.getRealException(e);
+            assertTrue(cause != null && cause instanceof IllegalStateException);
         }
         store.deleteScope(SCOPE);
     }
@@ -138,9 +140,10 @@ public class InMemoryStreamTest {
         try {
             store.getScopeConfiguration(scope2).get();
             fail();
-        } catch (StoreException e) {
-            assertTrue("Get non existent scope",
-                    e.getType() == StoreException.Type.NODE_NOT_FOUND);
+        } catch (Exception e) {
+            Throwable ex = ExceptionHelpers.getRealException(e);
+            assertTrue("Get non existent scope", ex instanceof StoreException &&
+                    ((StoreException) ex).getType() == StoreException.Type.NODE_NOT_FOUND);
         }
     }
 
@@ -277,7 +280,8 @@ public class InMemoryStreamTest {
             store.setSealed(SCOPE, "nonExistentStream", null, executor).get();
             fail();
         } catch (Exception e) {
-            assertEquals(DataNotFoundException.class, e.getCause().getClass());
+            Throwable ex = ExceptionHelpers.getRealException(e);
+            assertEquals(DataNotFoundException.class, ex.getClass());
         }
 
         store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 1000, null, executor).get();
