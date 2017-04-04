@@ -81,7 +81,7 @@ public class ControllerServiceTest {
                 TimeoutServiceConfig.defaultConfig());
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                timeoutService, new SegmentHelper(), executor, null);
+                timeoutService, new SegmentHelper(), executor);
     }
 
     @Before

@@ -156,8 +156,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerServiceExecutor,
-                    null);
+                    streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerServiceExecutor);
 
             // Setup event processors.
             setController(new LocalController(controllerService));

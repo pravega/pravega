@@ -60,9 +60,7 @@ public abstract class ControllerServiceImplTest {
     public void getControllerServersTest() {
         ResultObserver<ServerResponse> result = new ResultObserver<>();
         this.controllerService.getControllerServerList(ServerRequest.getDefaultInstance(), result);
-        assertEquals(1, result.get().getNodeURICount());
-        assertEquals("localhost", result.get().getNodeURI(0).getEndpoint());
-        assertEquals(9090, result.get().getNodeURI(0).getPort());
+        assertEquals(0, result.get().getNodeURICount());
     }
 
     @Test

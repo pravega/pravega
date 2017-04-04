@@ -182,7 +182,7 @@ public class TimeoutServiceTest {
                 TimeoutServiceConfig.defaultConfig(), new LinkedBlockingQueue<>(5));
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executor, null);
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executor);
 
         // Create scope and stream
         streamStore.createScope(SCOPE).join();

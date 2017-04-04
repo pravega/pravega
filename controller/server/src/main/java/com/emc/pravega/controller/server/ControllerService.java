@@ -6,7 +6,6 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
@@ -38,7 +37,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -60,24 +58,10 @@ public class ControllerService {
     private final TimeoutService timeoutService;
     private final SegmentHelper segmentHelper;
     private final Executor executor;
-    private final Cluster cluster;
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
-        if (cluster == null) {
-            return FutureHelpers.failedFuture(new IllegalStateException("Controller cluster not initialized"));
-        }
-
-        // TODO: This implementation will be updated once PR - https://github.com/pravega/pravega/pull/804 is complete.
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return cluster.getClusterMembers().stream()
-                        .map(host -> NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build())
-                        .collect(Collectors.toList());
-            } catch (Exception e) {
-                // cluster implementation throws checked exceptions which cannot be thrown inside completable futures.
-                throw new CompletionException(e);
-            }
-        }, executor);
+        // TODO: This implementation will be done separately over PR - https://github.com/pravega/pravega/pull/804.
+        return CompletableFuture.completedFuture(new ArrayList<>());
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,

@@ -91,7 +91,7 @@ public class StreamMetadataTasksTest {
                 TimeoutServiceConfig.defaultConfig());
 
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, segmentHelperMock, executor, null);
+                streamTransactionMetadataTasks, timeoutService, segmentHelperMock, executor);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
