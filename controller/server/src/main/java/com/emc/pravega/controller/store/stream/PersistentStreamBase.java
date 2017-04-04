@@ -505,7 +505,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     if (created) {
                         return future;
                     } else {
-                        throw new IllegalStateException("stream state unknown or stream still being created");
+                        throw new IllegalStateException("stream state unknown or stream is still being created");
                     }
                 });
     }
