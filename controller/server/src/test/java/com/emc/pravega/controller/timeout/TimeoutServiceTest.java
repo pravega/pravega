@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.timeout;
 
+import com.emc.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.client.StoreClient;
@@ -12,8 +13,6 @@ import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import com.emc.pravega.controller.store.stream.OperationContext;
-import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.stream.TxnStatus;
@@ -26,18 +25,13 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
@@ -45,8 +39,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -75,79 +67,8 @@ public class TimeoutServiceTest {
     private final TestingServer zkTestServer;
     private final CuratorFramework client;
     private final StreamMetadataTasks streamMetadataTasks;
-    private final DummyStreamTransactionTasks streamTransactionMetadataTasks;
+    private final MockStreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final StoreClient storeClient;
-
-    @Slf4j
-    private static class DummyStreamTransactionTasks extends StreamTransactionMetadataTasks {
-
-        private final StreamMetadataStore streamMetadataStore;
-
-        public DummyStreamTransactionTasks(final StreamMetadataStore streamMetadataStore,
-                final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
-                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
-                final ConnectionFactory connectionFactory) {
-            super(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory);
-            this.streamMetadataStore = streamMetadataStore;
-        }
-
-        @Override
-        public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream,
-                                                                                          final long lease, final long maxExecutionTime,
-                                                                                          final long scaleGracePeriod,
-                                                                                          final OperationContext contextOpt) {
-            final OperationContext context =
-                    contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-            return streamMetadataStore.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod,
-                    context, executor)
-                    .thenApply(txData -> {
-                        log.info("Created transaction {} with version {}", txData.getId(), txData.getVersion());
-                        return new ImmutablePair<>(txData, new ArrayList<>());
-                    });
-        }
-
-        @Override
-        public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
-                                                     final Optional<Integer> version,
-                                                     final OperationContext contextOpt) {
-            final OperationContext context =
-                    contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-            return this.streamMetadataStore.sealTransaction(scope, stream, txId, false, version, context, executor)
-                    .thenApply(status -> {
-                        log.info("Sealed:abort transaction {} with version {}", txId, version);
-                        return status;
-                    });
-        }
-
-        @Override
-        public CompletableFuture<VersionedTransactionData> pingTxn(final String scope, final String stream,
-                                                                   final UUID txId, final long lease,
-                                                                   final OperationContext contextOpt) {
-            final OperationContext context =
-                    contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-            return streamMetadataStore.pingTransaction(scope, stream, txId, lease, context, executor)
-                    .thenApply(txData -> {
-                        log.info("Pinged transaction {} with version {}", txId, txData.getVersion());
-                        return txData;
-                    });
-        }
-
-        @Override
-        public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
-                                                      final OperationContext contextOpt) {
-            final OperationContext context =
-                    contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-            return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.<Integer>empty(), context, executor)
-                    .thenApply(status -> {
-                        log.info("Sealed:commit transaction {} with version {}", txId, null);
-                        return status;
-                    });
-        }
-    }
 
     public TimeoutServiceTest() throws Exception {
 
@@ -174,7 +95,7 @@ public class TimeoutServiceTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 new SegmentHelper(), executor, hostId, connectionFactory);
-        streamTransactionMetadataTasks = new DummyStreamTransactionTasks(streamStore,
+        streamTransactionMetadataTasks = new MockStreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, new SegmentHelper(), executor, hostId, connectionFactory);
 
         // Create TimeoutService

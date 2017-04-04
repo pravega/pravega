@@ -42,11 +42,11 @@ import static org.junit.Assert.assertEquals;
  */
 public abstract class ControllerServiceImplTest {
 
-    private static final String SCOPE1 = "scope1";
-    private static final String SCOPE2 = "scope2";
-    private static final String SCOPE3 = "scope3";
-    private static final String STREAM1 = "stream1";
-    private static final String STREAM2 = "stream2";
+    protected static final String SCOPE1 = "scope1";
+    protected static final String SCOPE2 = "scope2";
+    protected static final String SCOPE3 = "scope3";
+    protected static final String STREAM1 = "stream1";
+    protected static final String STREAM2 = "stream2";
 
     //Ensure each test completes within 10 seconds.
     @Rule
@@ -293,7 +293,7 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
-    public void createTransactionTest() {
+    public void createTransactionFailureTest() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
 
         StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, STREAM1);
@@ -335,7 +335,7 @@ public abstract class ControllerServiceImplTest {
                 e -> checkGRPCException(e, IllegalArgumentException.class));
     }
 
-    private void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {
+    protected void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {
         final StreamConfiguration configuration1 =
                 StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(scalingPolicy).build();
 
@@ -356,7 +356,7 @@ public abstract class ControllerServiceImplTest {
         return e instanceof StatusRuntimeException && e.getCause().getClass() == expectedCause;
     }
 
-    private static class ResultObserver<T> implements StreamObserver<T> {
+    static class ResultObserver<T> implements StreamObserver<T> {
         private T result = null;
         private Throwable error;
         private final AtomicBoolean completed = new AtomicBoolean(false);
