@@ -13,14 +13,14 @@ import java.time.Duration;
 public interface OpStatsLogger {
 
     /**
-     * Increment the failed op counter with the given eventLatency in NanoSeconds.
+     * Increment the succeeded op counter with the given eventLatency in NanoSeconds.
      *
      * @param duration the event latency
      */
     void reportSuccessEvent(Duration duration);
 
     /**
-     * Increment the succeeded op counter with the given eventLatency in NanoSeconds.
+     * Increment the failed op counter with the given eventLatency in NanoSeconds.
      *
      * @param duration the event latency
      */
