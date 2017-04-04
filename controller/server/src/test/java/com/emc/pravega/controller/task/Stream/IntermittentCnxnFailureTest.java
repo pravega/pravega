@@ -35,9 +35,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.emc.pravega.controller.util.Config.SERVICE_PORT;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -136,15 +138,18 @@ public class IntermittentCnxnFailureTest {
         doReturn(CompletableFuture.completedFuture(true)).when(segmentHelperMock).createSegment(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
+        AtomicBoolean result = new AtomicBoolean(false);
         Retry.withExpBackoff(10, 10, 4)
                 .retryingOn(IllegalStateException.class)
                 .throwingOn(RuntimeException.class)
                 .run(() -> {
                     FutureHelpers.getAndHandleExceptions(
                             streamStore.getConfiguration(SCOPE, stream1, null, executor)
-                                    .thenAccept(configuration -> assertEquals(configuration, configuration1)),
+                                    .thenAccept(configuration -> result.set(configuration.equals(configuration1))),
                             CompletionException::new);
                     return null;
                 });
+
+        assertTrue(result.get());
     }
 }
