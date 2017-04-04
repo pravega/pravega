@@ -141,7 +141,7 @@
                       "value": "HOST_OPTS=\"-DautoScale.cacheCleanUpInSeconds=120\"" },
                   {
                       "key": "env",
-                      "value": "HOST_OPTS=\"-DautoScale.controllerUri=controller.pravega.marathon.mesos:9090\"" }
+                      "value": "HOST_OPTS=\"-DautoScale.controllerUri=tcp://controller.pravega.marathon.mesos:9090\"" }
                   ],
 		  "forcePullImage": true
               }
