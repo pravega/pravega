@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.controller.server.v1;
 
-import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -39,7 +38,6 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
     private TimeoutService timeoutService;
-    private Cluster cluster;
 
     @Override
     public void setup() throws Exception {
