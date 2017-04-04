@@ -184,6 +184,18 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
+        if (lease <= 0) {
+            return FutureHelpers.failedFuture(new IllegalArgumentException("lease should be a positive number"));
+        }
+        if (maxExecutionTime <= 0) {
+            return FutureHelpers.failedFuture(
+                    new IllegalArgumentException("maxExecutionTime should be a positive number"));
+        }
+        if (scaleGracePeriod <= 0) {
+            return FutureHelpers.failedFuture(
+                    new IllegalArgumentException("scaleGracePeriod should be a positive number"));
+        }
+
         // If scaleGracePeriod is larger than maxScaleGracePeriod return error
         if (scaleGracePeriod > timeoutService.getMaxScaleGracePeriod()) {
             return FutureHelpers.failedFuture(new IllegalArgumentException("scaleGracePeriod too large, max value is "
