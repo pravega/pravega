@@ -111,13 +111,13 @@ public class MetricsTest {
                 this.server.close();
                 this.server = null;
             }
-            if (this.zkTestServer != null) {
-                this.zkTestServer.close();
-                this.zkTestServer = null;
-            }
             if (this.statsProvider != null) {
                 this.statsProvider.close();
                 this.statsProvider = null;
+            }
+            if (this.zkTestServer != null) {
+                this.zkTestServer.close();
+                this.zkTestServer = null;
             }
         } catch (Exception e) {
             log.warn("Exception while tearing down", e);
@@ -137,9 +137,17 @@ public class MetricsTest {
         assertTrue(controller.createStream(streamConfiguration2).join());
 
         // Test the controller.stream_deleted metric
-        // Get the last record and verify the count for deleted streams is greater that 0
         assertTrue(controller.sealStream(SCOPE, STREAM2).join());
         assertTrue(controller.deleteStream(SCOPE, STREAM2).join());
+
+        // Test DYNAMIC.$scope.$stream.transactions_timedout metric
+        controller.createTransaction(new StreamImpl(SCOPE, STREAM), 1, 2, 29000);
+        Thread.sleep(5000);
+
+        // Close stats provider, so that files are generated.
+        statsProvider.close();
+
+        // Get the last record and verify the count for deleted streams is greater that 0
         filePath = new StringBuilder(csvFolderPath).append("controller.stream_deleted.csv").toString();
         @Cleanup
         FileReader fileReader = new FileReader(filePath);
@@ -150,10 +158,7 @@ public class MetricsTest {
         csvFileParser.close();
         fileReader.close();
 
-        // Test DYNAMIC.$scope.$stream.transactions_timedout metric
         // Get the last record and verify the count for timed out transactions is greater that 0
-        controller.createTransaction(new StreamImpl(SCOPE, STREAM), 1, 2, 29000);
-        Thread.sleep(5000);
         filePath = new StringBuilder(csvFolderPath).append("DYNAMIC.").append(SCOPE).append(".")
                 .append(STREAM).append(".transactions_timedout.Meter.csv").toString();
         fileReader = new FileReader(filePath);
