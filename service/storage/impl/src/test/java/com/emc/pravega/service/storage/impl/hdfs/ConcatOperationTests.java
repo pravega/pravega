@@ -347,7 +347,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
 
         // Interrupt the concat mid-way.
         AtomicInteger callCount = new AtomicInteger();
-        fs.setOnRename(p -> fs.new ThrowException(p,
+        fs.setOnRename(p -> fs.new FailAction(p,
                 () -> callCount.incrementAndGet() < epochs / 2 ? null : new IOException("Intentional")));
 
         AssertExtensions.assertThrows(
@@ -373,7 +373,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
         fs.setOnRename(null); // Remove intentional failure.
         val targetHandle2 = new OpenWriteOperation(TARGET_SEGMENT, context).call();
         expectedFileCount++; // Because we create an empty file at the end for fencing.
-        verifyConcatOutcome(targetHandle2,expectedFileCount,expectedDataStream,context);
+        verifyConcatOutcome(targetHandle2, expectedFileCount, expectedDataStream, context);
     }
 
     private HDFSSegmentHandle createNonEmptySegment(String segmentName, TestContext context, OutputStream expectedDataStream) throws Exception {

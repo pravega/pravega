@@ -131,7 +131,7 @@ class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-        return runAsync(new DeleteOperation(asWritableHandle(handle).getSegmentName(), this.context));
+        return runAsync(new DeleteOperation(asWritableHandle(handle), this.context));
     }
 
     @Override

@@ -77,7 +77,7 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
 
         // Part 1: CreateOperation has higher epoch than competitor -> it should succeed.
         Path fencedOutFile = context1.getFileName(SEGMENT_NAME, 0);
-        fs.setOnCreate(path -> fs.new CreateNewFile(fencedOutFile));
+        fs.setOnCreate(path -> fs.new CreateNewFileAction(fencedOutFile));
 
         // This should wipe out the file created by the first call.
         new CreateOperation(SEGMENT_NAME, context2).call();
@@ -87,7 +87,7 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
         // Part 2: CreateOperation has lower epoch than competitor -> it should back off and fail
         fs.clear();
         Path survivingFile = context2.getFileName(SEGMENT_NAME, 0);
-        fs.setOnCreate(path -> fs.new CreateNewFile(survivingFile));
+        fs.setOnCreate(path -> fs.new CreateNewFileAction(survivingFile));
 
         // This should wipe out the file created by the first call.
         AssertExtensions.assertThrows(

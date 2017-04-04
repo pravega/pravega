@@ -11,6 +11,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -85,10 +86,16 @@ public class ConcatOperation extends FileSystemOperation<HDFSSegmentHandle> impl
 
         // Check for target offset and whether it is sealed.
         FileDescriptor lastFile = this.target.getLastFile();
-        if (isSealed(lastFile)) {
-            throw HDFSExceptionHelpers.segmentSealedException(this.target.getSegmentName());
-        } else if (lastFile.getLastOffset() != this.offset) {
-            throw new BadOffsetException(this.target.getSegmentName(), lastFile.getLastOffset(), this.offset);
+        try {
+            if (isSealed(lastFile)) {
+                throw HDFSExceptionHelpers.segmentSealedException(this.target.getSegmentName());
+            } else if (lastFile.getLastOffset() != this.offset) {
+                throw new BadOffsetException(this.target.getSegmentName(), lastFile.getLastOffset(), this.offset);
+            }
+        } catch (FileNotFoundException fnf) {
+            // The last file could have been deleted due to being fenced out (i.e., empty file).
+            checkForFenceOut(this.target.getSegmentName(), this.target.getFiles().size(), lastFile);
+            throw fnf;
         }
 
         // Get all files for source handle (ignore handle contents and refresh from file system). Verify it is sealed.
@@ -99,7 +106,8 @@ public class ConcatOperation extends FileSystemOperation<HDFSSegmentHandle> impl
         if (sourceFiles.get(sourceFiles.size() - 1).getLastOffset() == 0) {
             // Quick bail-out: source segment is empty, simply delete it.
             log.debug("Source Segment '%s' is empty. No concat will be performed. Source Segment will be deleted.", this.sourceSegmentName);
-            new DeleteOperation(this.sourceSegmentName, context).run();
+            val readHandle = HDFSSegmentHandle.read(this.sourceSegmentName, sourceFiles);
+            new DeleteOperation(readHandle, this.context).run();
             LoggerHelpers.traceLeave(log, "setConcatAttributes", traceId, this.target, false);
             return false;
         }

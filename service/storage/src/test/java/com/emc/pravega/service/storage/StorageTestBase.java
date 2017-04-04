@@ -171,7 +171,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             val testSegmentHandle = s.openRead(testSegment).join();
             byte[] testReadBuffer = new byte[10];
             assertThrows("read() allowed reading with negative read offset.",
-                    () -> s.read(createHandle(getSegmentName(0, context), true, DEFAULT_EPOCH), -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
+                    () -> s.read(testSegmentHandle, -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with offset beyond Segment length.",

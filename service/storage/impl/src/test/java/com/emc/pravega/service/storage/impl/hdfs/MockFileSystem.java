@@ -39,7 +39,7 @@ class MockFileSystem extends FileSystem {
     //region Members
 
     private static final URI ROOT_URI = URI.create("");
-    private final FileStatus ROOT = new FileStatus(0, true, 1, 1, 1, 1, FsPermission.getDirDefault(), "", "", new Path("/"));
+    private final FileStatus root = new FileStatus(0, true, 1, 1, 1, 1, FsPermission.getDirDefault(), "", "", new Path("/"));
     @GuardedBy("files")
     private final HashMap<Path, FileData> files = new HashMap<>();
     @Setter
@@ -115,8 +115,8 @@ class MockFileSystem extends FileSystem {
 
     @Override
     public FileStatus getFileStatus(Path f) throws IOException {
-        if (f.equals(ROOT.getPath())) {
-            return ROOT;
+        if (f.equals(root.getPath())) {
+            return root;
         }
         return getFileData(f).getStatus();
     }
@@ -160,7 +160,7 @@ class MockFileSystem extends FileSystem {
     }
 
     @Override
-    public void setWorkingDirectory(Path new_dir) {
+    public void setWorkingDirectory(Path newDir) {
     }
 
     @Override
@@ -254,15 +254,22 @@ class MockFileSystem extends FileSystem {
             }
         }
 
-        void removeAttribute(String name) {
+        void removeAttribute(String name) throws IOException {
             synchronized (this.attributes) {
-                this.attributes.remove(name);
+                if (this.attributes.remove(name) == null) {
+                    throw new IOException("attribute not set");
+                }
             }
         }
 
-        byte[] getAttribute(String name) {
+        byte[] getAttribute(String name) throws IOException {
             synchronized (this.attributes) {
-                return this.attributes.get(name);
+                byte[] data = this.attributes.get(name);
+                if (data == null) {
+                    throw new IOException("attribute not set");
+                }
+
+                return data;
             }
         }
 
@@ -295,8 +302,8 @@ class MockFileSystem extends FileSystem {
         abstract void execute() throws IOException;
     }
 
-    class CreateNewFile extends CustomAction {
-        CreateNewFile(Path target) {
+    class CreateNewFileAction extends CustomAction {
+        CreateNewFileAction(Path target) {
             super(target);
         }
 
@@ -306,10 +313,10 @@ class MockFileSystem extends FileSystem {
         }
     }
 
-    class ThrowException extends CustomAction {
+    class FailAction extends CustomAction {
         private final Supplier<IOException> exceptionSupplier;
 
-        ThrowException(Path target, Supplier<IOException> exceptionSupplier) {
+        FailAction(Path target, Supplier<IOException> exceptionSupplier) {
             super(target);
             this.exceptionSupplier = exceptionSupplier;
         }

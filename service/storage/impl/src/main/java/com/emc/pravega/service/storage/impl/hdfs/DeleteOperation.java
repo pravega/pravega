@@ -7,35 +7,46 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * FileSystemOperation that Deletes a Segment.
  */
 @Slf4j
-class DeleteOperation extends FileSystemOperation<String> implements RunnableWithException {
+class DeleteOperation extends FileSystemOperation<HDFSSegmentHandle> implements RunnableWithException {
     /**
      * Creates a new instance of the DeleteOperation class.
      *
-     * @param segmentName A WriteHandle containing information about the segment to delete.
-     * @param context     Context for the operation.
+     * @param handle  A WriteHandle containing information about the segment to delete.
+     * @param context Context for the operation.
      */
-    DeleteOperation(String segmentName, OperationContext context) {
-        super(segmentName, context);
+    DeleteOperation(HDFSSegmentHandle handle, OperationContext context) {
+        super(handle, context);
     }
 
     @Override
     public void run() throws IOException, StorageNotPrimaryException {
-        String segmentName = getTarget();
-        long traceId = LoggerHelpers.traceEnter(log, "delete", segmentName);
+        HDFSSegmentHandle handle = getTarget();
+        long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
 
         // Get an initial list of all files.
-        List<FileDescriptor> files = findAll(segmentName, true);
+        List<FileDescriptor> files = handle.getFiles();
         while (files.size() > 0) {
             // Just in case the last file is not read-only, mark it as such, to prevent others from writing to it.
-            makeReadOnly(files.get(files.size() - 1));
+            val lastFile = files.get(files.size() - 1);
+            try {
+                if (!makeReadOnly(lastFile)) {
+                    // Last file was already readonly.
+                    checkForFenceOut(handle.getSegmentName(), files.size(), lastFile);
+                }
+            } catch (FileNotFoundException ex) {
+                checkForFenceOut(handle.getSegmentName(), files.size(), lastFile);
+                throw ex;
+            }
 
             // Delete every file in this set.
             for (FileDescriptor f : files) {
@@ -48,9 +59,9 @@ class DeleteOperation extends FileSystemOperation<String> implements RunnableWit
             }
 
             // In case someone else created a new (set of) files for this segment while we were working, remove them all too.
-            files = findAll(segmentName, false);
+            files = findAll(handle.getSegmentName(), false);
         }
 
-        LoggerHelpers.traceLeave(log, "delete", traceId, segmentName);
+        LoggerHelpers.traceLeave(log, "delete", traceId, handle);
     }
 }

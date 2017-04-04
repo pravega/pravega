@@ -135,7 +135,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
         val context2 = newContext(context1.epoch + 1, fs);
         val context3 = newContext(context2.epoch + 1, fs);
         Path survivingFilePath = context3.getFileName(SEGMENT_NAME, 0);
-        fs.setOnCreate(path -> fs.new CreateNewFile(survivingFilePath));
+        fs.setOnCreate(path -> fs.new CreateNewFileAction(survivingFilePath));
         AssertExtensions.assertThrows(
                 "OpenWrite did not fail when a concurrent higher epoch file was created.",
                 new OpenWriteOperation(SEGMENT_NAME, context2)::call,
@@ -162,7 +162,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
 
         val context2 = newContext(context1.epoch + 1, fs);
         val context3 = newContext(context2.epoch + 1, fs);
-        fs.setOnCreate(path -> fs.new CreateNewFile(context2.getFileName(SEGMENT_NAME, 0)));
+        fs.setOnCreate(path -> fs.new CreateNewFileAction(context2.getFileName(SEGMENT_NAME, 0)));
         val handle = new OpenWriteOperation(SEGMENT_NAME, context3).call();
 
         Path survivingFile = context3.getFileName(SEGMENT_NAME, 0);

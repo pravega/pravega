@@ -47,13 +47,14 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
         HDFSSegmentHandle handle = getTarget();
         long traceId = LoggerHelpers.traceEnter(log, "write", handle, this.offset, this.length);
         FileDescriptor lastFile = handle.getLastFile();
-        if (this.offset != lastFile.getLastOffset()) {
-            throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
-        }
 
         Timer timer = new Timer();
         try (FSDataOutputStream stream = this.context.fileSystem.append(lastFile.getPath())) {
-            if (stream.getPos() != lastFile.getLength()) {
+            if (this.offset != lastFile.getLastOffset()) {
+                // Do the handle offset validation here, after we open the file. We want to throw FileNotFoundException
+                // before we throw BadOffsetException.
+                throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
+            } else if (stream.getPos() != lastFile.getLength()) {
                 // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
                 // Update our knowledge of the filesystem and throw a BadOffsetException - this should cause upstream code
                 // to try to reconcile; if it can't then the upstream code should shut down or take other appropriate measures.

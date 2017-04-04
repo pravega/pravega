@@ -131,5 +131,19 @@ class FileDescriptor implements Comparable<FileDescriptor> {
         return diff;
     }
 
+    @Override
+    public int hashCode() {
+        return this.path.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other instanceof FileDescriptor) {
+            return this.compareTo((FileDescriptor) other) == 0;
+        }
+
+        return false;
+    }
+
     //endregion
 }

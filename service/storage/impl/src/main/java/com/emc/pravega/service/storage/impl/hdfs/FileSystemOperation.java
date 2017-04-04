@@ -6,6 +6,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.google.common.base.Preconditions;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,11 +31,11 @@ abstract class FileSystemOperation<T> {
     //region Members
 
     static final String PART_SEPARATOR = "_";
+    static final String CONCAT_ATTRIBUTE = "user.concat.next";
+    private static final String SEALED_ATTRIBUTE = "user.sealed";
     private static final String NAME_FORMAT = "%s" + PART_SEPARATOR + "%s" + PART_SEPARATOR + "%s";
     private static final String EXAMPLE_NAME_FORMAT = String.format(NAME_FORMAT, "<segment-name>", "<offset>", "<epoch>");
     private static final String NUMBER_GLOB_REGEX = "[0-9]*";
-    private static final String SEALED_ATTRIBUTE = "user.sealed";
-    static final String CONCAT_ATTRIBUTE = "user.concat.next";
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
 
     @Getter
@@ -241,7 +242,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     boolean isSealed(FileDescriptor file) throws IOException {
-        byte[] data = this.context.fileSystem.getXAttr(file.getPath(), SEALED_ATTRIBUTE);
+        byte[] data = getAttributeValue(file, SEALED_ATTRIBUTE);
         return data != null && data.length > 0 && data[0] != 0;
     }
 
@@ -252,7 +253,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     void makeSealed(FileDescriptor file) throws IOException {
-        this.context.fileSystem.setXAttr(file.getPath(), SEALED_ATTRIBUTE, new byte[]{(byte) (255)});
+        this.context.fileSystem.setXAttr(file.getPath(), SEALED_ATTRIBUTE, new byte[]{ (byte) 255 });
         log.debug("MakeSealed '{}'.", file.getPath());
     }
 
@@ -316,7 +317,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     String getConcatNext(FileDescriptor file) throws IOException {
-        byte[] data = this.context.fileSystem.getXAttr(file.getPath(), CONCAT_ATTRIBUTE);
+        byte[] data = getAttributeValue(file, CONCAT_ATTRIBUTE);
         if (data == null || data.length == 0) {
             return null;
         }
@@ -331,7 +332,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     void removeConcatNext(FileDescriptor file) throws IOException {
-        this.context.fileSystem.removeXAttr(file.getPath(), CONCAT_ATTRIBUTE);
+        removeAttribute(file, CONCAT_ATTRIBUTE);
         log.debug("RemoveConcatNext '{}' to '{}'.", file.getPath());
     }
 
@@ -345,6 +346,29 @@ abstract class FileSystemOperation<T> {
      */
     boolean isConcatSource(FileDescriptor fileDescriptor) throws IOException {
         return getConcatNext(fileDescriptor) != null;
+    }
+
+    private byte[] getAttributeValue(FileDescriptor file, String attributeName) throws FileNotFoundException {
+        try {
+            return this.context.fileSystem.getXAttr(file.getPath(), attributeName);
+        } catch (FileNotFoundException fnf) {
+            throw fnf;
+        } catch (IOException ex) {
+            // It turns out that getXAttr throws a generic IOException if the attribute is not found. Since there's no
+            // specific exception or flag to filter this out, we're going to treat all IOExceptions (except FileNotFoundExceptions)
+            // as "attribute is not set".
+            return null;
+        }
+    }
+
+    private void removeAttribute(FileDescriptor file, String attributeName) throws FileNotFoundException {
+        try {
+            this.context.fileSystem.removeXAttr(file.getPath(), attributeName);
+        } catch (FileNotFoundException fnf) {
+            throw fnf;
+        } catch (IOException ex) {
+            // See getAttributeValue for explanation.
+        }
     }
 
     //endregion

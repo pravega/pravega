@@ -15,8 +15,8 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.concurrent.Executor;
-import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -40,7 +40,6 @@ import org.slf4j.LoggerFactory;
 public class HDFSStorageTest extends StorageTestBase {
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
-    private Configuration hdfsConfig;
     private HDFSStorageConfig adapterConfig;
 
     @Before
@@ -48,19 +47,14 @@ public class HDFSStorageTest extends StorageTestBase {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.OFF);
 
-        baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
+        this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
         Configuration conf = new Configuration();
         conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
         conf.setBoolean("dfs.permissions.enabled", true);
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
-        hdfsCluster = builder.build();
+        this.hdfsCluster = builder.build();
 
-        hdfsConfig = new Configuration();
-        hdfsConfig.set("fs.default.name", String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
-        hdfsConfig.set("fs.default.fs", String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
-        hdfsConfig.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
-
-        adapterConfig = HDFSStorageConfig
+        this.adapterConfig = HDFSStorageConfig
                 .builder()
                 .with(HDFSStorageConfig.REPLICATION, 1)
                 .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
@@ -108,13 +102,8 @@ public class HDFSStorageTest extends StorageTestBase {
             verifyWriteOperationsSucceed(handle1, storage1);
             verifyReadOnlyOperationsSucceed(handle1, storage1);
 
-            // Storage2 should only be able to execute Read-Only operations.
-            SegmentHandle handle2 = createHandle(segmentName, false, epoch2);
-            verifyWriteOperationsFail(handle2, storage2);
-            verifyReadOnlyOperationsSucceed(handle2, storage2);
-
             // Open the segment in Storage2 (thus Storage2 owns it for now).
-            handle2 = storage2.openWrite(segmentName).join();
+            SegmentHandle handle2 = storage2.openWrite(segmentName).join();
 
             // Storage1 should be able to execute only read-only operations.
             verifyWriteOperationsFail(handle1, storage1);
@@ -204,13 +193,8 @@ public class HDFSStorageTest extends StorageTestBase {
     //endregion
 
     @Override
-    @SneakyThrows(IOException.class)
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
-        @Cleanup
-        FileSystem fsf = FileSystem.get(this.hdfsConfig);
-        FileSystemOperation.OperationContext context = new FileSystemOperation.OperationContext(epoch, fsf, this.adapterConfig);
-        val mo = new MockOperation(new Object(), context);
-        val allFiles = mo.findAll(segmentName, false);
+        val allFiles = Collections.singletonList(new FileDescriptor(new Path("/" + segmentName + "_0_0"), 0, 0, 0, false));
         if (readOnly) {
             return HDFSSegmentHandle.read(segmentName, allFiles);
         } else {
@@ -223,12 +207,6 @@ public class HDFSStorageTest extends StorageTestBase {
         return new TestHDFSStorage(this.adapterConfig, executorService());
     }
 
-    private static class MockOperation extends FileSystemOperation<Object> {
-        MockOperation(Object target, OperationContext context) {
-            super(target, context);
-        }
-    }
-
     /**
      * Special HDFSStorage that uses a modified version of the MiniHDFSCluster DistributedFileSystem which fixes the
      * 'read-only' permission issues observed with that one.
@@ -237,11 +215,11 @@ public class HDFSStorageTest extends StorageTestBase {
         TestHDFSStorage(HDFSStorageConfig config, Executor executor) {
             super(config, executor);
         }
-        //
-        //        @Override
-        //        protected FileSystem openFileSystem(Configuration conf) throws IOException {
-        //            return new FileSystemFixer(conf);
-        //        }
+
+        @Override
+        protected FileSystem openFileSystem(Configuration conf) throws IOException {
+            return new FileSystemFixer(conf);
+        }
     }
 
     private static class FileSystemFixer extends DistributedFileSystem {
