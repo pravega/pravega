@@ -145,7 +145,7 @@ public class TimeoutServiceTest {
         Assert.assertTrue((end - begin) >= LEASE);
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
-        Assert.assertEquals(TxnStatus.ABORTING, status);
+        Assert.assertEquals(TxnStatus.ABORTED, status);
 
     }
 
@@ -164,7 +164,7 @@ public class TimeoutServiceTest {
         Assert.assertTrue((end - begin) >= LEASE);
 
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
-        Assert.assertEquals(TxnState.State.ABORTING, txnState.getState());
+        Assert.assertEquals(TxnState.State.ABORTED, txnState.getState());
     }
 
     @Test
@@ -194,7 +194,7 @@ public class TimeoutServiceTest {
         Assert.assertNotNull(result);
 
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
-        Assert.assertEquals(TxnStatus.ABORTING, status);
+        Assert.assertEquals(TxnStatus.ABORTED, status);
     }
 
     @Test
@@ -222,7 +222,7 @@ public class TimeoutServiceTest {
         Assert.assertNotNull(result);
 
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
-        Assert.assertEquals(TxnState.State.ABORTING, txnState.getState());
+        Assert.assertEquals(TxnState.State.ABORTED, txnState.getState());
     }
 
     @Test
@@ -331,7 +331,7 @@ public class TimeoutServiceTest {
         Assert.assertNotNull(result);
 
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
-        Assert.assertEquals(TxnStatus.ABORTING, status);
+        Assert.assertEquals(TxnStatus.ABORTED, status);
     }
 
     @Test
@@ -362,7 +362,7 @@ public class TimeoutServiceTest {
         Assert.assertNotNull(result);
 
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
-        Assert.assertEquals(TxnState.State.ABORTING, txnState.getState());
+        Assert.assertEquals(TxnState.State.ABORTED, txnState.getState());
     }
 
     @Test

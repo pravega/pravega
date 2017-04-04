@@ -13,6 +13,7 @@ import com.emc.pravega.controller.store.stream.VersionedTransactionData;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -43,6 +44,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream,
                                                                                       final long lease, final long maxExecutionTime,
                                                                                       final long scaleGracePeriod,
@@ -54,12 +56,13 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                 context, executor)
                 .thenCompose(txData -> {
                     log.info("Created transaction {} with version {}", txData.getId(), txData.getVersion());
-                    return streamMetadataStore.getActiveSegments(scope, stream, contextOpt, executor)
+                    return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
                             .thenApply(segmentList -> new ImmutablePair<>(txData, segmentList));
                 });
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
                                                  final Optional<Integer> version,
                                                  final OperationContext contextOpt) {
@@ -70,10 +73,12 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                 .thenApply(status -> {
                     log.info("Sealed:abort transaction {} with version {}", txId, version);
                     return status;
-                });
+                })
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor));
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<VersionedTransactionData> pingTxn(final String scope, final String stream,
                                                                final UUID txId, final long lease,
                                                                final OperationContext contextOpt) {
@@ -88,6 +93,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final OperationContext contextOpt) {
         final OperationContext context =
@@ -97,7 +103,8 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                 .thenApply(status -> {
                     log.info("Sealed:commit transaction {} with version {}", txId, null);
                     return status;
-                });
+                })
+                .thenCompose(ignore -> streamMetadataStore.commitTransaction(scope, stream, txId, context, executor));
     }
 }
 
