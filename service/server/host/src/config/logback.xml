@@ -34,7 +34,7 @@
         </encoder>
     </appender>
 
-    <root level="DEBUG">
+    <root level="INFO">
         <appender-ref ref="consoleAppender"/>
         <appender-ref ref="FILE"/>
     </root>
