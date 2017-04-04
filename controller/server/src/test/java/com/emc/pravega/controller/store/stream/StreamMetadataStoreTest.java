@@ -223,7 +223,9 @@ public abstract class StreamMetadataStoreTest {
         assertEquals("Get existent scope", scope1, scopeName);
 
         // get non-existent scope
-        AssertExtensions.assertThrows(Exception.class, () -> store.getScopeConfiguration(scope2).get());
+        AssertExtensions.assertThrows("Should throw StoreException",
+                store.getScopeConfiguration(scope2),
+                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.NODE_NOT_FOUND));
     }
 
     private boolean checkStoreExceptionType(Throwable t, StoreException.Type type) {
