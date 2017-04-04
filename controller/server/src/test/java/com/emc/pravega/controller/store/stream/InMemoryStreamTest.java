@@ -52,7 +52,7 @@ public class InMemoryStreamTest {
             store.getConfiguration(SCOPE, streamName, null, executor).get();
             fail();
         } catch (Exception e) {
-            assert e.getCause() != null && e.getCause() instanceof IllegalStateException;
+            assertTrue(e.getCause() != null && e.getCause() instanceof IllegalStateException);
         }
         store.deleteScope(SCOPE);
     }
@@ -318,44 +318,44 @@ public class InMemoryStreamTest {
 
         store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.<Integer>empty(),
                 context, executor).get();
-        assert store.transactionStatus(SCOPE, streamName, tx.getId(), context, executor)
-                .get().equals(TxnStatus.COMMITTING);
+        assertTrue(store.transactionStatus(SCOPE, streamName, tx.getId(), context, executor)
+                .get().equals(TxnStatus.COMMITTING));
 
         CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor);
 
         store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.<Integer>empty(),
                 context, executor).get();
-        assert store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
-                .get().equals(TxnStatus.ABORTING);
+        assertTrue(store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
+                .get().equals(TxnStatus.ABORTING));
 
         CompletableFuture<TxnStatus> f2 = store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor);
 
         CompletableFuture.allOf(f1, f2).get();
 
-        assert store.transactionStatus(SCOPE, streamName, tx.getId(), context, executor)
-                .get().equals(TxnStatus.COMMITTED);
-        assert store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
-                .get().equals(TxnStatus.ABORTED);
+        assertTrue(store.transactionStatus(SCOPE, streamName, tx.getId(), context, executor)
+                .get().equals(TxnStatus.COMMITTED));
+        assertTrue(store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
+                .get().equals(TxnStatus.ABORTED));
 
-        assert store.commitTransaction(InMemoryStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
+        assertTrue(store.commitTransaction(InMemoryStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
                     } else {
                         throw new RuntimeException("assert failed");
                     }
-                }).get();
+                }).get());
 
-        assert store.abortTransaction(InMemoryStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
+        assertTrue(store.abortTransaction(InMemoryStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
                     } else {
                         throw new RuntimeException("assert failed");
                     }
-                }).get();
+                }).get());
 
-        assert store.transactionStatus(InMemoryStreamTest.SCOPE, streamName, UUID.randomUUID(), context, executor)
-                .get().equals(TxnStatus.UNKNOWN);
+        assertTrue(store.transactionStatus(InMemoryStreamTest.SCOPE, streamName, UUID.randomUUID(), context, executor)
+                .get().equals(TxnStatus.UNKNOWN));
     }
 }
