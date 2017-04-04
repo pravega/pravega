@@ -74,7 +74,7 @@ public class ControllerService {
                         .map(host -> NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build())
                         .collect(Collectors.toList());
             } catch (Exception e) {
-                // cluster implementation throws checked exceptions which cannot be
+                // cluster implementation throws checked exceptions which cannot be thrown inside completable futures.
                 throw new CompletionException(e);
             }
         }, executor);

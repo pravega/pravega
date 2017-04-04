@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Attributes;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
@@ -59,7 +60,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         final String authority = targetUri.getAuthority();
         final List<InetSocketAddress> addresses = Splitter.on(',').splitToList(authority).stream().map(host -> {
             final String[] strings = host.split(":");
-            return new InetSocketAddress(strings[0].trim(), Integer.valueOf(strings[1].trim()));
+            return new InetSocketAddress(strings[0], Integer.valueOf(strings[1]));
         }).collect(Collectors.toList());
 
         return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme));
@@ -149,7 +150,8 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                         .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                         .usePlaintext(true)
                         .build());
-                this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor();
+                this.scheduledExecutor = Executors.newScheduledThreadPool(1,
+                        new ThreadFactoryBuilder().setNameFormat("fetch-controllers-%d").setDaemon(true).build());
                 this.scheduledExecutor.scheduleWithFixedDelay(
                         this.getControllerServers, 0L, 120L, TimeUnit.SECONDS);
             } else {

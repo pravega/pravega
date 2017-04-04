@@ -7,6 +7,8 @@ package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.testcommon.AssertExtensions;
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -36,32 +38,24 @@ public class InMemoryClusterImplTest {
         Assert.assertEquals(1, clusterMembers.size());
         Assert.assertTrue(clusterMembers.contains(new Host("localhost", 9090)));
 
-        try {
+        AssertExtensions.assertThrows(NotImplementedException.class, () -> {
             cluster.registerHost(null);
             Assert.fail();
-        } catch (Exception e) {
-            // Expected.
-        }
+        });
 
-        try {
+        AssertExtensions.assertThrows(NotImplementedException.class, () -> {
             cluster.deregisterHost(null);
             Assert.fail();
-        } catch (Exception e) {
-            // Expected.
-        }
+        });
 
-        try {
+        AssertExtensions.assertThrows(NotImplementedException.class, () -> {
             cluster.addListener(null);
             Assert.fail();
-        } catch (Exception e) {
-            // Expected.
-        }
+        });
 
-        try {
+        AssertExtensions.assertThrows(NotImplementedException.class, () -> {
             cluster.addListener(null, null);
             Assert.fail();
-        } catch (Exception e) {
-            // Expected.
-        }
+        });
     }
 }
