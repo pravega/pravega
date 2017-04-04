@@ -46,6 +46,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -89,6 +90,34 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Check all the appended data.
         checkReadIndex("PostAppend", segmentContents, context);
+    }
+
+    /**
+     * Tests the ability to read from the last offset of the segment, or beyond.
+     */
+    @Test
+    public void testReadLastOffset() throws Exception {
+        final int length = 10;
+        @Cleanup
+        TestContext context = new TestContext();
+        long segmentId = createSegment(0, context);
+        appendSingleWrite(segmentId, new byte[length], context);
+
+        // Non-sealed segments are tested extensively in the other tests, so don't bother doing that again here.
+        context.metadata.getStreamSegmentMetadata(segmentId).markSealed();
+
+        AssertExtensions.assertThrows(
+                "read() did not throw when attempting to read beyond the last offset of a sealed segment.",
+                () -> context.readIndex.read(segmentId, length + 1, 1, TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException);
+
+        @Cleanup
+        val result = context.readIndex.read(segmentId, length, 1, TIMEOUT);
+        Assert.assertNotNull("read() did not return a result when reading from the last offset of a sealed segment.", result);
+        Assert.assertTrue("Empty result when reading from the last offset of a sealed segment.", result.hasNext());
+        val entry = result.next();
+        Assert.assertEquals("Unexpected read result entry when reading from the last offset of a sealed segment.",
+                ReadResultEntryType.EndOfStreamSegment, entry.getType());
     }
 
     /**
