@@ -1,20 +1,19 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.server.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -26,7 +25,7 @@ import java.util.stream.Collectors;
  * 1. Send abort txn message to active segments of the stream.
  * 2. Change txn state from aborting to aborted.
  */
-public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
+public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final ScheduledExecutorService executor;
