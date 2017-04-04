@@ -307,7 +307,7 @@ public abstract class ControllerServiceImplTest {
         ResultObserver<CreateTxnResponse> resultObserver = new ResultObserver<>();
         this.controllerService.createTransaction(request, resultObserver);
         AssertExtensions.assertThrows("Lease lower bound violated ",
-                () -> resultObserver.get(),
+                resultObserver::get,
                 e -> checkGRPCException(e, IllegalArgumentException.class));
 
         // Invalid maxExecutionTime
@@ -319,7 +319,7 @@ public abstract class ControllerServiceImplTest {
         ResultObserver<CreateTxnResponse> resultObserver2 = new ResultObserver<>();
         this.controllerService.createTransaction(request, resultObserver2);
         AssertExtensions.assertThrows("Lease lower bound violated ",
-                () -> resultObserver2.get(),
+                resultObserver2::get,
                 e -> checkGRPCException(e, IllegalArgumentException.class));
 
         // Invalid ScaleGracePeriod
@@ -331,7 +331,7 @@ public abstract class ControllerServiceImplTest {
         ResultObserver<CreateTxnResponse> resultObserver3 = new ResultObserver<>();
         this.controllerService.createTransaction(request, resultObserver3);
         AssertExtensions.assertThrows("Lease lower bound violated ",
-                () -> resultObserver3.get(),
+                resultObserver3::get,
                 e -> checkGRPCException(e, IllegalArgumentException.class));
     }
 
