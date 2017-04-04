@@ -3,14 +3,12 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.collect.Lists;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.AbstractMap;
@@ -22,17 +20,15 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class InMemoryStreamTest {
     private static final String SCOPE = "scope";
-    private StreamMetadataStore storePartialMock;
 
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
@@ -54,6 +50,7 @@ public class InMemoryStreamTest {
 
         try {
             store.getConfiguration(SCOPE, streamName, null, executor).get();
+            fail();
         } catch (Exception e) {
             assert e.getCause() != null && e.getCause() instanceof IllegalStateException;
         }
@@ -140,6 +137,7 @@ public class InMemoryStreamTest {
         // get non-existent scope
         try {
             store.getScopeConfiguration(scope2).get();
+            fail();
         } catch (StoreException e) {
             assertTrue("Get non existent scope",
                     e.getType() == StoreException.Type.NODE_NOT_FOUND);
@@ -277,6 +275,7 @@ public class InMemoryStreamTest {
         //seal a non existing stream.
         try {
             store.setSealed(SCOPE, "nonExistentStream", null, executor).get();
+            fail();
         } catch (Exception e) {
             assertEquals(DataNotFoundException.class, e.getCause().getClass());
         }
@@ -290,61 +289,6 @@ public class InMemoryStreamTest {
         store.removeMarker(SCOPE, streamName, 0, null, executor).get();
 
         assertFalse(store.isCold(SCOPE, streamName, 0, null, executor).get());
-    }
-
-    @Ignore("run manually")
-    //    @Test
-    public void testZkStreamChunking() throws Exception {
-        final ScalingPolicy policy = ScalingPolicy.fixed(6);
-
-        final StreamMetadataStore store = new InMemoryStreamMetadataStore(executor);
-        final String streamName = "test2";
-        final String scopeName = "test2";
-        store.createScope(scopeName);
-
-        StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scope(streamName)
-                .streamName(streamName)
-                .scalingPolicy(policy)
-                .build();
-
-        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
-        store.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
-        OperationContext context = store.createContext(SCOPE, streamName);
-
-        List<Segment> initial = store.getActiveSegments(SCOPE, streamName, context, executor).get();
-        assertEquals(initial.size(), 6);
-        assertTrue(initial.stream().allMatch(x -> Lists.newArrayList(0, 1, 2, 3, 4, 5).contains(x.getNumber())));
-
-        long start = initial.get(0).getStart();
-
-        assertEquals(store.getConfiguration(SCOPE, streamName, context, executor).get(), streamConfig);
-
-        IntStream.range(0, SegmentRecord.SEGMENT_CHUNK_SIZE + 2).forEach(x -> {
-            List<AbstractMap.SimpleEntry<Double, Double>> newRanges = Arrays.asList(
-                    new AbstractMap.SimpleEntry<>(0.0, 0.2),
-                    new AbstractMap.SimpleEntry<>(0.2, 0.4),
-                    new AbstractMap.SimpleEntry<>(0.4, 0.6),
-                    new AbstractMap.SimpleEntry<>(0.6, 0.8),
-                    new AbstractMap.SimpleEntry<>(0.8, 0.9),
-                    new AbstractMap.SimpleEntry<>(0.9, 1.0));
-
-            long scaleTs = start + 10 * (x + 1);
-
-            try {
-
-                List<Integer> list = IntStream.range(x * 6, (x + 1) * 6).boxed().collect(Collectors.toList());
-                store.scale(SCOPE, streamName, list, newRanges, scaleTs, context, executor).get();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        Thread.sleep(1000);
-
-        List<Segment> segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
-        assertEquals(segments.size(), 6);
-
     }
 
     @Test
