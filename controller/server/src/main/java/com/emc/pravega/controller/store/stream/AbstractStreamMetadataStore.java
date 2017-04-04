@@ -10,6 +10,7 @@ import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsLogger;
 import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.common.util.NameVerifier;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -154,7 +155,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      */
     @Override
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
-        if (!validateName(scopeName)) {
+        try {
+            NameVerifier.validateName(scopeName);
+        } catch (IllegalArgumentException | NullPointerException e) {
             log.error("Create scope failed due to invalid scope name {}", scopeName);
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
@@ -497,10 +500,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             }
         }
         return splits;
-    }
-
-    static boolean validateName(final String path) {
-        return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 
     abstract Stream newStream(final String scope, final String name);
