@@ -49,6 +49,7 @@ public class RESTServer extends AbstractIdleService {
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
         this.resourceConfig = ResourceConfig.forApplication(controllerApplication);
         this.resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
+        this.resourceConfig.property(ServerProperties.OUTBOUND_CONTENT_LENGTH_BUFFER, 100000);
 
         // Register the custom JSON parser.
         this.resourceConfig.register(new CustomObjectMapperProvider());

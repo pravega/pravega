@@ -30,6 +30,7 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import java.util.concurrent.CompletableFuture;
@@ -41,6 +42,7 @@ import javax.ws.rs.core.Application;
 import javax.ws.rs.core.Response;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Before;
 import org.junit.Rule;
@@ -62,7 +64,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     //Ensure each test completes within 5 seconds.
     @Rule
-    public Timeout globalTimeout = new Timeout(5, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(500, TimeUnit.SECONDS);
 
     ControllerService mockControllerService;
     StreamMetadataStore mockStreamStore;
@@ -182,6 +184,8 @@ public class StreamMetaDataTests extends JerseyTest {
                         bind(mockControllerService).to(ControllerService.class);
                     }
                 });
+        resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
+        resourceConfig.property(ServerProperties.OUTBOUND_CONTENT_LENGTH_BUFFER, 100000);
         resourceConfig.register(new CustomObjectMapperProvider());
         return resourceConfig;
     }
@@ -496,6 +500,13 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture);
         response = target(resourceURI).request().async().get();
         assertEquals("List Streams response code", 500, response.get().getStatus());
+
+        streamsList = Collections.nCopies(800, streamConfiguration1);
+        when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
+        response = target(resourceURI).request().async().get();
+        final StreamsList streamsList2 = response.get().readEntity(StreamsList.class);
+        assertEquals("List Streams response code", 200, response.get().getStatus());
+        assertEquals("List count", 100, streamsList2.getStreams().size());
     }
 
     /**
