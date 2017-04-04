@@ -7,16 +7,22 @@ package com.emc.pravega.controller.server.v1;
 
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
+import com.emc.pravega.testcommon.AssertExtensions;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import lombok.SneakyThrows;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -286,8 +292,73 @@ public abstract class ControllerServiceImplTest {
                 UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.getStatus());
     }
 
+    @Test
+    public void createTransactionTest() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
+
+        StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, STREAM1);
+
+        // Invalid lease
+        CreateTxnRequest request = CreateTxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setLease(-1)
+                .setMaxExecutionTime(10000)
+                .setScaleGracePeriod(10000).build();
+        ResultObserver<CreateTxnResponse> resultObserver = new ResultObserver<>();
+        this.controllerService.createTransaction(request, resultObserver);
+        AssertExtensions.assertThrows("Lease lower bound violated ",
+                () -> resultObserver.get(),
+                e -> checkGRPCException(e, IllegalArgumentException.class));
+
+        // Invalid maxExecutionTime
+        request = CreateTxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setLease(10000)
+                .setMaxExecutionTime(-1)
+                .setScaleGracePeriod(10000).build();
+        ResultObserver<CreateTxnResponse> resultObserver2 = new ResultObserver<>();
+        this.controllerService.createTransaction(request, resultObserver2);
+        AssertExtensions.assertThrows("Lease lower bound violated ",
+                () -> resultObserver2.get(),
+                e -> checkGRPCException(e, IllegalArgumentException.class));
+
+        // Invalid ScaleGracePeriod
+        request = CreateTxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setLease(10000)
+                .setMaxExecutionTime(10000)
+                .setScaleGracePeriod(-1).build();
+        ResultObserver<CreateTxnResponse> resultObserver3 = new ResultObserver<>();
+        this.controllerService.createTransaction(request, resultObserver3);
+        AssertExtensions.assertThrows("Lease lower bound violated ",
+                () -> resultObserver3.get(),
+                e -> checkGRPCException(e, IllegalArgumentException.class));
+    }
+
+    private void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(scalingPolicy).build();
+
+        // Create a test scope.
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(scope), result1);
+        CreateScopeStatus createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Create a test stream.
+        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(configuration1), result2);
+        CreateStreamStatus createStreamStatus = result2.get();
+        assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+    }
+
+    private boolean checkGRPCException(Throwable e, Class expectedCause) {
+        return e instanceof StatusRuntimeException && e.getCause().getClass() == expectedCause;
+    }
+
     private static class ResultObserver<T> implements StreamObserver<T> {
         private T result = null;
+        private Throwable error;
         private final AtomicBoolean completed = new AtomicBoolean(false);
 
         @Override
@@ -297,6 +368,11 @@ public abstract class ControllerServiceImplTest {
 
         @Override
         public void onError(Throwable t) {
+            synchronized (this) {
+                error = t;
+                completed.set(true);
+                this.notifyAll();
+            }
         }
 
         @Override
@@ -307,6 +383,7 @@ public abstract class ControllerServiceImplTest {
             }
         }
 
+        @SneakyThrows
         public T get() {
             synchronized (this) {
                 while (!completed.get()) {
@@ -317,7 +394,11 @@ public abstract class ControllerServiceImplTest {
                     }
                 }
             }
-            return result;
+            if (error != null) {
+                throw error;
+            } else {
+                return result;
+            }
         }
     }
 }
