@@ -106,7 +106,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                                 hashedWheelTimer.newTimeout(this, 2 * TICK_DURATION, TIME_UNIT);
                             }
                         } else {
-                            DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(TIMEDOUT_TRANSACTIONS, scope, stream), 1);
+                            DYNAMIC_LOGGER.incCounterValue(nameFromStream(TIMEDOUT_TRANSACTIONS, scope, stream), 1);
                             log.debug("Successfully executed abort on tx {} ", key);
                             map.remove(key);
                             notifyCompletion(null);
