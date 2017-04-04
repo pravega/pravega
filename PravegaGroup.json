@@ -114,7 +114,34 @@
                   {
                     "key": "env",
                     "value": "JAVA_OPTS=-Xmx900m"
-                  }
+                  },
+                  {
+                    "key": "env",
+                    "value": "HOST_OPTS=\"-Dpravegaservice.zkURL=master.mesos:2181\"" },
+                  {
+                    "key": "env",
+                    "value": "HOST_OPTS=\"-Ddlog.hostname=master.mesos\"" },
+                  {
+                      "key": "env",
+                      "value": "HOST_OPTS=\"-Ddlog.port=2181\"" },
+                  {
+                      "key": "env",
+                      "value": "HOST_OPTS=\"-Dhdfs.hdfsUrl=namenode-0.hdfs.mesos:9001\"" },
+                  {
+                      "key": "env",
+                      "value": "HOST_OPTS=\"-DautoScale.muteInSeconds=120\"" },
+                  {
+                      "key": "env",
+                      "value": "HOST_OPTS=\"-DautoScale.cooldownInSeconds=120\"" },
+                  {
+                      "key": "env",
+                      "value": "HOST_OPTS=\"-DautoScale.cacheExpiryInSeconds=120\"" },
+                  {
+                      "key": "env",
+                      "value": "HOST_OPTS=\"-DautoScale.cacheCleanUpInSeconds=120\"" },
+                  {
+                      "key": "env",
+                      "value": "HOST_OPTS=\"-DautoScale.controllerUri=controller.pravega.marathon.mesos:9090\"" }
                   ],
 		  "forcePullImage": true
               }
@@ -166,7 +193,11 @@
         				{ "key": "env",
         				  "value": "SERVER_OPTS=\"-DZK_URL=master.mesos:2181\"" },
                         { "key": "env",
-                          "value": "JAVA_OPTS=-Xmx512m" }
+                          "value": "JAVA_OPTS=-Xmx512m" },
+                        { "key": "env",
+                          "value": "SERVER_OPTS=\"-DCONTROLLER_SERVER_PORT=9090\"" },
+                        { "key": "env",
+                          "value": "SERVER_OPTS=\"-DREST_SERVER_PORT=9091\"" }
 		    ],
 		  "forcePullImage": true
               }
