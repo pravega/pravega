@@ -21,6 +21,8 @@ version = pravegaVersion
 distributions {
     release {
 	ant.get(src: 'http://apache.mirrors.pair.com/hadoop/core/hadoop-2.7.3/hadoop-2.7.3.tar.gz', dest: 'cache/hadoop-2.7.3.tar.gz', skipexisting: 'true')
+	ant.get(src: 'http://apache.cs.utah.edu/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz', 
+                dest: 'cache/zookeeper-3.5.1-alpha.tar.gz', skipexisting: 'true')
 	ant.get(src: 'https://github.com/twitter/distributedlog/releases/download/0.3.51-RC1/distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip',
 		dest: 'cache/distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip', skipexisting: 'true')
         contents {
@@ -39,6 +41,9 @@ distributions {
             into('dl') {
                 from {zipTree('cache/distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip')}
             }
+	    into('zk') {
+		from {tarTree(resources.gzip("cache/zookeeper-3.5.1-alpha.tar.gz"))}
+	    }
         }
     }
 }

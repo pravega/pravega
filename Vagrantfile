@@ -20,6 +20,8 @@ Vagrant.configure("2") do |config|
    vb.memory = "1024"
    if Vagrant.has_plugin?("vagrant-cachier")
       override.cache.scope = :box
+      config.cache.enable :apt
+      config.cache.enable :apt_lists
       # Besides the defaults, we use a custom cache to handle the Oracle JDK
       # download, which downloads via wget during an apt install. Because of the
       # way the installer ends up using its cache directory, we need to jump
@@ -47,23 +49,13 @@ Vagrant.configure("2") do |config|
   # Enable provisioning with a shell script. Additional provisioners such as
   # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
   # documentation for more information about their specific syntax and use.
-  config.vm.provision "shell", inline: <<-SHELL
-    apt-get -y update
-    apt-get install -y software-properties-common python-software-properties
-    add-apt-repository -y ppa:webupd8team/java
-    apt-get -y update
-  
-    mkdir -p /var/cache/oracle-jdk7-installer
-    if [ -e "/tmp/java-cache/" ]; then
-        find /tmp/java-cache/ -not -empty -exec cp '{}' /var/cache/oracle-jdk7-installer/ \;
-    fi 
-      
-    /bin/echo debconf shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
-    apt-get -y install oracle-java7-installer oracle-java7-set-default
-      
-    if [ -e "/tmp/java-cache/" ]; then 
-        cp -R /var/cache/oracle-jdk7-installer/* /tmp/java-cache/
-    fi
-    /opt/pravega/pravega-installer/scripts/start_namenode.sh 
-   SHELL
+
+  config.vm.define "controlnode" do |controlnode|
+	controlnode.vm.hostname = "controlnode"
+	controlnode.vm.provider :virtualbox do |vb,override|
+         override.vm.network :private_network, ip: "192.168.10.10"
+        end
+	controlnode.vm.provision "shell", path:"vagrant/scripts/common.sh"
+	controlnode.vm.provision "shell", path:"vagrant/scripts/start_first_machine.sh"
+  end
 end
