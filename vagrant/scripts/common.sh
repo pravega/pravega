@@ -17,3 +17,6 @@ fi
 cp /code/vagrant/conf/*xml /opt/pravega/pravega-release/hadoop/hadoop-2.7.3/etc/hadoop/
 cp /code/vagrant/conf/zoo.cfg /opt/pravega/pravega-release/zk/zookeeper-3.5.1-alpha/conf/
 cp /code/vagrant/conf/bookie.conf /opt/pravega/pravega-release/dl/distributedlog-service/conf/
+cp /code/entry_point.sh /opt/pravega/pravega-release/dl/distributedlog-service/bin
+ln -s /opt/pravega/pravega-release/dl /opt/dl_all
+cp /code/vagrant/conf/config.properties .
