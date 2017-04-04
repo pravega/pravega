@@ -15,8 +15,7 @@ import lombok.Getter;
 public class MetricsConfig {
     //region Config Names
     public final static Property<Boolean> ENABLE_STATISTICS = Property.named("enableStatistics", true);
-    public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 1000000L);
-    public final static Property<Long> DYNAMIC_TTL_SECONDS = Property.named("dynamicTTLSeconds", 120L);
+    public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 10000000L);
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("yammerStatsOutputFrequencySeconds", 60);
     public final static Property<String> METRICS_PREFIX = Property.named("yammerMetricsPrefix", "pravega");
     public final static Property<String> CSV_ENDPOINT = Property.named("yammerCSVEndpoint", "/tmp/csv");
@@ -50,12 +49,6 @@ public class MetricsConfig {
      */
     @Getter
     private final long dynamicCacheSize;
-
-    /**
-     * Cache TTL for dynamic metrics.
-     */
-    @Getter
-    private final long dynamicTTLSeconds;
 
     /**
      * Gets a value indicating output frequency in seconds.
@@ -165,7 +158,6 @@ public class MetricsConfig {
     private MetricsConfig(TypedProperties properties) throws ConfigurationException {
         this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS);
         this.dynamicCacheSize = properties.getLong(DYNAMIC_CACHE_SIZE);
-        this.dynamicTTLSeconds = properties.getLong(DYNAMIC_TTL_SECONDS);
         this.statsOutputFrequencySeconds = properties.getInt(OUTPUT_FREQUENCY);
         this.metricsPrefix = properties.get(METRICS_PREFIX);
         this.csvEndpoint = properties.get(CSV_ENDPOINT);
