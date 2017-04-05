@@ -6,6 +6,7 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
+
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -126,15 +127,22 @@ interface Stream {
     /**
      * Scale the stream by sealing few segments and creating few segments
      *
-     * @param sealedSegments segments to be sealed
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
      * @return sequence of newly created segments
      */
-    CompletableFuture<List<Segment>> scale(final List<Integer> sealedSegments,
-                                           final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                           final long scaleTimestamp);
+    CompletableFuture<List<Segment>> startScale(final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                final long scaleTimestamp);
 
+    /**
+     * Scale the stream by sealing few segments and creating few segments
+     *
+     * @param sealedSegments segments to be sealed
+     * @param scaleTimestamp scaling timestamp
+     * @return sequence of newly created segments
+     */
+    CompletableFuture<Void> completeScale(final List<Integer> sealedSegments,
+                                          final List<Integer> newSegments);
 
     /**
      * Sets cold marker which is valid till the specified time stamp.
@@ -174,7 +182,7 @@ interface Stream {
     /**
      * Heartbeat method to keep transaction open for at least lease amount of time.
      *
-     * @param txId Transaction identifier.
+     * @param txId  Transaction identifier.
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.
      */

@@ -20,7 +20,7 @@ import java.util.Optional;
  */
 public class SegmentRecord {
     public static final int SEGMENT_RECORD_SIZE = Integer.BYTES + Long.BYTES + Double.BYTES + Double.BYTES;
-    public static final int SEGMENT_CHUNK_SIZE = 100000;
+    public static final int SEGMENT_CHUNK_SIZE = 10;
 
     private final int segmentNumber;
     private final long startTime;

@@ -8,7 +8,9 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
+
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
@@ -53,9 +55,9 @@ public interface StreamMetadataStore {
                                             final Executor executor);
 
     CompletableFuture<Void> deleteStream(final String scopeName,
-                                            final String streamName,
-                                            final OperationContext context,
-                                            final Executor executor);
+                                         final String streamName,
+                                         final OperationContext context,
+                                         final Executor executor);
 
     CompletableFuture<Boolean> setState(String scope, String name,
                                         State state, OperationContext context,
@@ -207,7 +209,22 @@ public interface StreamMetadataStore {
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
     CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scope, final String streamName,
-                                                                        final int segmentNumber, final OperationContext context, final Executor executor);
+                                                                 final int segmentNumber, final OperationContext context, final Executor executor);
+
+    /**
+     * Scales in or out the currently set of active segments of a stream.
+     *
+     * @param scope     stream scope
+     * @param name      stream name.
+     * @param newRanges new key ranges to be added to the stream which maps to a new segment per range in the stream
+     * @param context   operation context
+     * @param executor  callers executor
+     * @return the list of newly created segments
+     */
+    CompletableFuture<List<Segment>> startScale(final String scope, final String name,
+                                                final List<SimpleEntry<Double, Double>> newRanges,
+                                                final long scaleTimestamp,
+                                                final OperationContext context, final Executor executor);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
@@ -215,29 +232,27 @@ public interface StreamMetadataStore {
      * @param scope          stream scope
      * @param name           stream name.
      * @param sealedSegments segments to be sealed
-     * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
-     * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and
-     *                       all new segments shall have it as their start time.
      * @param context        operation context
      * @param executor       callers executor
      * @return the list of newly created segments
      */
-    CompletableFuture<List<Segment>> scale(final String scope, final String name,
-                                           final List<Integer> sealedSegments,
-                                           final List<SimpleEntry<Double, Double>> newRanges,
-                                           final long scaleTimestamp, final OperationContext context, final Executor executor);
+    CompletableFuture<Void> completeScale(final String scope, final String name,
+                                                   final List<Integer> sealedSegments,
+                                                   final List<Segment> newSegments,
+                                                   final OperationContext context,
+                                                   final Executor executor);
 
     /**
      * Method to create a new transaction on a stream.
      *
-     * @param scopeName  Scope
-     * @param streamName Stream
-     * @param lease      Time for which transaction shall remain open with sending any heartbeat.
+     * @param scopeName        Scope
+     * @param streamName       Stream
+     * @param lease            Time for which transaction shall remain open with sending any heartbeat.
      * @param maxExecutionTime Maximum time for which client may extend txn lease.
      * @param scaleGracePeriod Maximum time for which client may extend txn lease once
      *                         the scaling operation is initiated on the txn stream.
-     * @param context         operation context
-     * @param executor  callers executor
+     * @param context          operation context
+     * @param executor         callers executor
      * @return Transaction data along with version information.
      */
     CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName, final String streamName,
@@ -268,8 +283,8 @@ public interface StreamMetadataStore {
      * @param streamName stream
      * @param txId       transaction id
      * @param context    operation context
-     * @param executor  callers executor
-     * @return           transaction metadata along with its version.
+     * @param executor   callers executor
+     * @return transaction metadata along with its version.
      */
     CompletableFuture<VersionedTransactionData> getTransactionData(String scopeName, String streamName, UUID txId,
                                                                    final OperationContext context,
@@ -283,7 +298,7 @@ public interface StreamMetadataStore {
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
-     * @return         transaction status.
+     * @return transaction status.
      */
     CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
@@ -295,21 +310,21 @@ public interface StreamMetadataStore {
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
-     * @return         transaction status.
+     * @return transaction status.
      */
     CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
     /**
      * Update stream store to mark transaction as sealed.
      *
-     * @param scope  scope
-     * @param stream stream
-     * @param txId   transaction id
-     * @param commit Boolean indicating whether to change txn state to committing or aborting.
+     * @param scope    scope
+     * @param stream   stream
+     * @param txId     transaction id
+     * @param commit   Boolean indicating whether to change txn state to committing or aborting.
      * @param version  Expected version of the transaction record in the store.
      * @param context  operation context
      * @param executor callers executor
-     * @return         Transaction status.
+     * @return Transaction status.
      */
     CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId,
                                                  final boolean commit, final Optional<Integer> version,
@@ -323,7 +338,7 @@ public interface StreamMetadataStore {
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
-     * @return         transaction status
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 

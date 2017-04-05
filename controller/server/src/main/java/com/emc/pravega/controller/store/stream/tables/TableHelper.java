@@ -279,31 +279,26 @@ public class TableHelper {
      *
      * @param startingSegmentNumber starting segment number
      * @param segmentTable          segment table
-     * @param toCreate              remaining number of segments to create
      * @param newRanges             ranges
      * @param timeStamp             timestamp
      * @return
      */
     public static byte[] updateSegmentTable(final int startingSegmentNumber,
                                             final byte[] segmentTable,
-                                            final int toCreate,
                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                             final long timeStamp) {
-
-        final int created = newRanges.size() - toCreate;
-
         final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
         try {
             segmentStream.write(segmentTable);
 
-            IntStream.range(0, toCreate)
+            IntStream.range(0, newRanges.size())
                     .forEach(
                             x -> {
                                 try {
                                     segmentStream.write(new SegmentRecord(startingSegmentNumber + x,
                                             timeStamp,
-                                            newRanges.get(created + x).getKey(),
-                                            newRanges.get(created + x).getValue()).toByteArray());
+                                            newRanges.get(x).getKey(),
+                                            newRanges.get(x).getValue()).toByteArray());
                                 } catch (Exception e) {
                                     throw new RuntimeException(e);
                                 }

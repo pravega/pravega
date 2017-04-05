@@ -19,6 +19,11 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
@@ -29,10 +34,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.annotation.ParametersAreNonnullByDefault;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static com.emc.pravega.common.MetricsNames.ABORT_TRANSACTION;
 import static com.emc.pravega.common.MetricsNames.COMMIT_TRANSACTION;
@@ -124,7 +125,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     CREATE_STREAM.reportSuccessValue(1);
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                                    configuration.getScalingPolicy().getMinNumSegments());
+                            configuration.getScalingPolicy().getMinNumSegments());
                     DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
                     DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
 
@@ -221,8 +222,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return getScope(scopeName).listStreamsInScope().thenCompose(streams -> {
             return FutureHelpers.allOfWithResults(
                     streams.stream()
-                           .map(s -> getStream(scopeName, s, null).getConfiguration())
-                           .collect(Collectors.toList()));
+                            .map(s -> getStream(scopeName, s, null).getConfiguration())
+                            .collect(Collectors.toList()));
         });
     }
 
@@ -298,18 +299,30 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<Segment>> scale(final String scope, final String name,
-                                                  final List<Integer> sealedSegments,
-                                                  final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                  final long scaleTimestamp,
-                                                  final OperationContext context,
-                                                  final Executor executor) {
-        CompletableFuture<List<Segment>> future = withCompletion(getStream(scope, name, context)
-                .scale(sealedSegments, newRanges, scaleTimestamp), executor);
+    public CompletableFuture<List<Segment>> startScale(final String scope, final String name,
+                                                       final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                       final long scaleTimestamp,
+                                                       final OperationContext context,
+                                                       final Executor executor) {
+        return withCompletion(getStream(scope, name, context)
+                .startScale(newRanges, scaleTimestamp), executor);
+    }
 
-        future.thenApply(result -> {
+    @Override
+    public CompletableFuture<Void> completeScale(final String scope, final String name,
+                                                 final List<Integer> sealedSegments,
+                                                 final List<Segment> newSegments,
+                                                 final OperationContext context,
+                                                 final Executor executor) {
+        List<Integer> collect = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        CompletableFuture<Void> future = withCompletion(getStream(scope, name, context)
+                .completeScale(sealedSegments, collect), executor);
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
+                new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
+
+        future.thenAccept(result -> {
             DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                    newRanges.size() - sealedSegments.size());
+                    newSegments.size() - sealedSegments.size());
             getSealedRanges(scope, name, sealedSegments, context, executor)
                     .thenAccept(sealedRanges -> {
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
@@ -317,7 +330,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name),
                                 findSplits(newRanges, sealedRanges));
                     });
-            return result;
         });
 
         return future;

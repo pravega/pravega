@@ -242,7 +242,8 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
         long scale1 = start + 10;
-        store.scale(SCOPE, streamName, Lists.newArrayList(3, 4), newRanges, scale1, context, executor).get();
+        List<Segment> newSegments = store.startScale(SCOPE, streamName, newRanges, scale1, context, executor).get();
+        store.completeScale(SCOPE, streamName, Lists.newArrayList(3, 4), newSegments, context, executor).get();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
@@ -337,8 +338,8 @@ public class ZkStreamTest {
         assertFalse(store.isCold(SCOPE, streamName, 0, null, executor).get());
     }
 
-    @Ignore("run manually")
-    //    @Test
+    //@Ignore("run manually")
+    @Test
     public void testZkStreamChunking() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(6);
 
@@ -379,7 +380,7 @@ public class ZkStreamTest {
             try {
 
                 List<Integer> list = IntStream.range(x * 6, (x + 1) * 6).boxed().collect(Collectors.toList());
-                store.scale(SCOPE, streamName, list, newRanges, scaleTs, context, executor).get();
+                store.startScale(SCOPE, streamName, newRanges, scaleTs, context, executor).get();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

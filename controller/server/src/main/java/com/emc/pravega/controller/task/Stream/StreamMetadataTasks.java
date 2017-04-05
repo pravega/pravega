@@ -27,6 +27,8 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -38,7 +40,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
@@ -60,17 +61,17 @@ public class StreamMetadataTasks extends TaskBase {
     private final SegmentHelper segmentHelper;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-            final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
-            final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
-            final ConnectionFactory connectionFactory) {
+                               final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
+                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
+                               final ConnectionFactory connectionFactory) {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
-             connectionFactory);
+                connectionFactory);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-            final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
-            final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
-            ConnectionFactory connectionFactory) {
+                                final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
+                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
+                                ConnectionFactory connectionFactory) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
@@ -136,7 +137,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scope      scope.
      * @param stream     stream name.
      * @param contextOpt optional context
-     * @return           delete status.
+     * @return delete status.
      */
     @Task(name = "deleteStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<DeleteStreamStatus.Status> deleteStream(final String scope, final String stream,
@@ -160,8 +161,8 @@ public class StreamMetadataTasks extends TaskBase {
      */
     @Task(name = "scaleStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<ScaleResponse> scale(String scope, String stream, ArrayList<Integer> sealedSegments,
-            ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
-            OperationContext contextOpt) {
+                                                  ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
+                                                  OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp, null},
@@ -169,7 +170,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
-            StreamConfiguration config, long timestamp) {
+                                                                          StreamConfiguration config, long timestamp) {
         try {
             NameVerifier.validateName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
@@ -216,7 +217,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<UpdateStreamStatus.Status> updateStreamConfigBody(String scope, String stream,
-                                                                         StreamConfiguration config, OperationContext contextOpt) {
+                                                                                StreamConfiguration config, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.updateConfiguration(scope, stream, config, context, executor)
@@ -287,8 +288,8 @@ public class StreamMetadataTasks extends TaskBase {
                             .thenComposeAsync(count ->
                                     notifyDeleteSegments(scope, stream, count)
                                             .thenComposeAsync(x -> withRetries(() ->
-                                                            streamMetadataStore.deleteStream(scope, stream, contextOpt,
-                                                                    executor), executor), executor)
+                                                    streamMetadataStore.deleteStream(scope, stream, contextOpt,
+                                                            executor), executor), executor)
                                             .handleAsync((result, ex) -> {
                                                 if (ex != null) {
                                                     log.warn("Exception thrown while deleting stream", ex.getMessage());
@@ -301,8 +302,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     CompletableFuture<ScaleResponse> scaleBody(final String scope, final String stream, final List<Integer> segmentsToSeal,
-                                               final List<AbstractMap.SimpleEntry<Double, Double>> newRanges, final long scaleTimestamp,
-                                               final OperationContext contextOpt) {
+                                   final List<AbstractMap.SimpleEntry<Double, Double>> newRanges, final long scaleTimestamp,
+                                   final OperationContext contextOpt) {
         // Abort scaling operation in the following error scenarios
         // 1. if the active segments in the stream have ts greater than scaleTimestamp -- ScaleStreamStatus.PRECONDITION_FAILED
         // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified
@@ -356,12 +357,22 @@ public class StreamMetadataTasks extends TaskBase {
             }
         }).thenCompose(valid -> {
                     if (valid) {
-                        return notifySealedSegments(scope, stream, segmentsToSeal)
-                                .thenCompose(results -> withRetries(
-                                        () -> streamMetadataStore.scale(scope, stream,
-                                                segmentsToSeal, newRanges, scaleTimestamp, context, executor), executor))
+                        // 1. create segments in metadata store
+                        // 2. create segment in SSS
+                        // 3. Mark stream as SCALING
+                        // 4.
+
+                        return withRetries(() -> streamMetadataStore.startScale(scope, stream, newRanges, scaleTimestamp, context, executor), executor)
                                 .thenCompose((List<Segment> newSegments) -> notifyNewSegments(scope, stream, newSegments, context)
                                         .thenApply((Void v) -> newSegments))
+                                .thenCompose(newSegments ->
+                                        withRetries(() -> streamMetadataStore.setState(scope, stream, State.SCALING, context, executor)
+                                                .thenApply(b -> newSegments), executor))
+                                .thenCompose(newSegments -> notifySealedSegments(scope, stream, segmentsToSeal)
+                                        .thenApply((Void v) -> newSegments))
+                                .thenCompose(newSegments ->
+                                        withRetries(() -> streamMetadataStore.completeScale(scope, stream, segmentsToSeal,
+                                                newSegments, scaleTimestamp, context, executor), executor))
                                 .thenApply((List<Segment> newSegments) -> {
                                     ScaleResponse.Builder response = ScaleResponse.newBuilder();
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS);
@@ -455,7 +466,7 @@ public class StreamMetadataTasks extends TaskBase {
     private SegmentRange convert(String scope, String stream, com.emc.pravega.controller.store.stream.Segment segment) {
 
         return ModelHelper.createSegmentRange(scope, stream, segment.getNumber(), segment.getKeyEnd(),
-                                              segment.getKeyEnd());
+                segment.getKeyEnd());
     }
 
     private UpdateStreamStatus.Status handleUpdateStreamError(Throwable ex) {
@@ -484,12 +495,12 @@ public class StreamMetadataTasks extends TaskBase {
     @Override
     public TaskBase copyWithContext(Context context) {
         return new StreamMetadataTasks(streamMetadataStore,
-                                       hostControllerStore,
-                                       taskMetadataStore,
-                                       segmentHelper,
-                                       executor,
-                                       context,
-                                       connectionFactory);
+                hostControllerStore,
+                taskMetadataStore,
+                segmentHelper,
+                executor,
+                context,
+                connectionFactory);
     }
 
     @Override
