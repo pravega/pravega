@@ -365,9 +365,6 @@ public class StreamMetadataTasks extends TaskBase {
                         return withRetries(() -> streamMetadataStore.startScale(scope, stream, newRanges, scaleTimestamp, context, executor), executor)
                                 .thenCompose((List<Segment> newSegments) -> notifyNewSegments(scope, stream, newSegments, context)
                                         .thenApply((Void v) -> newSegments))
-                                .thenCompose(newSegments ->
-                                        withRetries(() -> streamMetadataStore.setState(scope, stream, State.SCALING, context, executor)
-                                                .thenApply(b -> newSegments), executor))
                                 .thenCompose(newSegments -> notifySealedSegments(scope, stream, segmentsToSeal)
                                         .thenApply((Void v) -> newSegments))
                                 .thenCompose(newSegments ->

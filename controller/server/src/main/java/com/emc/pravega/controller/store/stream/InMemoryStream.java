@@ -8,11 +8,9 @@ import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
-import com.sun.javafx.collections.VetoableListDecorator;
 import lombok.AllArgsConstructor;
 import org.apache.commons.lang.NotImplementedException;
 
-import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;

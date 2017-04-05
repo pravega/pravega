@@ -47,7 +47,6 @@ public class ScaleTest {
         // Create controller object for testing against a separate controller report.
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
-        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String scope = "scope";
@@ -87,7 +86,7 @@ public class ScaleTest {
         }
 
         // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
-        CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000, 3600000, 60000);
+        CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000, 3600000, 29000);
         TxnSegments transaction = txnFuture.get();
         if (transaction == null) {
             log.error("Create transaction failed, exiting");

@@ -12,7 +12,6 @@ import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.Data;
 import com.emc.pravega.controller.store.stream.tables.HistoryRecord;
 import com.emc.pravega.controller.store.stream.tables.IndexRecord;
-import com.emc.pravega.controller.store.stream.tables.Scale;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
@@ -294,10 +293,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Void> completeScale(final List<Integer> sealedSegments,
                                                  final List<Integer> newSegments) {
-        final Scale.CompleteScale scale = new Scale.CompleteScale(sealedSegments, newSegments);
-
         return verifyLegalState(FutureHelpers.toVoid(
-                addHistoryRecord(scale)
+                addHistoryRecord(sealedSegments, newSegments)
                         .thenCompose(this::addIndexRecord)
                         .thenCompose(v -> updateState(State.ACTIVE))));
     }
@@ -583,10 +580,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * fetch last record from history table.
      * if eventTime is >= scale.scaleTimeStamp do nothing, else create record
      *
-     * @param scale scale input
      * @return : future of history table offset for last entry
      */
-    private CompletableFuture<HistoryRecord> addHistoryRecord(final Scale.CompleteScale scale) {
+    private CompletableFuture<HistoryRecord> addHistoryRecord(final List<Integer> sealedSegments,
+                                                              final List<Integer> createdSegments) {
         return getHistoryTable()
                 .thenCompose(historyTable -> {
                     final Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable.getData());
@@ -598,14 +595,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     final HistoryRecord lastRecord = lastRecordOpt.get();
 
                     // idempotent check
-                    if (lastRecord.getSegments().containsAll(scale.getCreatedSegments())) {
+                    if (lastRecord.getSegments().containsAll(createdSegments)) {
                         HistoryRecord previous = HistoryRecord.fetchPrevious(lastRecord, historyTable.getData()).get();
 
-                        assert previous.getSegments().stream().noneMatch(x -> scale.getCreatedSegments().contains(x));
+                        assert previous.getSegments().stream().noneMatch(createdSegments::contains);
                         return CompletableFuture.completedFuture(lastRecord);
                     }
 
-                    final List<Integer> newActiveSegments = getNewActiveSegments(scale, lastRecord);
+                    final List<Integer> newActiveSegments = getNewActiveSegments(createdSegments, sealedSegments, lastRecord);
 
                     byte[] updatedTable = TableHelper.updateHistoryTable(historyTable.getData(),
                             System.currentTimeMillis(),
@@ -617,11 +614,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
-    private List<Integer> getNewActiveSegments(final Scale.CompleteScale scale,
+    private List<Integer> getNewActiveSegments(final List<Integer> createdSegments,
+                                               final List<Integer> sealedSegments,
                                                final HistoryRecord lastRecord) {
         final List<Integer> segments = lastRecord.getSegments();
-        segments.removeAll(scale.getSealedSegments());
-        segments.addAll(scale.getCreatedSegments());
+        segments.removeAll(sealedSegments);
+        segments.addAll(createdSegments);
         return segments;
     }
 

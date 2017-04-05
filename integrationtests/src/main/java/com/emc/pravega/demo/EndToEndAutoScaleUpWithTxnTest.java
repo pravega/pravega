@@ -44,7 +44,6 @@ public class EndToEndAutoScaleUpWithTxnTest {
             int port = Config.SERVICE_PORT;
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
-            controllerWrapper.awaitRunning();
             Controller controller = controllerWrapper.getController();
             controllerWrapper.getControllerService().createScope("pravega").get();
 
@@ -113,7 +112,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
         CompletableFuture.runAsync(() -> {
             while (!done.get()) {
                 try {
-                    Transaction<String> transaction = test.beginTxn(5000, 3600000, 60000);
+                    Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
 
                     for (int i = 0; i < 1000; i++) {
                         transaction.writeEvent("0", "txntest");

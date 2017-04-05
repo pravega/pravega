@@ -10,7 +10,6 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatu
 import com.emc.pravega.stream.StreamConfiguration;
 
 import java.nio.ByteBuffer;
-import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
@@ -237,10 +236,10 @@ public interface StreamMetadataStore {
      * @return the list of newly created segments
      */
     CompletableFuture<Void> completeScale(final String scope, final String name,
-                                                   final List<Integer> sealedSegments,
-                                                   final List<Segment> newSegments,
-                                                   final OperationContext context,
-                                                   final Executor executor);
+                                          final List<Integer> sealedSegments,
+                                          final List<Segment> newSegments,
+                                          final OperationContext context,
+                                          final Executor executor);
 
     /**
      * Method to create a new transaction on a stream.
