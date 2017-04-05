@@ -3,13 +3,13 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.MetricsNames;
+import com.emc.pravega.MetricsNames;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.metrics.DynamicLogger;
-import com.emc.pravega.common.metrics.MetricsProvider;
-import com.emc.pravega.common.metrics.OpStatsLogger;
-import com.emc.pravega.common.metrics.StatsLogger;
-import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.metrics.DynamicLogger;
+import com.emc.pravega.metrics.MetricsProvider;
+import com.emc.pravega.metrics.OpStatsLogger;
+import com.emc.pravega.metrics.StatsLogger;
+import com.emc.pravega.metrics.StatsProvider;
 import com.emc.pravega.common.util.NameVerifier;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
@@ -34,14 +34,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import static com.emc.pravega.common.MetricsNames.ABORT_TRANSACTION;
-import static com.emc.pravega.common.MetricsNames.COMMIT_TRANSACTION;
-import static com.emc.pravega.common.MetricsNames.CREATE_TRANSACTION;
-import static com.emc.pravega.common.MetricsNames.OPEN_TRANSACTIONS;
-import static com.emc.pravega.common.MetricsNames.SEGMENTS_COUNT;
-import static com.emc.pravega.common.MetricsNames.SEGMENTS_MERGES;
-import static com.emc.pravega.common.MetricsNames.SEGMENTS_SPLITS;
-import static com.emc.pravega.common.MetricsNames.nameFromStream;
+import static com.emc.pravega.MetricsNames.ABORT_TRANSACTION;
+import static com.emc.pravega.MetricsNames.COMMIT_TRANSACTION;
+import static com.emc.pravega.MetricsNames.CREATE_TRANSACTION;
+import static com.emc.pravega.MetricsNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.MetricsNames.SEGMENTS_COUNT;
+import static com.emc.pravega.MetricsNames.SEGMENTS_MERGES;
+import static com.emc.pravega.MetricsNames.SEGMENTS_SPLITS;
+import static com.emc.pravega.MetricsNames.nameFromStream;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
