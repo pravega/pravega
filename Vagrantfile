@@ -21,7 +21,7 @@ Vagrant.configure("2") do |config|
    #   vb.gui = true
 
    # Customize the amount of memory on the VM:
-   vb.memory = "1024"
+   vb.memory = "2048"
    if Vagrant.has_plugin?("vagrant-cachier")
       override.cache.scope = :box
       config.cache.enable :apt
@@ -59,6 +59,7 @@ Vagrant.configure("2") do |config|
 	controlnode.vm.provider :virtualbox do |vb,override|
          override.vm.network :private_network, ip: "192.168.10.10"
         end
+	controlnode.vm.provision :shell, inline: "sed -i'' '/^127.0.0.1\\t#{controlnode.vm.hostname}\\tcontrolnode$/d' /etc/hosts"
 	controlnode.vm.provision "shell", path:"vagrant/scripts/common.sh"
 	controlnode.vm.provision "shell", path:"vagrant/scripts/start_first_machine.sh"
   end
@@ -68,6 +69,7 @@ Vagrant.configure("2") do |config|
          override.vm.network :private_network, ip: "192.168.10.20"
         end
 
+	datanode.vm.provision :shell, inline: "sed -i'' '/^127.0.0.1\\t#{datanode.vm.hostname}\\tdatanode$/d' /etc/hosts"
         datanode.vm.provision "shell", path:"vagrant/scripts/common.sh"
         datanode.vm.provision "shell", path:"vagrant/scripts/start_other_machine.sh"
   end
