@@ -20,8 +20,11 @@ import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Sequence;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -43,6 +46,8 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     private final EventProcessorConfig<T> eventProcessorConfig;
 
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<String, EventProcessorCell<T>> eventProcessorMap;
 
     private final EventStreamWriter<T> writer;
