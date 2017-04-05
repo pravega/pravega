@@ -16,6 +16,9 @@ public class NameUtils {
     public static final String INTERNAL_STREAM_NAME_PREFIX = "_";
 
     /**
+     * Construct an internal representation of stream name. This is required to distinguish between user created
+     * and pravega internally created streams.
+     *
      * @param streamName    The stream name for which we need to construct an internal name.
      * @return              The stream name which has to be used internally in the pravega system.
      */

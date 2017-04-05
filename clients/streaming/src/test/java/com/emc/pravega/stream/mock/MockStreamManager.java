@@ -55,6 +55,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
+        NameUtils.validateUserStreamName(streamName);
         if (config == null) {
             config = StreamConfiguration.builder()
                                         .scope(scopeName)
@@ -112,6 +113,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames) {
+        NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(NameUtils.getInternalNameForStream(groupName),
                            StreamConfiguration.builder()
                                               .scope(scope)

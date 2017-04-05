@@ -65,7 +65,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     //Ensure each test completes within 5 seconds.
     @Rule
-    public Timeout globalTimeout = new Timeout(500, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(5, TimeUnit.SECONDS);
 
     ControllerService mockControllerService;
     StreamMetadataStore mockStreamStore;
@@ -185,8 +185,6 @@ public class StreamMetaDataTests extends JerseyTest {
                         bind(mockControllerService).to(ControllerService.class);
                     }
                 });
-        resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
-        resourceConfig.property(ServerProperties.OUTBOUND_CONTENT_LENGTH_BUFFER, 100000);
         resourceConfig.register(new CustomObjectMapperProvider());
         return resourceConfig;
     }
@@ -536,12 +534,12 @@ public class StreamMetaDataTests extends JerseyTest {
                 streamsListResp.getStreams().get(2).getStreamName());
 
         // Test to list large number of streams.
-        streamsList = Collections.nCopies(100, streamConfiguration1);
+        streamsList = Collections.nCopies(200, streamConfiguration1);
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
         response = target(resourceURI).request().async().get();
         final StreamsList streamsList2 = response.get().readEntity(StreamsList.class);
         assertEquals("List Streams response code", 200, response.get().getStatus());
-        assertEquals("List count", 100, streamsList2.getStreams().size());
+        assertEquals("List count", 200, streamsList2.getStreams().size());
     }
 
     /**
