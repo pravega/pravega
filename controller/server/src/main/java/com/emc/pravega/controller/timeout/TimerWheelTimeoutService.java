@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.controller.timeout;
 
-import com.emc.pravega.common.metrics.DynamicLogger;
-import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.metrics.DynamicLogger;
+import com.emc.pravega.metrics.MetricsProvider;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.OperationOnTxNotAllowedException;
 import com.emc.pravega.controller.store.stream.TransactionNotFoundException;
@@ -35,8 +35,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
-import static com.emc.pravega.common.MetricsNames.TIMEDOUT_TRANSACTIONS;
-import static com.emc.pravega.common.MetricsNames.nameFromStream;
+import static com.emc.pravega.MetricsNames.TIMEDOUT_TRANSACTIONS;
+import static com.emc.pravega.MetricsNames.nameFromStream;
 
 /**
  * Transaction ping manager. It maintains a local hashed timer wheel to manage txn timeouts.
