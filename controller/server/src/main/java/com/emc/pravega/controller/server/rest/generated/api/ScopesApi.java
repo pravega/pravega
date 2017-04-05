@@ -167,9 +167,10 @@ public class ScopesApi  {
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = StreamsList.class) })
     public Response listStreams(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
+,@ApiParam(value = "Flag whether to display system created streams too.") @QueryParam("showInternalStreams") String showInternalStreams
 ,@Context SecurityContext securityContext)
     throws NotFoundException {
-        return delegate.listStreams(scopeName,securityContext);
+        return delegate.listStreams(scopeName,showInternalStreams,securityContext);
     }
     @PUT
     @Path("/{scopeName}/streams/{streamName}")

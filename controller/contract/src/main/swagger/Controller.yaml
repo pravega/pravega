@@ -87,6 +87,12 @@ paths:
         required: true
         type: string
     get:
+      parameters:
+        - in: query
+          name: showInternalStreams
+          description: Flag whether to display system created streams too.
+          required: false
+          type: string
       operationId: listStreams
       description: List streams within the given scope
       produces:

@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.rest.v1;
 
+import com.emc.pravega.common.util.NameUtils;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rest.CustomObjectMapperProvider;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -211,6 +212,13 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Create Stream Status", 201, response.get().getStatus());
         streamResponseActual = response.get().readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected2, streamResponseActual);
+
+        // Test to create a stream with internal stream name
+        final CreateStreamRequest streamRequest = new CreateStreamRequest();
+        streamRequest.setStreamName(NameUtils.getInternalNameForStream("stream"));
+        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
+        response = target(streamResourceURI).request().async().post(Entity.json(streamRequest));
+        assertEquals("Create Stream Status", 400, response.get().getStatus());
 
         // Test to create a stream that already exists
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
@@ -501,7 +509,34 @@ public class StreamMetaDataTests extends JerseyTest {
         response = target(resourceURI).request().async().get();
         assertEquals("List Streams response code", 500, response.get().getStatus());
 
-        streamsList = Collections.nCopies(800, streamConfiguration1);
+        // Test for filtering streams.
+        final StreamConfiguration streamConfiguration3 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(NameUtils.getInternalNameForStream("stream3"))
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .retentionPolicy(RetentionPolicy.INFINITE)
+                .build();
+        List<StreamConfiguration> allStreamsList = Arrays.asList(streamConfiguration1, streamConfiguration2,
+                streamConfiguration3);
+        when(mockControllerService.listStreamsInScope("scope1")).thenReturn(
+                CompletableFuture.completedFuture(allStreamsList));
+        response = target(resourceURI).request().async().get();
+        StreamsList streamsListResp = response.get().readEntity(StreamsList.class);
+        assertEquals("List Streams response code", 200, response.get().getStatus());
+        assertEquals("List count", 2, streamsListResp.getStreams().size());
+        assertEquals("List element", "stream1", streamsListResp.getStreams().get(0).getStreamName());
+        assertEquals("List element", "stream2", streamsListResp.getStreams().get(1).getStreamName());
+        response = target(resourceURI).queryParam("showInternalStreams","true").request().async().get();
+        streamsListResp = response.get().readEntity(StreamsList.class);
+        assertEquals("List Streams response code", 200, response.get().getStatus());
+        assertEquals("List count", 3, streamsListResp.getStreams().size());
+        assertEquals("List element", "stream1", streamsListResp.getStreams().get(0).getStreamName());
+        assertEquals("List element", "stream2", streamsListResp.getStreams().get(1).getStreamName());
+        assertEquals("List element", NameUtils.getInternalNameForStream("stream3"),
+                streamsListResp.getStreams().get(2).getStreamName());
+
+        // Test to list large number of streams.
+        streamsList = Collections.nCopies(100, streamConfiguration1);
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
         response = target(resourceURI).request().async().get();
         final StreamsList streamsList2 = response.get().readEntity(StreamsList.class);

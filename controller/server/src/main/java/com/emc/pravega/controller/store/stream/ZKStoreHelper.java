@@ -264,7 +264,8 @@ public class ZKStoreHelper {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.create().creatingParentsIfNeeded().inBackground(
-                    callback(x -> result.complete(null),
+                    callback(
+                            x -> result.complete(null),
                             e -> {
                                 if (e instanceof DataExistsException) {
                                     result.complete(null);

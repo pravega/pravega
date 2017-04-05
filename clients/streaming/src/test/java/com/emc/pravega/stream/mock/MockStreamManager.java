@@ -8,6 +8,7 @@ package com.emc.pravega.stream.mock;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.NameUtils;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderGroup;
@@ -111,10 +112,10 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames) {
-        createStreamHelper(groupName,
+        createStreamHelper(NameUtils.getInternalNameForStream(groupName),
                            StreamConfiguration.builder()
                                               .scope(scope)
-                                              .streamName(groupName)
+                                              .streamName(NameUtils.getInternalNameForStream(groupName))
                                               .scalingPolicy(ScalingPolicy.fixed(1)).build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope,

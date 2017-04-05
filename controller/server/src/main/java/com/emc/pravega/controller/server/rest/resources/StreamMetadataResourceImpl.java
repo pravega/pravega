@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.server.rest.resources;
 
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.util.NameUtils;
 import com.emc.pravega.controller.server.rest.ModelHelper;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
@@ -87,6 +88,14 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "createStream");
 
+        try {
+            NameUtils.validateUserStreamName(createStreamRequest.getStreamName());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create stream failed due to invalid stream name {}", createStreamRequest.getStreamName());
+            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            LoggerHelpers.traceLeave(log, "createStream", traceId);
+            return;
+        }
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scopeName);
         controllerService.createStream(streamConfiguration, System.currentTimeMillis())
                 .thenApply(streamStatus -> {
@@ -272,14 +281,20 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
      * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing.
      */
     @Override
-    public void listStreams(final String scopeName, final SecurityContext securityContext,
-            final AsyncResponse asyncResponse) {
+    public void listStreams(final String scopeName, final String showInternalStreams,
+                            final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "listStreams");
 
+        boolean showAllStreams = (showInternalStreams != null && showInternalStreams.equals("true"));
         controllerService.listStreamsInScope(scopeName)
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();
-                    streamsList.forEach(stream -> streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream)));
+                    streamsList.forEach(stream -> {
+                        if (showAllStreams
+                                || !stream.getStreamName().startsWith(NameUtils.INTERNAL_STREAM_NAME_PREFIX)) {
+                            streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream));
+                        }
+                    });
                     log.info("Successfully fetched streams for scope: {}", scopeName);
                     return Response.status(Status.OK).entity(streams).build();
                 }).exceptionally(exception -> {

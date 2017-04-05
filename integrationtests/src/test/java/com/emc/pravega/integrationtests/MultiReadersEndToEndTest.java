@@ -73,7 +73,7 @@ public class MultiReadersEndToEndTest {
         runTestUsingMock(Collections.singleton("teststream1"), 2, 2);
     }
     
-    @Test(timeout = 30000)  
+    @Test(timeout = 30000)
      public void testReadersLessThanSegments() throws Exception {      
         runTest(Collections.singleton("teststream2"), 2, 3);
         runTestUsingMock(Collections.singleton("teststream2"), 2, 3);
