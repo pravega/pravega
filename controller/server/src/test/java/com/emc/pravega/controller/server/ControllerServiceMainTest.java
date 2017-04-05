@@ -57,7 +57,7 @@ public abstract class ControllerServiceMainTest {
         }
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testControllerServiceMainStartStop() {
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
                 MockControllerServiceStarter::new);

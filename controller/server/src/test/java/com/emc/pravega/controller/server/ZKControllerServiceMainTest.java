@@ -50,7 +50,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
         }
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testZKSessionExpiry() {
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
                 MockControllerServiceStarter::new);
