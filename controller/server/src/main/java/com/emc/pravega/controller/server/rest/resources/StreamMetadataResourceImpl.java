@@ -285,7 +285,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                             final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "listStreams");
 
-        boolean showAllStreams = (showInternalStreams != null && showInternalStreams.equals("true"));
+        boolean showAllStreams = showInternalStreams != null && showInternalStreams.equals("true");
         controllerService.listStreamsInScope(scopeName)
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();

@@ -43,7 +43,6 @@ import javax.ws.rs.core.Application;
 import javax.ws.rs.core.Response;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Before;
 import org.junit.Rule;
@@ -524,7 +523,7 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("List count", 2, streamsListResp.getStreams().size());
         assertEquals("List element", "stream1", streamsListResp.getStreams().get(0).getStreamName());
         assertEquals("List element", "stream2", streamsListResp.getStreams().get(1).getStreamName());
-        response = target(resourceURI).queryParam("showInternalStreams","true").request().async().get();
+        response = target(resourceURI).queryParam("showInternalStreams", "true").request().async().get();
         streamsListResp = response.get().readEntity(StreamsList.class);
         assertEquals("List Streams response code", 200, response.get().getStatus());
         assertEquals("List count", 3, streamsListResp.getStreams().size());
