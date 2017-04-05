@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
@@ -14,6 +15,8 @@ import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.SerializationUtils;
 
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.List;
@@ -24,18 +27,25 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+@ThreadSafe
 class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
     private Long creationTime;
     private Data<Integer> configuration;
     private Data<Integer> state;
+    @GuardedBy("segmentTableMap")
     private final Map<Integer, Data<Integer>> segmentTableMap;
-    private Data<Integer> historyTable;
     private final Object historyTableLock;
-    private Data<Integer> indexTable;
+    @GuardedBy("historyTableLock")
+    private Data<Integer> historyTable;
     private final Object indexTableLock;
+    @GuardedBy("indexTableLock")
+    private Data<Integer> indexTable;
+    @GuardedBy("activeTxns")
     private final Map<String, Data<Integer>> activeTxns;
+    @GuardedBy("completedTxns")
     private final Map<String, Data<Integer>> completedTxns;
+    @GuardedBy("markers")
     private final Map<Integer, Data<Integer>> markers;
 
     public InMemoryPersistentStream(final String scopeName, final String streamName) {
@@ -84,14 +94,11 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException {
-        CompletableFuture<Void> future = new CompletableFuture<>();
         if (creationTime != null && creationTime != create.getEventTime()) {
-            future.completeExceptionally(new DataExistsException(getName()));
+            return FutureHelpers.failedFuture(new DataExistsException(getName()));
         } else {
-            future.complete(null);
+            return CompletableFuture.completedFuture(null);
         }
-
-        return future;
     }
 
     public CompletableFuture<Void> checkScopeExists() {
@@ -112,40 +119,31 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> createIndexTable(final Create create) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-
         synchronized (indexTableLock) {
             if (indexTable == null) {
                 final byte[] indexTableData = TableHelper.updateIndexTable(new byte[0], create.getEventTime(), 0);
                 indexTable = new Data<>(indexTableData, 0);
-                future.complete(null);
+                return CompletableFuture.completedFuture(null);
             } else {
-                future.completeExceptionally(new DataExistsException("indexTable"));
+                return FutureHelpers.failedFuture(new DataExistsException("indexTable"));
             }
         }
-
-        return future;
     }
 
     @Override
     CompletableFuture<Void> updateIndexTable(final Data<Integer> updated) {
-        CompletableFuture<Void> retval = new CompletableFuture<>();
         synchronized (indexTableLock) {
             if (updated.getVersion().equals(indexTable.getVersion())) {
                 indexTable = new Data<>(updated.getData(), updated.getVersion() + 1);
-                retval.complete(null);
+                return CompletableFuture.completedFuture(null);
             } else {
-                retval.completeExceptionally(new WriteConflictException("indexTable"));
+                return FutureHelpers.failedFuture(new WriteConflictException("indexTable"));
             }
         }
-
-        return retval;
     }
 
     @Override
     public CompletableFuture<Void> createHistoryTable(final Create create) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-
         synchronized (historyTableLock) {
             if (historyTable == null) {
                 final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
@@ -154,27 +152,23 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
                         IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
 
                 historyTable = new Data<>(historyTableData, 0);
-                future.complete(null);
+                return CompletableFuture.completedFuture(null);
             } else {
-                future.completeExceptionally(new DataExistsException("history table"));
+                return FutureHelpers.failedFuture(new DataExistsException("history table"));
             }
         }
-
-        return future;
     }
 
     @Override
     public CompletableFuture<Void> updateHistoryTable(final Data<Integer> updated) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
         synchronized (historyTableLock) {
             if (updated.getVersion().equals(historyTable.getVersion())) {
                 historyTable = new Data<>(updated.getData(), updated.getVersion() + 1);
-                future.complete(null);
+                return CompletableFuture.completedFuture(null);
             } else {
-                future.completeExceptionally(new WriteConflictException("indexTable"));
+                return FutureHelpers.failedFuture(new WriteConflictException("indexTable"));
             }
         }
-        return future;
     }
 
     @Override
@@ -311,8 +305,7 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<StreamConfiguration> getConfigurationData() {
         if (configuration == null) {
             CompletableFuture<StreamConfiguration> future = new CompletableFuture<>();
-            future.completeExceptionally(new DataNotFoundException(""));
-            return future;
+            return FutureHelpers.failedFuture(new DataNotFoundException(""));
         }
 
         return CompletableFuture.completedFuture((StreamConfiguration) SerializationUtils.deserialize(configuration.getData()));
@@ -320,23 +313,19 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> setStateData(final State state) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
+
         if (this.state == null) {
-            future.completeExceptionally(new DataNotFoundException("state"));
+            return FutureHelpers.failedFuture(new DataNotFoundException("state"));
         } else {
             this.state = new Data<>(SerializationUtils.serialize(state), null);
-            future.complete(null);
+            return CompletableFuture.completedFuture(null);
         }
-
-        return future;
     }
 
     @Override
     CompletableFuture<State> getStateData() {
         if (state == null) {
-            CompletableFuture<State> stateCompletableFuture = new CompletableFuture<>();
-            stateCompletableFuture.completeExceptionally(new DataNotFoundException(""));
-            return stateCompletableFuture;
+            return FutureHelpers.failedFuture(new DataNotFoundException(""));
         }
         return CompletableFuture.completedFuture((State) SerializationUtils.deserialize(state.getData()));
     }
@@ -382,33 +371,25 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
     // region private helpers
 
     private <T, U> CompletableFuture<Void> createEntryInMap(final Map<T, Data<Integer>> map, T key, byte[] data, String errorMsg) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-
         if (!map.containsKey(key)) {
             map.put(key, new Data<>(data, 0));
-            future.complete(null);
+            return CompletableFuture.completedFuture(null);
         } else {
-            future.completeExceptionally(new DataExistsException(errorMsg));
+            return FutureHelpers.failedFuture(new DataExistsException(errorMsg));
         }
-
-        return future;
     }
 
     private <T> CompletableFuture<Void> updateEntryInMap(final Map<T, Data<Integer>> map, T key, Data<Integer> data, String errorMsg) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-
         if (map.containsKey(key)) {
             if (map.get(key).getVersion().equals(data.getVersion())) {
                 map.put(key, new Data<>(data.getData(), data.getVersion() + 1));
-                future.complete(null);
+                return CompletableFuture.completedFuture(null);
             } else {
-                future.completeExceptionally(new WriteConflictException(errorMsg));
+                return FutureHelpers.failedFuture(new WriteConflictException(errorMsg));
             }
         } else {
-            future.completeExceptionally(new DataNotFoundException(errorMsg));
+            return FutureHelpers.failedFuture(new DataNotFoundException(errorMsg));
         }
-
-        return future;
     }
 
     // endregion
