@@ -58,6 +58,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("controller");
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
     private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
+    private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
@@ -136,7 +137,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                 final String name,
                                                 final OperationContext context,
                                                 final Executor executor) {
-        return withCompletion(getStream(scope, name, context).delete(), executor);
+        return withCompletion(getStream(scope, name, context).delete(), executor)
+                .thenApply(result -> {
+                    DELETE_STREAM.reportSuccessValue(1);
+                    return result;
+                });
     }
 
     @Override
@@ -330,7 +335,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(stream.createTransaction(lease, maxExecutionTime, scaleGracePeriod), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                        DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
                     });
                     return result;
@@ -368,7 +373,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         future.thenCompose(result -> {
             return stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.incCounterValue(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
             });
         });
@@ -392,7 +397,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         CompletableFuture<TxnStatus> future = withCompletion(stream.abortTransaction(txId), executor);
         future.thenApply(result -> {
             stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.incCounterValue(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
             });
             return result;

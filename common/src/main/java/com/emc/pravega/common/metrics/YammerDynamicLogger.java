@@ -14,13 +14,11 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class YammerDynamicLogger implements DynamicLogger {
     private final long cacheSize;
-    private final long ttlSeconds;
 
     private final MetricRegistry metrics;
     private final StatsLogger underlying;
@@ -35,44 +33,40 @@ public class YammerDynamicLogger implements DynamicLogger {
         this.metrics = metrics;
         this.underlying = statsLogger;
         this.cacheSize = metricsConfig.getDynamicCacheSize();
-        this.ttlSeconds = metricsConfig.getDynamicTTLSeconds();
 
         countersCache = CacheBuilder.newBuilder().
                 maximumSize(cacheSize).
-                expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
                 removalListener(new RemovalListener<String, Counter>() {
                     @Override
                     public void onRemoval(RemovalNotification<String, Counter> removal) {
                         Counter counter = removal.getValue();
                         Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
                         metrics.remove(counter.getName());
-                        log.debug("TTL expired, removed Counter: {}.", counter.getName());
+                        log.debug("Removed Counter: {}.", counter.getName());
                     }
                 }).
                 build();
 
         gaugesCache = CacheBuilder.newBuilder().
                 maximumSize(cacheSize).
-                expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
                 removalListener(new RemovalListener<String, Gauge>() {
                     @Override
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
                         metrics.remove(gauge.getName());
-                        log.debug("TTL expired, removed Gauge: {}.", gauge.getName());
+                        log.debug("Removed Gauge: {}.", gauge.getName());
                     }
                 }).
                 build();
 
         metersCache = CacheBuilder.newBuilder().
             maximumSize(cacheSize).
-            expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
             removalListener(new RemovalListener<String, Meter>() {
                 @Override
                 public void onRemoval(RemovalNotification<String, Meter> removal) {
                     Meter meter = removal.getValue();
                     metrics.remove(meter.getName());
-                    log.debug("TTL expired, removed Meter: {}.", meter.getName());
+                    log.debug("Removed Meter: {}.", meter.getName());
                 }
             }).
             build();

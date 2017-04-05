@@ -27,7 +27,7 @@
         </encoder>
     </appender>
 
-    <root level="DEBUG">
+    <root level="${log.level:-INFO}">
         <appender-ref ref="consoleAppender"/>
         <appender-ref ref="FILE"/>
     </root>
