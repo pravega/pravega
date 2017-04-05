@@ -122,4 +122,10 @@ public class NameUtilsTest {
             // expected
         }
     }
+
+    @Test
+    public void testInternalStreamName() {
+        Assert.assertTrue(NameUtils.getInternalNameForStream("stream").startsWith(
+                NameUtils.INTERNAL_STREAM_NAME_PREFIX));
+    }
 }
