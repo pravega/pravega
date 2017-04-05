@@ -26,14 +26,16 @@ public final class MetricsNames {
 
     // Metrics in Controller
     // Stream request counts (Static)
-    public static final String CREATE_STREAM = "stream_created"; // Histogram
-    public static final String SEAL_STREAM = "stream_sealed";    // Histogram
+    public static final String CREATE_STREAM = "stream_created";    // Histogram
+    public static final String SEAL_STREAM = "stream_sealed";       // Histogram
+    public static final String DELETE_STREAM = "stream_deleted";    // Histogram
 
     // Transaction request Operations (Dynamic)
     public static final String CREATE_TRANSACTION = "transactions_created";   // Dynamic Meter
     public static final String COMMIT_TRANSACTION = "transactions_committed"; // Dynamic Meter
     public static final String ABORT_TRANSACTION = "transactions_aborted";    // Dynamic Meter
     public static final String OPEN_TRANSACTIONS = "transactions_opened";     // Dynamic Gauge
+    public static final String TIMEDOUT_TRANSACTIONS = "transactions_timedout";     // Dynamic Gauge
 
     // Stream segment counts (Dynamic)
     public static final String SEGMENTS_COUNT = "segments_count";   // Dynamic Gauge
