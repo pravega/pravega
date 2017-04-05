@@ -8,6 +8,8 @@ import com.emc.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import com.emc.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -45,6 +47,68 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             zkServer.close();
         } catch (IOException e) {
             log.error("Error stopping test zk server");
+        }
+    }
+
+    @Test
+    public void testZKSessionExpiry() {
+        ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
+                MockControllerServiceStarter::new);
+
+        controllerServiceMain.startAsync();
+
+        try {
+            controllerServiceMain.awaitRunning();
+        } catch (IllegalStateException e) {
+            log.error("Failed waiting for controllerServiceMain to get ready", e);
+            Assert.fail("Failed waiting for controllerServiceMain to get ready");
+        }
+
+        try {
+            controllerServiceMain.awaitServiceStarting().awaitRunning();
+        } catch (IllegalStateException e) {
+            log.error("Failed waiting for controllerServiceStarter to get ready", e);
+            Assert.fail("Failed waiting for controllerServiceStarter to get ready");
+            return;
+        }
+
+        // Simulate ZK session timeout
+        try {
+            controllerServiceMain.forceClientSessionExpiry();
+        } catch (Exception e) {
+            log.error("Failed while simulating client session expiry", e);
+            Assert.fail("Failed while simulating client session expiry");
+        }
+
+        // Now, that session has expired, lets wait for starter to start again.
+        try {
+            controllerServiceMain.awaitServicePausing().awaitTerminated();
+        } catch (IllegalStateException e) {
+            log.error("Failed waiting for controllerServiceStarter termination", e);
+            Assert.fail("Failed waiting for controllerServiceStarter termination");
+        }
+
+        try {
+            controllerServiceMain.awaitServiceStarting().awaitRunning();
+        } catch (IllegalStateException e) {
+            log.error("Failed waiting for starter to get ready again", e);
+            Assert.fail("Failed waiting for controllerServiceStarter to get ready again");
+        }
+
+        controllerServiceMain.stopAsync();
+
+        try {
+            controllerServiceMain.awaitServicePausing().awaitTerminated();
+        } catch (IllegalStateException e) {
+            log.error("Failed waiting for controllerServiceStarter termination", e);
+            Assert.fail("Failed waiting for controllerServiceStarter termination");
+        }
+
+        try {
+            controllerServiceMain.awaitTerminated();
+        } catch (IllegalStateException e) {
+            log.error("Failed waiting for termination of controllerServiceMain", e);
+            Assert.fail("Failed waiting for termination of controllerServiceMain");
         }
     }
 }

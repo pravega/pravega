@@ -59,7 +59,38 @@ public abstract class ControllerServiceMainTest {
 
     @Test
     public void testControllerServiceMainStartStop() {
+        ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
+                MockControllerServiceStarter::new);
 
+        controllerServiceMain.startAsync();
+        try {
+            controllerServiceMain.awaitRunning();
+        } catch (IllegalStateException e) {
+            Assert.fail("Failed waiting for controllerServiceMain to get ready");
+        }
+
+        try {
+            controllerServiceMain.awaitServiceStarting().awaitRunning();
+        } catch (IllegalStateException e) {
+            Assert.fail("Failed waiting for starter to get ready");
+        }
+
+        controllerServiceMain.stopAsync();
+
+        try {
+            controllerServiceMain.awaitServicePausing().awaitTerminated();
+        } catch (IllegalStateException e) {
+            Assert.fail("Failed waiting for termination of starter");
+        }
+
+        try {
+            controllerServiceMain.awaitTerminated();
+        } catch (IllegalStateException e) {
+            Assert.fail("Failed waiting for termination of controllerServiceMain");
+        }
+    }
+
+    protected ControllerServiceConfig createControllerServiceConfig() {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(false)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
@@ -86,7 +117,7 @@ public abstract class ControllerServiceMainTest {
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
-        ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
+        return ControllerServiceConfigImpl.builder()
                 .serviceThreadPoolSize(3)
                 .taskThreadPoolSize(3)
                 .storeThreadPoolSize(3)
@@ -101,22 +132,5 @@ public abstract class ControllerServiceMainTest {
                 .grpcServerConfig(Optional.empty())
                 .restServerConfig(Optional.empty())
                 .build();
-
-        ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig,
-                MockControllerServiceStarter::new);
-
-        controllerServiceMain.startAsync();
-        try {
-            controllerServiceMain.awaitRunning();
-        } catch (IllegalStateException e) {
-            Assert.fail("Failed starting controllerServiceMain");
-        }
-
-        controllerServiceMain.stopAsync();
-        try {
-            controllerServiceMain.awaitTerminated();
-        } catch (IllegalStateException e) {
-            Assert.fail("Failed stopping controllerServiceMain");
-        }
     }
 }
