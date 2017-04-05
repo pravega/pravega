@@ -167,6 +167,13 @@ project('common') {
     }
 }
 
+project ('shared') {
+   dependencies {
+    compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+    compile project(':common')
+   }
+}
+
 project('clients:streaming') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -229,6 +236,7 @@ project('service:storage') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
+        compile project(':shared')
         testCompile project(':testcommon')
     }
     publishing {
@@ -276,6 +284,7 @@ project('service:storage:impl') {
 
         compile project(':common')
         compile project(':service:storage')
+        compile project(':shared')
         testCompile project(':testcommon')
         testCompile files(project(':service:storage').sourceSets.test.output)
     }
@@ -294,6 +303,7 @@ project('service:server') {
         compile project(':common')
         compile project(':service:contracts')
         compile project(':service:storage')
+        compile project(':shared')
         testCompile project(':testcommon')
     }
     publishing {
@@ -540,6 +550,7 @@ project('controller:server') {
         compile project(':common')
         compile project(":controller:contract")
         compile project(":clients:streaming")
+        compile project(":shared")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
