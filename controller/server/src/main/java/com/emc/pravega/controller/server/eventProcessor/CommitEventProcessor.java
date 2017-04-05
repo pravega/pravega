@@ -1,20 +1,19 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.server.SegmentHelper;
-import com.emc.pravega.controller.server.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,7 +35,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
 
     public CommitEventProcessor(final StreamMetadataStore streamMetadataStore,
                                 final HostControllerStore hostControllerStore,
-                                final ScheduledExecutorService executor, 
+                                final ScheduledExecutorService executor,
                                 final SegmentHelper segmentHelper,
                                 final ConnectionFactory connectionFactory) {
         this.streamMetadataStore = streamMetadataStore;
@@ -69,7 +68,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         final long retryMaxDelay = 100000;
 
         return Retry.withExpBackoff(retryInitialDelay, retryMultiplier, retryMaxAttempts, retryMaxDelay)
-                .retryingOn(WireCommandFailedException.class)
+                .retryWhen(RetryableException::isRetryable)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> segmentHelper.commitTransaction(scope,
                         stream,

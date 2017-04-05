@@ -3,13 +3,13 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.MetricsNames;
+import com.emc.pravega.MetricsNames;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.metrics.DynamicLogger;
-import com.emc.pravega.common.metrics.MetricsProvider;
-import com.emc.pravega.common.metrics.OpStatsLogger;
-import com.emc.pravega.common.metrics.StatsLogger;
-import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.metrics.DynamicLogger;
+import com.emc.pravega.metrics.MetricsProvider;
+import com.emc.pravega.metrics.OpStatsLogger;
+import com.emc.pravega.metrics.StatsLogger;
+import com.emc.pravega.metrics.StatsProvider;
 import com.emc.pravega.common.util.NameVerifier;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
@@ -35,14 +35,14 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.emc.pravega.common.MetricsNames.ABORT_TRANSACTION;
-import static com.emc.pravega.common.MetricsNames.COMMIT_TRANSACTION;
-import static com.emc.pravega.common.MetricsNames.CREATE_TRANSACTION;
-import static com.emc.pravega.common.MetricsNames.OPEN_TRANSACTIONS;
-import static com.emc.pravega.common.MetricsNames.SEGMENTS_COUNT;
-import static com.emc.pravega.common.MetricsNames.SEGMENTS_MERGES;
-import static com.emc.pravega.common.MetricsNames.SEGMENTS_SPLITS;
-import static com.emc.pravega.common.MetricsNames.nameFromStream;
+import static com.emc.pravega.MetricsNames.ABORT_TRANSACTION;
+import static com.emc.pravega.MetricsNames.COMMIT_TRANSACTION;
+import static com.emc.pravega.MetricsNames.CREATE_TRANSACTION;
+import static com.emc.pravega.MetricsNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.MetricsNames.SEGMENTS_COUNT;
+import static com.emc.pravega.MetricsNames.SEGMENTS_MERGES;
+import static com.emc.pravega.MetricsNames.SEGMENTS_SPLITS;
+import static com.emc.pravega.MetricsNames.nameFromStream;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
@@ -347,7 +347,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(stream.createTransaction(lease, maxExecutionTime, scaleGracePeriod), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                        DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
                     });
                     return result;
@@ -385,7 +385,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         future.thenCompose(result -> {
             return stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.incCounterValue(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
             });
         });
@@ -409,7 +409,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         CompletableFuture<TxnStatus> future = withCompletion(stream.abortTransaction(txId), executor);
         future.thenApply(result -> {
             stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.incCounterValue(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
             });
             return result;

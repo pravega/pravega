@@ -151,7 +151,7 @@ public class ControllerRestApiTest {
         CreateStreamRequest createStreamRequest = new CreateStreamRequest();
         ScalingConfig scalingConfig = new ScalingConfig();
         scalingConfig.setType(FIXED_NUM_SEGMENTS);
-        scalingConfig.setTargetRate(2L);
+        scalingConfig.setTargetRate(2);
         scalingConfig.scaleFactor(2);
         scalingConfig.minSegments(2);
 
@@ -202,7 +202,7 @@ public class ControllerRestApiTest {
         UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
         ScalingConfig scalingConfig1 = new ScalingConfig();
         scalingConfig1.setType(FIXED_NUM_SEGMENTS);
-        scalingConfig1.setTargetRate(2L);
+        scalingConfig1.setTargetRate(2);
         scalingConfig1.scaleFactor(3); // update existing scaleFactor from 2 to 3
         scalingConfig1.minSegments(4); // update existing minSegments from 2 to 4
         updateStreamRequest.setScalingPolicy(scalingConfig1);

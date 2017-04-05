@@ -275,7 +275,7 @@ definitions:
         - BY_RATE_IN_EVENTS_PER_SEC
       targetRate:
         type: integer
-        format: int64
+        format: int32
       scaleFactor:
         type: integer
         format: int32
