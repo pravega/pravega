@@ -28,6 +28,24 @@ public class ModelHelper {
      */
     public static final StreamConfiguration getCreateStreamConfig(final CreateStreamRequest createStreamRequest,
                                                                   final String scope) {
+        ScalingPolicy scalingPolicy;
+        if (createStreamRequest.getScalingPolicy().getType() == ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS) {
+           scalingPolicy = ScalingPolicy.fixed(createStreamRequest.getScalingPolicy().getMinSegments());
+        } else if (createStreamRequest.getScalingPolicy().getType() ==
+                ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC) {
+            scalingPolicy = ScalingPolicy.byEventRate(
+                    createStreamRequest.getScalingPolicy().getTargetRate(),
+                    createStreamRequest.getScalingPolicy().getScaleFactor(),
+                    createStreamRequest.getScalingPolicy().getMinSegments()
+            );
+        } else {
+            scalingPolicy = ScalingPolicy.byDataRate(
+                    createStreamRequest.getScalingPolicy().getTargetRate(),
+                    createStreamRequest.getScalingPolicy().getScaleFactor(),
+                    createStreamRequest.getScalingPolicy().getMinSegments()
+            );
+        }
+
         RetentionPolicy retentionPolicy;
         if (createStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.INFINITE) {
             retentionPolicy = RetentionPolicy.INFINITE;
@@ -40,12 +58,7 @@ public class ModelHelper {
         return StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(createStreamRequest.getStreamName())
-                .scalingPolicy(ScalingPolicy.builder()
-                               .type(ScalingPolicy.Type.valueOf(createStreamRequest.getScalingPolicy().getType().name()))
-                               .targetRate(createStreamRequest.getScalingPolicy().getTargetRate().intValue())
-                               .scaleFactor(createStreamRequest.getScalingPolicy().getScaleFactor())
-                               .minNumSegments(createStreamRequest.getScalingPolicy().getMinSegments())
-                               .build())
+                .scalingPolicy(scalingPolicy)
                 .retentionPolicy(retentionPolicy)
                 .build();
     }
@@ -60,6 +73,23 @@ public class ModelHelper {
      */
     public static final StreamConfiguration getUpdateStreamConfig(final UpdateStreamRequest updateStreamRequest,
                                                                   final String scope, final String stream) {
+        ScalingPolicy scalingPolicy;
+        if (updateStreamRequest.getScalingPolicy().getType() == ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS) {
+            scalingPolicy = ScalingPolicy.fixed(updateStreamRequest.getScalingPolicy().getMinSegments());
+        } else if (updateStreamRequest.getScalingPolicy().getType() ==
+                ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC) {
+            scalingPolicy = ScalingPolicy.byEventRate(
+                    updateStreamRequest.getScalingPolicy().getTargetRate(),
+                    updateStreamRequest.getScalingPolicy().getScaleFactor(),
+                    updateStreamRequest.getScalingPolicy().getMinSegments()
+            );
+        } else {
+            scalingPolicy = ScalingPolicy.byDataRate(
+                    updateStreamRequest.getScalingPolicy().getTargetRate(),
+                    updateStreamRequest.getScalingPolicy().getScaleFactor(),
+                    updateStreamRequest.getScalingPolicy().getMinSegments()
+            );
+        }
         RetentionPolicy retentionPolicy;
         if (updateStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.INFINITE) {
             retentionPolicy = RetentionPolicy.INFINITE;
@@ -72,13 +102,7 @@ public class ModelHelper {
         return StreamConfiguration.builder()
                                   .scope(scope)
                                   .streamName(stream)
-                                  .scalingPolicy(ScalingPolicy.builder().type(
-                                          ScalingPolicy.Type.valueOf(updateStreamRequest.getScalingPolicy()
-                                                                                        .getType()
-                                                                                        .name())).targetRate(
-                                          updateStreamRequest.getScalingPolicy().getTargetRate().intValue()).scaleFactor(
-                                          updateStreamRequest.getScalingPolicy().getScaleFactor()).minNumSegments(
-                                          updateStreamRequest.getScalingPolicy().getMinSegments()).build())
+                                  .scalingPolicy(scalingPolicy)
                                   .retentionPolicy(retentionPolicy)
                                   .build();
     }
@@ -92,10 +116,17 @@ public class ModelHelper {
     public static final StreamProperty encodeStreamResponse(final StreamConfiguration streamConfiguration) {
 
         ScalingConfig scalingPolicy = new ScalingConfig();
-        scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().getType().name()));
-        scalingPolicy.setTargetRate((long) streamConfiguration.getScalingPolicy().getTargetRate());
-        scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
-        scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
+        if (streamConfiguration.getScalingPolicy().getType() == ScalingPolicy.Type.FIXED_NUM_SEGMENTS) {
+            scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().
+                    getType().name()));
+            scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
+        } else {
+            scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().
+                    getType().name()));
+            scalingPolicy.setTargetRate(streamConfiguration.getScalingPolicy().getTargetRate());
+            scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
+            scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
+        }
 
         RetentionConfig retentionConfig = new RetentionConfig();
         if (streamConfiguration.getRetentionPolicy().getType() == RetentionPolicy.Type.TIME) {
