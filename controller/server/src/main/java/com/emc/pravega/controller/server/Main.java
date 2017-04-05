@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.metrics.MetricsProvider;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
