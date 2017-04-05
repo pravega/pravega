@@ -9,6 +9,7 @@ import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -33,6 +34,7 @@ import org.junit.Test;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -101,7 +103,8 @@ public class StreamMetadataTasksTest {
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStorePartialMock.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null, executor);
+        List<Segment> segmentsCreated = streamStorePartialMock.startScale(SCOPE, stream1, Arrays.asList(segment1, segment2), 20, null, executor).get();
+        streamStorePartialMock.completeScale(SCOPE, stream1, Collections.singletonList(1), segmentsCreated, null, executor).get();
     }
 
     @After

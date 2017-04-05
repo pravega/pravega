@@ -196,11 +196,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .boxed()
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
-        final int toCreate = newRanges.size();
 
         final byte[] segmentTable = TableHelper.updateSegmentTable(startingSegmentNumber,
                 new byte[0],
-                toCreate,
                 newRanges,
                 create.getEventTime()
         );

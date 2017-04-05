@@ -166,7 +166,7 @@ public class ZkStreamTest {
 
         CompletableFuture<DeleteScopeStatus> deleteScopeStatus3 = store.deleteScope("Scope3");
         assertEquals("Delete non-empty Scope", DeleteScopeStatus.Status.SCOPE_NOT_EMPTY,
-                     deleteScopeStatus3.get().getStatus());
+                deleteScopeStatus3.get().getStatus());
     }
 
     @Test
@@ -257,7 +257,8 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(0.4, 1.0));
 
         long scale2 = scale1 + 10;
-        store.scale(SCOPE, streamName, Lists.newArrayList(1, 2, 5), newRanges, scale2, context, executor).get();
+        List<Segment> segmentsCreated = store.startScale(SCOPE, streamName, newRanges, scale2, context, executor).get();
+        store.completeScale(SCOPE, streamName, Lists.newArrayList(1, 2, 5), segmentsCreated, context, executor).get();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
@@ -271,7 +272,8 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
         long scale3 = scale2 + 10;
-        store.scale(SCOPE, streamName, Lists.newArrayList(7, 8), newRanges, scale3, context, executor).get();
+        segmentsCreated = store.startScale(SCOPE, streamName, newRanges, scale3, context, executor).get();
+        store.completeScale(SCOPE, streamName, Lists.newArrayList(7, 8), segmentsCreated, context, executor).get();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);
@@ -338,8 +340,8 @@ public class ZkStreamTest {
         assertFalse(store.isCold(SCOPE, streamName, 0, null, executor).get());
     }
 
-    //@Ignore("run manually")
-    @Test
+    @Ignore("run manually")
+    //    @Test
     public void testZkStreamChunking() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(6);
 

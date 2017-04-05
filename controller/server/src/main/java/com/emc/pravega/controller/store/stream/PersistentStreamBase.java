@@ -552,7 +552,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
         final byte[] updated = TableHelper.updateSegmentTable(nextSegmentNumber,
                 currentChunkData.getData(),
-                newRanges.subList(0, toCreate + 1),
+                newRanges.subList(0, toCreate),
                 segmentCreationTs
         );
 

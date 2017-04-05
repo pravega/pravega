@@ -9,6 +9,7 @@ import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -26,6 +27,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -104,12 +106,14 @@ public class ControllerServiceTest {
 
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null, executor).get();
+        List<Segment> segmentCreated = streamStore.startScale(SCOPE, stream1, Arrays.asList(segment1, segment2), 20, null, executor).get();
+        streamStore.completeScale(SCOPE, stream1, Collections.singletonList(1), segmentCreated, null, executor).get();
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null, executor).get();
+        segmentCreated = streamStore.startScale(SCOPE, stream2, Arrays.asList(segment3, segment4, segment5), 20, null, executor).get();
+        streamStore.completeScale(SCOPE, stream2, Arrays.asList(0, 1, 2), segmentCreated, null, executor).get();
         // endregion
     }
 

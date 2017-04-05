@@ -93,7 +93,8 @@ public abstract class StreamMetadataStoreTest {
         // region scaleSegments
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        store.scale(scope, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null, executor).join();
+        List<Segment> segmentsCreated = store.startScale(scope, stream1, Arrays.asList(segment1, segment2), 20, null, executor).join();
+        store.completeScale(scope, stream1, Collections.singletonList(1), segmentsCreated, null, executor).join();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
@@ -107,7 +108,8 @@ public abstract class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        store.scale(scope, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null, executor).get();
+        segmentsCreated = store.startScale(scope, stream2, Arrays.asList(segment3, segment4, segment5), 20, null, executor).get();
+        store.completeScale(scope, stream2, Arrays.asList(0, 1, 2), segmentsCreated, null, executor).get();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());

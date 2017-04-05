@@ -372,7 +372,7 @@ public class StreamMetadataTasks extends TaskBase {
                                         .thenApply((Void v) -> newSegments))
                                 .thenCompose(newSegments ->
                                         withRetries(() -> streamMetadataStore.completeScale(scope, stream, segmentsToSeal,
-                                                newSegments, scaleTimestamp, context, executor), executor))
+                                                newSegments, context, executor), executor).thenApply(x -> newSegments))
                                 .thenApply((List<Segment> newSegments) -> {
                                     ScaleResponse.Builder response = ScaleResponse.newBuilder();
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS);

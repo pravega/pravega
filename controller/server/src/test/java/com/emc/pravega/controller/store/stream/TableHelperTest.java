@@ -46,13 +46,13 @@ public class TableHelperTest {
     public void getActiveSegmentsTest() {
         final List<Integer> startSegments = Lists.newArrayList(0, 1, 2, 3, 4);
         long timestamp = System.currentTimeMillis();
-        byte[] historyTable = TableHelper.updateHistoryTable(new byte[0], timestamp, startSegments, historyRecord);
+        byte[] historyTable = TableHelper.updateHistoryTable(new byte[0], timestamp, startSegments);
         List<Integer> activeSegments = TableHelper.getActiveSegments(historyTable);
         assertEquals(activeSegments, startSegments);
 
         List<Integer> newSegments = Lists.newArrayList(5, 6, 7, 8, 9);
 
-        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp + 2, newSegments, historyRecord);
+        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp + 2, newSegments);
         activeSegments = TableHelper.getActiveSegments(historyTable);
         assertEquals(activeSegments, newSegments);
 
@@ -123,7 +123,7 @@ public class TableHelperTest {
         assertEquals(predecessors, new ArrayList<Integer>());
         assertEquals(successors, new ArrayList<Integer>());
 
-        byte[] historyTable = TableHelper.updateHistoryTable(new byte[0], timestamp, newSegments, historyRecord);
+        byte[] historyTable = TableHelper.updateHistoryTable(new byte[0], timestamp, newSegments);
         byte[] indexTable = TableHelper.updateIndexTable(new byte[0], timestamp, 0);
 
         int nextHistoryOffset = historyTable.length;
@@ -134,7 +134,7 @@ public class TableHelperTest {
         Segment five = new Segment(5, timestamp, 0.6, 1);
         segments.add(five);
 
-        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp, newSegments, historyRecord);
+        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp, newSegments);
         indexTable = TableHelper.updateIndexTable(indexTable, timestamp, nextHistoryOffset);
         nextHistoryOffset = historyTable.length;
 
@@ -148,7 +148,7 @@ public class TableHelperTest {
         Segment eight = new Segment(8, timestamp, 0.4, 1);
         segments.add(eight);
 
-        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp, newSegments, historyRecord);
+        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp, newSegments);
         indexTable = TableHelper.updateIndexTable(indexTable, timestamp, nextHistoryOffset);
         nextHistoryOffset = historyTable.length;
 
@@ -162,7 +162,7 @@ public class TableHelperTest {
         Segment eleven = new Segment(11, timestamp, 0.6, 1);
         segments.add(eleven);
 
-        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp, newSegments, historyRecord);
+        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp, newSegments);
         // find predecessor and successor with index table being stale
         predecessors = TableHelper.getOverlaps(ten,
                 TableHelper.findSegmentPredecessorCandidates(ten,
@@ -382,7 +382,7 @@ public class TableHelperTest {
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
 
-        return TableHelper.updateSegmentTable(0, new byte[0], numSegments, newRanges, eventTime);
+        return TableHelper.updateSegmentTable(0, new byte[0], newRanges, eventTime);
     }
 
     private byte[] updateSegmentTable(byte[] segmentTable, int numSegments, long eventTime) {
@@ -393,7 +393,7 @@ public class TableHelperTest {
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
 
-        return TableHelper.updateSegmentTable(startingSegNum, segmentTable, numSegments, newRanges, eventTime);
+        return TableHelper.updateSegmentTable(startingSegNum, segmentTable, newRanges, eventTime);
     }
 }
 
