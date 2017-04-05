@@ -10,15 +10,17 @@ import java.util.function.Function;
 /**
  * Helper methods for collections.
  */
-public final class Collections {
+public final class CollectionHelpers {
 
     /**
      * Performs a binary search on the given sorted list using the given comparator.
      * This method has undefined behavior if the list is not sorted.
      * <p>
-     * This method is different than that in java.util.Collections in that this one searches by a simple comparator, vs
-     * the ones in that class which search for a specific element. This one is useful if we don't have an instance of a
-     * search object or we want to implement a fuzzy comparison.
+     * This method is different than that in java.util.Collections in the following ways:
+     * 1. This one searches by a simple comparator, vs the ones in the Collections class which search for a specific element.
+     * This one is useful if we don't have an instance of a search object or we want to implement a fuzzy comparison.
+     * 2. This one returns -1 if the element is not found. The ones in the Collections class return (-(start+1)), which is
+     * the index where the item should be inserted if it were to go in the list.
      *
      * @param list       The list to search on.
      * @param comparator The comparator to use for comparison. Returns -1 if sought item is before the current item,

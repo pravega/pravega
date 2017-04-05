@@ -52,7 +52,7 @@ class DistributedLogDataLog implements DurableDataLog {
     @GuardedBy("handleLock")
     private LogHandle handle;
     @GuardedBy("handleLock")
-    private LogHandle truncateHandle;
+    private LogHandle metadataHandle;
 
     //endregion
 
@@ -119,7 +119,7 @@ class DistributedLogDataLog implements DurableDataLog {
         DLSNAddress dlsnAddress = (DLSNAddress) logAddress;
         return withRetries(() -> getHandle().truncate(dlsnAddress))
                 .thenComposeAsync(v -> recordTruncation(dlsnAddress), this.executor)
-                .thenComposeAsync(truncateAddress -> withRetries(() -> getTruncateHandle().truncate((DLSNAddress) truncateAddress)),
+                .thenComposeAsync(truncateAddress -> withRetries(() -> getMetadataHandle().truncate((DLSNAddress) truncateAddress)),
                         this.executor)
                 .thenRun(() -> this.truncatedAddress.set(dlsnAddress));
     }
@@ -184,13 +184,13 @@ class DistributedLogDataLog implements DurableDataLog {
      * reopened.
      */
     @SneakyThrows(DurableDataLogException.class)
-    private LogHandle getTruncateHandle() {
+    private LogHandle getMetadataHandle() {
         synchronized (this.handleLock) {
             if (!areHandlesOpen()) {
                 openHandles();
             }
 
-            return this.truncateHandle;
+            return this.metadataHandle;
         }
     }
 
@@ -204,14 +204,14 @@ class DistributedLogDataLog implements DurableDataLog {
         Preconditions.checkState(!areHandlesOpen(), "DistributedLogDataLog is already initialized.");
         try {
             this.handle = this.client.getLogHandle(this.logName);
-            this.truncateHandle = this.client.getLogHandle(this.logName + "#truncation");
+            this.metadataHandle = this.client.getLogHandle(this.logName + "#metadata");
 
             // Figure out the exact location of the last truncation, if any.
-            long lastTruncateSeq = this.truncateHandle.getLastTransactionId();
-            if (lastTruncateSeq > LogHandle.START_TRANSACTION_ID) {
-                try (val reader = this.truncateHandle.getReader(lastTruncateSeq - 1)) {
-                    val lastTruncateItem = reader.getNext();
-                    this.truncatedAddress.set(DLSNAddress.deserialize(lastTruncateItem.getPayload()));
+            long lastMetadataSeq = this.metadataHandle.getLastTransactionId();
+            if (lastMetadataSeq > LogHandle.START_TRANSACTION_ID) {
+                try (val reader = this.metadataHandle.getReader(lastMetadataSeq - 1)) {
+                    val lastMetadataItem = reader.getNext();
+                    this.truncatedAddress.set(DLSNAddress.deserialize(lastMetadataItem.getPayload()));
                 }
             }
         } catch (Throwable ex) {
@@ -250,7 +250,7 @@ class DistributedLogDataLog implements DurableDataLog {
     }
 
     private CompletableFuture<LogAddress> recordTruncation(DLSNAddress truncatedAddress) {
-        return withRetries(() -> getTruncateHandle().append(new ByteArrayInputStream(truncatedAddress.serialize())));
+        return withRetries(() -> getMetadataHandle().append(new ByteArrayInputStream(truncatedAddress.serialize())));
     }
 
     /**
@@ -258,7 +258,7 @@ class DistributedLogDataLog implements DurableDataLog {
      */
     @GuardedBy("handleLock")
     private boolean areHandlesOpen() {
-        return this.handle != null && this.truncateHandle != null;
+        return this.handle != null && this.metadataHandle != null;
     }
 
     /**
@@ -271,9 +271,9 @@ class DistributedLogDataLog implements DurableDataLog {
                 this.handle = null;
             }
 
-            if (this.truncateHandle != null) {
-                this.truncateHandle.close();
-                this.truncateHandle = null;
+            if (this.metadataHandle != null) {
+                this.metadataHandle.close();
+                this.metadataHandle = null;
             }
         }
 

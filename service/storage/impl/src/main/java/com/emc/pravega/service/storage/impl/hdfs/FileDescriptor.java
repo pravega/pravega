@@ -14,7 +14,7 @@ import org.apache.http.annotation.ThreadSafe;
  * File descriptor for a segment file
  */
 @ThreadSafe
-class FileDescriptor implements Comparable<FileDescriptor> {
+class FileDescriptor {
     // region Members
     /**
      * The full HDFS path to this file.
@@ -120,29 +120,6 @@ class FileDescriptor implements Comparable<FileDescriptor> {
     @Override
     public synchronized String toString() {
         return String.format("%s (%d, %s)", this.path, this.length, this.readOnly ? "R" : "RW");
-    }
-
-    @Override
-    public int compareTo(FileDescriptor other) {
-        int diff = Long.compare(this.offset, other.offset);
-        if (diff == 0) {
-            diff = Long.compare(this.epoch, other.epoch);
-        }
-        return diff;
-    }
-
-    @Override
-    public int hashCode() {
-        return this.path.hashCode();
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        if (other instanceof FileDescriptor) {
-            return this.compareTo((FileDescriptor) other) == 0;
-        }
-
-        return false;
     }
 
     //endregion

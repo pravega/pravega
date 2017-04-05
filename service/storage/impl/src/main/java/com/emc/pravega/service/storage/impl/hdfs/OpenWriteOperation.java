@@ -37,8 +37,8 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", segmentName);
 
         HDFSSegmentHandle result = null;
-        int retryCount = 0;
-        while (result == null && retryCount < MAX_OPEN_WRITE_RETRIES) {
+        int attemptCount = 0;
+        while (result == null && attemptCount < MAX_OPEN_WRITE_RETRIES) {
             // We care mostly about the last file in the sequence; we use this one to implement fencing.
             val allFiles = findAll(segmentName, true);
             val lastFile = allFiles.get(allFiles.size() - 1);
@@ -50,10 +50,8 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
                                 lastFile.getEpoch(), this.context.epoch, lastFile.getPath()));
             }
 
-            val offset = lastFile.getOffset() + lastFile.getLength();
             if (lastFile.isReadOnly()) {
-                boolean sealed = isSealed(lastFile);
-                if (sealed) {
+                if (isSealed(lastFile)) {
                     // The last file is read-only and has the 'sealed' flag. This segment is sealed, as such, we cannot
                     // open it for writing, therefore open a read-only handle.
                     result = HDFSSegmentHandle.read(segmentName, allFiles);
@@ -69,7 +67,7 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
                     }
                 } else {
                     // The last file is read-only and not sealed. This segment is fenced off and we can continue using it.
-                    return fenceOut(segmentName, offset);
+                    result = fenceOut(segmentName, lastFile.getLastOffset());
                 }
             } else {
                 if (lastFile.getEpoch() == this.context.epoch) {
@@ -87,7 +85,7 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
                 }
             }
 
-            retryCount++;
+            attemptCount++;
         }
 
         if (result == null) {

@@ -38,7 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata, EvictableMetadata {
     //region Members
 
-    private static final long INITIAL_EPOCH = Long.MIN_VALUE;
+    private static final long NO_EPOCH = Long.MIN_VALUE;
 
     private final String traceObjectId;
     private final AtomicLong sequenceNumber;
@@ -79,7 +79,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.truncationPoints = new TreeSet<>();
         this.recoveryMode = new AtomicBoolean();
         this.lastTruncatedSequenceNumber = new AtomicLong();
-        this.epoch = new AtomicLong(INITIAL_EPOCH);
+        this.epoch = new AtomicLong(NO_EPOCH);
     }
 
     //endregion
@@ -359,7 +359,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         ensureRecoveryMode();
         this.sequenceNumber.set(0);
         this.lastTruncatedSequenceNumber.set(0);
-        this.epoch.set(INITIAL_EPOCH);
+        this.epoch.set(NO_EPOCH);
         synchronized (this.lock) {
             this.metadataByName.clear();
             this.metadataById.clear();

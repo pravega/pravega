@@ -8,6 +8,7 @@ import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.google.common.base.Preconditions;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -37,6 +38,9 @@ abstract class FileSystemOperation<T> {
     private static final String EXAMPLE_NAME_FORMAT = String.format(NAME_FORMAT, "<segment-name>", "<offset>", "<epoch>");
     private static final String NUMBER_GLOB_REGEX = "[0-9]*";
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
+    private static final Charset ATTRIBUTE_CHARSET = Charset.forName("UTF-8");
+    private static final byte[] ATTRIBUTE_VALUE_TRUE = new byte[]{(byte) 255};
+    private static final byte[] ATTRIBUTE_VALUE_FALSE = new byte[]{(byte) 0};
 
     @Getter
     protected final T target;
@@ -73,7 +77,7 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
-     * Gets an ordered list of FileDescriptor currently available for the given Segment, and validates that they are consistent.
+     * Gets an ordered list of FileDescriptors currently available for the given Segment, and validates that they are consistent.
      *
      * @param segmentName      The name of the Segment to retrieve for.
      * @param enforceExistence If true, it will throw a FileNotFoundException if no files are found, otherwise an empty
@@ -93,7 +97,7 @@ abstract class FileSystemOperation<T> {
 
         val result = Arrays.stream(rawFiles)
                            .map(this::toDescriptor)
-                           .sorted()
+                           .sorted(this::compareFileDescriptors)
                            .collect(Collectors.toList());
 
         val firstFile = result.get(0);
@@ -186,12 +190,12 @@ abstract class FileSystemOperation<T> {
     /**
      * Creates a new file with given path having a read-write permission.
      *
-     * @param fullPath The path of the file to create.
+     * @param path The path of the file to create.
      * @throws IOException If an exception occurred.
      */
-    void createEmptyFile(Path fullPath) throws IOException {
+    void createEmptyFile(Path path) throws IOException {
         this.context.fileSystem
-                .create(fullPath,
+                .create(path,
                         new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                         false,
                         0,
@@ -199,7 +203,8 @@ abstract class FileSystemOperation<T> {
                         this.context.config.getBlockSize(),
                         null)
                 .close();
-        log.debug("Created '{}'.", fullPath);
+        setBooleanAttributeValue(path, SEALED_ATTRIBUTE, false);
+        log.debug("Created '{}'.", path);
     }
 
     /**
@@ -217,6 +222,15 @@ abstract class FileSystemOperation<T> {
      */
     private String getPathPrefix(String segmentName) {
         return this.context.config.getHdfsRoot() + Path.SEPARATOR + segmentName;
+    }
+
+    private int compareFileDescriptors(FileDescriptor f1, FileDescriptor f2) {
+        int diff = Long.compare(f1.getOffset(), f2.getOffset());
+        if (diff == 0) {
+            diff = Long.compare(f1.getEpoch(), f2.getEpoch());
+        }
+
+        return diff;
     }
 
     //endregion
@@ -242,8 +256,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     boolean isSealed(FileDescriptor file) throws IOException {
-        byte[] data = getAttributeValue(file, SEALED_ATTRIBUTE);
-        return data != null && data.length > 0 && data[0] != 0;
+        return getBooleanAttributeValue(file.getPath(), SEALED_ATTRIBUTE);
     }
 
     /**
@@ -253,18 +266,18 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     void makeSealed(FileDescriptor file) throws IOException {
-        this.context.fileSystem.setXAttr(file.getPath(), SEALED_ATTRIBUTE, new byte[]{ (byte) 255 });
+        setBooleanAttributeValue(file.getPath(), SEALED_ATTRIBUTE, true);
         log.debug("MakeSealed '{}'.", file.getPath());
     }
 
     /**
-     * Removes the sealed attribute from the file represented by the given descriptor.
+     * Updates the sealed attribute on the file represented by the given descriptor to indicate it is not sealed.
      *
      * @param file The FileDescriptor of the file to unseal.
      * @throws IOException If an exception occurred.
      */
     void makeUnsealed(FileDescriptor file) throws IOException {
-        this.context.fileSystem.removeXAttr(file.getPath(), SEALED_ATTRIBUTE);
+        setBooleanAttributeValue(file.getPath(), SEALED_ATTRIBUTE, false);
         log.debug("MakeUnsealed '{}'.", file.getPath());
     }
 
@@ -305,7 +318,7 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     void setConcatNext(FileDescriptor file, FileDescriptor nextFile) throws IOException {
-        this.context.fileSystem.setXAttr(file.getPath(), CONCAT_ATTRIBUTE, nextFile.getPath().toString().getBytes());
+        this.context.fileSystem.setXAttr(file.getPath(), CONCAT_ATTRIBUTE, nextFile.getPath().toString().getBytes(ATTRIBUTE_CHARSET));
         log.debug("SetConcatNext '{}' to '{}'.", file.getPath(), nextFile.getPath());
     }
 
@@ -317,12 +330,12 @@ abstract class FileSystemOperation<T> {
      * @throws IOException If an exception occurred.
      */
     String getConcatNext(FileDescriptor file) throws IOException {
-        byte[] data = getAttributeValue(file, CONCAT_ATTRIBUTE);
+        byte[] data = getAttributeValue(file.getPath(), CONCAT_ATTRIBUTE);
         if (data == null || data.length == 0) {
             return null;
         }
 
-        return new String(data);
+        return new String(data, ATTRIBUTE_CHARSET);
     }
 
     /**
@@ -348,15 +361,24 @@ abstract class FileSystemOperation<T> {
         return getConcatNext(fileDescriptor) != null;
     }
 
-    private byte[] getAttributeValue(FileDescriptor file, String attributeName) throws FileNotFoundException {
+    private void setBooleanAttributeValue(Path path, String attributeName, boolean value) throws IOException {
+        this.context.fileSystem.setXAttr(path, attributeName, value ? ATTRIBUTE_VALUE_TRUE : ATTRIBUTE_VALUE_FALSE);
+    }
+
+    private boolean getBooleanAttributeValue(Path path, String attributeName) throws IOException {
+        byte[] data = getAttributeValue(path, attributeName);
+        return data != null && data.length > 0 && data[0] != 0;
+    }
+
+    private byte[] getAttributeValue(Path path, String attributeName) throws FileNotFoundException {
         try {
-            return this.context.fileSystem.getXAttr(file.getPath(), attributeName);
+            return this.context.fileSystem.getXAttr(path, attributeName);
         } catch (FileNotFoundException fnf) {
             throw fnf;
         } catch (IOException ex) {
-            // It turns out that getXAttr throws a generic IOException if the attribute is not found. Since there's no
-            // specific exception or flag to filter this out, we're going to treat all IOExceptions (except FileNotFoundExceptions)
-            // as "attribute is not set".
+            // It turns out that the getXAttr() implementation in 'org.apache.hadoop.hdfs.DistributedFileSystem' throws a
+            // generic IOException if the attribute is not found. Since there's no specific exception or flag to filter
+            // this out, we're going to treat all IOExceptions (except FileNotFoundExceptions) as "attribute is not set".
             return null;
         }
     }

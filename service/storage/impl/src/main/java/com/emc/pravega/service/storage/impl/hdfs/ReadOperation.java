@@ -6,7 +6,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.util.Collections;
+import com.emc.pravega.common.util.CollectionHelpers;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.concurrent.Callable;
@@ -60,7 +60,7 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
         // Read data.
         int totalBytesRead = 0;
         val handleFiles = handle.getFiles();
-        int currentFileIndex = Collections.binarySearch(handleFiles, this::compareToStartOffset);
+        int currentFileIndex = CollectionHelpers.binarySearch(handleFiles, this::compareToStartOffset);
         assert currentFileIndex >= 0 : "unable to locate first file index.";
         while (totalBytesRead < this.length && currentFileIndex < handleFiles.size()) {
             FileDescriptor currentFile = handleFiles.get(currentFileIndex);

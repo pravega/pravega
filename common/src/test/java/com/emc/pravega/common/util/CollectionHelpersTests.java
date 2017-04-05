@@ -10,9 +10,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the Collections class.
+ * Unit tests for the CollectionHelpers class.
  */
-public class CollectionsTests {
+public class CollectionHelpersTests {
     /**
      * Tests the binary search method.
      */
@@ -25,7 +25,7 @@ public class CollectionsTests {
             int maxSearchElement = (list.size() + 1) * skip;
             for (AtomicInteger search = new AtomicInteger(-1); search.incrementAndGet() < maxSearchElement; ) {
                 int expectedIndex = list.indexOf(search.get());
-                int actualIndex = Collections.binarySearch(list, i -> Integer.compare(search.get(), i));
+                int actualIndex = CollectionHelpers.binarySearch(list, i -> Integer.compare(search.get(), i));
                 Assert.assertEquals("Unexpected result for search = " + search + " for list of size " + list.size(), expectedIndex, actualIndex);
             }
             // Add an element.

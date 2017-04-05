@@ -257,7 +257,7 @@ class MockFileSystem extends FileSystem {
         void removeAttribute(String name) throws IOException {
             synchronized (this.attributes) {
                 if (this.attributes.remove(name) == null) {
-                    throw new IOException("attribute not set");
+                    throw new IOException("attribute '" + name + "' not set");
                 }
             }
         }
@@ -266,7 +266,7 @@ class MockFileSystem extends FileSystem {
             synchronized (this.attributes) {
                 byte[] data = this.attributes.get(name);
                 if (data == null) {
-                    throw new IOException("attribute not set");
+                    throw new IOException("attribute '" + name + "' not set");
                 }
 
                 return data;
