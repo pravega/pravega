@@ -279,6 +279,7 @@ public class EventProcessorTest {
     @Test(timeout = 10000)
     public void testEventProcessorGroup() {
         int count = 4;
+        int initialCount = count / 2;
         String systemName = "testSystem";
         String readerGroupName = "testReaderGroup";
         int[] input = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
@@ -286,7 +287,7 @@ public class EventProcessorTest {
 
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
 
-        EventProcessorGroupConfig config = createEventProcessorGroupConfig(count);
+        EventProcessorGroupConfig config = createEventProcessorGroupConfig(initialCount);
 
         EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(count, input),
                 readerGroupName);
@@ -298,6 +299,7 @@ public class EventProcessorTest {
                 .config(config)
                 .build();
 
+        // Create EventProcessorGroup.
         EventProcessorGroupImpl<TestEvent> group;
         try {
             group = (EventProcessorGroupImpl<TestEvent>) system.createEventProcessorGroup(eventProcessorConfig,
@@ -307,6 +309,22 @@ public class EventProcessorTest {
             Assert.fail("Error creating event processor group");
             return;
         }
+
+        try {
+            group.awaitRunning();
+        } catch (IllegalStateException e) {
+            log.error("Error awaiting event processor group to get ready");
+            Assert.fail("Error awaiting event processor group to get ready");
+        }
+
+        // Add a few event processors to the group.
+        try {
+            group.changeEventProcessorCount(count - initialCount);
+        } catch (CheckpointStoreException e) {
+            log.error("Error increasing event processor count");
+            Assert.fail("Error increasing event processor count");
+        }
+
         long actualSum = 0;
         for (EventProcessorCell<TestEvent> cell : group.getEventProcessorMap().values()) {
             cell.awaitTerminated();
@@ -314,6 +332,15 @@ public class EventProcessorTest {
             actualSum += actor.sum;
         }
         assertEquals(count * expectedSum, actualSum);
+
+        // Stop the group, and await its termmination.
+        group.stopAsync();
+        try {
+            group.awaitTerminated();
+        } catch (IllegalStateException e) {
+            log.error("Error awaiting termination of event processor group");
+            Assert.fail("Error awaiting termination of event processor group");
+        }
     }
 
     private EventProcessorGroupConfig createEventProcessorGroupConfig(int count) {
