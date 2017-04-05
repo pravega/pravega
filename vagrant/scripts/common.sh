@@ -14,6 +14,9 @@ apt-get -y install oracle-java8-set-default oracle-java8-installer
 if [ -e "/tmp/java-cache/" ]; then
    cp -R /var/cache/oracle-jdk8-installer/* /tmp/java-cache/
 fi
+
+echo 1 > /proc/sys/net/ipv6/conf/eth0/disable_ipv6
+
 cp /code/vagrant/conf/*xml /opt/pravega/pravega-release/hadoop/hadoop-2.7.3/etc/hadoop/
 cp /code/vagrant/conf/zoo.cfg /opt/pravega/pravega-release/zk/zookeeper-3.5.1-alpha/conf/
 cp /code/vagrant/conf/bookie.conf /opt/pravega/pravega-release/dl/distributedlog-service/conf/

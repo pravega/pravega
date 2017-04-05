@@ -2,11 +2,15 @@
 # vi: set ft=ruby :
 
 Vagrant.configure("2") do |config|
+
   config.vm.box = "ubuntu/trusty64"
-  config.vm.network "private_network", ip: "192.168.33.10"
 
   config.vm.synced_folder "build/install", "/opt/pravega"
   config.vm.synced_folder ".", "/code"
+
+  config.hostmanager.enabled = true
+  config.hostmanager.manage_host = true
+  config.hostmanager.include_offline = false
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
@@ -57,5 +61,14 @@ Vagrant.configure("2") do |config|
         end
 	controlnode.vm.provision "shell", path:"vagrant/scripts/common.sh"
 	controlnode.vm.provision "shell", path:"vagrant/scripts/start_first_machine.sh"
+  end
+  config.vm.define "datanode" do |datanode|
+        datanode.vm.hostname = "datanode"
+        datanode.vm.provider :virtualbox do |vb,override|
+         override.vm.network :private_network, ip: "192.168.10.20"
+        end
+
+        datanode.vm.provision "shell", path:"vagrant/scripts/common.sh"
+        datanode.vm.provision "shell", path:"vagrant/scripts/start_other_machine.sh"
   end
 end
