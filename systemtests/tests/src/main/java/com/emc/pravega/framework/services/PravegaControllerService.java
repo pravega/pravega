@@ -137,6 +137,7 @@ public class PravegaControllerService extends MarathonBasedService {
         map.put("ZK_URL", zk);
         map.put("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT));
         map.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
+        map.put("SERVER_OPTS", setSystemProperty("log.level", "DEBUG"));
         app.setEnv(map);
 
         return app;
