@@ -177,12 +177,25 @@ public class ControllerService {
                 .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber), executor);
     }
 
+    @SuppressWarnings("ReturnCount")
     public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream,
                                                                                final long lease,
                                                                                final long maxExecutionTime,
                                                                                final long scaleGracePeriod) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
+
+        if (lease <= 0) {
+            return FutureHelpers.failedFuture(new IllegalArgumentException("lease should be a positive number"));
+        }
+        if (maxExecutionTime <= 0) {
+            return FutureHelpers.failedFuture(
+                    new IllegalArgumentException("maxExecutionTime should be a positive number"));
+        }
+        if (scaleGracePeriod <= 0) {
+            return FutureHelpers.failedFuture(
+                    new IllegalArgumentException("scaleGracePeriod should be a positive number"));
+        }
 
         // If scaleGracePeriod is larger than maxScaleGracePeriod return error
         if (scaleGracePeriod > timeoutService.getMaxScaleGracePeriod()) {
