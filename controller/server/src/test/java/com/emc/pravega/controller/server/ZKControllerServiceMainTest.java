@@ -31,6 +31,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             zkServer = new TestingServer();
         } catch (Exception e) {
             log.error("Error starting test zk server");
+            Assert.fail("Error starting test zk server");
         }
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkServer.getConnectString())
@@ -47,6 +48,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             zkServer.close();
         } catch (IOException e) {
             log.error("Error stopping test zk server");
+            Assert.fail("Error stopping test zk server");
         }
     }
 
