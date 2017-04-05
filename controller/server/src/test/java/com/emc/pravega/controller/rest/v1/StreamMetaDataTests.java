@@ -73,17 +73,20 @@ public class StreamMetaDataTests extends JerseyTest {
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final String stream3 = "stream3";
+    private final String stream4 = "stream4";
     private final String scope1 = "scope1";
     private final String resourceURI = "v1/scopes/" + scope1 + "/streams/" + stream1;
     private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
     private final String streamResourceURI = "v1/scopes/" + scope1 + "/streams";
 
     private final ScalingConfig scalingPolicyCommon = new ScalingConfig();
+    private final ScalingConfig scalingPolicyCommon2 = new ScalingConfig();
     private final RetentionConfig retentionPolicyCommon = new RetentionConfig();
     private final RetentionConfig retentionPolicyCommon2 = new RetentionConfig();
     private final RetentionConfig retentionPolicyCommon3 = new RetentionConfig();
     private final StreamProperty streamResponseExpected = new StreamProperty();
     private final StreamProperty streamResponseExpected2 = new StreamProperty();
+    private final StreamProperty streamResponseExpected3 = new StreamProperty();
     private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
             .scope(scope1)
             .streamName(stream1)
@@ -95,6 +98,7 @@ public class StreamMetaDataTests extends JerseyTest {
     private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest3 = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest4 = new CreateStreamRequest();
+    private final CreateStreamRequest createStreamRequest5 = new CreateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest();
@@ -121,14 +125,21 @@ public class StreamMetaDataTests extends JerseyTest {
     @Before
     public void initialize() {
         scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC);
-        scalingPolicyCommon.setTargetRate(100L);
+        scalingPolicyCommon.setTargetRate(100);
         scalingPolicyCommon.setScaleFactor(2);
         scalingPolicyCommon.setMinSegments(2);
+
+        scalingPolicyCommon2.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
+        scalingPolicyCommon2.setMinSegments(2);
+
         retentionPolicyCommon.setType(TypeEnum.LIMITED_DAYS);
         retentionPolicyCommon.setValue(123L);
+
         retentionPolicyCommon2.setType(null);
         retentionPolicyCommon2.setValue(null);
+
         retentionPolicyCommon3.setType(TypeEnum.INFINITE);
+
         streamResponseExpected.setScopeName(scope1);
         streamResponseExpected.setStreamName(stream1);
         streamResponseExpected.setScalingPolicy(scalingPolicyCommon);
@@ -150,10 +161,20 @@ public class StreamMetaDataTests extends JerseyTest {
         createStreamRequest4.setScalingPolicy(scalingPolicyCommon);
         createStreamRequest4.setRetentionPolicy(retentionPolicyCommon3);
 
+        // stream 4 where targetRate and scalingFactor for Scaling Policy are null
+        createStreamRequest5.setStreamName(stream4);
+        createStreamRequest5.setScalingPolicy(scalingPolicyCommon2);
+        createStreamRequest5.setRetentionPolicy(retentionPolicyCommon);
+
         streamResponseExpected2.setScopeName(scope1);
         streamResponseExpected2.setStreamName(stream3);
         streamResponseExpected2.setScalingPolicy(scalingPolicyCommon);
         streamResponseExpected2.setRetentionPolicy(retentionPolicyCommon3);
+
+        streamResponseExpected3.setScopeName(scope1);
+        streamResponseExpected3.setStreamName(stream4);
+        streamResponseExpected3.setScalingPolicy(scalingPolicyCommon2);
+        streamResponseExpected3.setRetentionPolicy(retentionPolicyCommon);
 
         updateStreamRequest.setScalingPolicy(scalingPolicyCommon);
         updateStreamRequest.setRetentionPolicy(retentionPolicyCommon);
@@ -207,6 +228,13 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Create Stream Status", 201, response.get().getStatus());
         streamResponseActual = response.get().readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected2, streamResponseActual);
+
+        // Test to create a stream which doesn't exist and have Scaling Policy FIXED_NUM_SEGMENTS
+        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
+        response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest5));
+        assertEquals("Create Stream Status", 201, response.get().getStatus());
+        streamResponseActual = response.get().readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseExpected3, streamResponseActual);
 
         // Test to create a stream that already exists
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);

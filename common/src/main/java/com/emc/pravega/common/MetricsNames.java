@@ -35,7 +35,7 @@ public final class MetricsNames {
     public static final String COMMIT_TRANSACTION = "transactions_committed"; // Dynamic Counter
     public static final String ABORT_TRANSACTION = "transactions_aborted";    // Dynamic Counter
     public static final String OPEN_TRANSACTIONS = "transactions_opened";     // Dynamic Gauge
-    public static final String TIMEDOUT_TRANSACTIONS = "transactions_timedout";     // Dynamic Gauge
+    public static final String TIMEDOUT_TRANSACTIONS = "transactions_timedout";     // Dynamic Counter
 
     // Stream segment counts (Dynamic)
     public static final String SEGMENTS_COUNT = "segments_count";   // Dynamic Gauge
