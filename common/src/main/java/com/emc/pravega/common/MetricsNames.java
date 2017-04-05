@@ -30,9 +30,9 @@ public final class MetricsNames {
     public static final String SEAL_STREAM = "stream_sealed";    // Histogram
 
     // Transaction request Operations (Dynamic)
-    public static final String CREATE_TRANSACTION = "transactions_created";   // Dynamic Meter
-    public static final String COMMIT_TRANSACTION = "transactions_committed"; // Dynamic Meter
-    public static final String ABORT_TRANSACTION = "transactions_aborted";    // Dynamic Meter
+    public static final String CREATE_TRANSACTION = "transactions_created";   // Dynamic Counter
+    public static final String COMMIT_TRANSACTION = "transactions_committed"; // Dynamic Counter
+    public static final String ABORT_TRANSACTION = "transactions_aborted";    // Dynamic Counter
     public static final String OPEN_TRANSACTIONS = "transactions_opened";     // Dynamic Gauge
 
     // Stream segment counts (Dynamic)
