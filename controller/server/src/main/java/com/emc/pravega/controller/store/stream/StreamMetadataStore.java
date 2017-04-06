@@ -230,7 +230,7 @@ public interface StreamMetadataStore {
                                                 final Executor executor);
 
     /**
-     * Scales in or out the currently set of active segments of a stream.
+     * Called after new segmants are created in pravega.
      *
      * @param scope          stream scope
      * @param name           stream name.
@@ -249,7 +249,7 @@ public interface StreamMetadataStore {
                                           final Executor executor);
 
     /**
-     * Scales in or out the currently set of active segments of a stream.
+     * Called after old segments are sealed in pravega.
      *
      * @param scope          stream scope
      * @param name           stream name.

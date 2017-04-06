@@ -125,7 +125,7 @@ interface Stream {
     CompletableFuture<List<Integer>> getActiveSegments(final long timestamp);
 
     /**
-     * Scale the stream by sealing few segments and creating few segments.
+     * Called to start metadata updates to stream store wrt new scale event.
      *
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
@@ -136,7 +136,7 @@ interface Stream {
                                                 final long scaleTimestamp);
 
     /**
-     * Scale the stream by sealing few segments and creating few segments.
+     * Called after new segment creation is complete.
      *
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments created
@@ -148,7 +148,7 @@ interface Stream {
                                           final long scaleTimestamp);
 
     /**
-     * Scale the stream by sealing few segments and creating few segments.
+     * Called after sealing old segments is complete.
      *
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments created
