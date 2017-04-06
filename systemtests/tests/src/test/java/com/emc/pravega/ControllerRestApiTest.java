@@ -211,8 +211,8 @@ public class ControllerRestApiTest {
         response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
                 .put(Entity.json(updateStreamRequest));
         assertEquals("Update stream status", OK.getStatusCode(), response.getStatus());
-        assertEquals("Verify updated property", 3, response.readEntity(StreamProperty.class)
-                .getScalingPolicy().getScaleFactor().intValue());
+        assertEquals("Verify updated property", 4, response.readEntity(StreamProperty.class)
+                .getScalingPolicy().getMinSegments().intValue());
         log.info("Update stream successful");
 
         // Test getStream
