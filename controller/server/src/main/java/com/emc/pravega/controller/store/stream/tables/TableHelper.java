@@ -5,6 +5,7 @@ package com.emc.pravega.controller.store.stream.tables;
 
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.SegmentNotFoundException;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.ByteArrayOutputStream;
 import java.util.AbstractMap;
@@ -168,8 +169,8 @@ public class TableHelper {
         // fetch record corresponding to Ic. If segment present in that history record, fall through history table
         // else perform binary searchIndex
         // Note: if segment is present at Ic, we will fall through in the history table one record at a time
-        final Optional<IndexRecord> recordOpt = IndexRecord.search(segment.getStart(), indexTable)
-                .getValue();
+        Pair<Integer, Optional<IndexRecord>> search = IndexRecord.search(segment.getStart(), indexTable);
+        final Optional<IndexRecord> recordOpt = search.getValue();
         final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
         final Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset,
@@ -180,7 +181,7 @@ public class TableHelper {
             return new ArrayList<>();
         }
 
-        final int lower = IndexRecord.search(segment.getStart(), indexTable).getKey() / IndexRecord.INDEX_RECORD_SIZE;
+        final int lower = search.getKey() / IndexRecord.INDEX_RECORD_SIZE;
 
         final int upper = (indexTable.length - IndexRecord.INDEX_RECORD_SIZE) / IndexRecord.INDEX_RECORD_SIZE;
 
@@ -249,25 +250,10 @@ public class TableHelper {
                 .getValue();
         final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
-        Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset,
-                segment.getStart(), historyTable, false);
-
+        Optional<HistoryRecord> historyRecordOpt = findSegmentCreatedEvent(startingOffset, segment, historyTable);
         if (!historyRecordOpt.isPresent()) {
-            // segment not present in history record yet.
+            // cant compute predecessors because the creation event is not present in history table yet. 
             return new ArrayList<>();
-        }
-
-        // Since segment has eventTime from before scale and history record is assigned time after scale,
-        // so history record for when segment was created will typically be after the history record containing the segment.
-        // This is not true for initial sets of segments though where segment.createTime == historyrecord.eventTime.
-        // So we will need to check at both records.
-
-        if (!historyRecordOpt.get().getSegments().contains(segment.getNumber())) {
-            historyRecordOpt = HistoryRecord.fetchNext(historyRecordOpt.get(), historyTable, false);
-            if (!historyRecordOpt.isPresent()) {
-                // segment not found in history record yet.
-                return new ArrayList<>();
-            }
         }
 
         final HistoryRecord record = historyRecordOpt.get();
@@ -511,5 +497,30 @@ public class TableHelper {
                     indexTable,
                     historyTable);
         }
+    }
+
+    private static Optional<HistoryRecord> findSegmentCreatedEvent(final int startingOffset,
+                                                                   final Segment segment,
+                                                                   final byte[] historyTable) {
+        Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset,
+                segment.getStart(), historyTable, false);
+
+        if (!historyRecordOpt.isPresent()) {
+            // segment not present in history record.
+            return Optional.empty();
+        }
+
+        // By doing the indexed search using segment's start time we have found the record in history table that was active
+        // at the time segment was created in segment table.
+        // Since segment has eventTime from before scale and history record is assigned time after scale,
+        // So history record's time identifying when segment was created will typically be after the segment table record.
+        // This is not true for initial sets of segments though where segment.createTime == historyrecord.eventTime.
+        // So we will need to check at both records. We are guaranteed that it cannot be before this though.
+        // Question is should we fall thru more than one entry because of clock mismatch between controller instances.
+        while (historyRecordOpt.isPresent() && !historyRecordOpt.get().getSegments().contains(segment.getNumber())) {
+            historyRecordOpt = HistoryRecord.fetchNext(historyRecordOpt.get(), historyTable, false);
+        }
+
+        return historyRecordOpt;
     }
 }
