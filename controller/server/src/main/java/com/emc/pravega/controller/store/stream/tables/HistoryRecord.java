@@ -126,7 +126,7 @@ public class HistoryRecord {
 
         final long eventTime = BitConverter.readLong(table, offset + (3 + partial.numOfSegments) * Integer.BYTES);
 
-        final int offset1 = BitConverter.readInt(table, partial.endOfRowPointer - offset - Integer.BYTES);
+        final int offset1 = BitConverter.readInt(table, offset + (3 + partial.numOfSegments) * Integer.BYTES + Long.BYTES);
 
         assert offset1 == offset;
         return new HistoryRecord(partial.segments, eventTime, offset1);
