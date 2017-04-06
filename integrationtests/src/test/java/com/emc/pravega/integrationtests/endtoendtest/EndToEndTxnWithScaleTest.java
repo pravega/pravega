@@ -5,6 +5,7 @@ package com.emc.pravega.integrationtests.endtoendtest;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -20,23 +21,35 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
+import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import lombok.Cleanup;
+import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import static lombok.Lombok.sneakyThrow;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 @Slf4j
 public class EndToEndTxnWithScaleTest {
@@ -82,10 +95,10 @@ public class EndToEndTxnWithScaleTest {
     @Test(timeout = 10000)
     public void testTxnWithScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("test")
-                                                        .streamName("test")
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
-                                                        .build();
+                .scope("test")
+                .streamName("test")
+                .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
@@ -121,5 +134,55 @@ public class EndToEndTxnWithScaleTest {
         event = reader.readNextEvent(10000);
         assertNotNull(event);
         assertEquals("txntest2", event.getEvent());
+    }
+
+    @Test(timeout = 10000)
+    public void testConcurrentBeginTxn() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scope("testBeginTxn")
+                .streamName("test")
+                .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("testBeginTxn").get();
+        controller.createStream(config).get();
+        @Cleanup
+        ClientFactory clientFactory = ClientFactory.withScope("testBeginTxn", controller);
+        @Cleanup
+        EventStreamWriter<String> producer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        ExecutorService service = Executors.newFixedThreadPool(2);
+        List<Future<?>> futures = new ArrayList<>();
+
+        final Runnable createTxn = () -> {
+            try {
+                latch.await();
+                Transaction<String> transaction;
+                transaction = producer.beginTxn(5000, 60000, 29000);
+                transaction.writeEvent("0", "event");
+                transaction.commit();
+            } catch (Exception e) {
+                log.error("Error encountered", e);
+                //throw new RuntimeException("Exception during concurrentTxns",e);
+                throw Lombok.sneakyThrow(e);
+            }
+        };
+
+        futures.add(service.submit(createTxn));
+        futures.add(service.submit(createTxn));
+
+        latch.countDown();         //Trigger concurrent createTxn for a given stream.
+
+        try {
+            // Wait until both txns are created.
+            futures.forEach(f -> FutureHelpers.getAndHandleExceptions(f, t -> {
+                log.error("Exception encountered", t); // exception encountered during transaction operation .
+                return new RuntimeException(t);
+            }));
+        } finally {
+            service.shutdownNow();
+        }
     }
 }
