@@ -6,12 +6,12 @@ package com.emc.pravega.controller.store.stream.tables;
 
 import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.controller.store.stream.TxnStatus;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import lombok.Data;
 
 @Data
 public class CompletedTxRecord {
+    private static final int COMPLETED_TX_RECORD_SIZE = Long.BYTES + Integer.BYTES;
+
     private final long completeTime;
     private final TxnStatus completionStatus;
 
@@ -24,18 +24,11 @@ public class CompletedTxRecord {
     }
 
     public byte[] toByteArray() {
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] b = new byte[COMPLETED_TX_RECORD_SIZE];
+        BitConverter.writeLong(b, 0, completeTime);
+        BitConverter.writeInt(b, Long.BYTES, completionStatus.ordinal());
 
-        try {
-            outputStream.write(Utilities.toByteArray(completeTime));
-
-            outputStream.write(Utilities.toByteArray(completionStatus.ordinal()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        return outputStream.toByteArray();
-
+        return b;
     }
 
 }

@@ -6,10 +6,7 @@ package com.emc.pravega.controller.store.stream.tables;
 import com.emc.pravega.common.util.BitConverter;
 import com.google.common.base.Preconditions;
 import lombok.Getter;
-import org.apache.commons.lang.ArrayUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -52,7 +49,6 @@ public class HistoryRecord {
             return Optional.empty();
         }
 
-        // TODO: clean the method
         final int rowEndOffset = BitConverter.readInt(historyTable, offset);
 
         if (rowEndOffset > historyTable.length) {
@@ -60,15 +56,11 @@ public class HistoryRecord {
             if (ignorePartial) {
                 return Optional.empty();
             } else {
-                return Optional.of(parsePartial(ArrayUtils.subarray(historyTable,
-                        offset,
-                        historyTable.length)));
+                return Optional.of(parsePartial(historyTable, offset));
             }
         }
 
-        return Optional.of(parse(ArrayUtils.subarray(historyTable,
-                offset,
-                rowEndOffset + 1)));
+        return Optional.of(parse(historyTable, offset));
     }
 
     public static Optional<HistoryRecord> readLatestRecord(final byte[] historyTable, boolean ignorePartial) {
@@ -113,81 +105,64 @@ public class HistoryRecord {
         }
     }
 
-    private static HistoryRecord parsePartial(final byte[] b) {
-        final int endOfRowPtr = BitConverter.readInt(b, 0);
-        final int count = BitConverter.readInt(b, Integer.BYTES);
+    private static HistoryRecord parsePartial(final byte[] table, final int offset) {
+        final int endOfRowPtr = BitConverter.readInt(table, offset);
+        final int count = BitConverter.readInt(table, offset + Integer.BYTES);
         final List<Integer> segments = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            segments.add(BitConverter.readInt(b, 2 * Integer.BYTES + i * Integer.BYTES));
+            segments.add(BitConverter.readInt(table, offset + 2 * Integer.BYTES + i * Integer.BYTES));
         }
 
-        final int offset = BitConverter.readInt(b, (2 + count) * Integer.BYTES);
+        final int offset1 = BitConverter.readInt(table, offset + ((2 + count) * Integer.BYTES));
+        assert offset1 == offset;
 
-        HistoryRecord historyRecord = new HistoryRecord(segments, offset);
+        HistoryRecord historyRecord = new HistoryRecord(segments, offset1);
         assert historyRecord.endOfRowPointer == endOfRowPtr;
         return historyRecord;
     }
 
-    private static HistoryRecord parse(final byte[] b) {
-        HistoryRecord partial = parsePartial(b);
+    private static HistoryRecord parse(final byte[] table, final int offset) {
+        HistoryRecord partial = parsePartial(table, offset);
 
-        final long eventTime = BitConverter.readLong(b, (3 + partial.numOfSegments) * Integer.BYTES);
+        final long eventTime = BitConverter.readLong(table, offset + (3 + partial.numOfSegments) * Integer.BYTES);
 
-        final int offset = BitConverter.readInt(b, b.length - Integer.BYTES);
+        final int offset1 = BitConverter.readInt(table, partial.endOfRowPointer - offset - Integer.BYTES);
 
-        assert partial.endOfRowPointer - offset + 1 == b.length;
-
-        return new HistoryRecord(partial.segments, eventTime, offset);
+        assert offset1 == offset;
+        return new HistoryRecord(partial.segments, eventTime, offset1);
     }
 
     public byte[] toBytePartial() {
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try {
-            outputStream.write(Utilities.toByteArray(endOfRowPointer));
-            outputStream.write(Utilities.toByteArray(segments.size()));
-            for (Integer segment : segments) {
-                outputStream.write(Utilities.toByteArray(segment));
-            }
-            outputStream.write(Utilities.toByteArray(startOfRowPointer1));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        byte[] b = new byte[(3 + numOfSegments) * Integer.BYTES];
+
+        BitConverter.writeInt(b, 0, endOfRowPointer);
+        BitConverter.writeInt(b, Integer.BYTES, numOfSegments);
+        for (int i = 0; i < segments.size(); i++) {
+            BitConverter.writeInt(b, (2 + i) * Integer.BYTES, segments.get(i));
         }
-        return outputStream.toByteArray();
+        BitConverter.writeInt(b, (2 + numOfSegments) * Integer.BYTES, startOfRowPointer1);
+        return b;
     }
 
     public byte[] remainingByteArray() {
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-        try {
-            outputStream.write(Utilities.toByteArray(eventTime));
-
-            outputStream.write(Utilities.toByteArray(startOfRowPointer2));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        return outputStream.toByteArray();
+        byte[] b = new byte[Long.BYTES + Integer.BYTES];
+        BitConverter.writeLong(b, 0, eventTime);
+        BitConverter.writeInt(b, Long.BYTES, startOfRowPointer2);
+        return b;
     }
 
     public byte[] toByteArray() {
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-        try {
-            outputStream.write(Utilities.toByteArray(endOfRowPointer));
-            outputStream.write(Utilities.toByteArray(segments.size()));
-            for (Integer segment : segments) {
-                outputStream.write(Utilities.toByteArray(segment));
-            }
-            outputStream.write(Utilities.toByteArray(startOfRowPointer1));
-
-            outputStream.write(Utilities.toByteArray(eventTime));
-
-            outputStream.write(Utilities.toByteArray(startOfRowPointer2));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        byte[] b = new byte[(4 + numOfSegments) * Integer.BYTES + Long.BYTES];
+        BitConverter.writeInt(b, 0, endOfRowPointer);
+        BitConverter.writeInt(b, Integer.BYTES, numOfSegments);
+        for (int i = 0; i < segments.size(); i++) {
+            BitConverter.writeInt(b, (2 + i) * Integer.BYTES, segments.get(i));
         }
+        BitConverter.writeInt(b, (2 + numOfSegments) * Integer.BYTES, startOfRowPointer1);
+        BitConverter.writeLong(b, (3 + numOfSegments) * Integer.BYTES, eventTime);
+        BitConverter.writeInt(b, (3 + numOfSegments) * Integer.BYTES + Long.BYTES, startOfRowPointer2);
 
-        return outputStream.toByteArray();
+        return b;
     }
 
     public int getOffset() {

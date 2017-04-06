@@ -14,7 +14,6 @@ import com.emc.pravega.controller.store.stream.tables.Data;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
-import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
@@ -135,7 +134,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> storeCreationTime(final Create create) {
-        return store.createZNodeIfNotExist(creationPath, Utilities.toByteArray(create.getEventTime()));
+        byte[] b = new byte[Long.BYTES];
+        BitConverter.writeLong(b, 0, create.getEventTime());
+
+        return store.createZNodeIfNotExist(creationPath, b);
     }
 
     @Override
@@ -205,8 +207,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<Void> createMarkerData(int segmentNumber, long timestamp) {
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+        byte[] b = new byte[Long.BYTES];
+        BitConverter.writeLong(b, 0, timestamp);
 
-        return store.createZNodeIfNotExist(path, Utilities.toByteArray(timestamp))
+        return store.createZNodeIfNotExist(path, b)
                 .thenAccept(x -> cache.invalidateCache(markerPath));
     }
 

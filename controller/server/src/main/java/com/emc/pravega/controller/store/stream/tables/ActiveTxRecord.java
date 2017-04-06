@@ -6,12 +6,11 @@ package com.emc.pravega.controller.store.stream.tables;
 
 import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.controller.store.stream.TxnStatus;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import lombok.Data;
 
 @Data
 public class ActiveTxRecord {
+    private static final int ACTIVE_TX_RECORD_SIZE = 4 * Long.BYTES + Integer.BYTES;
     private final long txCreationTimestamp;
     private final long leaseExpiryTime;
     private final long maxExecutionExpiryTime;
@@ -35,18 +34,13 @@ public class ActiveTxRecord {
     }
 
     public byte[] toByteArray() {
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] b = new byte[ACTIVE_TX_RECORD_SIZE];
+        BitConverter.writeLong(b, 0, txCreationTimestamp);
+        BitConverter.writeLong(b, Long.BYTES, leaseExpiryTime);
+        BitConverter.writeLong(b, 2 * Long.BYTES, maxExecutionExpiryTime);
+        BitConverter.writeLong(b, 3 * Long.BYTES, scaleGracePeriod);
+        BitConverter.writeInt(b, 4 * Long.BYTES, txnStatus.ordinal());
 
-        try {
-            outputStream.write(Utilities.toByteArray(txCreationTimestamp));
-            outputStream.write(Utilities.toByteArray(leaseExpiryTime));
-            outputStream.write(Utilities.toByteArray(maxExecutionExpiryTime));
-            outputStream.write(Utilities.toByteArray(scaleGracePeriod));
-            outputStream.write(Utilities.toByteArray(txnStatus.ordinal()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        return outputStream.toByteArray();
+        return b;
     }
 }

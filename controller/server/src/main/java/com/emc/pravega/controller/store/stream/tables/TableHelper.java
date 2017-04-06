@@ -320,10 +320,7 @@ public class TableHelper {
 
         try {
             historyStream.write(historyTable);
-            historyStream.write(new HistoryRecord(
-                    newActiveSegments,
-                    historyTable.length)
-                    .toBytePartial());
+            historyStream.write(new HistoryRecord(newActiveSegments, historyTable.length).toBytePartial());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -345,11 +342,8 @@ public class TableHelper {
 
         try {
             historyStream.write(historyTable);
-            historyStream.write(new HistoryRecord(
-                    partialHistoryRecord.getSegments(),
-                    timestamp,
-                    partialHistoryRecord.getOffset())
-                    .remainingByteArray());
+            historyStream.write(new HistoryRecord(partialHistoryRecord.getSegments(),
+                    timestamp, partialHistoryRecord.getOffset()).remainingByteArray());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

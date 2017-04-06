@@ -15,7 +15,6 @@ import com.emc.pravega.controller.store.stream.tables.IndexRecord;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
-import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -505,7 +504,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return verifyLegalState(getMarkerData(segmentNumber)
                 .thenCompose(x -> {
                     if (x != null) {
-                        final Data<T> data = new Data<>(Utilities.toByteArray(timestamp), x.getVersion());
+                        byte[] b = new byte[Long.BYTES];
+                        BitConverter.writeLong(b, 0, timestamp);
+                        final Data<T> data = new Data<>(b, x.getVersion());
                         return updateMarkerData(segmentNumber, data);
                     } else {
                         return createMarkerData(segmentNumber, timestamp);
