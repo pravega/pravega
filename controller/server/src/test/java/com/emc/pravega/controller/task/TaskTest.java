@@ -100,22 +100,27 @@ public class TaskTest {
 
         // region createStream
         streamStore.createScope(SCOPE);
-        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor);
-        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null, executor);
+        long start = System.currentTimeMillis();
+        streamStore.createStream(SCOPE, stream1, configuration1, start, null, executor);
+        streamStore.createStream(SCOPE, stream2, configuration2, start, null, executor);
         // endregion
 
         // region scaleSegments
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        List<Segment> segmentsCreated = streamStore.startScale(SCOPE, stream1, Arrays.asList(segment1, segment2), 20, null, executor).get();
-        streamStore.completeScale(SCOPE, stream1, Collections.singletonList(1), segmentsCreated, null, executor).get();
+        List<Integer> sealedSegments = Collections.singletonList(1);
+        List<Segment> segmentsCreated = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, null, executor).get();
+        streamStore.continueScale(SCOPE, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).get();
+        streamStore.completeScale(SCOPE, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).get();
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        segmentsCreated = streamStore.startScale(SCOPE, stream2, Arrays.asList(segment3, segment4, segment5), 20, null, executor).get();
-        streamStore.completeScale(SCOPE, stream2, Arrays.asList(0, 1, 2), segmentsCreated, null, executor).get();
+        List<Integer> sealedSegments1 = Arrays.asList(0, 1, 2);
+        segmentsCreated = streamStore.startScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, null, executor).get();
+        streamStore.continueScale(SCOPE, stream2, sealedSegments1, segmentsCreated, start + 20, null, executor).get();
+        streamStore.completeScale(SCOPE, stream2, sealedSegments1, segmentsCreated, start + 20, null, executor).get();
         // endregion
     }
 

@@ -24,6 +24,14 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,13 +40,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
@@ -62,6 +63,8 @@ public class ControllerServiceTest {
 
     private final CuratorFramework zkClient;
     private final TestingServer zkServer;
+
+    private long startTs;
 
     public ControllerServiceTest() throws Exception {
         zkServer = new TestingServer();
@@ -98,22 +101,28 @@ public class ControllerServiceTest {
         streamStore.createScope(SCOPE).get();
 
         // region createStream
-        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
-        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null, executor).get();
+        startTs = System.currentTimeMillis();
+        streamStore.createStream(SCOPE, stream1, configuration1, startTs, null, executor).get();
+        streamStore.createStream(SCOPE, stream2, configuration2, startTs, null, executor).get();
         // endregion
 
         // region scaleSegments
 
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        List<Segment> segmentCreated = streamStore.startScale(SCOPE, stream1, Arrays.asList(segment1, segment2), 20, null, executor).get();
-        streamStore.completeScale(SCOPE, stream1, Collections.singletonList(1), segmentCreated, null, executor).get();
+        List<Integer> sealedSegments = Collections.singletonList(1);
+
+        List<Segment> segmentCreated = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs + 20, null, executor).get();
+        streamStore.continueScale(SCOPE, stream1, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
+        streamStore.completeScale(SCOPE, stream1, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        segmentCreated = streamStore.startScale(SCOPE, stream2, Arrays.asList(segment3, segment4, segment5), 20, null, executor).get();
-        streamStore.completeScale(SCOPE, stream2, Arrays.asList(0, 1, 2), segmentCreated, null, executor).get();
+        sealedSegments = Arrays.asList(0, 1, 2);
+        segmentCreated = streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), startTs + 20, null, executor).get();
+        streamStore.continueScale(SCOPE, stream2, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
+        streamStore.completeScale(SCOPE, stream2, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
         // endregion
     }
 
@@ -133,24 +142,24 @@ public class ControllerServiceTest {
     public void testMethods() throws InterruptedException, ExecutionException {
         Map<SegmentId, Long> segments;
 
-        segments = consumer.getSegmentsAtTime(SCOPE, stream1, 10).get();
+        segments = consumer.getSegmentsAtTime(SCOPE, stream1, startTs + 10).get();
         assertEquals(2, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 1)));
 
-        segments = consumer.getSegmentsAtTime(SCOPE, stream2, 10).get();
+        segments = consumer.getSegmentsAtTime(SCOPE, stream2, startTs + 10).get();
         assertEquals(3, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 1)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 2)));
 
-        segments = consumer.getSegmentsAtTime(SCOPE, stream1, 25).get();
+        segments = consumer.getSegmentsAtTime(SCOPE, stream1, startTs + 25).get();
         assertEquals(3, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 2)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 3)));
 
-        segments = consumer.getSegmentsAtTime(SCOPE, stream2, 25).get();
+        segments = consumer.getSegmentsAtTime(SCOPE, stream2, startTs + 25).get();
         assertEquals(3, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 3)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 4)));

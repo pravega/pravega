@@ -357,19 +357,16 @@ public class StreamMetadataTasks extends TaskBase {
             }
         }).thenCompose(valid -> {
                     if (valid) {
-                        // 1. create segments in metadata store
-                        // 2. create segment in SSS
-                        // 3. Mark stream as SCALING
-                        // 4.
-
-                        return withRetries(() -> streamMetadataStore.startScale(scope, stream, newRanges, scaleTimestamp, context, executor), executor)
+                        return withRetries(() -> streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, context, executor), executor)
                                 .thenCompose((List<Segment> newSegments) -> notifyNewSegments(scope, stream, newSegments, context)
                                         .thenApply((Void v) -> newSegments))
+                                .thenCompose(newSegments -> streamMetadataStore.continueScale(scope, stream, segmentsToSeal,
+                                        newSegments, scaleTimestamp, context, executor).thenApply(v -> newSegments))
                                 .thenCompose(newSegments -> notifySealedSegments(scope, stream, segmentsToSeal)
                                         .thenApply((Void v) -> newSegments))
                                 .thenCompose(newSegments ->
                                         withRetries(() -> streamMetadataStore.completeScale(scope, stream, segmentsToSeal,
-                                                newSegments, context, executor), executor).thenApply(x -> newSegments))
+                                                newSegments, scaleTimestamp, context, executor), executor).thenApply(x -> newSegments))
                                 .thenApply((List<Segment> newSegments) -> {
                                     ScaleResponse.Builder response = ScaleResponse.newBuilder();
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS);

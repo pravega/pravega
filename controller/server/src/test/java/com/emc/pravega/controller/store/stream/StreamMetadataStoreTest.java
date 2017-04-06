@@ -65,11 +65,12 @@ public abstract class StreamMetadataStoreTest {
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
         // region createStream
+        long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream1, configuration1, 5, null, executor).get();
+        store.createStream(scope, stream1, configuration1, start + 5, null, executor).get();
         store.setState(scope, stream1, State.ACTIVE, null, executor).get();
-        store.createStream(scope, stream2, configuration2, 5, null, executor).get();
+        store.createStream(scope, stream2, configuration2, start + 5, null, executor).get();
         store.setState(scope, stream2, State.ACTIVE, null, executor).get();
 
         assertEquals(stream1, store.getConfiguration(scope, stream1, null, executor).get().getStreamName());
@@ -93,28 +94,32 @@ public abstract class StreamMetadataStoreTest {
         // region scaleSegments
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        List<Segment> segmentsCreated = store.startScale(scope, stream1, Arrays.asList(segment1, segment2), 20, null, executor).join();
-        store.completeScale(scope, stream1, Collections.singletonList(1), segmentsCreated, null, executor).join();
+        List<Integer> sealedSegments = Collections.singletonList(1);
+        List<Segment> segmentsCreated = store.startScale(scope, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, null, executor).join();
+        store.continueScale(scope, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).join();
+        store.completeScale(scope, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).join();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
 
-        historicalSegments = store.getActiveSegments(scope, stream1, 30, null, executor).get();
+        historicalSegments = store.getActiveSegments(scope, stream1, start + 1000, null, executor).get();
         assertEquals(3, historicalSegments.size());
 
-        historicalSegments = store.getActiveSegments(scope, stream1, 10, null, executor).get();
+        historicalSegments = store.getActiveSegments(scope, stream1, start + 10, null, executor).get();
         assertEquals(2, historicalSegments.size());
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        segmentsCreated = store.startScale(scope, stream2, Arrays.asList(segment3, segment4, segment5), 20, null, executor).get();
-        store.completeScale(scope, stream2, Arrays.asList(0, 1, 2), segmentsCreated, null, executor).get();
+        sealedSegments = Arrays.asList(0, 1, 2);
+        segmentsCreated = store.startScale(scope, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), start + 20, null, executor).get();
+        store.continueScale(scope, stream2, sealedSegments, segmentsCreated, start + 20, null, executor).get();
+        store.completeScale(scope, stream2, sealedSegments, segmentsCreated, start + 20, null, executor).get();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
 
-        historicalSegments = store.getActiveSegments(scope, stream2, 10, null, executor).get();
+        historicalSegments = store.getActiveSegments(scope, stream2, start + 10, null, executor).get();
         assertEquals(3, historicalSegments.size());
 
         // endregion

@@ -125,24 +125,39 @@ interface Stream {
     CompletableFuture<List<Integer>> getActiveSegments(final long timestamp);
 
     /**
-     * Scale the stream by sealing few segments and creating few segments
+     * Scale the stream by sealing few segments and creating few segments.
      *
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
      * @return sequence of newly created segments
      */
-    CompletableFuture<List<Segment>> startScale(final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+    CompletableFuture<List<Segment>> startScale(final List<Integer> sealedSegments,
+                                                final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                 final long scaleTimestamp);
 
     /**
-     * Scale the stream by sealing few segments and creating few segments
+     * Scale the stream by sealing few segments and creating few segments.
      *
      * @param sealedSegments segments to be sealed
+     * @param newSegments    segments created
+     * @param scaleTimestamp scaling timestamp
+     * @return sequence of newly created segments
+     */
+    CompletableFuture<Void> continueScale(final List<Integer> sealedSegments,
+                                          final List<Integer> newSegments,
+                                          final long scaleTimestamp);
+
+    /**
+     * Scale the stream by sealing few segments and creating few segments.
+     *
+     * @param sealedSegments segments to be sealed
+     * @param newSegments    segments created
      * @param scaleTimestamp scaling timestamp
      * @return sequence of newly created segments
      */
     CompletableFuture<Void> completeScale(final List<Integer> sealedSegments,
-                                          final List<Integer> newSegments);
+                                          final List<Integer> newSegments,
+                                          final long scaleTimestamp);
 
     /**
      * Sets cold marker which is valid till the specified time stamp.

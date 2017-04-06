@@ -134,12 +134,17 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<List<Segment>> startScale(List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+        public CompletableFuture<List<Segment>> startScale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
         @Override
-        public CompletableFuture<Void> completeScale(List<Integer> sealedSegments, List<Integer> newSegments) {
+        public CompletableFuture<Void> continueScale(List<Integer> sealedSegments, List<Integer> newSegments, long scaleTimestamp) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Void> completeScale(List<Integer> sealedSegments, List<Integer> newSegments, long ts) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -336,7 +341,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<List<Segment>> startScale(List<SimpleEntry<Double, Double>> keyRanges, long scaleTimestamp) {
+    public CompletableFuture<List<Segment>> startScale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> keyRanges, long scaleTimestamp) {
         Preconditions.checkNotNull(keyRanges);
         Preconditions.checkArgument(keyRanges.size() > 0);
 
@@ -361,7 +366,12 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Void> completeScale(List<Integer> sealedSegments, List<Integer> newSegments) {
+    public CompletableFuture<Void> continueScale(List<Integer> sealedSegments, List<Integer> newSegments, long timestamp) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeScale(List<Integer> sealedSegments, List<Integer> newSegments, long timestamp) {
         Preconditions.checkNotNull(sealedSegments);
         Preconditions.checkArgument(sealedSegments.size() > 0);
 
@@ -387,7 +397,10 @@ class InMemoryStream implements Stream {
                     predecessors.get(i).add(sealed);
                 }
             }
-            InMemorySegment sealedSegment = new InMemorySegment(sealed, segment.getStart(), System.currentTimeMillis(), segment.getKeyStart(), segment.getKeyEnd(), InMemorySegment.Status.Sealed, successors, segment.getPredecessors());
+            InMemorySegment sealedSegment = new InMemorySegment(sealed, segment.getStart(),
+                    timestamp,
+                    segment.getKeyStart(), segment.getKeyEnd(),
+                    InMemorySegment.Status.Sealed, successors, segment.getPredecessors());
             segments.set(sealed, sealedSegment);
             currentSegments.remove(sealed);
         }

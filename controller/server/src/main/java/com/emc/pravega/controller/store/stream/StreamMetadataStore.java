@@ -213,17 +213,21 @@ public interface StreamMetadataStore {
     /**
      * Scales in or out the currently set of active segments of a stream.
      *
-     * @param scope     stream scope
-     * @param name      stream name.
-     * @param newRanges new key ranges to be added to the stream which maps to a new segment per range in the stream
-     * @param context   operation context
-     * @param executor  callers executor
+     * @param scope          stream scope
+     * @param name           stream name.
+     * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
+     * @param sealedSegments segments to be sealed
+     * @param scaleTimestamp timestamp at which scale was requested
+     * @param context        operation context
+     * @param executor       callers executor
      * @return the list of newly created segments
      */
     CompletableFuture<List<Segment>> startScale(final String scope, final String name,
+                                                final List<Integer> sealedSegments,
                                                 final List<SimpleEntry<Double, Double>> newRanges,
                                                 final long scaleTimestamp,
-                                                final OperationContext context, final Executor executor);
+                                                final OperationContext context,
+                                                final Executor executor);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
@@ -231,6 +235,27 @@ public interface StreamMetadataStore {
      * @param scope          stream scope
      * @param name           stream name.
      * @param sealedSegments segments to be sealed
+     * @param newSegments    segments that were created as part of startScale
+     * @param scaleTimestamp timestamp at which scale was requested
+     * @param context        operation context
+     * @param executor       callers executor
+     * @return the list of newly created segments
+     */
+    CompletableFuture<Void> continueScale(final String scope, final String name,
+                                          final List<Integer> sealedSegments,
+                                          final List<Segment> newSegments,
+                                          final long scaleTimestamp,
+                                          final OperationContext context,
+                                          final Executor executor);
+
+    /**
+     * Scales in or out the currently set of active segments of a stream.
+     *
+     * @param scope          stream scope
+     * @param name           stream name.
+     * @param sealedSegments segments to be sealed
+     * @param newSegments    segments that were created as part of startScale
+     * @param scaleTimestamp timestamp at which scale was requested
      * @param context        operation context
      * @param executor       callers executor
      * @return the list of newly created segments
@@ -238,6 +263,7 @@ public interface StreamMetadataStore {
     CompletableFuture<Void> completeScale(final String scope, final String name,
                                           final List<Integer> sealedSegments,
                                           final List<Segment> newSegments,
+                                          final long scaleTimestamp,
                                           final OperationContext context,
                                           final Executor executor);
 

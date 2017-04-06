@@ -163,20 +163,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createIndexTable(final Create create) {
-        final byte[] indexTable = TableHelper.updateIndexTable(new byte[0], create.getEventTime(), 0);
-        return store.createZNodeIfNotExist(indexPath, indexTable)
+    public CompletableFuture<Void> createIndexTable(final Data<Integer> indexTable) {
+        return store.createZNodeIfNotExist(indexPath, indexTable.getData())
                 .thenApply(x -> cache.invalidateCache(indexPath));
     }
 
     @Override
-    public CompletableFuture<Void> createHistoryTable(final Create create) {
-        final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
-        final byte[] historyTable = TableHelper.updateHistoryTable(new byte[0],
-                create.getEventTime(),
-                IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
-
-        return store.createZNodeIfNotExist(historyPath, historyTable)
+    public CompletableFuture<Void> createHistoryTable(final Data<Integer> historyTable) {
+        return store.createZNodeIfNotExist(historyPath, historyTable.getData())
                 .thenApply(x -> cache.invalidateCache(historyPath));
     }
 

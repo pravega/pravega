@@ -28,7 +28,7 @@ import static org.junit.Assert.assertTrue;
 
 public class StreamMetadataTest {
 
-    @Test(timeout = 60000)
+    @Test(timeout = 6000000)
     public void testMedadataOperations() throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
@@ -50,7 +50,6 @@ public class StreamMetadataTest {
                 "localhost",
                 servicePort,
                 4);
-        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String scope1 = "scope1";

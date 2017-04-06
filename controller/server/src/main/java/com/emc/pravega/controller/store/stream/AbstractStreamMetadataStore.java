@@ -300,23 +300,37 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<List<Segment>> startScale(final String scope, final String name,
+                                                       final List<Integer> sealedSegments,
                                                        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                        final long scaleTimestamp,
                                                        final OperationContext context,
                                                        final Executor executor) {
         return withCompletion(getStream(scope, name, context)
-                .startScale(newRanges, scaleTimestamp), executor);
+                .startScale(sealedSegments, newRanges, scaleTimestamp), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> continueScale(final String scope, final String name,
+                                                 final List<Integer> sealedSegments,
+                                                 final List<Segment> newSegments,
+                                                 final long scaleTimestamp,
+                                                 final OperationContext context,
+                                                 final Executor executor) {
+        List<Integer> collect = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        return withCompletion(getStream(scope, name, context)
+                .continueScale(sealedSegments, collect, scaleTimestamp), executor);
     }
 
     @Override
     public CompletableFuture<Void> completeScale(final String scope, final String name,
                                                  final List<Integer> sealedSegments,
                                                  final List<Segment> newSegments,
+                                                 final long scaleTimestamp,
                                                  final OperationContext context,
                                                  final Executor executor) {
         List<Integer> collect = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
         CompletableFuture<Void> future = withCompletion(getStream(scope, name, context)
-                .completeScale(sealedSegments, collect), executor);
+                .completeScale(sealedSegments, collect, scaleTimestamp), executor);
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 

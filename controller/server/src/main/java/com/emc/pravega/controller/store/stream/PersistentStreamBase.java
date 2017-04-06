@@ -89,8 +89,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(x -> createState(State.CREATING))
                 .thenCompose(x -> createSegmentTable(create))
                 .thenCompose(x -> createSegmentFile(create))
-                .thenCompose(x -> createHistoryTable(create))
-                .thenCompose(x -> createIndexTable(create))
+                .thenCompose(x -> {
+                    final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
+                    final byte[] historyTable = TableHelper.createHistoryTable(create.getEventTime(),
+                            IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
+
+                    return createHistoryTable(new Data<>(historyTable, null));
+                })
+                .thenCompose(x -> createIndexTable(new Data<>(TableHelper.createIndexTable(create.getEventTime(), 0), null)))
                 .thenApply(x -> true);
     }
 
@@ -159,18 +165,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
      */
     @Override
     public CompletableFuture<List<Integer>> getSuccessors(final int number) {
-        val segmentFuture = getSegment(number);
-        val indexTableFuture = getIndexTable();
-        val historyTableFuture = getHistoryTable();
-        CompletableFuture<Void> all = CompletableFuture.allOf(segmentFuture, indexTableFuture, historyTableFuture);
-
-        return verifyLegalState(all.thenApply(x -> {
-            return TableHelper.findSegmentSuccessorCandidates(segmentFuture.getNow(null),
-                    indexTableFuture.getNow(null).getData(),
-                    historyTableFuture.getNow(null).getData());
-        }).thenCompose(candidates -> {
-            return findOverlapping(segmentFuture.getNow(null), candidates);
-        }).thenApply(list -> list.stream().map(e -> e.getNumber()).collect(Collectors.toList())));
+        return verifyLegalState(
+                getSuccessorsForSegment(number).thenApply(list ->
+                        list.stream().map(Segment::getNumber).collect(Collectors.toList())));
     }
 
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
@@ -180,22 +177,32 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .collect(Collectors.toList())));
     }
 
-    @Override
-    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
+    private CompletableFuture<List<Segment>> getSuccessorsForSegment(final int number) {
         val segmentFuture = getSegment(number);
         val indexTableFuture = getIndexTable();
         val historyTableFuture = getHistoryTable();
         CompletableFuture<Void> all = CompletableFuture.allOf(segmentFuture, indexTableFuture, historyTableFuture);
 
-        CompletableFuture<List<Segment>> segments = all.thenCompose(x -> {
+        return all.thenCompose(x -> {
             final Segment segment = segmentFuture.getNow(null);
             List<Integer> candidates = findSegmentSuccessorCandidates(segment,
                     indexTableFuture.getNow(null).getData(),
                     historyTableFuture.getNow(null).getData());
             return findOverlapping(segment, candidates);
         });
-        CompletableFuture<Map<Integer, List<Integer>>> result = segments.thenCompose(successors -> {
+    }
+
+    @Override
+    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
+        val indexTableFuture = getIndexTable();
+        val historyTableFuture = getHistoryTable();
+        CompletableFuture<List<Segment>> segments = getSuccessorsForSegment(number);
+
+        CompletableFuture<Void> all = CompletableFuture.allOf(segments, indexTableFuture, historyTableFuture);
+
+        CompletableFuture<Map<Integer, List<Integer>>> result = all.thenCompose(v -> {
             List<CompletableFuture<Map.Entry<Segment, List<Integer>>>> resultFutures = new ArrayList<>();
+            List<Segment> successors = segments.getNow(null);
             for (Segment successor : successors) {
                 List<Integer> candidates = findSegmentPredecessorCandidates(successor,
                         indexTableFuture.getNow(null).getData(),
@@ -270,7 +277,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @return : list of newly created segments
      */
     @Override
-    public CompletableFuture<List<Segment>> startScale(final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+    public CompletableFuture<List<Segment>> startScale(final List<Integer> sealedSegments,
+                                                       final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                        final long scaleTimestamp) {
         return verifyLegalState(getSegmentChunks()
                 .thenCompose(this::getLatestChunk)
@@ -283,18 +291,33 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
+     * Segments created with pravega, update the history table with this fact so they are available as successors
+     * 3. Add entry into the history table.
+     *
+     * @param sealedSegments segments to be sealed
+     * @return : list of newly created segments
+     */
+    @Override
+    public CompletableFuture<Void> continueScale(final List<Integer> sealedSegments,
+                                                 final List<Integer> newSegments,
+                                                 final long scaleTimestamp) {
+        return verifyLegalState(FutureHelpers.toVoid(addPartialHistoryRecord(sealedSegments, newSegments)));
+    }
+
+    /**
      * Remainder of scale metadata update. Also set the state back to active.
-     * 2. Add entry into the history table.
-     * 3. Add entry into the index table.
+     * 4. complete entry into the history table.
+     * 5. Add entry into the index table.
      *
      * @param sealedSegments segments to be sealed
      * @return : list of newly created segments
      */
     @Override
     public CompletableFuture<Void> completeScale(final List<Integer> sealedSegments,
-                                                 final List<Integer> newSegments) {
+                                                 final List<Integer> newSegments,
+                                                 final long scaleTimestamp) {
         return verifyLegalState(FutureHelpers.toVoid(
-                addHistoryRecord(sealedSegments, newSegments)
+                completeHistoryRecord(scaleTimestamp, sealedSegments, newSegments)
                         .thenCompose(this::addIndexRecord)
                         .thenCompose(v -> updateState(State.ACTIVE))));
     }
@@ -582,14 +605,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
      *
      * @return : future of history table offset for last entry
      */
-    private CompletableFuture<HistoryRecord> addHistoryRecord(final List<Integer> sealedSegments,
-                                                              final List<Integer> createdSegments) {
+    private CompletableFuture<Void> addPartialHistoryRecord(final List<Integer> sealedSegments,
+                                                            final List<Integer> createdSegments) {
         return getHistoryTable()
                 .thenCompose(historyTable -> {
-                    final Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable.getData());
+                    final Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable.getData(), false);
 
                     // scale task is not allowed unless create is done which means at least one
-                    // record in history table
+                    // record in history table.
                     assert lastRecordOpt.isPresent();
 
                     final HistoryRecord lastRecord = lastRecordOpt.get();
@@ -599,17 +622,42 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         HistoryRecord previous = HistoryRecord.fetchPrevious(lastRecord, historyTable.getData()).get();
 
                         assert previous.getSegments().stream().noneMatch(createdSegments::contains);
-                        return CompletableFuture.completedFuture(lastRecord);
+                        return CompletableFuture.completedFuture(null);
                     }
 
                     final List<Integer> newActiveSegments = getNewActiveSegments(createdSegments, sealedSegments, lastRecord);
 
-                    byte[] updatedTable = TableHelper.updateHistoryTable(historyTable.getData(),
-                            System.currentTimeMillis(),
-                            newActiveSegments);
+                    byte[] updatedTable = TableHelper.addPartialRecordToHistoryTable(historyTable.getData(), newActiveSegments);
                     final Data<T> updated = new Data<>(updatedTable, historyTable.getVersion());
 
-                    final HistoryRecord newRecord = HistoryRecord.readLatestRecord(updatedTable).get();
+                    final HistoryRecord newRecord = HistoryRecord.readLatestRecord(updatedTable, false).get();
+                    return updateHistoryTable(updated);
+                });
+    }
+
+    private CompletableFuture<HistoryRecord> completeHistoryRecord(long scaleTimestamp, List<Integer> sealedSegments, List<Integer> newSegments) {
+        return getHistoryTable()
+                .thenCompose(historyTable -> {
+                    final Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable.getData(), false);
+
+                    assert lastRecordOpt.isPresent();
+
+                    final HistoryRecord lastRecord = lastRecordOpt.get();
+
+                    // idempotent check
+                    if (!lastRecord.isPartial()) {
+                        assert lastRecord.getSegments().stream().noneMatch(sealedSegments::contains);
+                        assert newSegments.stream().allMatch(x -> lastRecord.getSegments().contains(x));
+
+                        return CompletableFuture.completedFuture(lastRecord);
+                    }
+
+                    assert lastRecord.isPartial();
+                    byte[] updatedTable = TableHelper.completePartialRecordInHistoryTable(historyTable.getData(), lastRecord,
+                            Math.max(System.currentTimeMillis(), scaleTimestamp));
+                    final Data<T> updated = new Data<>(updatedTable, historyTable.getVersion());
+
+                    final HistoryRecord newRecord = HistoryRecord.readLatestRecord(updatedTable, false).get();
                     return updateHistoryTable(updated).thenApply(y -> newRecord);
                 });
     }
@@ -634,7 +682,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                     final byte[] updatedTable = TableHelper.updateIndexTable(indexTable.getData(),
                             historyRecord.getEventTime(),
-                            historyRecord.getStartOfRowPointer());
+                            historyRecord.getOffset());
                     final Data<T> updated = new Data<>(updatedTable, indexTable.getVersion());
                     return updateIndexTable(updated);
                 });
@@ -679,13 +727,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> setSegmentTableChunk(final int chunkNumber, final Data<T> data);
 
-    abstract CompletableFuture<Void> createIndexTable(final Create create);
+    abstract CompletableFuture<Void> createIndexTable(final Data<T> data);
 
     abstract CompletableFuture<Data<T>> getIndexTable();
 
     abstract CompletableFuture<Void> updateIndexTable(final Data<T> updated);
 
-    abstract CompletableFuture<Void> createHistoryTable(final Create create);
+    abstract CompletableFuture<Void> createHistoryTable(final Data<T> data);
 
     abstract CompletableFuture<Void> updateHistoryTable(final Data<T> updated);
 
