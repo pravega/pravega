@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.store.task;
 
 import com.emc.pravega.controller.task.TaskData;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -25,41 +26,48 @@ public interface TaskMetadataStore {
      * then atomically replace the key value pair resource -> (oldOwner, oldTag, taskData) with the pair
      * resource -> (owner, tag, taskData).
      *
-     * @param resource    resource identifier.
-     * @param taskData    details of update task on the resource.
-     * @param owner       owner of the task.
-     * @param tag         tag.
-     * @param oldOwner    host that had previously locked the resource.
-     * @param oldTag tag that took the lock
-     * @return void if the operation succeeds, otherwise throws LockFailedException.
+     * @param resource resource identifier.
+     * @param type     lock type.
+     * @param taskData details of update task on the resource.
+     * @param owner    owner of the task.
+     * @param tag      tag.
+     * @param oldOwner host that had previously locked the resource.
+     * @param oldTag   tag that took the lock
+     * @return sequence number of the lock node when lock is acquired, throws LockFailedException on error.
      */
-    CompletableFuture<Void> lock(final Resource resource,
-                                 final TaskData taskData,
-                                 final String owner,
-                                 final String tag,
-                                 final String oldOwner,
-                                 final String oldTag);
+    CompletableFuture<Integer> lock(final Resource resource,
+                                    final LockType type,
+                                    final TaskData taskData,
+                                    final String owner,
+                                    final String tag,
+                                    final Optional<Integer> seqNumber,
+                                    final String oldOwner,
+                                    final String oldTag);
 
     /**
      * Unlocks a resource if it is owned by the specified owner.
      * Delete the key value pair resource -> (x, taskData) iff x == owner.
      *
      * @param resource resource identifier.
+     * @param type     lock type.
      * @param owner    owner of the lock.
-     * @param tag tag.
+     * @param tag      tag.
      * @return void if successful, otherwise throws UnlockFailedException.
      */
-    CompletableFuture<Void> unlock(final Resource resource, final String owner, final String tag);
+    CompletableFuture<Void> unlock(final Resource resource, final LockType type, final int seqNumber,
+                                   final String owner, final String tag);
 
     /**
-     * Fetch details of task associated with the specified resource and locked/owned by specified owner and tag.
+     * Fetch details of task associated with the specified resource and locked/owned by specified owner and tag, along
+     * with the sequence number of the lock node.
      *
      * @param resource resource.
      * @param owner    owner.
-     * @param tag tag.
-     * @return TaskData if owner and tag hold a lock on the specified resource otherwise Optional.empty().
+     * @param tag      tag.
+     * @return TaskData and lock node's sequence number, if owner and tag have made a lock attempt on the specified
+     *         resource otherwise Optional.empty().
      */
-    CompletableFuture<Optional<TaskData>> getTask(final Resource resource, final String owner, final String tag);
+    CompletableFuture<Optional<Pair<TaskData, Integer>>> getTask(final Resource resource, final String owner, final String tag);
 
     /**
      * Adds specified resource as a child of current host's hostId node.

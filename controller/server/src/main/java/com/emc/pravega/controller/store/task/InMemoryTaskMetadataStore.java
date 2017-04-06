@@ -8,6 +8,8 @@ package com.emc.pravega.controller.store.task;
 import com.emc.pravega.controller.task.TaskData;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.HashMap;
@@ -37,6 +39,20 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     @Override
+    Integer acquireLock(Resource resource, LockType type, TaskData taskData, String owner, String threadId) {
+        return null;
+    }
+
+    @Override
+    Integer transferLock(Resource resource, LockType type, String owner, String threadId, int seqNumber, String oldOwner, String oldThreadId) {
+        return null;
+    }
+
+    @Override
+    Void removeLock(Resource resource, LockType type, int seqNumber, String owner, String tag) {
+        return null;
+    }
+
     Void acquireLock(final Resource resource,
                              final TaskData taskData,
                              final String owner,
@@ -56,7 +72,6 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
         }
     }
 
-    @Override
     Void transferLock(final Resource resource,
                               final String owner,
                               final String threadId,
@@ -79,7 +94,6 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
         }
     }
 
-    @Override
     Void removeLock(final Resource resource, final String owner, final String tag) {
 
         // test and set implementation
@@ -97,8 +111,7 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
         }
     }
 
-    @Override
-    public synchronized CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
+    public synchronized CompletableFuture<Optional<Pair<TaskData, Integer>>> getTask(final Resource resource,
                                                          final String owner,
                                                          final String tag) {
         synchronized (hostTable) {
@@ -113,7 +126,7 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
                     return Optional.empty();
                 } else {
                     if (lockData.isOwnedBy(owner, tag)) {
-                        return Optional.of(TaskData.deserialize(lockData.getTaskData()));
+                        return Optional.of(new ImmutablePair<>(TaskData.deserialize(lockData.getTaskData()), 10));
                     } else {
                         log.debug(String.format("Resource %s not owned by (%s, %s)", resource.getString(), owner, tag));
                         return Optional.empty();

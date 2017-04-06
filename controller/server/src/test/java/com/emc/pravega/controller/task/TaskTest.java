@@ -12,6 +12,7 @@ import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.LockFailedException;
+import com.emc.pravega.controller.store.task.LockType;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -25,6 +26,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -157,12 +159,12 @@ public class TaskTest {
         final TaggedResource taggedResource = new TaggedResource(deadThreadId, resource);
         taskMetadataStore.putChild(deadHost, taggedResource).join();
 
-        taskMetadataStore.lock(resource, taskData, deadHost, deadThreadId, null, null).join();
+        taskMetadataStore.lock(resource, LockType.WRITE, taskData, deadHost, deadThreadId, Optional.<Integer>empty(), null, null).join();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, streamMetadataTasks);
         taskSweeper.sweepOrphanedTasks(deadHost).get();
 
-        Optional<TaskData> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
         assertFalse(data.isPresent());
 
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
@@ -206,8 +208,8 @@ public class TaskTest {
         final TaggedResource taggedResource2 = new TaggedResource(deadThreadId2, resource2);
         taskMetadataStore.putChild(deadHost, taggedResource2).join();
 
-        taskMetadataStore.lock(resource1, taskData1, deadHost, deadThreadId1, null, null).join();
-        taskMetadataStore.lock(resource2, taskData2, deadHost, deadThreadId2, null, null).join();
+        taskMetadataStore.lock(resource1, LockType.WRITE, taskData1, deadHost, deadThreadId1, Optional.<Integer>empty(), null, null).join();
+        taskMetadataStore.lock(resource2, LockType.WRITE, taskData2, deadHost, deadThreadId2, Optional.<Integer>empty(), null, null).join();
 
         final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks,
                 deadHost);
@@ -220,7 +222,7 @@ public class TaskTest {
         sweeperThread1.getResult().join();
         sweeperThread2.getResult().join();
 
-        Optional<TaskData> data = taskMetadataStore.getTask(resource1, deadHost, deadThreadId1).get();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource1, deadHost, deadThreadId1).get();
         assertFalse(data.isPresent());
 
         data = taskMetadataStore.getTask(resource2, deadHost, deadThreadId2).get();

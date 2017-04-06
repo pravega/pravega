@@ -8,11 +8,15 @@ package com.emc.pravega.controller.store.task;
 import com.emc.pravega.controller.task.TaskData;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.data.Stat;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -28,8 +32,9 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
     private final static String TAG_SEPARATOR = "_%%%_";
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
     private final CuratorFramework client;
-    private final String hostRoot = "/hostIndex";
-    private final String taskRoot = "/taskIndex";
+    private final static String HOST_ROOT = "/hostIndex";
+    private final static String TASK_ROOT = "/taskIndex";
+    private final static String WRITE_PREFIX = LockType.WRITE.toString();
 
     ZKTaskMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         super(executor);
@@ -37,71 +42,148 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     @Override
-    Void acquireLock(final Resource resource,
+    Integer acquireLock(final Resource resource,
+                        final LockType type,
                              final TaskData taskData,
                              final String owner,
                              final String threadId) {
-        // test and set implementation
-        try {
-            // for fresh lock, create the node and write its data.
-            // if the node successfully got created, locking has succeeded,
-            // else locking has failed.
-            LockData lockData = new LockData(owner, threadId, taskData.serialize());
-            client.create()
-                    .creatingParentsIfNeeded()
-                    .withMode(CreateMode.PERSISTENT)
-                    .forPath(getTaskPath(resource), lockData.serialize());
-            return null;
-        } catch (Exception e) {
-            throw new LockFailedException(resource.getString(), e);
-        }
+        // Create a sequential persistent node with LockData(owner, threadId, taskData) as data
+        int seqNumber = createLockNode(resource, type, owner, threadId, taskData);
+
+        // Wait until seqNumber is the smallest numbered node among children of resource node
+        waitUntilLockAcquired(resource, type, seqNumber);
+
+        return seqNumber;
     }
 
     @Override
-    Void transferLock(final Resource resource,
-                              final String owner,
-                              final String threadId,
-                              final String oldOwner,
-                              final String oldThreadId) {
-        boolean lockAcquired = false;
+    Integer transferLock(final Resource resource,
+                         final LockType type,
+                         final String owner,
+                         final String threadId,
+                         final int seqNumber,
+                         final String oldOwner,
+                         final String oldThreadId) {
+        transferLockNode(resource, type, seqNumber, owner, threadId, oldOwner, oldThreadId);
+
+        // Wait until seqNumber is the smallest numbered node among children of resource node
+        waitUntilLockAcquired(resource, type, seqNumber);
+
+        return seqNumber;
+    }
+
+    private int createLockNode(Resource resource, LockType type, String owner, String threadId, TaskData taskData) {
+        LockData lockData = new LockData(owner, threadId, taskData.serialize());
+        try {
+            String path = client.create()
+                    .creatingParentContainersIfNeeded()
+                    .withMode(CreateMode.PERSISTENT_SEQUENTIAL)
+                    .forPath(getLockPath(resource, type), lockData.serialize());
+            return getSeqNumber(path);
+        } catch (Exception e) {
+            throw new LockFailedException(resource.toString(), e);
+        }
+    }
+
+    private void transferLockNode(Resource resource, LockType type, int seqNumber, String owner, String threadId, String oldOwner, String oldThreadId) {
+        String lockPath = getLockPath(resource, type, seqNumber);
 
         // test and set implementation
         try {
             // Read the existing data along with its version.
             // Update data if version hasn't changed from the previously read value.
-            // If update is successful, lock acquired else lock failed.
+            // If update is successful, lock acquired,
+            // else somebody else has successfully acquired the lock, and this attempt fails.
             Stat stat = new Stat();
-            byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
+            byte[] data = client.getData().storingStatIn(stat).forPath(lockPath);
             LockData lockData = LockData.deserialize(data);
             if (lockData.isOwnedBy(oldOwner, oldThreadId)) {
                 lockData = new LockData(owner, threadId, lockData.getTaskData());
 
                 client.setData().withVersion(stat.getVersion())
-                        .forPath(getTaskPath(resource), lockData.serialize());
-                lockAcquired = true;
+                        .forPath(lockPath, lockData.serialize());
+            } else {
+                throw new LockFailedException(
+                        String.format("Failed transferring lock on resource %s, as it is not owned by (%s,%s)",
+                        resource.getString(), oldOwner, oldThreadId));
             }
         } catch (Exception e) {
             throw new LockFailedException(resource.getString(), e);
         }
+    }
 
-        if (lockAcquired) {
-            return null;
+    /**
+     * Waits until the lock represented by the specified sequence number is acquired.
+     *
+     * @param resource  resource.
+     * @param seqNumber sequence number.
+     */
+    private void waitUntilLockAcquired(Resource resource, LockType type, int seqNumber) {
+        String resourcePath = getTaskPath(resource);
+        while (true) {
+            CompletableFuture<Void> resourceChanged = new CompletableFuture<>();
+            List<String> children = getChildrenAndWatch(resourcePath, resourceChanged);
+            if (isLockAcquired(type, seqNumber, children)) {
+                break;
+            } else {
+                resourceChanged.join();
+            }
+        }
+    }
+
+    /**
+     * Fetch children of a given resourcePath and add a watch that completes resourceChanged future whenever
+     * children of resourcePath change.
+     *
+     * @param resourcePath resource path.
+     * @param resourceChanged future that completes when resourcePath changes.
+     * @return Children of the given resource path.
+     */
+    private List<String> getChildrenAndWatch(String resourcePath, CompletableFuture<Void> resourceChanged) {
+        try {
+            return client.getChildren()
+                    .usingWatcher((Watcher) event -> resourceChanged.complete(null))
+                    .forPath(resourcePath);
+        } catch (Exception e) {
+            log.warn("Error fetching children of {}, {}", resourcePath, e.getMessage());
+            resourceChanged.complete(null);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * For write lock:
+     *     if the given seqNumber is the smallest among sequence numbers of children return true, else false.
+     * For read lock:
+     *     if the none of the write lock children have sequence number smaller than the given sequence number return
+     *     true, else false.
+     *
+     * @param children list of children.
+     * @param seqNumber sequence number.
+     * @return boolean indicating whether the lock has been acquired.
+     */
+    private boolean isLockAcquired(LockType type, int seqNumber, List<String> children) {
+        if (children == null || children.isEmpty()) {
+            return false;
+        }
+        if (type == LockType.READ) {
+            return children.stream().allMatch(child -> !isWriteLock(child) || getSeqNumber(child) > seqNumber);
         } else {
-            throw new LockFailedException(resource.getString());
+            return children.stream().allMatch(child -> getSeqNumber(child) >= seqNumber);
         }
     }
 
     @Override
-    Void removeLock(final Resource resource, final String owner, final String tag) {
+    Void removeLock(final Resource resource, final LockType type, final int seqNumber, final String owner, final String tag) {
+        String lockPath = getLockPath(resource, type, seqNumber);
 
         try {
-            // test and set implementation
+            // test and delete implementation
             Stat stat = new Stat();
-            byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
+            byte[] data = client.getData().storingStatIn(stat).forPath(lockPath);
             if (data != null && data.length > 0) {
                 LockData lockData = LockData.deserialize(data);
                 if (lockData.isOwnedBy(owner, tag)) {
-
                     //Guaranteed Delete
                     //Solves this edge case: deleting a node can fail due to connection issues. Further, if the node was
                     //ephemeral, the node will not get auto-deleted as the session is still valid. This can wreak havoc
@@ -113,16 +195,16 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                     client.delete()
                             .guaranteed()
                             .withVersion(stat.getVersion())
-                            .forPath(getTaskPath(resource));
+                            .forPath(lockPath);
                 } else {
-
                     log.warn(String.format("Lock not owned by owner %s: thread %s", owner, tag));
                     throw new UnlockFailedException(resource.getString());
-
                 }
-
+                // finally delete the resource node if it is empty
+                deleteEmptyResource(resource);
             } else {
-
+                log.warn("Corrupt lock data for resource {} and lock node {}", resource.getString(), lockPath);
+                // But clean up the lock node, so as to prevent the resource from being blocked for read/writes forever.
                 client.delete()
                         .guaranteed()
                         .withVersion(stat.getVersion())
@@ -138,8 +220,19 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
         }
     }
 
+    private void deleteEmptyResource(Resource resource) {
+        String path = getTaskPath(resource);
+        try {
+            client.delete().forPath(path);
+        } catch (Exception e) {
+            // It is ok to not delete the resource node, hence just log the error and proceed.
+            log.warn("Failed trying to check if resource {} is empty and deleting it if empty. Error: {}",
+                    resource.getString(), e.getMessage());
+        }
+    }
+
     @Override
-    public CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
+    public CompletableFuture<Optional<Pair<TaskData, Integer>>> getTask(final Resource resource,
                                                          final String owner,
                                                          final String tag) {
         return CompletableFuture.supplyAsync(() -> {
@@ -148,22 +241,22 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             Preconditions.checkNotNull(tag);
 
             try {
+                List<String> children = client.getChildren().forPath(getTaskPath(resource));
 
-                byte[] data = client.getData().forPath(getTaskPath(resource));
+                for (String child : children) {
+                    byte[] data = client.getData().forPath(getTaskPath(resource) + "/" + child);
 
-                if (data == null || data.length <= 0) {
-                    log.debug("Empty data found for resource {}.", resource);
-                    return Optional.empty();
-                } else {
-                    LockData lockData = LockData.deserialize(data);
-                    if (lockData.isOwnedBy(owner, tag)) {
-                        return Optional.of(TaskData.deserialize(lockData.getTaskData()));
-                    } else {
-                        log.debug("Resource {} not owned by pair ({}, {})", resource.getString(), owner, tag);
-                        return Optional.empty();
+                    if (data != null && data.length > 0) {
+                        LockData lockData = LockData.deserialize(data);
+                        if (lockData.isOwnedBy(owner, tag)) {
+                            return Optional.of(new ImmutablePair<>(TaskData.deserialize(lockData.getTaskData()),
+                                    getSeqNumber(child)));
+                        }
                     }
                 }
 
+                log.debug("Resource {} not owned by pair ({}, {})", resource.getString(), owner, tag);
+                return Optional.empty();
             } catch (KeeperException.NoNodeException e) {
                 log.debug("Node {} does not exist.", getTaskPath(resource));
                 return Optional.empty();
@@ -230,42 +323,6 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
         }, executor);
     }
 
-    //    @Override
-    //    public CompletableFuture<Void> removeChildren(String parent, List<TaggedResource> children, boolean deleteEmptyParent) {
-    //        Preconditions.checkNotNull(parent);
-    //        Preconditions.checkNotNull(children);
-    //
-    //        return CompletableFuture.supplyAsync(() -> {
-    //            try {
-    //
-    //                for (TaggedResource child : children) {
-    //                    client.delete()
-    //                            .forPath(getHostPath(parent, child));
-    //                }
-    //
-    //                if (deleteEmptyParent) {
-    //                    // if there are no children for the parent, remove parent znode
-    //                    Stat stat = new Stat();
-    //                    client.getData()
-    //                            .storingStatIn(stat)
-    //                            .forPath(getHostPath(parent));
-    //
-    //                    if (stat.getNumChildren() == 0) {
-    //                        client.delete()
-    //                                .withVersion(stat.getVersion())
-    //                                .forPath(getHostPath(parent));
-    //                    }
-    //                }
-    //                return null;
-    //            } catch (KeeperException.NoNodeException e) {
-    //                log.debug("Node does not exist.", e);
-    //                return null;
-    //            } catch (Exception e) {
-    //                throw new RuntimeException(e);
-    //            }
-    //        });
-    //    }
-
     @Override
     public CompletableFuture<Void> removeNode(final String parent) {
         return CompletableFuture.supplyAsync(() -> {
@@ -287,27 +344,6 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             }
         }, executor);
     }
-
-    //    @Override
-    //    public CompletableFuture<List<TaggedResource>> getChildren(String parent) {
-    //        Preconditions.checkNotNull(parent);
-    //
-    //        return CompletableFuture.supplyAsync(() -> {
-    //            try {
-    //
-    //                return client.getChildren().forPath(getHostPath(parent))
-    //                        .stream()
-    //                        .map(this::getTaggedResource)
-    //                        .collect(Collectors.toList());
-    //
-    //            } catch (KeeperException.NoNodeException e) {
-    //                log.debug("Node does not exist.", e);
-    //                return Collections.emptyList();
-    //            } catch (Exception e) {
-    //                throw new RuntimeException(e);
-    //            }
-    //        });
-    //    }
 
     @Override
     public CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent) {
@@ -334,15 +370,15 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     private String getTaskPath(final Resource resource) {
-        return taskRoot + "/" + getNode(resource);
+        return TASK_ROOT + "/" + getNode(resource);
     }
 
     private String getHostPath(final String hostId, final TaggedResource resource) {
-        return hostRoot + "/" + hostId + "/" + getNode(resource);
+        return HOST_ROOT + "/" + hostId + "/" + getNode(resource);
     }
 
     private String getHostPath(final String hostId) {
-        return hostRoot + "/" + hostId;
+        return HOST_ROOT + "/" + hostId;
     }
 
     private String getNode(final Resource resource) {
@@ -361,5 +397,21 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
     private TaggedResource getTaggedResource(final String node) {
         String[] splits = node.split(TAG_SEPARATOR);
         return new TaggedResource(splits[1], getResource(splits[0]));
+    }
+
+    private String getLockPath(Resource resource, LockType type, int seqNumber) {
+        return String.format("%s/%s%010d", getTaskPath(resource), type.toString(), seqNumber);
+    }
+
+    private String getLockPath(Resource resource, LockType type) {
+        return String.format("%s/%s", getTaskPath(resource), type.toString());
+    }
+
+    private boolean isWriteLock(String lockNode) {
+        return lockNode.startsWith(WRITE_PREFIX);
+    }
+
+    private int getSeqNumber(String lockNode) {
+        return Integer.parseInt(lockNode.substring(lockNode.length() - 10));
     }
 }
