@@ -55,10 +55,10 @@ import org.apache.commons.lang3.tuple.Pair;
 @Getter
 @AllArgsConstructor
 public class ControllerService {
-    private static final long RETRY_INITIAL_DELAY = 100;
+    private static final long RETRY_INITIAL_DELAY_MS = 100;
     private static final int RETRY_MULTIPLIER = 2;
     private static final int RETRY_MAX_ATTEMPTS = 100;
-    private static final long RETRY_MAX_DELAY = Duration.ofSeconds(5).toMillis();
+    private static final long RETRY_MAX_DELAY_MS = Duration.ofSeconds(5).toMillis();
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
@@ -230,7 +230,7 @@ public class ControllerService {
     private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnWithRetries(String scope,
                                        String stream, long lease, long maxExecutionTime, long scaleGracePeriod) {
         return Retry
-                .withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
+                .withExpBackoff(RETRY_INITIAL_DELAY_MS, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY_MS)
                 .retryWhen(RetryableException::isRetryable)
                 .throwingOn(RuntimeException.class).runAsync(() -> streamTransactionMetadataTasks
                         .createTxn(scope, stream, lease, maxExecutionTime, scaleGracePeriod, null), executor);

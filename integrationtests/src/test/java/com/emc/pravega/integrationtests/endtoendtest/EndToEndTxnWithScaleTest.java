@@ -161,7 +161,6 @@ public class EndToEndTxnWithScaleTest {
                 transaction.commit();
             } catch (Exception e) {
                 log.error("Error encountered", e);
-                //throw new RuntimeException("Exception during concurrentTxns",e);
                 throw Lombok.sneakyThrow(e);
             }
         };
@@ -169,7 +168,7 @@ public class EndToEndTxnWithScaleTest {
         futures.add(service.submit(createTxn));
         futures.add(service.submit(createTxn));
 
-        latch.countDown();         //Trigger concurrent createTxn for a given stream.
+        latch.countDown(); //Trigger concurrent createTxn for a given stream.
 
         try {
             // Wait until both txns are created.
