@@ -31,10 +31,10 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
 
     private final static String TAG_SEPARATOR = "_%%%_";
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
-    private final CuratorFramework client;
     private final static String HOST_ROOT = "/hostIndex";
     private final static String TASK_ROOT = "/taskIndex";
     private final static String WRITE_PREFIX = LockType.WRITE.toString();
+    private final CuratorFramework client;
 
     ZKTaskMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         super(executor);

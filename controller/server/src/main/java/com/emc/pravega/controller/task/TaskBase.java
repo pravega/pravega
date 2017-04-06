@@ -105,13 +105,15 @@ public abstract class TaskBase implements AutoCloseable {
     /**
      * Wrapper method that initially obtains lock then executes the passed method, and finally releases lock.
      *
-     * @param resource resource to be updated by the task.
+     * @param resource   resource to be updated by the task.
+     * @param type       lock type
      * @param parameters method parameters.
-     * @param operation lambda operation that is the actual task.
-     * @param <T> type parameter of return value of operation to be executed.
-     * @return return value of task execution.
+     * @param operation  lambda operation that is the actual task.
+     * @param <T>        type parameter of return value of operation to be executed.
+     * @return           return value of task execution.
      */
-    public <T> CompletableFuture<T> execute(final Resource resource, final LockType type, final Serializable[] parameters, final FutureOperation<T> operation) {
+    public <T> CompletableFuture<T> execute(final Resource resource, final LockType type,
+                                            final Serializable[] parameters, final FutureOperation<T> operation) {
         if (!ready) {
             return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }

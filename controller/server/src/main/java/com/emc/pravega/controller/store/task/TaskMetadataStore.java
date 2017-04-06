@@ -31,6 +31,7 @@ public interface TaskMetadataStore {
      * @param taskData details of update task on the resource.
      * @param owner    owner of the task.
      * @param tag      tag.
+     * @param seqNumber optional sequence number in case the lock was previously held by some other host.
      * @param oldOwner host that had previously locked the resource.
      * @param oldTag   tag that took the lock
      * @return sequence number of the lock node when lock is acquired, throws LockFailedException on error.
@@ -50,6 +51,7 @@ public interface TaskMetadataStore {
      *
      * @param resource resource identifier.
      * @param type     lock type.
+     * @param seqNumber sequence number returned by the lock method.
      * @param owner    owner of the lock.
      * @param tag      tag.
      * @return void if successful, otherwise throws UnlockFailedException.
