@@ -317,7 +317,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                  final long scaleTimestamp) {
         return verifyLegalState(FutureHelpers.toVoid(
                 completeHistoryRecord(scaleTimestamp, sealedSegments, newSegments)
-                        .thenCompose(this::addIndexRecord));
+                        .thenCompose(this::addIndexRecord)));
     }
 
     @Override
@@ -651,8 +651,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     }
 
                     assert lastRecord.isPartial();
-                    byte[] updatedTable = TableHelper.completePartialRecordInHistoryTable(historyTable.getData(), lastRecord,
-                            Math.max(System.currentTimeMillis(), scaleTimestamp));
+                    long scaleEventTime = Math.max(System.currentTimeMillis(), scaleTimestamp);
+                    final Optional<HistoryRecord> previousOpt = HistoryRecord.fetchPrevious(lastRecord, historyTable.getData());
+                    if (previousOpt.isPresent()) {
+                        // To ensure that we always have ascending time in history records irrespective of controller clock mismatches.
+                        scaleEventTime = Math.max(scaleEventTime, previousOpt.get().getEventTime() + 1);
+                    }
+
+                    byte[] updatedTable = TableHelper.completePartialRecordInHistoryTable(historyTable.getData(), lastRecord, scaleEventTime);
                     final Data<T> updated = new Data<>(updatedTable, historyTable.getVersion());
 
                     final HistoryRecord newRecord = HistoryRecord.readLatestRecord(updatedTable, false).get();
