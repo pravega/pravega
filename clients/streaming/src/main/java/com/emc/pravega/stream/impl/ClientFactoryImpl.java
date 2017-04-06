@@ -6,7 +6,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.common.util.NameUtils;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.RevisionedStreamClient;

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.server.v1;
 
-import com.emc.pravega.common.util.NameUtils;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;

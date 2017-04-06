@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.common.util.NameUtils;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.ControllerServiceConfig;
 import com.emc.pravega.controller.server.ControllerServiceStarter;

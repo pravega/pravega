@@ -8,7 +8,7 @@ package com.emc.pravega.stream.mock;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.NameUtils;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderGroup;

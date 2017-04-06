@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.rest.v1;
 
-import com.emc.pravega.common.util.NameUtils;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rest.CustomObjectMapperProvider;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;

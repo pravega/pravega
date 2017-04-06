@@ -6,7 +6,7 @@
 package com.emc.pravega.controller.server.rest.resources;
 
 import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.util.NameUtils;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.server.rest.ModelHelper;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
@@ -32,7 +32,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
 
-import static com.emc.pravega.common.util.NameUtils.INTERNAL_NAME_PREFIX;
+import static com.emc.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
 
 /**
  * Stream metadata resource implementation.
