@@ -24,7 +24,7 @@ Vagrant.configure("2") do |config|
    #   vb.gui = true
 
    # Customize the amount of memory on the VM:
-   vb.memory = "2048"
+   vb.memory = "1536"
    if Vagrant.has_plugin?("vagrant-cachier")
       override.cache.scope = :box
       config.cache.enable :apt
