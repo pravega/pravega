@@ -21,12 +21,10 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
 import lombok.Cleanup;
 import lombok.Lombok;
@@ -46,10 +44,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import static lombok.Lombok.sneakyThrow;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
 
 @Slf4j
 public class EndToEndTxnWithScaleTest {
