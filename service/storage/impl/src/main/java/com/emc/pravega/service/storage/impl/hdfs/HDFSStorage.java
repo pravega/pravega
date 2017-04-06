@@ -22,15 +22,51 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 
 /**
- * Storage adapter for a backing HDFS Store which implements fencing using a rename strategy..
- * Each segment is represented by a file with pattern <segment-name>_<owner_host_id>, where <owner_host_id> is optional
- * and means that the segment is owned by the Pravega host of the given id, i.e., it's fenced off.
+ * Storage adapter for a backing HDFS Store which implements fencing using file-chaining strategy.
  * <p>
- * Whenever a Segment Container ownership change happens (that is, when the Segment Container is moved to a different
- * Pravega Node), the HDFSStorage instance on the new node renames the file representing the segment to <segment-name>_<owner_host_id>.
- * This is done by the open call. The rename only happens if the segment is not sealed.
+ * Each segment is a collection of ordered files, adopting the following pattern: {segment-name}_{start-offset}_{epoch}.
+ * <ul>
+ * <li> {segment-name} is the name of the segment as used in the SegmentStore
+ * <li> {start-offset} is the offset within the Segment of the first byte in this file.
+ * <li> {epoch} is the Container Epoch which had ownership of that segment when that file was created.
+ * </ul>
  * <p>
- * When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
+ * Example: Segment "foo" can have these files
+ * <ol>
+ * <li> foo_0_1: first file, contains data at offsets [0..1234), written during Container Epoch 1.
+ * <li> foo_1234_2: data at offsets [1234..987632), written during Container Epoch 2.
+ * <li> foo_987632_3: data at offsets [987632..10568949), written during Container Epoch 3.
+ * <li> foo_10568949_4: data at offsets [10568949..current-length-of-segment), written during Container Epoch 4.
+ * </ol>
+ * <p>
+ * All but the last file is marked as 'read-only' (except if the segment is Sealed, in which case the last file too is
+ * marked as 'read-only').
+ * <p>
+ * When a container fails over and needs to reacquire ownership of a segment, it marks the current active file as read-only
+ * and opens a new one (which becomes the new active). Small variations from this rule may exist, such as whether the last
+ * file is empty or not (if empty, it may make more sense to delete it).
+ * Example: using the same file names as above, after writing 1234 bytes we failed over, then again after writing 987632
+ * and again after writing 10568949. When the last failover happened, we have the following state:
+ * <ol>
+ * <li> foo_0_1: read-only.
+ * <li> foo_1234_2: read-only.
+ * <li> foo_987632_3: read-only.
+ * <li> foo_10568949_4: not read-only (this is the active file).
+ * </ol>
+ * <p>
+ * When acquiring ownership, the Container create a new "active" file by calling openWrite() and it should only try to
+ * modify that file. It should never try to create a new one or re-acquire ownership.
+ * <p>
+ * When a failover happens, the previous Container (if still active) will detect that its file has become read-only or
+ * deleted (via a failed write) and know it's time to stop all activity for that segment (i.e., it was fenced out).
+ * <p>
+ * In order to resolve disputes (so that there is a clear protocol as to which instance of a Container will end up owning
+ * the segment should there be more than one fighting for one), the Container Epoch is used. Containers with higher epochs
+ * will win over Containers with lower epochs. For example, if two different instances of the same Container (one with
+ * epoch 1 and one with epoch 2) try to create segment "foo" at the exact same time, then they will create "foo_0_1" and
+ * "foo_0_2". Then they will detect that there is more than one file, and the Container with epoch 1 will back out and
+ * yield to the outcome of the Container with Epoch 2. A similar approach is taken for all other operations, with more
+ * details in the code for each.
  */
 @Slf4j
 class HDFSStorage implements Storage {
