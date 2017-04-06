@@ -60,7 +60,7 @@ distributions {
         }
     }
 }
-releaseDistTar.dependsOn([":service:server:host:distTar", ":controller:server:distTar", downloadDependantZips])
+releaseDistTar.dependsOn([":service:server:host:distTar", ":controller:server:distTar", downloadDependentZips])
 installReleaseDist.dependsOn([":service:server:host:distTar", ":controller:server:distTar", downloadDependentZips])
 
 
