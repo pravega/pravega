@@ -300,6 +300,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();
                     streamsList.forEach(stream -> {
+                        // If internal streams are requested select only the ones that have the special stream names
+                        // otherwise display the regular user created streams.
                         if (!showOnlyInternalStreams ^ stream.getStreamName().startsWith(INTERNAL_NAME_PREFIX)) {
                             streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream));
                         }
