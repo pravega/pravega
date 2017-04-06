@@ -28,7 +28,7 @@ import static org.junit.Assert.assertTrue;
 
 public class StreamMetadataTest {
 
-    @Test(timeout = 6000000)
+    @Test(timeout = 60000)
     public void testMedadataOperations() throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
