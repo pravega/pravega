@@ -1,3 +1,10 @@
+#!/bin/bash
+#
+#  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+#
+
+#Add coomon overridable configs for the whole deployment here.
+
 export ENSEMBLE_SIZE=2
 export ZK_URL=controlnode:2181
 export PRAVEGA_PATH="pravega"

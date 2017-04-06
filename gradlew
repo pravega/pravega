@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-#
-#  Copyright (c) 2017 Dell Inc., or its subsidiaries.
-#
+
 ##############################################################################
 ##
 ##  Gradle start up script for UN*X

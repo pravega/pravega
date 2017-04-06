@@ -1,3 +1,9 @@
+#!/bin/bash
+#
+#  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+#
+
+# Do settings/installations/upgrades for vagrant
 apt-get -y update
 apt-get install -y software-properties-common python-software-properties
 add-apt-repository -y ppa:webupd8team/java

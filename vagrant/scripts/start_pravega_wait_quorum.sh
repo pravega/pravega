@@ -1,3 +1,10 @@
+#!/bin/bash
+#
+#  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+#
+
+# Waits for a bookie ensemble and then deploys Pravega.
+
 . /opt/pravega/pravega-release/scripts/setup_env.sh
 CURR_ENSEMBLE=0
 

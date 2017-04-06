@@ -1,5 +1,8 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
+#
+#  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+#
 
 Vagrant.configure("2") do |config|
 
