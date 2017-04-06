@@ -192,7 +192,7 @@ public final class ApiV1 {
                 @io.swagger.annotations.ApiResponse(
                         code = 500, message = "Server error", response = StreamsList.class) })
         void listStreams(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
-                         @ApiParam(value = "Flag whether to display system created streams too.")
+                         @ApiParam(value = "Flag whether to display only system created streams")
                          @QueryParam("showInternalStreams") String showInternalStreams,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 

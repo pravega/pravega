@@ -90,7 +90,7 @@ paths:
       parameters:
         - in: query
           name: showInternalStreams
-          description: Flag whether to display system created streams too.
+          description: Flag whether to display only system created streams
           required: false
           type: string
       operationId: listStreams

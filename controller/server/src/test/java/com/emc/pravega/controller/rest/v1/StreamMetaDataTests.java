@@ -561,11 +561,9 @@ public class StreamMetaDataTests extends JerseyTest {
         response = target(resourceURI).queryParam("showInternalStreams", "true").request().async().get();
         streamsListResp = response.get().readEntity(StreamsList.class);
         assertEquals("List Streams response code", 200, response.get().getStatus());
-        assertEquals("List count", 3, streamsListResp.getStreams().size());
-        assertEquals("List element", "stream1", streamsListResp.getStreams().get(0).getStreamName());
-        assertEquals("List element", "stream2", streamsListResp.getStreams().get(1).getStreamName());
+        assertEquals("List count", 1, streamsListResp.getStreams().size());
         assertEquals("List element", NameUtils.getInternalNameForStream("stream3"),
-                streamsListResp.getStreams().get(2).getStreamName());
+                streamsListResp.getStreams().get(0).getStreamName());
 
         // Test to list large number of streams.
         streamsList = Collections.nCopies(200, streamConfiguration1);

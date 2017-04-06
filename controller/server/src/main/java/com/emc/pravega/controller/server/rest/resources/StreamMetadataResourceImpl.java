@@ -32,6 +32,8 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
 
+import static com.emc.pravega.common.util.NameUtils.INTERNAL_NAME_PREFIX;
+
 /**
  * Stream metadata resource implementation.
  */
@@ -293,13 +295,12 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                             final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "listStreams");
 
-        boolean showAllStreams = showInternalStreams != null && showInternalStreams.equals("true");
+        boolean showOnlyInternalStreams = showInternalStreams != null && showInternalStreams.equals("true");
         controllerService.listStreamsInScope(scopeName)
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();
                     streamsList.forEach(stream -> {
-                        if (showAllStreams
-                                || !stream.getStreamName().startsWith(NameUtils.INTERNAL_NAME_PREFIX)) {
+                        if (!showOnlyInternalStreams ^ stream.getStreamName().startsWith(INTERNAL_NAME_PREFIX)) {
                             streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream));
                         }
                     });
