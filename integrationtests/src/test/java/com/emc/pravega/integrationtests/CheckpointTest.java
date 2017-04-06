@@ -64,7 +64,7 @@ public class CheckpointTest {
         String streamName = "abc";
         String readerName = "reader";
         String readerGroupName = "group";
-        int port = TestUtils.randomPort();
+        int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();

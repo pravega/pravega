@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -16,20 +17,26 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
+import org.junit.Test;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Zookeeper stream store configuration.
@@ -68,19 +75,21 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory);
 
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
+        streamTransactionMetadataTasks = new MockStreamTransactionMetadataTasks(
                 streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host", connectionFactory);
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 
-        controllerService = new ControllerServiceImpl(
-                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      timeoutService, new SegmentHelper(), executorService));
+        ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executorService);
+        controllerService = new ControllerServiceImpl(controller);
     }
 
     @Override
     public void tearDown() throws Exception {
-        executorService.shutdown();
+        if (executorService != null) {
+            executorService.shutdown();
+        }
         if (timeoutService != null) {
             timeoutService.stopAsync();
             timeoutService.awaitTerminated();
@@ -93,5 +102,24 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         }
         zkClient.close();
         zkServer.close();
+    }
+
+    @Test
+    public void createTransactionSuccessTest() {
+        int segmentsCount = 4;
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(segmentsCount));
+
+        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, STREAM1);
+
+        Controller.CreateTxnRequest request = Controller.CreateTxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setLease(10000)
+                .setMaxExecutionTime(10000)
+                .setScaleGracePeriod(10000).build();
+        ResultObserver<Controller.CreateTxnResponse> resultObserver = new ResultObserver<>();
+
+        this.controllerService.createTransaction(request, resultObserver);
+        Controller.CreateTxnResponse response = resultObserver.get();
+        assertEquals(segmentsCount, response.getActiveSegmentsCount());
     }
 }

@@ -32,8 +32,10 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 
 
+@Slf4j
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private final Serializer<Type> deserializer;
@@ -137,6 +139,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             acquireSegmentsIfNeeded();
             String checkpoint = groupState.getCheckpoint();
             if (checkpoint != null) {
+                log.info("{} at checkpoint {}", this, checkpoint);
                 groupState.checkpoint(checkpoint, getPosition());
                 atCheckpoint = true;
             }
@@ -150,6 +153,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void releaseSegmentsIfNeeded() {
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
+            log.info("{} releasing segment {}", this, segment);
             SegmentInputStream reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
                 groupState.releaseSegment(segment, reader.getOffset(), getLag());
@@ -160,7 +164,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private void acquireSegmentsIfNeeded() throws ReinitializationRequiredException {
         Map<Segment, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag());
-        if (newSegments != null) {
+        if (!newSegments.isEmpty()) {
+            log.info("{} acquiring segments {}", this, newSegments);
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
                 SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey());
                 in.setOffset(newSegment.getValue());
@@ -179,6 +184,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     
     private void handleEndOfSegment(SegmentInputStream oldSegment) throws ReinitializationRequiredException {
         try {
+            log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
             readers.remove(oldSegment);
             groupState.handleEndOfSegment(oldSegment.getSegmentId());
         } catch (ReinitializationRequiredException e) {
@@ -196,6 +202,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     public void close() {
         synchronized (readers) {
             if (!closed) {
+                log.info("Closing reader {} ", this);
                 closed = true;
                 groupState.readerShutdown(getPosition());
                 for (SegmentInputStream reader : readers) {
@@ -229,4 +236,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return Collections.unmodifiableList(readers);
     }
 
+    @Override
+    public String toString() {
+        return "EventStreamReaderImpl( id=" + groupState.getReaderId() + ")";
+    }
+    
 }

@@ -68,4 +68,6 @@ public interface ReplyProcessor {
     void connectionDropped();
 
     void segmentPolicyUpdated(SegmentPolicyUpdated segmentPolicyUpdated);
+    
+    void processingFailure(Exception error);
 }

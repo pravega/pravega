@@ -5,6 +5,7 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.NameVerifier;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
@@ -169,8 +170,10 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
             StreamConfiguration config, long timestamp) {
-        if (!validateName(stream)) {
-            log.debug("Create stream failed due to invalid stream name {}", stream);
+        try {
+            NameVerifier.validateName(stream);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.error("Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(CreateStreamStatus.Status.INVALID_STREAM_NAME);
         }
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
@@ -210,10 +213,6 @@ public class StreamMetadataTasks extends TaskBase {
                         return result;
                     }
                 });
-    }
-
-    private static boolean validateName(final String path) {
-        return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 
     private CompletableFuture<UpdateStreamStatus.Status> updateStreamConfigBody(String scope, String stream,

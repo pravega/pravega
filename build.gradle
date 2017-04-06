@@ -43,15 +43,6 @@ allprojects {
 
     test { finalizedBy jacocoTestReport }
 
-    javadoc {
-        title = "Pravega Client API"
-        failOnError = false
-        exclude "**/impl/**";
-        source  =  project(':clients:streaming').sourceSets.main.java
-        def javadocs = new File(rootDir, "javadocs")
-        javadocs.mkdirs()
-        destinationDir = javadocs
-    }
     tasks.withType(FindBugs) {
         effort = "default"
         includeFilter = file("$rootDir/checkstyle/findbugs-include.xml")
@@ -171,6 +162,16 @@ project('common') {
             }
         }
     }
+    javadoc {
+        exclude 'com/emc/pravega/common/*'
+    }
+}
+
+project ('shared') {
+   dependencies {
+    compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+    compile project(':common')
+   }
 }
 
 project('clients:streaming') {
@@ -192,6 +193,15 @@ project('clients:streaming') {
                 from components.java
             }
         }
+    }
+    javadoc {
+        title = "Pravega Client API"
+        failOnError = false
+        exclude "**/impl/**";
+        source  =  project(':clients:streaming').sourceSets.main.java
+        def javadocs = new File(rootDir, "javadocs")
+        javadocs.mkdirs()
+        destinationDir = javadocs
     }
 }
 
@@ -226,6 +236,7 @@ project('service:storage') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
+        compile project(':shared')
         testCompile project(':testcommon')
     }
     publishing {
@@ -273,6 +284,7 @@ project('service:storage:impl') {
 
         compile project(':common')
         compile project(':service:storage')
+        compile project(':shared')
         testCompile project(':testcommon')
         testCompile files(project(':service:storage').sourceSets.test.output)
     }
@@ -291,6 +303,7 @@ project('service:server') {
         compile project(':common')
         compile project(':service:contracts')
         compile project(':service:storage')
+        compile project(':shared')
         testCompile project(':testcommon')
     }
     publishing {
@@ -377,6 +390,7 @@ project('integrationtests') {
         testCompile group: 'org.apache.flink', name: 'flink-tests_2.11', version: flinkVersion
         testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: flinkVersion
         testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: flinkVersion
+        testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
@@ -496,6 +510,9 @@ project('controller:contract') {
             }
         }
     }
+    javadoc {
+        exclude 'com/emc/pravega/controller/*'
+    }
 }
 
 project('controller:server') {
@@ -533,6 +550,7 @@ project('controller:server') {
         compile project(':common')
         compile project(":controller:contract")
         compile project(":clients:streaming")
+        compile project(":shared")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
@@ -802,4 +820,8 @@ task sourceTar(type: Tar) {
     destinationDir = file('sourceArtifacts')
     extension = 'tgz'
     compression = Compression.GZIP
+}
+
+task genJavaDocs(type: Javadoc) {
+    dependsOn 'clients:streaming:javadoc'
 }

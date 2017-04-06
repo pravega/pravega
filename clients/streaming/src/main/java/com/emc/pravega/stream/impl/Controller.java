@@ -114,7 +114,7 @@ public interface Controller {
      *                         the scaling operation is initiated on the txn stream.
      * @return                 Transaction id.
      */
-    CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
                                               final long scaleGracePeriod);
 
     /**

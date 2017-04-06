@@ -10,7 +10,9 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.testcommon.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
@@ -21,6 +23,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -33,21 +36,30 @@ import static org.junit.Assert.assertTrue;
  */
 public abstract class StreamMetadataStoreTest {
 
+    //Ensure each test completes within 10 seconds.
+    @Rule
+    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+
     protected StreamMetadataStore store;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
-    private final String scope = "scope";
-    private final String stream1 = "stream1";
-    private final String stream2 = "stream2";
-    private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-    private final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
-    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(scope).streamName(stream1).scalingPolicy(policy1).build();
-    private final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream2).scalingPolicy(policy2).build();
+    protected final String scope = "scope";
+    protected final String stream1 = "stream1";
+    protected final String stream2 = "stream2";
+    protected final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+    protected final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
+    protected final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(scope).streamName(stream1).scalingPolicy(policy1).build();
+    protected final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream2).scalingPolicy(policy2).build();
 
     @Before
     public abstract void setupTaskStore() throws Exception;
 
     @After
     public abstract void cleanupTaskStore() throws IOException;
+
+    @After
+    public void tearDown() {
+        executor.shutdown();
+    }
 
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
@@ -199,6 +211,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals("List Scopes size", 2, list.size());
     }
 
+    @Test
     public void getScopeTest() throws  Exception {
         final String scope1 = "Scope1";
         final String scope2 = "Scope2";
@@ -210,12 +223,9 @@ public abstract class StreamMetadataStoreTest {
         assertEquals("Get existent scope", scope1, scopeName);
 
         // get non-existent scope
-        try {
-            store.getScopeConfiguration(scope2).get();
-        } catch (Exception e) {
-            assertTrue("Get non existent scope", e instanceof StoreException);
-            assertTrue("Get non existent scope", ((StoreException) e).getType() == StoreException.Type.NODE_NOT_FOUND);
-        }
+        AssertExtensions.assertThrows("Should throw StoreException",
+                store.getScopeConfiguration(scope2),
+                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.NODE_NOT_FOUND));
     }
 
     private boolean checkStoreExceptionType(Throwable t, StoreException.Type type) {

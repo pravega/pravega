@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.reading;
 
@@ -623,17 +621,33 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
         Exceptions.checkArgument(startOffset >= 0, "startOffset", "startOffset must be a non-negative number.");
         Exceptions.checkArgument(maxLength >= 0, "maxLength", "maxLength must be a non-negative number.");
-        Exceptions.checkArgument(canReadAtOffset(startOffset), "startOffset", "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
+        Exceptions.checkArgument(canReadAtOffset(startOffset, true), "startOffset", "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
 
         log.debug("{}: Read (Offset = {}, MaxLength = {}).", this.traceObjectId, startOffset, maxLength);
         return new StreamSegmentReadResult(startOffset, maxLength, this::getMultiReadResultEntry, this.traceObjectId);
     }
 
-    private boolean canReadAtOffset(long offset) {
+    /**
+     * Determines whether the given offset is valid for reading, given the current state of the segment.
+     *
+     * @param offset              The offset to check.
+     * @param lastOffsetInclusive If true, it will consider the last offset of the segment as a valid offset, otherwise
+     *                            it will only validate offsets before the last offset in the segment.
+     * @return If the segment is not sealed, returns 'true'. Otherwise, returns true if the given offset is before the
+     * last offset (or on as well, if lastOffsetInclusive is true). Returns false in any other case.
+     */
+    private boolean canReadAtOffset(long offset, boolean lastOffsetInclusive) {
         // We can only read at a particular offset if:
         // * The segment is not sealed (we are allowed to do a future read) OR
-        // * The segment is sealed and we are not trying to read from the last offset.
-        return !this.metadata.isSealed() || offset < this.metadata.getDurableLogLength();
+        // * The segment is sealed and we are not trying to read at or beyond the last offset (based on input).
+        if (this.metadata.isSealed()) {
+            return lastOffsetInclusive
+                    ? offset <= this.metadata.getDurableLogLength()
+                    : offset < this.metadata.getDurableLogLength();
+        }
+
+        // Not sealed: we can have future reads as well.
+        return true;
     }
 
     /**
@@ -658,7 +672,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Check to see if we are trying to read beyond the last offset of a sealed StreamSegment.
-        if (!canReadAtOffset(resultStartOffset)) {
+        if (!canReadAtOffset(resultStartOffset, false)) {
             return new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
         }
 
@@ -747,7 +761,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private CacheReadResultEntry getSingleMemoryReadResultEntry(long resultStartOffset, int maxLength) {
         Exceptions.checkNotClosed(this.closed, this);
 
-        if (maxLength > 0 && canReadAtOffset(resultStartOffset)) {
+        if (maxLength > 0 && canReadAtOffset(resultStartOffset, false)) {
             // Look up an entry in the index that contains our requested start offset.
             synchronized (this.lock) {
                 ReadIndexEntry indexEntry = this.indexEntries.get(resultStartOffset);

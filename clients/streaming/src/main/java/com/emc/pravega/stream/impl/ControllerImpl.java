@@ -12,6 +12,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
@@ -27,7 +28,6 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityR
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
@@ -300,7 +300,7 @@ public class ControllerImpl implements Controller {
                                                        .build();
         client.getSegments(request, callback);
         return callback.getFuture().thenApply(segments -> {
-            log.debug("Received the following data from the controller {}", segments);
+            log.debug("Received the following data from the controller {}", segments.getSegmentsList());
             return segments.getSegmentsList()
                            .stream()
                            .collect(Collectors.toMap(location -> ModelHelper.encode(location.getSegmentId()),
@@ -316,7 +316,7 @@ public class ControllerImpl implements Controller {
         client.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment), callback);
         return callback.getFuture()
                        .thenApply(successors -> {
-                           log.debug("Received the following data from the controller {}", successors);
+                           log.debug("Received the following data from the controller {}", successors.getSegmentsList());
                            Map<Segment, List<Integer>> result = new HashMap<>();
                            for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
                                result.put(ModelHelper.encode(entry.getSegmentId()), entry.getValueList());
@@ -336,6 +336,7 @@ public class ControllerImpl implements Controller {
         client.getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
         return callback.getFuture()
             .thenApply(ranges -> {
+                log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
                 NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
                 for (SegmentRange r : ranges.getSegmentRangesList()) {
                     rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
@@ -374,20 +375,31 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
                                                      final long scaleGracePeriod) {
         long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease, maxExecutionTime, scaleGracePeriod);
         Preconditions.checkNotNull(stream, "stream");
-        RPCAsyncCallback<TxnId> callback = new RPCAsyncCallback<>();
-        client.createTransaction(CreateTxnRequest.newBuilder().setStreamInfo(
-                ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                                         .setLease(lease)
-                                         .setMaxExecutionTime(maxExecutionTime)
-                                         .setScaleGracePeriod(scaleGracePeriod)
-                                         .build(),
-                                 callback);
-        return callback.getFuture().thenApply(ModelHelper::encode)
-                .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "createTransaction", traceId));
+        RPCAsyncCallback<CreateTxnResponse> callback = new RPCAsyncCallback<>();
+        client.createTransaction(
+                CreateTxnRequest.newBuilder()
+                                .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                .setLease(lease)
+                                .setMaxExecutionTime(maxExecutionTime)
+                                .setScaleGracePeriod(scaleGracePeriod)
+                                .build(),
+                callback);
+        return callback.getFuture().thenApply(this::convert).whenComplete(
+                (x, y) -> LoggerHelpers.traceLeave(log, "createTransaction", traceId));
+    }
+
+    private TxnSegments convert(CreateTxnResponse response) {
+        NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+
+        for (SegmentRange r : response.getActiveSegmentsList()) {
+            rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+        }
+        StreamSegments segments = new StreamSegments(rangeMap);
+        return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
     }
 
     @Override
