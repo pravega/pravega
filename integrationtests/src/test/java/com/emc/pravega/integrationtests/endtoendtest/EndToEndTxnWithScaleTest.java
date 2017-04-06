@@ -150,13 +150,12 @@ public class EndToEndTxnWithScaleTest {
 
         CountDownLatch latch = new CountDownLatch(1);
         ExecutorService service = Executors.newFixedThreadPool(2);
-        List<Future<?>> futures = new ArrayList<>();
+        List<Future<?>> futures = new ArrayList<>(2);
 
         final Runnable createTxn = () -> {
             try {
                 latch.await();
-                Transaction<String> transaction;
-                transaction = producer.beginTxn(5000, 60000, 29000);
+                Transaction<String> transaction = producer.beginTxn(5000, 60000, 29000);
                 transaction.writeEvent("0", "event");
                 transaction.commit();
             } catch (Exception e) {
