@@ -131,7 +131,6 @@ public final class ServiceBuilder implements AutoCloseable {
         closeComponent(this.containerRegistry);
         closeComponent(this.dataLogFactory);
         closeComponent(this.readIndexFactory);
-        closeComponent(this.storageFactory);
         closeComponent(this.cacheFactory);
 
         this.executorService.shutdown();
@@ -237,16 +236,14 @@ public final class ServiceBuilder implements AutoCloseable {
     //region Component Builders
 
     private WriterFactory createWriterFactory() {
-        StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
         WriterConfig writerConfig = this.serviceBuilderConfig.getConfig(WriterConfig::builder);
-        return new StorageWriterFactory(writerConfig, storageFactory, this.executorService);
+        return new StorageWriterFactory(writerConfig, this.executorService);
     }
 
     private ReadIndexFactory createReadIndexFactory() {
-        StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::builder);
-        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, storageFactory, this.executorService);
+        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, this.executorService);
     }
 
     private SegmentContainerFactory createSegmentContainerFactory() {

@@ -156,9 +156,7 @@ public final class ServiceStarter {
         builder.withStorageFactory(setup -> {
             try {
                 HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
-                factory.initialize();
-                return factory;
+                return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }
