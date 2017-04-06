@@ -17,14 +17,22 @@ import java.util.concurrent.CompletableFuture;
 public interface TaskMetadataStore {
 
     /**
-     * Locks a resource for update.
+     * Locks a resource for reads or updates.
      * If (oldOwner, oldTag) are specified then it revokes old owner's lock and itself acquires it.
      * This is non-reentrant lock, i.e., a process/thread cannot lock the same resource twice.
-     * If oldOwner is null then
-     * atomically create the key value pair resource -> (owner, tag, taskData) if it does not exist.
-     * If oldOwner is non-null
-     * then atomically replace the key value pair resource -> (oldOwner, oldTag, taskData) with the pair
-     * resource -> (owner, tag, taskData).
+     * If oldOwner is null then it first creates a node LOCKTYPE<SEQ_NUMBER> having data (owner, tag, taskData)
+     * as a child of /taskRoot/resource.
+     *
+     * Then it waits until the following happens
+     * 1. For WRITE lock type, it waits until SEQ_NUMBER is the smallest sequence number
+     *    among all children of /taskRoot/resource
+     * 2. For READ lock type it waits until no child of /taskRoot/resource with write lock
+     *    type has a smaller sequence number than SEQ_NUMBER
+     *
+     * If oldOwner is non-null then it first replaces data of node LOCKTYPE<seqNumber> from (oldOwner, oldTag, taskData)
+     * to (owner, tag, taskData).
+     *
+     * Then it waits until the conditions mentioned above are satisfied.
      *
      * @param resource resource identifier.
      * @param type     lock type.
@@ -46,8 +54,10 @@ public interface TaskMetadataStore {
                                     final String oldTag);
 
     /**
-     * Unlocks a resource if it is owned by the specified owner.
-     * Delete the key value pair resource -> (x, taskData) iff x == owner.
+     * Unlocks a resource if it is owned by the specified owner (owner, tag) by deleting the child
+     * LOCKTYPE<seqNumber> of /taskRoot/resource
+     *
+     * Delete the key value pair LOCKTYPE<seqNumber> -> (owner', tag', taskData) iff owner' == owner and tag' == tag.
      *
      * @param resource resource identifier.
      * @param type     lock type.
@@ -56,8 +66,11 @@ public interface TaskMetadataStore {
      * @param tag      tag.
      * @return void if successful, otherwise throws UnlockFailedException.
      */
-    CompletableFuture<Void> unlock(final Resource resource, final LockType type, final int seqNumber,
-                                   final String owner, final String tag);
+    CompletableFuture<Void> unlock(final Resource resource,
+                                   final LockType type,
+                                   final int seqNumber,
+                                   final String owner,
+                                   final String tag);
 
     /**
      * Fetch details of task associated with the specified resource and locked/owned by specified owner and tag, along

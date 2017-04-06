@@ -8,6 +8,7 @@ package com.emc.pravega.controller.store.task;
 import com.emc.pravega.controller.task.TaskData;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -40,17 +41,18 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
 
     @Override
     Integer acquireLock(Resource resource, LockType type, TaskData taskData, String owner, String threadId) {
-        return null;
+        // todo: We will implement this once ZK based implementation in ZKTaskMetadataStore is reviewed.
+        throw new NotImplementedException();
     }
 
     @Override
     Integer transferLock(Resource resource, LockType type, String owner, String threadId, int seqNumber, String oldOwner, String oldThreadId) {
-        return null;
+        throw new NotImplementedException();
     }
 
     @Override
     Void removeLock(Resource resource, LockType type, int seqNumber, String owner, String tag) {
-        return null;
+        throw new NotImplementedException();
     }
 
     Void acquireLock(final Resource resource,
