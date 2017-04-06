@@ -12,6 +12,5 @@ public enum State {
     UNKNOWN,
     CREATING,
     ACTIVE,
-    SCALING,
     SEALED
 }

@@ -283,7 +283,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return verifyLegalState(getSegmentChunks()
                 .thenCompose(this::getLatestChunk)
                 .thenCompose(latestSegmentData -> addNewSegments(newRanges, scaleTimestamp, latestSegmentData))
-                .thenCompose(startingSegmentNumber -> updateState(State.SCALING).thenApply(x -> startingSegmentNumber))
                 .thenCompose(startingSegmentNumber -> getSegments(IntStream.range(startingSegmentNumber,
                         startingSegmentNumber + newRanges.size())
                         .boxed()
@@ -318,8 +317,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                  final long scaleTimestamp) {
         return verifyLegalState(FutureHelpers.toVoid(
                 completeHistoryRecord(scaleTimestamp, sealedSegments, newSegments)
-                        .thenCompose(this::addIndexRecord)
-                        .thenCompose(v -> updateState(State.ACTIVE))));
+                        .thenCompose(this::addIndexRecord));
     }
 
     @Override
