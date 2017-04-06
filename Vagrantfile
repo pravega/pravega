@@ -4,6 +4,8 @@
 #  Copyright (c) 2017 Dell Inc., or its subsidiaries.
 #
 
+require 'vagrant-host-shell'
+
 Vagrant.configure("2") do |config|
 
   config.vm.box = "ubuntu/trusty64"
@@ -57,10 +59,20 @@ Vagrant.configure("2") do |config|
   # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
   # documentation for more information about their specific syntax and use.
 
+   # If user calls Vagrant up without building, try and build the artifacts
+   #config.vm.provision :host_shell do |host_shell|
+   #               host_shell.inline = 'echo Packaging Pravega for Vagrant && ./gradlew installReleaseDist'
+   #     end
+
   config.vm.define "controlnode" do |controlnode|
 	controlnode.vm.hostname = "controlnode"
 	controlnode.vm.provider :virtualbox do |vb,override|
          override.vm.network :private_network, ip: "192.168.10.10"
+        end
+
+# If user calls Vagrant up without building, try and build the artifacts
+   controlnode.vm.provision :host_shell do |host_shell|
+                  host_shell.inline = 'echo Packaging Pravega for Vagrant && ./gradlew installReleaseDist'
         end
 	controlnode.vm.provision :shell, inline: "sed -i'' '/^127.0.0.1\\t#{controlnode.vm.hostname}\\tcontrolnode$/d' /etc/hosts"
 	controlnode.vm.provision "shell", path:"vagrant/scripts/common.sh"
