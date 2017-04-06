@@ -47,9 +47,9 @@ public class EndToEndAutoScaleUpTest {
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, true);
             controllerWrapper.awaitRunning();
             Controller controller = controllerWrapper.getController();
-            controllerWrapper.getControllerService().createScope("pravega").get();
+            controllerWrapper.getControllerService().createScope(Config.INTERNAL_SCOPE).get();
 
-            ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
+            ClientFactory internalCF = new ClientFactoryImpl(Config.INTERNAL_SCOPE, controller, new ConnectionFactoryImpl(false));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();

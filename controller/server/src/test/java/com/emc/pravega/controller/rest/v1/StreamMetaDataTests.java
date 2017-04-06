@@ -389,6 +389,13 @@ public class StreamMetaDataTests extends JerseyTest {
                 CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build()));
         response = target(resourceURI).request().async().post(Entity.json(createScopeRequest));
         assertEquals("Create Scope response code", 500, response.get().getStatus());
+
+        // Test to create an invalid scope name.
+        when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
+                CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build()));
+        createScopeRequest.setScopeName("_system");
+        response = target(resourceURI).request().async().post(Entity.json(createScopeRequest));
+        assertEquals("Create Scope response code", 400, response.get().getStatus());
     }
 
     /**

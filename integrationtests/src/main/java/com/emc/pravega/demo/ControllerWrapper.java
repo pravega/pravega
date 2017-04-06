@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.common.util.NameUtils;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.ControllerServiceConfig;
 import com.emc.pravega.controller.server.ControllerServiceStarter;
@@ -73,9 +74,9 @@ public class ControllerWrapper implements AutoCloseable {
         Optional<ControllerEventProcessorConfig> eventProcessorConfig;
         if (!disableEventProcessor) {
             eventProcessorConfig = Optional.of(ControllerEventProcessorConfigImpl.builder()
-                    .scopeName("system")
-                    .commitStreamName("commitStream")
-                    .abortStreamName("abortStream")
+                    .scopeName(Config.INTERNAL_SCOPE)
+                    .commitStreamName(NameUtils.getInternalNameForStream("commitStream"))
+                    .abortStreamName(NameUtils.getInternalNameForStream("abortStream"))
                     .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
                     .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
                     .commitReaderGroupName("commitStreamReaders")

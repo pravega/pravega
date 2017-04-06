@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 public class NameUtils {
 
     // The prefix which will be used to name all internal streams.
-    public static final String INTERNAL_STREAM_NAME_PREFIX = "_";
+    public static final String INTERNAL_NAME_PREFIX = "_";
 
     /**
      * Construct an internal representation of stream name. This is required to distinguish between user created
@@ -23,11 +23,11 @@ public class NameUtils {
      * @return              The stream name which has to be used internally in the pravega system.
      */
     public static String getInternalNameForStream(String streamName) {
-        return INTERNAL_STREAM_NAME_PREFIX + streamName;
+        return INTERNAL_NAME_PREFIX + streamName;
     }
 
     /**
-     * Validates a stream name.
+     * Validates a user created stream name.
      *
      * @param name User supplied stream name to validate.
      * @return The name in the case is valid.
@@ -48,9 +48,19 @@ public class NameUtils {
         Preconditions.checkNotNull(name);
 
         // In addition to user stream names, pravega internally created stream have a special prefix.
-        final String matcher = "[" + INTERNAL_STREAM_NAME_PREFIX + "]?[a-zA-Z0-9]+";
+        final String matcher = "[" + INTERNAL_NAME_PREFIX + "]?[a-zA-Z0-9]+";
         Preconditions.checkArgument(name.matches(matcher), "Name must be " + matcher);
         return name;
+    }
+
+    /**
+     * Validates a user created scope name.
+     *
+     * @param name Scope name to validate.
+     * @return The name in the case is valid.
+     */
+    public static String validateUserScopeName(String name) {
+        return validateUserStreamName(name);
     }
 
     /**
@@ -60,7 +70,7 @@ public class NameUtils {
      * @return The name in the case is valid.
      */
     public static String validateScopeName(String name) {
-        return validateUserStreamName(name);
+        return validateStreamName(name);
     }
 
     /**

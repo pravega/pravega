@@ -62,6 +62,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean createScope(String scopeName) {
+        NameUtils.validateUserScopeName(scopeName);
         return FutureHelpers.getAndHandleExceptions(controller.createScope(scopeName),
                 RuntimeException::new);
         

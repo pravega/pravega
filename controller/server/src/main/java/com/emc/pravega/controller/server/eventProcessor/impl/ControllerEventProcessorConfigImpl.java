@@ -4,8 +4,10 @@
 package com.emc.pravega.controller.server.eventProcessor.impl;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.NameUtils;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
@@ -71,9 +73,9 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
 
     public static ControllerEventProcessorConfig withDefault() {
         return ControllerEventProcessorConfigImpl.builder()
-                .scopeName("system")
-                .commitStreamName("commitStream")
-                .abortStreamName("abortStream")
+                .scopeName(Config.INTERNAL_SCOPE)
+                .commitStreamName(NameUtils.getInternalNameForStream("commitStream"))
+                .abortStreamName(NameUtils.getInternalNameForStream("abortStream"))
                 .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
                 .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
                 .commitReaderGroupName("commitStreamReaders")

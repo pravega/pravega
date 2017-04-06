@@ -15,8 +15,8 @@ import java.time.Duration;
 
 @Data
 public class AutoScalerConfig {
-    public static final Property<String> INTERNAL_SCOPE = Property.named("scope", "pravega");
-    public static final Property<String> REQUEST_STREAM = Property.named("requestStream", "requeststream");
+    public static final Property<String> INTERNAL_SCOPE = Property.named("scope", "_system");
+    public static final Property<String> REQUEST_STREAM = Property.named("requestStream", "_requeststream");
     public static final Property<Integer> COOLDOWN_IN_SECONDS = Property.named("cooldownInSeconds", 10 * 60);
     public static final Property<Integer> MUTE_IN_SECONDS = Property.named("muteInSeconds", 10 * 60);
     public static final Property<Integer> CACHE_CLEANUP_IN_SECONDS = Property.named("cacheCleanUpInSeconds", 5 * 60);

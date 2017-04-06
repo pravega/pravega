@@ -46,8 +46,8 @@ public class EndToEndAutoScaleDownTest {
             controllerWrapper.awaitRunning();
             Controller controller = controllerWrapper.getController();
 
-            controllerWrapper.getControllerService().createScope("pravega").get();
-            ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
+            controllerWrapper.getControllerService().createScope(Config.INTERNAL_SCOPE).get();
+            ClientFactory internalCF = new ClientFactoryImpl(Config.INTERNAL_SCOPE, controller, new ConnectionFactoryImpl(false));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();

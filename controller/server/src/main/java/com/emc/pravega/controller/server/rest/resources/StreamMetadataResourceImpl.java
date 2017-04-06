@@ -55,6 +55,14 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     public void createScope(final CreateScopeRequest createScopeRequest, final SecurityContext securityContext,
             final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "createScope");
+        try {
+            NameUtils.validateUserScopeName(createScopeRequest.getScopeName());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create scope failed due to invalid scope name {}", createScopeRequest.getScopeName());
+            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            LoggerHelpers.traceLeave(log, "createScope", traceId);
+            return;
+        }
 
         controllerService.createScope(createScopeRequest.getScopeName()).thenApply(scopeStatus -> {
             if (scopeStatus.getStatus() == CreateScopeStatus.Status.SUCCESS) {
@@ -291,7 +299,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     StreamsList streams = new StreamsList();
                     streamsList.forEach(stream -> {
                         if (showAllStreams
-                                || !stream.getStreamName().startsWith(NameUtils.INTERNAL_STREAM_NAME_PREFIX)) {
+                                || !stream.getStreamName().startsWith(NameUtils.INTERNAL_NAME_PREFIX)) {
                             streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream));
                         }
                     });

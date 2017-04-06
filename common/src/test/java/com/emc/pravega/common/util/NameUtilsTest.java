@@ -78,15 +78,51 @@ public class NameUtilsTest {
     }
 
     @Test
-    public void testScopeNameVerifier() {
+    public void testUserScopeNameVerifier() {
         try {
-            NameUtils.validateScopeName("stream123");
+            NameUtils.validateUserScopeName("stream123");
         } catch (Exception e) {
             Assert.fail();
         }
 
         try {
-            NameUtils.validateScopeName("_stream");
+            NameUtils.validateUserScopeName("_stream");
+            Assert.fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        try {
+            NameUtils.validateUserScopeName(null);
+            Assert.fail();
+        } catch (NullPointerException e) {
+            // expected
+        }
+    }
+
+    @Test
+    public void testScopeNameVerifier() {
+        try {
+            NameUtils.validateScopeName("_systemscope123");
+        } catch (Exception e) {
+            Assert.fail();
+        }
+
+        try {
+            NameUtils.validateScopeName("userscope123");
+        } catch (Exception e) {
+            Assert.fail();
+        }
+
+        try {
+            NameUtils.validateScopeName("system_scope");
+            Assert.fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        try {
+            NameUtils.validateScopeName("system/scope");
             Assert.fail();
         } catch (IllegalArgumentException e) {
             // expected
@@ -126,6 +162,6 @@ public class NameUtilsTest {
     @Test
     public void testInternalStreamName() {
         Assert.assertTrue(NameUtils.getInternalNameForStream("stream").startsWith(
-                NameUtils.INTERNAL_STREAM_NAME_PREFIX));
+                NameUtils.INTERNAL_NAME_PREFIX));
     }
 }
