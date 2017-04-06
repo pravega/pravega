@@ -4,11 +4,14 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
+import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -46,8 +49,6 @@ class MockFileSystem extends FileSystem {
     private Function<Path, CustomAction> onCreate;
     @Setter
     private Function<Path, CustomAction> onDelete;
-    @Setter
-    private Function<Path, CustomAction> onRename;
 
     //endregion
 
@@ -84,19 +85,40 @@ class MockFileSystem extends FileSystem {
     }
 
     @Override
-    public boolean rename(Path src, Path dst) throws IOException {
+    public void concat(final Path trg, final Path[] sourcePaths) throws IOException {
         synchronized (this.files) {
-            if (this.files.getOrDefault(dst, null) != null) {
-                throw new FileAlreadyExistsException(dst.getName());
+            // Collect files first. This ensures that they all exist and that the args are valid, prior to making any changes.
+            FileData target = getFileData(trg);
+            val sources = new ArrayList<FileData>();
+            val uniquePaths = new HashSet<String>();
+            uniquePaths.add(trg.toString());
+            for (Path sourcePath : sourcePaths) {
+                Preconditions.checkArgument(uniquePaths.add(sourcePath.toString()),
+                        "Circular dependency in concat arguments: file %s has been seen more than once.", sourcePath);
+
+                sources.add(getFileData(sourcePath));
             }
 
-            FileData toRename = getFileData(src);
-            this.files.put(dst, new FileData(dst, toRename));
-            this.files.remove(src);
-        }
+            // Check target not readonly status.
+            if (target.getStatus().getPermission().getUserAction() == FsAction.READ) {
+                throw HDFSExceptionHelpers.segmentSealedException(trg.getName());
+            }
 
-        invokeCustomAction(this.onRename, src);
-        return true;
+            // Concatenate contents.
+            for (FileData source : sources) {
+                target.contents.write(source.contents.toByteArray());
+            }
+
+            // Delete sources.
+            for (Path sourcePath : sourcePaths) {
+                this.files.remove(sourcePath);
+            }
+        }
+    }
+
+    @Override
+    public boolean rename(Path src, Path dst) throws IOException {
+        throw new UnsupportedOperationException("rename is not allowed");
     }
 
     @Override

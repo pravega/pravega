@@ -44,14 +44,9 @@ abstract class FileSystemOperationTestBase {
             return this.operation.makeReadOnly(file);
         }
 
-        void setConcatNext(FileDescriptor file, FileDescriptor nextFile) throws IOException {
-            this.operation.setConcatNext(file, nextFile);
-        }
-
-        Path createEmptyFile(String segmentName, long offset) throws IOException {
-            Path result = this.operation.getFilePath(segmentName, offset, this.epoch);
+        void createEmptyFile(String segmentName, long offset) throws IOException {
             this.fileSystem
-                    .create(result,
+                    .create(this.operation.getFilePath(segmentName, offset, this.epoch),
                             new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                             false,
                             0,
@@ -59,7 +54,6 @@ abstract class FileSystemOperationTestBase {
                             this.config.getBlockSize(),
                             null)
                     .close();
-            return result;
         }
 
         List<FileDescriptor> findAllFiles(String segmentName) throws IOException {

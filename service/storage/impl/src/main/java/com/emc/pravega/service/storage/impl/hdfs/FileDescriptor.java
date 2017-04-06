@@ -73,6 +73,14 @@ class FileDescriptor {
     }
 
     /**
+     * Updates the descriptor to indicate the file is not read-only.
+     * This does not change the underlying file.
+     */
+    synchronized void markReadWrite() {
+        this.readOnly = false;
+    }
+
+    /**
      * Gets a value indicating whether the file is read-only or not.
      */
     synchronized boolean isReadOnly() {

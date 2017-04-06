@@ -6,9 +6,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import lombok.extern.slf4j.Slf4j;
@@ -56,15 +54,9 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
                     // open it for writing, therefore open a read-only handle.
                     result = HDFSSegmentHandle.read(segmentName, allFiles);
                 } else if (lastFile.getEpoch() == this.context.epoch) {
-                    // There are two reasons we could get in here: either after a concat that failed mid-way, or because
-                    // someone else fenced us out.
-                    if (isConcatSource(lastFile)) {
-                        // This file looks like it came from a partially completed concat operation. Attempt to recover it.
-                        result = recoverConcatOperation(segmentName, allFiles);
-                    } else {
-                        throw new StorageNotPrimaryException(segmentName,
-                                String.format("Last file has our epoch (%d) but it is read-only: %s.", this.context.epoch, lastFile.getPath()));
-                    }
+                    // This means someone else must have just fenced us out.
+                    throw new StorageNotPrimaryException(segmentName,
+                            String.format("Last file has our epoch (%d) but it is read-only: %s.", this.context.epoch, lastFile.getPath()));
                 } else {
                     // The last file is read-only and not sealed. This segment is fenced off and we can continue using it.
                     result = fenceOut(segmentName, lastFile.getLastOffset());
@@ -115,34 +107,42 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
             throw ex;
         }
 
-        // It is possible that two competing containers get this far for the same segment and both believe they are owners of the lock.
-        // To alleviate this, make sure all existing files with a lower epoch are marked as read-only - this should prevent
-        // the lower-epoch owner to do any damage.
-        val resultFiles = new ArrayList<FileDescriptor>();
-        for (FileDescriptor existingFile : allFiles) {
-            try {
-                if (existingFile.getEpoch() < this.context.epoch) {
-                    if (existingFile.getLength() == 0) {
-                        deleteFile(existingFile);
-                        continue;
-                    } else {
-                        makeReadOnly(existingFile);
-                    }
-                }
-                resultFiles.add(existingFile);
-            } catch (FileNotFoundException ex) {
-                log.warn("File {} was removed, unable include it in the post-fence check.", existingFile, ex);
-            }
-        }
-
-        return HDFSSegmentHandle.write(segmentName, resultFiles);
+        // At this point, there are two possible scenarios:
+        // 1. Two competing containers get this far for the same segment and both believe they are owners of the lock.
+        // 2. No competing container exists. Life is good!
+        //
+        // To alleviate #1 above, we consolidate all previous files into a single one and ensure that file is read-only.
+        // In addition to that, we also clean up any empty files, which provide no value.
+        // This will have two benefits:
+        // 1. Competing containers with lower epochs will not be able to do any damage.
+        // 2. We keep the number of files per segment under control, so that a large number of calls to open-write does not
+        //    result in a large number of files.
+        cleanup(allFiles);
+        return HDFSSegmentHandle.write(segmentName, allFiles);
     }
 
-    private HDFSSegmentHandle recoverConcatOperation(String segmentName, List<FileDescriptor> allFiles) throws IOException, StorageNotPrimaryException {
-        HDFSSegmentHandle candidateHandle = HDFSSegmentHandle.write(segmentName, allFiles);
-        val op = new ConcatOperation(candidateHandle, this.context);
-        op.resumeConcatenation();
-        checkForFenceOut(candidateHandle.getSegmentName(), candidateHandle.getFiles().size(), candidateHandle.getLastFile());
-        return candidateHandle;
+    private void cleanup(List<FileDescriptor> allFiles) throws IOException{
+        if (allFiles.size() > 2) {
+            // We keep the last file alone - that is the file we just created above, and there is no point of combining
+            // a file to itself.
+            val lastFile = allFiles.get(allFiles.size() - 1);
+            FileDescriptor combinedFile = combine(allFiles.get(0), allFiles.subList(1, allFiles.size() - 1), true);
+
+            allFiles.clear();
+            allFiles.add(combinedFile);
+            allFiles.add(lastFile);
+        }
+
+        if (allFiles.size() > 1) {
+            val firstFile = allFiles.get(0);
+            if (firstFile.getLength() == 0) {
+                // First file is empty. No point in keeping it around.
+                deleteFile(firstFile);
+                allFiles.remove(0);
+            } else if (!firstFile.isReadOnly()) {
+                // First file is not read-only. It should be.
+                makeReadOnly(allFiles.get(0));
+            }
+        }
     }
 }

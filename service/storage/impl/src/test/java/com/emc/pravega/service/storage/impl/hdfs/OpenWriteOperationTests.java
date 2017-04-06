@@ -7,6 +7,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.io.ByteArrayInputStream;
+import java.util.Arrays;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.hadoop.fs.Path;
@@ -170,6 +171,35 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
         Assert.assertTrue("Higher epoch file was deleted.", fs.exists(survivingFile));
         Assert.assertEquals("Unexpected number of files in the handle.", 1, handle.getFiles().size());
         Assert.assertEquals("Unexpected file in the handle.", survivingFile, handle.getLastFile().getPath());
+    }
+
+    /**
+     * Tests the case when the OpenWriteOperation needs to consolidate multiple files of the same segment into fewer by
+     * means of concatenation.
+     */
+    @Test
+    public void testMultiFileCoalescing() throws Exception {
+        final int epochs = Byte.MAX_VALUE;
+        val fs = new MockFileSystem();
+        new CreateOperation(SEGMENT_NAME, newContext(0, fs)).call();
+        byte[] expectedData = new byte[epochs];
+        Arrays.fill(expectedData, (byte) -1);
+        for (int epoch = 0; epoch < epochs; epoch++) {
+            val context = newContext(epoch, fs);
+            val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
+            byte toWrite = (byte) epoch;
+            new WriteOperation(handle, epoch, new ByteArrayInputStream(new byte[]{toWrite}), 1, context).run();
+            expectedData[epoch] = toWrite;
+        }
+
+        Assert.assertEquals("Unexpected number of files in the file system.", 2, fs.getFileCount());
+        val readContext = newContext(epochs, fs);
+        val readHandle = new OpenReadOperation(SEGMENT_NAME, readContext).call();
+        Assert.assertEquals("Unexpected total segment length in the file system.", expectedData.length, readHandle.getLastFile().getLastOffset());
+        byte[] actualData = new byte[expectedData.length];
+        new ReadOperation(readHandle, 0, actualData, 0, actualData.length, readContext).call();
+        Assert.assertArrayEquals("Unexpected data read back from the file system.", expectedData, actualData);
+        Assert.assertTrue("First file in the chain is not read-only.", readHandle.getFiles().get(0).isReadOnly());
     }
 
     private void checkFenceLowerEpochFile(HDFSSegmentHandle originalHandle, MockFileSystem fs) throws Exception {

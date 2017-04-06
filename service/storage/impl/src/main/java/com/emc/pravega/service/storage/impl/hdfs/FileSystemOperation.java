@@ -8,7 +8,6 @@ import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.google.common.base.Preconditions;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -32,13 +31,12 @@ abstract class FileSystemOperation<T> {
     //region Members
 
     static final String PART_SEPARATOR = "_";
-    static final String CONCAT_ATTRIBUTE = "user.concat.next";
     private static final String SEALED_ATTRIBUTE = "user.sealed";
     private static final String NAME_FORMAT = "%s" + PART_SEPARATOR + "%s" + PART_SEPARATOR + "%s";
     private static final String EXAMPLE_NAME_FORMAT = String.format(NAME_FORMAT, "<segment-name>", "<offset>", "<epoch>");
     private static final String NUMBER_GLOB_REGEX = "[0-9]*";
+    private static final FsPermission READWRITE_PERMISSION = new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE);
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
-    private static final Charset ATTRIBUTE_CHARSET = Charset.forName("UTF-8");
     private static final byte[] ATTRIBUTE_VALUE_TRUE = new byte[]{(byte) 255};
     private static final byte[] ATTRIBUTE_VALUE_FALSE = new byte[]{(byte) 0};
 
@@ -100,17 +98,6 @@ abstract class FileSystemOperation<T> {
                            .sorted(this::compareFileDescriptors)
                            .collect(Collectors.toList());
 
-        val firstFile = result.get(0);
-        if (firstFile.getOffset() != 0 && isConcatSource(firstFile)) {
-            // If the first file does not have offset 0 and it looks like it was part of an unfinished concat, then, by
-            // convention, this segment does not exist. The Handle recovery for the target segment should finish up the job.
-            if (enforceExistence) {
-                throw HDFSExceptionHelpers.segmentNotExistsException(segmentName);
-            }
-
-            return Collections.emptyList();
-        }
-
         // Validate the names are consistent with the file lengths.
         long expectedOffset = 0;
         for (FileDescriptor fi : result) {
@@ -123,38 +110,6 @@ abstract class FileSystemOperation<T> {
         }
 
         return result;
-    }
-
-    /**
-     * Converts the given FileStatus into a FileDescriptor.
-     */
-    @SneakyThrows(FileNameFormatException.class)
-    FileDescriptor toDescriptor(FileStatus fs) {
-        // Extract offset and epoch from name.
-        final long offset;
-        final long epoch;
-        String fileName = fs.getPath().getName();
-
-        // We read backwards, because the segment name itself may have multiple PartSeparators in it, but we only care
-        // about the last ones.
-        int pos2 = fileName.lastIndexOf(PART_SEPARATOR);
-        if (pos2 <= 0 || pos2 >= fileName.length() - 1) {
-            throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
-        }
-
-        int pos1 = fileName.lastIndexOf(PART_SEPARATOR, pos2 - 1);
-        if (pos1 <= 0 || pos1 >= fileName.length() - 1) {
-            throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
-        }
-
-        try {
-            offset = Long.parseLong(fileName.substring(pos1 + 1, pos2));
-            epoch = Long.parseLong(fileName.substring(pos2 + 1));
-        } catch (NumberFormatException nfe) {
-            throw new FileNameFormatException(fileName, "Could not extract offset or epoch.", nfe);
-        }
-
-        return new FileDescriptor(fs.getPath(), offset, fs.getLen(), epoch, isReadOnly(fs));
     }
 
     /**
@@ -188,6 +143,55 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
+     * Concatenates the given source files, in order, at the end of the given target file.
+     *
+     * @param target  A FileDescriptor for the target file.
+     * @param sources An ordered List of FileDescriptors for the files to concatenate. These files will be added, in order,
+     *                to the target.
+     * @param force   If set, it will execute the concatenation even if the target file is marked as read-only, otherwise
+     *                it will throw an exception. If set, and the target file is read-only, it will continue to be read-only
+     *                when the method completes. There is no guarantee that it will stay read-only should an error occur
+     *                during the process.
+     * @return A FileDescriptor representing the target file, refreshed from the file system. This descriptor will have
+     * the same Path as the target descriptor, however the other attributes (such as length) may change.
+     * @throws IOException If an exception occurred.
+     */
+    FileDescriptor combine(FileDescriptor target, List<FileDescriptor> sources, boolean force) throws IOException {
+        if (sources.size() == 0) {
+            // Nothing to do.
+            return target;
+        }
+
+        // Collect sources.
+        Path[] sourcePaths = new Path[sources.size()];
+        for (int i = 0; i < sources.size(); i++) {
+            sourcePaths[i] = sources.get(i).getPath();
+        }
+
+        // The concat operation will fail if the target is read-only. See if we are allowed to bypass that.
+        boolean makeReadOnly = false;
+        if (target.isReadOnly()) {
+            if (force) {
+                makeReadWrite(target);
+                makeReadOnly = true;
+            } else {
+                throw HDFSExceptionHelpers.segmentSealedException(target.getPath().toString());
+            }
+        }
+
+        try {
+            this.context.fileSystem.concat(target.getPath(), sourcePaths);
+        } finally {
+            if (makeReadOnly) {
+                // Make sure we revert back to the original state if an error occurred.
+                makeReadOnly(target);
+            }
+        }
+
+        return toDescriptor(this.context.fileSystem.getFileStatus(target.getPath()));
+    }
+
+    /**
      * Creates a new file with given path having a read-write permission.
      *
      * @param path The path of the file to create.
@@ -196,7 +200,7 @@ abstract class FileSystemOperation<T> {
     void createEmptyFile(Path path) throws IOException {
         this.context.fileSystem
                 .create(path,
-                        new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
+                        READWRITE_PERMISSION,
                         false,
                         0,
                         this.context.config.getReplication(),
@@ -205,6 +209,38 @@ abstract class FileSystemOperation<T> {
                 .close();
         setBooleanAttributeValue(path, SEALED_ATTRIBUTE, false);
         log.debug("Created '{}'.", path);
+    }
+
+    /**
+     * Converts the given FileStatus into a FileDescriptor.
+     */
+    @SneakyThrows(FileNameFormatException.class)
+    private FileDescriptor toDescriptor(FileStatus fs) {
+        // Extract offset and epoch from name.
+        final long offset;
+        final long epoch;
+        String fileName = fs.getPath().getName();
+
+        // We read backwards, because the segment name itself may have multiple PartSeparators in it, but we only care
+        // about the last ones.
+        int pos2 = fileName.lastIndexOf(PART_SEPARATOR);
+        if (pos2 <= 0 || pos2 >= fileName.length() - 1) {
+            throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
+        }
+
+        int pos1 = fileName.lastIndexOf(PART_SEPARATOR, pos2 - 1);
+        if (pos1 <= 0 || pos1 >= fileName.length() - 1) {
+            throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
+        }
+
+        try {
+            offset = Long.parseLong(fileName.substring(pos1 + 1, pos2));
+            epoch = Long.parseLong(fileName.substring(pos2 + 1));
+        } catch (NumberFormatException nfe) {
+            throw new FileNameFormatException(fileName, "Could not extract offset or epoch.", nfe);
+        }
+
+        return new FileDescriptor(fs.getPath(), offset, fs.getLen(), epoch, isReadOnly(fs));
     }
 
     /**
@@ -311,54 +347,15 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
-     * Sets an attribute on the given file to indicate which file is next in the concatenation order.
+     * Makes the file represented by the given FileDescriptor non-read-only (read-write).
      *
-     * @param file     The FileDescriptor of the file to set the attribute on.
-     * @param nextFile The FileDescriptor of the file to point the attribute to.
+     * @param file The FileDescriptor of the file to set.
      * @throws IOException If an exception occurred.
      */
-    void setConcatNext(FileDescriptor file, FileDescriptor nextFile) throws IOException {
-        this.context.fileSystem.setXAttr(file.getPath(), CONCAT_ATTRIBUTE, nextFile.getPath().toString().getBytes(ATTRIBUTE_CHARSET));
-        log.debug("SetConcatNext '{}' to '{}'.", file.getPath(), nextFile.getPath());
-    }
-
-    /**
-     * Gets the value of the concatNext attribute on the given file.
-     *
-     * @param file The FileDescriptor of the file to get the attribute for.
-     * @return The value of the attribute, or null if no such attribute is set.
-     * @throws IOException If an exception occurred.
-     */
-    String getConcatNext(FileDescriptor file) throws IOException {
-        byte[] data = getAttributeValue(file.getPath(), CONCAT_ATTRIBUTE);
-        if (data == null || data.length == 0) {
-            return null;
-        }
-
-        return new String(data, ATTRIBUTE_CHARSET);
-    }
-
-    /**
-     * Removes the concatNext attribute from the given file.
-     *
-     * @param file The FileDescriptor of the file to remove the attribute from.
-     * @throws IOException If an exception occurred.
-     */
-    void removeConcatNext(FileDescriptor file) throws IOException {
-        removeAttribute(file, CONCAT_ATTRIBUTE);
-        log.debug("RemoveConcatNext '{}' to '{}'.", file.getPath());
-    }
-
-    /**
-     * Gets a value indicating whether the concatNext attribute is present - this indicates that this file is part of a
-     * segment that was chosen as a source of concatenation.
-     *
-     * @param fileDescriptor The FileDescriptor of the file to check.
-     * @return True if the attribute is set, false otherwise.
-     * @throws IOException If an exception occurred.
-     */
-    boolean isConcatSource(FileDescriptor fileDescriptor) throws IOException {
-        return getConcatNext(fileDescriptor) != null;
+    private void makeReadWrite(FileDescriptor file) throws IOException {
+        this.context.fileSystem.setPermission(file.getPath(), READWRITE_PERMISSION);
+        log.debug("MakeReadWrite '{}'.", file.getPath());
+        file.markReadWrite();
     }
 
     private void setBooleanAttributeValue(Path path, String attributeName, boolean value) throws IOException {
@@ -380,16 +377,6 @@ abstract class FileSystemOperation<T> {
             // generic IOException if the attribute is not found. Since there's no specific exception or flag to filter
             // this out, we're going to treat all IOExceptions (except FileNotFoundExceptions) as "attribute is not set".
             return null;
-        }
-    }
-
-    private void removeAttribute(FileDescriptor file, String attributeName) throws FileNotFoundException {
-        try {
-            this.context.fileSystem.removeXAttr(file.getPath(), attributeName);
-        } catch (FileNotFoundException fnf) {
-            throw fnf;
-        } catch (IOException ex) {
-            // See getAttributeValue for explanation.
         }
     }
 
