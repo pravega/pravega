@@ -86,17 +86,7 @@ public class ConcatOperation extends FileSystemOperation<HDFSSegmentHandle> impl
 
         // Check for target offset and whether it is sealed.
         FileDescriptor lastFile = this.target.getLastFile();
-        try {
-            if (isSealed(lastFile)) {
-                throw HDFSExceptionHelpers.segmentSealedException(this.target.getSegmentName());
-            } else if (lastFile.getLastOffset() != this.offset) {
-                throw new BadOffsetException(this.target.getSegmentName(), lastFile.getLastOffset(), this.offset);
-            }
-        } catch (FileNotFoundException fnf) {
-            // The last file could have been deleted due to being fenced out (i.e., empty file).
-            checkForFenceOut(this.target.getSegmentName(), this.target.getFiles().size(), lastFile);
-            throw fnf;
-        }
+        validate(lastFile);
 
         // Get all files for source handle (ignore handle contents and refresh from file system). Verify it is sealed.
         val sourceFiles = findAll(this.sourceSegmentName, true);
@@ -190,6 +180,23 @@ public class ConcatOperation extends FileSystemOperation<HDFSSegmentHandle> impl
 
         LoggerHelpers.traceLeave(log, "collect", traceId, targetHandle, result);
         return result;
+    }
+
+    /**
+     * Ensures that the ConcatOperation is valid based on the state of the given last file.
+     */
+    private void validate(FileDescriptor lastFile) throws IOException, BadOffsetException, StorageNotPrimaryException {
+        try {
+            if (isSealed(lastFile)) {
+                throw HDFSExceptionHelpers.segmentSealedException(this.target.getSegmentName());
+            } else if (lastFile.getLastOffset() != this.offset) {
+                throw new BadOffsetException(this.target.getSegmentName(), lastFile.getLastOffset(), this.offset);
+            }
+        } catch (FileNotFoundException fnf) {
+            // The last file could have been deleted due to being fenced out (i.e., empty file).
+            checkForFenceOut(this.target.getSegmentName(), this.target.getFiles().size(), lastFile);
+            throw fnf;
+        }
     }
 
     /**
