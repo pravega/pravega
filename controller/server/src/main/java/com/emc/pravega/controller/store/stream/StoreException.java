@@ -68,13 +68,13 @@ public class StoreException extends RuntimeException {
     public static StoreException create(final Type type) {
         switch (type) {
             case NODE_EXISTS:
-                throw new NodeExistsException();
+                return new NodeExistsException();
             case NODE_NOT_FOUND:
-                throw new NodeNotFoundException();
+                return new NodeNotFoundException();
             case NODE_NOT_EMPTY:
-                throw new NodeNotEmptyException();
+                return new NodeNotEmptyException();
             case UNKNOWN:
-                throw new UnknownException();
+                return new UnknownException();
             default:
                 throw new IllegalArgumentException("Invalid exception type");
         }

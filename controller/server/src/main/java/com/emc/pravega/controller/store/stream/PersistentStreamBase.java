@@ -120,7 +120,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
      */
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration() {
-        return verifyLegalState(getConfigurationData());
+        return getConfigurationData();
     }
 
     @Override
@@ -505,7 +505,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     if (created) {
                         return future;
                     } else {
-                        throw new IllegalStateException("stream state unknown");
+                        throw new IllegalStateException("stream state unknown or stream is still being created");
                     }
                 });
     }

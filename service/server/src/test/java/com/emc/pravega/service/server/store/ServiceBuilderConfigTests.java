@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.val;
-import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.metrics.MetricsConfig;
 import com.emc.pravega.common.util.Property;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
