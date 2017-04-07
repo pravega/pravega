@@ -48,16 +48,18 @@ import static com.emc.pravega.common.cluster.ClusterListener.EventType.HOST_REMO
 public class ClusterZKImpl implements Cluster {
 
     private final static String PATH_CLUSTER = "/cluster/";
-    private final static String HOSTS = "hosts";
+
     private final static int INIT_SIZE = 3;
+    private final String clusterName;
 
     private final CuratorFramework client;
 
     private final Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();
 
-    public ClusterZKImpl(CuratorFramework zkClient) {
+    public ClusterZKImpl(CuratorFramework zkClient, String clusterName) {
         this.client = zkClient;
+        this.clusterName = clusterName;
         if (client.getState().equals(CuratorFrameworkState.LATENT)) {
             client.start();
         }
@@ -74,7 +76,7 @@ public class ClusterZKImpl implements Cluster {
         Preconditions.checkNotNull(host, "host");
         Exceptions.checkArgument(!entryMap.containsKey(host), "host", "host is already registered to cluster.");
 
-        String hostPath = ZKPaths.makePath(PATH_CLUSTER, HOSTS, host.getIpAddr() + ":" + host.getPort());
+        String hostPath = ZKPaths.makePath(getPathPrefix(), host.toString());
         PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, hostPath,
                 SerializationUtils.serialize(host));
 
@@ -169,7 +171,7 @@ public class ClusterZKImpl implements Cluster {
     }
 
     private void initializeCache() throws Exception {
-        cache = Optional.of(new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, HOSTS), true));
+        cache = Optional.of(new PathChildrenCache(client, getPathPrefix(), true));
         cache.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
     }
 
@@ -202,5 +204,9 @@ public class ClusterZKImpl implements Cluster {
     private String getServerName(final PathChildrenCacheEvent event) {
         String path = event.getData().getPath();
         return path.substring(path.lastIndexOf("/") + 1);
+    }
+
+    private String getPathPrefix() {
+        return ZKPaths.makePath(PATH_CLUSTER, clusterName);
     }
 }

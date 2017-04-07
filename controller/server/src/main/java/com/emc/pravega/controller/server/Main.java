@@ -4,6 +4,8 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.shared.metrics.MetricsProvider;
+import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
+import com.emc.pravega.controller.fault.impl.ControllerClusterListenerConfigImpl;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -22,6 +24,7 @@ import com.emc.pravega.controller.util.Config;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Entry point of controller server.
@@ -51,6 +54,14 @@ public class Main {
                         Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT))
                 .build();
 
+        ControllerClusterListenerConfig controllerClusterListenerConfig = ControllerClusterListenerConfigImpl.builder()
+                .minThreads(1)
+                .maxThreads(10)
+                .idleTime(10)
+                .idleTimeUnit(TimeUnit.SECONDS)
+                .maxQueueSize(512)
+                .build();
+
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
@@ -75,6 +86,7 @@ public class Main {
                 .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
+                .controllerClusterListenerConfig(Optional.of(controllerClusterListenerConfig))
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .requestHandlersEnabled(true)
@@ -82,8 +94,8 @@ public class Main {
                 .restServerConfig(Optional.of(restServerConfig))
                 .build();
 
-        ControllerServiceStarter controllerServiceStarter = new ControllerServiceStarter(serviceConfig);
-        controllerServiceStarter.startAsync();
-        controllerServiceStarter.awaitTerminated();
+        ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
+        controllerServiceMain.startAsync();
+        controllerServiceMain.awaitTerminated();
     }
 }

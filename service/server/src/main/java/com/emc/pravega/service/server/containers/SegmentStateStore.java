@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
 package com.emc.pravega.service.server.containers;
@@ -85,11 +83,13 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
         // We need to replace the contents of the Segment. The only way to do that with the Storage API is to
         // delete the existing segment (if any), then create a new one and write the contents to it.
         return this.storage
-                .delete(stateSegment, timer.getRemaining())
+                .openWrite(stateSegment)
+                .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
                 .exceptionally(this::handleSegmentNotExistsException)
                 .thenComposeAsync(v -> this.storage.create(stateSegment, timer.getRemaining()), this.executor)
+                .thenComposeAsync(v -> this.storage.openWrite(stateSegment), this.executor)
                 .thenComposeAsync(
-                        v -> this.storage.write(stateSegment, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
+                        handle -> this.storage.write(handle, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
                         this.executor);
     }
 
@@ -97,7 +97,8 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     public CompletableFuture<Void> remove(String segmentName, Duration timeout) {
         String stateSegment = StreamSegmentNameUtils.getStateSegmentName(segmentName);
         return this.storage
-                .delete(stateSegment, timeout)
+                .openWrite(stateSegment)
+                .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor)
                 .exceptionally(this::handleSegmentNotExistsException);
     }
 
@@ -108,7 +109,8 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     private CompletableFuture<SegmentState> readSegmentState(SegmentProperties stateSegmentInfo, Duration timeout) {
         byte[] contents = new byte[(int) stateSegmentInfo.getLength()];
         return this.storage
-                .read(stateSegmentInfo.getName(), 0, contents, 0, contents.length, timeout)
+                .openRead(stateSegmentInfo.getName())
+                .thenComposeAsync(handle -> this.storage.read(handle, 0, contents, 0, contents.length, timeout), this.executor)
                 .thenApplyAsync(bytesRead -> {
                     assert bytesRead == contents.length : "Expected to read " + contents.length + " bytes, read " + bytesRead;
                     return deserialize(contents);
