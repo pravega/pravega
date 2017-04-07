@@ -46,6 +46,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -92,6 +93,34 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to read from the last offset of the segment, or beyond.
+     */
+    @Test
+    public void testReadLastOffset() throws Exception {
+        final int length = 10;
+        @Cleanup
+        TestContext context = new TestContext();
+        long segmentId = createSegment(0, context);
+        appendSingleWrite(segmentId, new byte[length], context);
+
+        // Non-sealed segments are tested extensively in the other tests, so don't bother doing that again here.
+        context.metadata.getStreamSegmentMetadata(segmentId).markSealed();
+
+        AssertExtensions.assertThrows(
+                "read() did not throw when attempting to read beyond the last offset of a sealed segment.",
+                () -> context.readIndex.read(segmentId, length + 1, 1, TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException);
+
+        @Cleanup
+        val result = context.readIndex.read(segmentId, length, 1, TIMEOUT);
+        Assert.assertNotNull("read() did not return a result when reading from the last offset of a sealed segment.", result);
+        Assert.assertTrue("Empty result when reading from the last offset of a sealed segment.", result.hasNext());
+        val entry = result.next();
+        Assert.assertEquals("Unexpected read result entry when reading from the last offset of a sealed segment.",
+                ReadResultEntryType.EndOfStreamSegment, entry.getType());
+    }
+
+    /**
      * Tests the ability for the ReadIndex to batch multiple index entries together into a bigger read. This test
      * writes a lot of very small appends to the index, then issues a full read (from the beginning) while configuring
      * the read index to return results of no less than a particular size. As an added bonus, it also forces a Storage
@@ -117,7 +146,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final long segmentId = createSegment(0, context);
         createSegmentsInStorage(context);
         final UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
-        context.storage.write(segmentMetadata.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
+        val writeHandle = context.storage.openWrite(segmentMetadata.getName()).join();
+        context.storage.write(writeHandle, 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
         segmentMetadata.setStorageLength(segmentData.length);
 
         // Add the contents of the segment to the read index using very small appends (same data as in Storage).
@@ -177,8 +207,6 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the readDirect() method on the ReadIndex.
-     *
-     * @throws Exception
      */
     @Test
     public void testReadDirect() throws Exception {
@@ -385,7 +413,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.readIndex.triggerFutureReads(segmentIds);
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
-        FutureHelpers.allOf(entryHandlers.values().stream().map(h -> h.getCompleted()).collect(Collectors.toList())).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        FutureHelpers.allOf(entryHandlers.values().stream().map(TestReadResultHandler::getCompleted).collect(Collectors.toList())).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         readProcessors.forEach(AsyncReadResultProcessor::close);
 
         // Check to see if any errors got thrown (and caught) during the reading process).
@@ -533,7 +561,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Pretty brutal, but will do the job for this test: delete all segments from the storage. This way, if something
         // wasn't cached properly in the last read, the ReadIndex would delegate to Storage, which would fail.
         for (long segmentId : segmentIds) {
-            context.storage.delete(context.metadata.getStreamSegmentMetadata(segmentId).getName(), TIMEOUT).join();
+            val handle = context.storage.openWrite(context.metadata.getStreamSegmentMetadata(segmentId).getName()).join();
+            context.storage.delete(handle, TIMEOUT).join();
         }
 
         // Now do the read again - if everything was cached properly in the previous call to 'checkReadIndex', no Storage
@@ -572,7 +601,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
 
         // Segment not exists (exists in metadata, but not in Storage)
-        context.storage.delete(sm.getName(), TIMEOUT).join();
+        val handle = context.storage.openWrite(sm.getName()).join();
+        context.storage.delete(handle, TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "Unexpected exception when attempting to from a segment that exists in Metadata, but not in Storage.",
                 () -> {
@@ -672,7 +702,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         byte[] preStorageData = new byte[preStorageEntryCount * appendSize];
         for (long segmentId : segmentIds) {
             UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
-            context.storage.write(sm.getName(), 0, new ByteArrayInputStream(preStorageData), preStorageData.length, TIMEOUT).join();
+            val handle = context.storage.openWrite(sm.getName()).join();
+            context.storage.write(handle, 0, new ByteArrayInputStream(preStorageData), preStorageData.length, TIMEOUT).join();
             sm.setStorageLength(preStorageData.length);
             sm.setDurableLogLength(preStorageData.length);
         }
@@ -821,7 +852,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Write something to the transaction, and make sure it also makes its way to Storage.
         byte[] transactionWriteData = getAppendData(transactionMetadata.getName(), transactionId, 0, 0);
         appendSingleWrite(transactionId, transactionWriteData, context);
-        context.storage.write(transactionMetadata.getName(), 0, new ByteArrayInputStream(transactionWriteData), transactionWriteData.length, TIMEOUT).join();
+        val handle = context.storage.openWrite(transactionMetadata.getName()).join();
+        context.storage.write(handle, 0, new ByteArrayInputStream(transactionWriteData), transactionWriteData.length, TIMEOUT).join();
         transactionMetadata.setStorageLength(transactionMetadata.getDurableLogLength());
 
         // Write some data to the parent, and make sure it is more than what we write to the transaction (hence the 10).
@@ -892,7 +924,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Write something to the transaction, and make sure it also makes its way to Storage.
         byte[] writeData = getAppendData(transactionMetadata.getName(), transactionId, 0, 0);
         appendSingleWrite(transactionId, writeData, context);
-        context.storage.write(transactionMetadata.getName(), 0, new ByteArrayInputStream(writeData), writeData.length, TIMEOUT).join();
+        val transactionWriteHandle = context.storage.openWrite(transactionMetadata.getName()).join();
+        context.storage.write(transactionWriteHandle, 0, new ByteArrayInputStream(writeData), writeData.length, TIMEOUT).join();
         transactionMetadata.setStorageLength(transactionMetadata.getDurableLogLength());
 
         // Seal & Begin-merge the transaction (do not seal in storage).
@@ -915,8 +948,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         transactionMetadata.markSealed();
         transactionMetadata.markSealedInStorage();
         transactionMetadata.markDeleted();
-        context.storage.seal(transactionMetadata.getName(), TIMEOUT).join();
-        context.storage.concat(parentMetadata.getName(), 0, transactionMetadata.getName(), TIMEOUT).join();
+        context.storage.seal(transactionWriteHandle, TIMEOUT).join();
+        val parentWriteHandle = context.storage.openWrite(parentMetadata.getName()).join();
+        context.storage.concat(parentWriteHandle, 0, transactionWriteHandle, TIMEOUT).join();
         parentMetadata.setStorageLength(parentMetadata.getDurableLogLength());
 
         context.readIndex.completeMerge(parentId, transactionId);
@@ -994,7 +1028,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
                 // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
                 long offset = context.storage.getStreamSegmentInfo(sm.getName(), TIMEOUT).join().getLength();
-                context.storage.write(sm.getName(), offset, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
+                val handle = context.storage.openWrite(sm.getName()).join();
+                context.storage.write(handle, offset, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
 
                 // Update metadata appropriately.
                 sm.setStorageLength(offset + data.length);
@@ -1180,6 +1215,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             this.cacheFactory = new TestCacheFactory();
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.storage = new InMemoryStorage();
+            this.storage.initialize(0);
             this.cacheManager = new TestCacheManager(cachePolicy, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
         }

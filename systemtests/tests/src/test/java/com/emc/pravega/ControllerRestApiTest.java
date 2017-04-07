@@ -151,7 +151,7 @@ public class ControllerRestApiTest {
         CreateStreamRequest createStreamRequest = new CreateStreamRequest();
         ScalingConfig scalingConfig = new ScalingConfig();
         scalingConfig.setType(FIXED_NUM_SEGMENTS);
-        scalingConfig.setTargetRate(2L);
+        scalingConfig.setTargetRate(2);
         scalingConfig.scaleFactor(2);
         scalingConfig.minSegments(2);
 
@@ -202,7 +202,7 @@ public class ControllerRestApiTest {
         UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
         ScalingConfig scalingConfig1 = new ScalingConfig();
         scalingConfig1.setType(FIXED_NUM_SEGMENTS);
-        scalingConfig1.setTargetRate(2L);
+        scalingConfig1.setTargetRate(2);
         scalingConfig1.scaleFactor(3); // update existing scaleFactor from 2 to 3
         scalingConfig1.minSegments(4); // update existing minSegments from 2 to 4
         updateStreamRequest.setScalingPolicy(scalingConfig1);
@@ -211,8 +211,8 @@ public class ControllerRestApiTest {
         response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
                 .put(Entity.json(updateStreamRequest));
         assertEquals("Update stream status", OK.getStatusCode(), response.getStatus());
-        assertEquals("Verify updated property", 3, response.readEntity(StreamProperty.class)
-                .getScalingPolicy().getScaleFactor().intValue());
+        assertEquals("Verify updated property", 4, response.readEntity(StreamProperty.class)
+                .getScalingPolicy().getMinSegments().intValue());
         log.info("Update stream successful");
 
         // Test getStream

@@ -133,17 +133,13 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                 setSystemProperty("autoScale.cooldownInSeconds", "120") +
                 setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
                 setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
-                setSystemProperty("autoScale.controllerUri", conUri.toString());
+                setSystemProperty("autoScale.controllerUri", conUri.toString()) +
+                setSystemProperty("log.level", "DEBUG");
 
         Map<String, String> map = new HashMap<>();
         map.put("HOST_OPTS", hostSystemProperties);
-        map.put("ZK_URL", zk);
         app.setEnv(map);
 
         return app;
-    }
-
-    private String setSystemProperty(final String propertyName, final String propertyValue) {
-        return new StringBuilder().append(" -D").append(propertyName).append("=").append(propertyValue).toString();
     }
 }

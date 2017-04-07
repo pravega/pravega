@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.writer;
 
@@ -354,7 +352,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             // Then create the aggregator.
             result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer);
             this.aggregators.put(streamSegmentId, result);
-            result.initialize(this.config.getFlushTimeout()).join();
+            result.initialize(this.config.getFlushTimeout(), this.executor).join(); // TODO: get rid of this join() at one point.
         }
 
         return result;

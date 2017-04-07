@@ -4,6 +4,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.NameVerifier;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -129,21 +130,22 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     @Synchronized
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
-        if (!validateName(scopeName)) {
+        try {
+            NameVerifier.validateName(scopeName);
+        } catch (IllegalArgumentException | NullPointerException e) {
             log.error("Create scope failed due to invalid scope name {}", scopeName);
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
+        }
+        if (!scopes.containsKey(scopeName)) {
+            InMemoryScope scope = new InMemoryScope(scopeName);
+            scope.createScope();
+            scopes.put(scopeName, scope);
+            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
+                    CreateScopeStatus.Status.SUCCESS).build());
         } else {
-            if (!scopes.containsKey(scopeName)) {
-                InMemoryScope scope = new InMemoryScope(scopeName);
-                scope.createScope();
-                scopes.put(scopeName, scope);
-                return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
-                        CreateScopeStatus.Status.SUCCESS).build());
-            } else {
-                return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
-                        CreateScopeStatus.Status.SCOPE_EXISTS).build());
-            }
+            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
+                    CreateScopeStatus.Status.SCOPE_EXISTS).build());
         }
     }
 

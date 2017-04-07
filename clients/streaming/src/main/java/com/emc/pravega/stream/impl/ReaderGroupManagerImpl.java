@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.NameVerifier;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
@@ -16,6 +17,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import java.net.URI;
 import java.util.Set;
+
 import org.apache.commons.lang.NotImplementedException;
 
 /**
@@ -40,6 +42,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
+        NameVerifier.validateName(streamName);
         FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
                                                                                         .scope(scope)
                                                                                         .streamName(streamName)

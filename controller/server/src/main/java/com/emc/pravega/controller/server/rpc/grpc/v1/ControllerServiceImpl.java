@@ -238,10 +238,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     log.debug("result = " + (value == null ? "null" : value.toString()));
 
                     if (ex != null) {
-                        log.warn("Controller api failed with error: {}",
-                                 ExceptionHelpers.getRealException(ex).getMessage());
-                        streamObserver.onError(Status.INTERNAL.withDescription(
-                                ExceptionHelpers.getRealException(ex).getMessage()).asRuntimeException());
+                        Throwable cause = ExceptionHelpers.getRealException(ex);
+                        log.warn("Controller api failed with error: {}", cause.getMessage());
+                        streamObserver.onError(Status.INTERNAL
+                                .withCause(cause)
+                                .withDescription(cause.getMessage())
+                                .asRuntimeException());
                     } else if (value != null) {
                         streamObserver.onNext(value);
                         streamObserver.onCompleted();

@@ -7,8 +7,10 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.NameVerifier;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.annotations.VisibleForTesting;
+
 import java.net.URI;
 
 /**
@@ -29,6 +31,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
+        NameVerifier.validateName(streamName);
         return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
                                                                                                .scope(scopeName)
                                                                                                .streamName(streamName)

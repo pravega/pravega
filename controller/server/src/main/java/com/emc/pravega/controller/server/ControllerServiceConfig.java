@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.server;
 
+import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
@@ -64,6 +65,13 @@ public interface ControllerServiceConfig {
      * @return The configuration of HostMonitor module.
      */
     HostMonitorConfig getHostMonitorConfig();
+
+    /**
+     * Fetches whether the controller cluster listener is enabled, and its configuration if enabled.
+     *
+     * @return Whether the controller cluster listener is enabled, and its configuration if enabled.
+     */
+    Optional<ControllerClusterListenerConfig> getControllerClusterListenerConfig();
 
     /**
      * Fetches the configuration of service managing transaction timeouts.
