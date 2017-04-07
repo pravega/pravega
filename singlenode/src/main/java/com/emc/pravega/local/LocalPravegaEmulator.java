@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class LocalPravegaEmulator implements AutoCloseable {
 
-    private static final int NUM_BOOKIES = 3;
     private final InProcPravegaCluster inProcPravegaCluster;
 
     @Builder
@@ -21,14 +20,14 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .zkUrl("localhost:" + zkPort)
                 .zkPort(zkPort)
                 .isInMemStorage(true)
-                .isInprocController(true)
+                .isInProcController(true)
                 .controllerCount(1)
-                .isInprocSSS(true)
-                .sssCount(1)
+                .isInProcSegmentStore(true)
+                .segmentStoreCount(1)
                 .containerCount(4)
                 .build();
         inProcPravegaCluster.setControllerPorts(new int[] {controllerPort});
-        inProcPravegaCluster.setSssPorts(new int[] {hostPort});
+        inProcPravegaCluster.setSegmentStorePorts(new int[] {hostPort});
     }
 
     public static void main(String[] args) {
