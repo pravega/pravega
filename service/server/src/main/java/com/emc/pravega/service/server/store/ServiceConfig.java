@@ -23,7 +23,7 @@ public class ServiceConfig {
     public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 50);
     public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
-    public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort", -1);
+    public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
     public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("publishedIPAddress", "");
     public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
