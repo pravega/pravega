@@ -63,7 +63,7 @@ public class RESTServer extends AbstractIdleService {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
-            channel = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
+            channel = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, false);
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
@@ -79,7 +79,7 @@ public class RESTServer extends AbstractIdleService {
             log.info("Stopping REST server listening on port: {}", this.restServerConfig.getPort());
             channel.close();
             log.info("Awaiting termination of REST server");
-            channel.closeFuture().await();
+            channel.closeFuture().sync();
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }

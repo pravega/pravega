@@ -278,10 +278,8 @@ public class StreamSegmentMapper {
      */
     private void assignStreamSegmentId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        withFailureHandler(
-                this.storage
-                        .open(streamSegmentName)
-                        .thenComposeAsync(bool -> this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining()), this.executor)
+        withFailureHandler(this.storage
+                        .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
                         .thenComposeAsync(si -> retrieveAttributes(si, timer.getRemaining()), this.executor)
                         .thenComposeAsync(si -> submitToOperationLogWithRetry(si, ContainerMetadata.NO_STREAM_SEGMENT_ID, timer.getRemaining()), this.executor),
                 streamSegmentName);

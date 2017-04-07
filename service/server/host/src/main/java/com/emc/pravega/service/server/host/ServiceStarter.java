@@ -7,9 +7,9 @@ package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.metrics.MetricsConfig;
-import com.emc.pravega.common.metrics.MetricsProvider;
-import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.metrics.MetricsConfig;
+import com.emc.pravega.metrics.MetricsProvider;
+import com.emc.pravega.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.host.stat.AutoScalerConfig;
@@ -156,9 +156,7 @@ public final class ServiceStarter {
         builder.withStorageFactory(setup -> {
             try {
                 HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
-                factory.initialize();
-                return factory;
+                return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }

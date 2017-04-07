@@ -75,11 +75,12 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
                 .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
-                    TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter();
+                    TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor()).createStorageAdapter();
+                    innerStorage.initialize(0);
 
                     // ... and the Test executor for the verification storage (to invoke callbacks).
                     VerificationStorage.Factory factory = new VerificationStorage.Factory(innerStorage, testExecutor);
-                    this.storage.set((VerificationStorage) factory.getStorageAdapter());
+                    this.storage.set((VerificationStorage) factory.createStorageAdapter());
 
                     // A bit hack-ish, but we need to get a hold of the Store Executor, so we can request snapshots for it.
                     this.storeExecutor.set(setup.getExecutor());

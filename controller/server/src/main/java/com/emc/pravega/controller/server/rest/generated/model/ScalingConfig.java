@@ -39,7 +39,7 @@ public class ScalingConfig   {
 
   private TypeEnum type = null;
 
-  private Long targetRate = null;
+  private Integer targetRate = null;
 
   private Integer scaleFactor = null;
 
@@ -63,7 +63,7 @@ public class ScalingConfig   {
     this.type = type;
   }
 
-  public ScalingConfig targetRate(Long targetRate) {
+  public ScalingConfig targetRate(Integer targetRate) {
     this.targetRate = targetRate;
     return this;
   }
@@ -73,11 +73,11 @@ public class ScalingConfig   {
    * @return targetRate
   **/
   @ApiModelProperty(value = "")
-  public Long getTargetRate() {
+  public Integer getTargetRate() {
     return targetRate;
   }
 
-  public void setTargetRate(Long targetRate) {
+  public void setTargetRate(Integer targetRate) {
     this.targetRate = targetRate;
   }
 

@@ -6,7 +6,7 @@
 package com.emc.pravega.local;
 
 import com.emc.pravega.controller.server.ControllerServiceConfig;
-import com.emc.pravega.controller.server.ControllerServiceStarter;
+import com.emc.pravega.controller.server.ControllerServiceMain;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -98,7 +98,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private LocalDLMEmulator localDlm;
     private ScheduledExecutorService[] controllerExecutors;
     @GuardedBy("$lock")
-    private ControllerServiceStarter[] controllerServers;
+    private ControllerServiceMain[] controllerServers;
 
     private String zkUrl;
     private boolean startRestServer = false;
@@ -314,7 +314,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalControllers() {
-        controllerServers = new ControllerServiceStarter[this.controllerCount];
+        controllerServers = new ControllerServiceMain[this.controllerCount];
 
         for (int i = 0; i < this.controllerCount; i++) {
             controllerServers[i] = startLocalController(i);
@@ -323,7 +323,8 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     }
 
-    private ControllerServiceStarter startLocalController(int controllerId) {
+    private ControllerServiceMain startLocalController(int controllerId) {
+
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                 .connectionString(zkUrl)
                 .namespace("pravega/" + clusterName)
@@ -358,6 +359,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
+                .controllerClusterListenerConfig(Optional.empty())
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .requestHandlersEnabled(true)
@@ -365,9 +367,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .restServerConfig(Optional.empty())
                 .build();
 
-        ControllerServiceStarter controllerServiceStarter = new ControllerServiceStarter(serviceConfig);
-        controllerServiceStarter.startAsync();
-        return controllerServiceStarter;
+        ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);
+        controllerService.startAsync();
+        return controllerService;
     }
 
     @Synchronized
@@ -389,7 +391,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             }
         }
         if (isInprocController) {
-            for ( ControllerServiceStarter controller : this.controllerServers ) {
+            for ( ControllerServiceMain controller : this.controllerServers ) {
                     controller.stopAsync();
                 }
         }
