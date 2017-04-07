@@ -359,6 +359,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
+                .controllerClusterListenerConfig(Optional.empty())
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .requestHandlersEnabled(true)
