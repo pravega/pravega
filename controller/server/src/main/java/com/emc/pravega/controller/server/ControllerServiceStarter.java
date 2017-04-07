@@ -358,6 +358,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
             log.info("Closing connection factory");
             connectionFactory.close();
+
+            log.info("Closing storeClient");
+            storeClient.close();
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
