@@ -268,8 +268,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * preceded by create. Which means all appropriate tables exist.
      * Scale Steps:
      * 1. Add new segment information in segment table.
-     * Segments could spillover into a new chunk.
-     * 2. Set the state of stream to SCALING.
      *
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
