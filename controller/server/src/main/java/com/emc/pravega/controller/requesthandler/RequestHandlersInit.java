@@ -100,6 +100,8 @@ public class RequestHandlersInit {
                 e -> log.error("Exception while creating request stream {}", e))
                 .runAsync(() -> controller.createScope(NameUtils.INTERNAL_SCOPE_NAME)
                         .whenComplete((res, ex) -> {
+                            log.info("Request handler's create scope {} complete\nresult = {}\nex = {}",
+                                    NameUtils.INTERNAL_SCOPE_NAME, res, ex.getMessage());
                             if (ex != null) {
                                 // fail and exit
                                 throw new CompletionException(ex);
@@ -187,7 +189,7 @@ public class RequestHandlersInit {
                                 executor));
                     }
 
-                    log.debug("bootstrapping request handlers done");
+                    log.info("Bootstrapping request handlers complete");
                     result.complete(null);
                     return result;
                 }, executor);
