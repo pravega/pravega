@@ -4,6 +4,9 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.fault.ControllerClusterListener;
+import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
@@ -14,7 +17,6 @@ import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import com.emc.pravega.controller.store.client.StoreClient;
-import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -36,18 +38,24 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Optional;
+import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Creates the controller service, given the service configuration.
  */
 @Slf4j
-public final class ControllerServiceStarter extends AbstractIdleService {
+public class ControllerServiceStarter extends AbstractIdleService {
     private final ControllerServiceConfig serviceConfig;
+    private final StoreClient storeClient;
     private final String objectId;
 
     private ScheduledExecutorService controllerServiceExecutor;
@@ -55,6 +63,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
     private ScheduledExecutorService storeExecutor;
     private ScheduledExecutorService requestExecutor;
     private ScheduledExecutorService eventProcExecutor;
+    private ExecutorService clusterListenerExecutor;
 
     private StreamMetadataStore streamStore;
     private TaskMetadataStore taskMetadataStore;
@@ -65,13 +74,13 @@ public final class ControllerServiceStarter extends AbstractIdleService {
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private SegmentContainerMonitor monitor;
+    private ControllerClusterListener controllerClusterListener;
 
     private TimeoutService timeoutService;
     private ControllerService controllerService;
 
     private LocalController localController;
     private ControllerEventProcessors controllerEventProcessors;
-
     /**
      * ControllerReadyLatch is released once localController, streamTransactionMetadataTasks and controllerService
      * variables are initialized in the startUp method.
@@ -81,8 +90,9 @@ public final class ControllerServiceStarter extends AbstractIdleService {
     private GRPCServer grpcServer;
     private RESTServer restServer;
 
-    public ControllerServiceStarter(ControllerServiceConfig serviceConfig) {
+    public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
         this.serviceConfig = serviceConfig;
+        this.storeClient = storeClient;
         this.objectId = "ControllerServiceStarter";
         this.controllerReadyLatch = new CountDownLatch(1);
     }
@@ -93,6 +103,8 @@ public final class ControllerServiceStarter extends AbstractIdleService {
         log.info("Initiating controller service startUp");
         log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
         log.info("Request handlers enabled = {}", serviceConfig.isRequestHandlersEnabled());
+        log.info("Cluster listener enabled = {}", serviceConfig.getControllerClusterListenerConfig().isPresent());
+        log.info("    Host monitor enabled = {}", serviceConfig.getHostMonitorConfig().isHostMonitorEnabled());
         log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
         log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
 
@@ -113,9 +125,6 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             eventProcExecutor = Executors.newScheduledThreadPool(serviceConfig.getEventProcThreadPoolSize(),
                     new ThreadFactoryBuilder().setNameFormat("eventprocpool-%d").build());
 
-            log.info("Creating store client");
-            StoreClient storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
-
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, storeExecutor);
 
@@ -128,15 +137,16 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
 
-            String hostId;
+            String hostName;
             try {
                 //On each controller process restart, it gets a fresh hostId,
                 //which is a combination of hostname and random GUID.
-                hostId = InetAddress.getLocalHost().getHostAddress() + "-" + UUID.randomUUID().toString();
+                hostName = InetAddress.getLocalHost().getHostAddress() + "-" + UUID.randomUUID().toString();
             } catch (UnknownHostException e) {
                 log.warn("Failed to get host address.", e);
-                hostId = UUID.randomUUID().toString();
+                hostName = UUID.randomUUID().toString();
             }
+            Host host = new Host(hostName, getPort());
 
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
@@ -150,20 +160,29 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             connectionFactory = new ConnectionFactoryImpl(false);
             SegmentHelper segmentHelper = new SegmentHelper();
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, taskExecutor, hostId, connectionFactory);
+                    segmentHelper, taskExecutor, host.toString(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, taskMetadataStore, segmentHelper, taskExecutor, hostId, connectionFactory);
+                    hostStore, taskMetadataStore, segmentHelper, taskExecutor, host.toString(), connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerServiceExecutor);
+
+            // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
+            // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
+            // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
+            // are processed and deleted, that failed HostId is removed from FH folder.
+            // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
+            // controllers and starts sweeping tasks orphaned by those hostIds.
+            TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.toString(), taskExecutor,
+                    streamMetadataTasks, streamTransactionMetadataTasks);
 
             // Setup event processors.
             setController(new LocalController(controllerService));
 
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 // Create ControllerEventProcessor object.
-                controllerEventProcessors = new ControllerEventProcessors(hostId,
+                controllerEventProcessors = new ControllerEventProcessors(host.toString(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
                         hostStore, segmentHelper, connectionFactory, eventProcExecutor);
 
@@ -177,6 +196,23 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             if (serviceConfig.isRequestHandlersEnabled()) {
                 log.info("Starting request handlers");
                 RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
+            }
+
+            // Setup and start controller cluster listener.
+            if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
+                ControllerClusterListenerConfig controllerClusterListenerConfig = serviceConfig.getControllerClusterListenerConfig().get();
+                clusterListenerExecutor = new ThreadPoolExecutor(controllerClusterListenerConfig.getMinThreads(),
+                        controllerClusterListenerConfig.getMaxThreads(), controllerClusterListenerConfig.getIdleTime(),
+                        controllerClusterListenerConfig.getIdleTimeUnit(),
+                        new ArrayBlockingQueue<>(controllerClusterListenerConfig.getMaxQueueSize()),
+                        new ThreadFactoryBuilder().setNameFormat("clusterlistenerpool-%d").build());
+
+                controllerClusterListener = new ControllerClusterListener(host, (CuratorFramework) storeClient.getClient(),
+                        controllerEventProcessors == null ? Optional.empty() : Optional.of(controllerEventProcessors),
+                        taskSweeper, clusterListenerExecutor);
+
+                log.info("Starting controller cluster listener");
+                controllerClusterListener.startAsync();
             }
 
             // Start RPC server.
@@ -195,21 +231,14 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 restServer.awaitRunning();
             }
 
-            // Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
-            // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
-            // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
-            // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
-            // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
-            // are processed and deleted, that failed HostId is removed from FH folder.
-            // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
-            // controllers and starts sweeping tasks orphaned by those hostIds.
-            TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
-                    streamTransactionMetadataTasks);
-
             // Finally wait for controller event processors to start
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 log.info("Awaiting start of controller event processors");
                 controllerEventProcessors.awaitRunning();
+            }
+            if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
+                log.info("Awaiting start of controller cluster listener");
+                controllerClusterListener.awaitRunning();
             }
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
@@ -239,6 +268,10 @@ public final class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Stopping the segment container monitor");
                 monitor.stopAsync();
             }
+            if (controllerClusterListener != null) {
+                log.info("Stopping controller cluster listener");
+                controllerClusterListener.stopAsync();
+            }
             timeoutService.stopAsync();
 
             log.info("Closing stream metadata tasks");
@@ -249,11 +282,14 @@ public final class ControllerServiceStarter extends AbstractIdleService {
 
             // Next stop all executors
             log.info("Stopping executors");
-            eventProcExecutor.shutdown();
-            requestExecutor.shutdown();
-            storeExecutor.shutdown();
-            taskExecutor.shutdown();
-            controllerServiceExecutor.shutdown();
+            eventProcExecutor.shutdownNow();
+            requestExecutor.shutdownNow();
+            storeExecutor.shutdownNow();
+            taskExecutor.shutdownNow();
+            controllerServiceExecutor.shutdownNow();
+            if (clusterListenerExecutor != null) {
+                clusterListenerExecutor.shutdownNow();
+            }
 
             // Finally, await termination of all services
             if (restServer != null) {
@@ -262,7 +298,7 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             }
 
             if (grpcServer != null) {
-                log.info("Awaiting termination of rpc server");
+                log.info("Awaiting termination of gRPC server");
                 grpcServer.awaitTerminated();
             }
 
@@ -274,6 +310,11 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             if (monitor != null) {
                 log.info("Awaiting termination of segment container monitor");
                 monitor.awaitTerminated();
+            }
+
+            if (controllerClusterListener != null) {
+                log.info("Awaiting termination of controller cluster listener");
+                controllerClusterListener.awaitTerminated();
             }
 
             log.info("Awaiting termination of eventProc executor");
@@ -291,6 +332,10 @@ public final class ControllerServiceStarter extends AbstractIdleService {
             log.info("Awaiting termination of controllerService executor");
             controllerServiceExecutor.awaitTermination(5, TimeUnit.SECONDS);
 
+            if (clusterListenerExecutor != null) {
+                log.info("Awaiting termination of controller cluster listener executor");
+                clusterListenerExecutor.awaitTermination(5, TimeUnit.SECONDS);
+            }
             log.info("Closing connection factory");
             connectionFactory.close();
         } finally {
@@ -319,5 +364,16 @@ public final class ControllerServiceStarter extends AbstractIdleService {
     private void setController(LocalController controller) {
         this.localController = controller;
         controllerReadyLatch.countDown();
+    }
+
+    private int getPort() {
+        if (serviceConfig.getGRPCServerConfig().isPresent()) {
+            return serviceConfig.getGRPCServerConfig().get().getPort();
+        } else if (serviceConfig.getRestServerConfig().isPresent()) {
+            return serviceConfig.getRestServerConfig().get().getPort();
+        } else {
+            // return a random number between 0 and 999
+            return new Random().nextInt(1000);
+        }
     }
 }

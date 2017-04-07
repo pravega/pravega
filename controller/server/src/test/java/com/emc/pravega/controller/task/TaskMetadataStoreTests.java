@@ -16,11 +16,13 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -54,6 +56,9 @@ public abstract class TaskMetadataStoreTests {
         final TaggedResource child2 = new TaggedResource(UUID.randomUUID().toString(), resource);
         final TaggedResource child3 = new TaggedResource(UUID.randomUUID().toString(), resource);
 
+        Set<String> hosts = taskMetadataStore.getHosts().get();
+        assertTrue(hosts.isEmpty());
+
         taskMetadataStore.putChild(host1, child1).get();
         taskMetadataStore.putChild(host1, child2).get();
 
@@ -68,6 +73,9 @@ public abstract class TaskMetadataStoreTests {
         assertTrue(child.get().getResource().equals(resource));
 
         taskMetadataStore.removeChild(host1, child3, true).get();
+
+        hosts = taskMetadataStore.getHosts().get();
+        assertEquals(1, hosts.size());
 
         child = taskMetadataStore.getRandomChild(host1).get();
         assertTrue(child.isPresent());

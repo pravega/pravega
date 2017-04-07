@@ -35,6 +35,7 @@ public interface EventProcessorGroup<T extends ControllerEvent> extends Service,
     /**
      * Gets the list of processes participating in the logical EventProcessorGroup.
      * @return list of processes participating in the Logical EventProcessorGroup.
+     * @throws CheckpointStoreException on error accessing or updating checkpoint store.
      */
-    Set<String> getProcesses();
+    Set<String> getProcesses() throws CheckpointStoreException;
 }
