@@ -124,7 +124,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
-    @Test
+    @Test(timeout = 6*60*1000) //timeout of 6 mins.
     public void scaleTestsWithReader() throws URISyntaxException, InterruptedException {
 
         URI controllerUri = getControllerURI();
@@ -152,9 +152,9 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //2.2 Create readers.
         CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega, stopReadFlag );
+                eventsReadFromPravega, data, stopReadFlag );
         CompletableFuture<Void> reader2 = startReader("reader2", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega, stopWriteFlag);
+                eventsReadFromPravega, data, stopWriteFlag);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
@@ -207,7 +207,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     }
 
     private CompletableFuture<Void> startReader(final String id, final ClientFactory clientFactory, final String
-            readerGroupName, final ConcurrentLinkedQueue<Long> result, final AtomicLong writeCount , final AtomicBoolean
+            readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount , final AtomicBoolean
             exitFlag) {
 
         return CompletableFuture.runAsync(() -> {
@@ -216,16 +216,15 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
-            boolean isLastEventNull = false;
-            while (!(exitFlag.get() && result.size() == writeCount.get())) {
+            while (!(exitFlag.get() && readResult.size() == writeCount.get())) {
                 // exit only if exitFlag and read Count and write count are same.
                 try {
                     final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
                     if (longEvent != null) {
                         //update if event read is not null.
-                        result.add(longEvent);
+                        readResult.add(longEvent);
                     }
-                } catch (ReinitializationRequiredException e) { //TODO: Remove throwable once issue #862 is resolved.
+                } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
                     break;
                 }
