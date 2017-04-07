@@ -17,7 +17,10 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class TaskSweeper {
@@ -27,17 +30,20 @@ public class TaskSweeper {
     private final Map<String, Method> methodMap = new HashMap<>();
     private final Map<String, TaskBase> objectMap = new HashMap<>();
     private final String hostId;
+    private final ScheduledExecutorService executor;
 
     @Data
-    public static class Result {
+    static class Result {
         private final TaggedResource taggedResource;
         private final Object value;
         private final Throwable error;
     }
 
-    public TaskSweeper(final TaskMetadataStore taskMetadataStore, final String hostId, final TaskBase... classes) {
+    public TaskSweeper(final TaskMetadataStore taskMetadataStore, final String hostId,
+                       final ScheduledExecutorService executor, final TaskBase... classes) {
         this.taskMetadataStore = taskMetadataStore;
         this.hostId = hostId;
+        this.executor = executor;
         for (TaskBase object : classes) {
             Preconditions.checkArgument(object.getContext().getHostId().equals(hostId));
         }
@@ -48,22 +54,42 @@ public class TaskSweeper {
         initializeMappingTable();
     }
 
+    public void awaitReady() throws InterruptedException {
+        for (TaskBase taskClassObject : taskClassObjects) {
+            taskClassObject.awaitInitialization();
+        }
+    }
+
+    public CompletableFuture<Void> sweepOrphanedTasks(final Set<String> activeHosts) {
+        return taskMetadataStore.getHosts()
+                .thenComposeAsync(registeredHosts -> {
+                    log.info("Hosts {} have ongoing tasks", registeredHosts);
+                    registeredHosts.removeAll(activeHosts);
+                    log.info("Failed hosts {} have orphaned tasks", registeredHosts);
+                    return FutureHelpers.allOf(registeredHosts.stream()
+                            .map(this::sweepOrphanedTasks).collect(Collectors.toList()));
+                }, executor);
+    }
+
     /**
      * This method is called whenever a node in the controller cluster dies. A ServerSet abstraction may be used as
      * a trigger to invoke this method with one of the dead hostId.
      * <p>
      * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
      * @param oldHostId old host id
-     * @return
+     * @return A future that completes when sweeping completes
      */
     public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
+        log.info("Sweeping orphaned tasks for host {}", oldHostId);
         return FutureHelpers.doWhileLoop(
                 () -> executeHostTask(oldHostId),
-                x -> x != null);
+                x -> x != null, executor)
+                .whenCompleteAsync((result, ex) ->
+                        log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor);
     }
 
-    public CompletableFuture<Result> executeHostTask(final String oldHostId) {
+    private CompletableFuture<Result> executeHostTask(final String oldHostId) {
 
         // Get a random child TaggedResource of oldHostId node and attempt to execute corresponding task
         return taskMetadataStore.getRandomChild(oldHostId)
@@ -90,7 +116,7 @@ public class TaskSweeper {
                 });
     }
 
-    public CompletableFuture<Result> executeResourceTask(final String oldHostId, final TaggedResource taggedResource) {
+    private CompletableFuture<Result> executeResourceTask(final String oldHostId, final TaggedResource taggedResource) {
         final CompletableFuture<Result> result = new CompletableFuture<>();
         // Get the task details associated with resource taggedResource.resource
         // that is owned by oldHostId and taggedResource.threadId
@@ -150,7 +176,7 @@ public class TaskSweeper {
      * @return the object returned from task method.
      */
     @SuppressWarnings("unchecked")
-    public CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
+    private CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
 
         log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
                 this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);

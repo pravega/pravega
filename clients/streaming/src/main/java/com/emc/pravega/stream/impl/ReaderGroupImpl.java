@@ -7,6 +7,7 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.Checkpoint;
@@ -79,7 +80,8 @@ public class ReaderGroupImpl implements ReaderGroup {
     }
 
     private StateSynchronizer<ReaderGroupState> createSynchronizer() {
-        return clientFactory.createStateSynchronizer(groupName, updateSerializer, initSerializer, synchronizerConfig);
+        return clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                updateSerializer, initSerializer, synchronizerConfig);
     }
 
     @Override

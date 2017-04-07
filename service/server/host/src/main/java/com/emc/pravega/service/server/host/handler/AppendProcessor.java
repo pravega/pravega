@@ -7,10 +7,10 @@ package com.emc.pravega.service.server.host.handler;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Timer;
-import com.emc.pravega.metrics.DynamicLogger;
-import com.emc.pravega.metrics.MetricsProvider;
-import com.emc.pravega.metrics.OpStatsLogger;
-import com.emc.pravega.metrics.StatsLogger;
+import com.emc.pravega.shared.metrics.DynamicLogger;
+import com.emc.pravega.shared.metrics.MetricsProvider;
+import com.emc.pravega.shared.metrics.OpStatsLogger;
+import com.emc.pravega.shared.metrics.StatsLogger;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -47,9 +47,9 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.MetricsNames.SEGMENT_WRITE_BYTES;
-import static com.emc.pravega.MetricsNames.SEGMENT_WRITE_LATENCY;
-import static com.emc.pravega.MetricsNames.nameFromSegment;
+import static com.emc.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
+import static com.emc.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
+import static com.emc.pravega.shared.MetricsNames.nameFromSegment;
 import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 
 /**

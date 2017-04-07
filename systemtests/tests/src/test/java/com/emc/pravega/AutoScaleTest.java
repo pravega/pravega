@@ -47,7 +47,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class AutoScaleTest extends AbstractScaleTests {
 
-    private final static String SCOPE = "testAutoScale" + new Random().nextInt();
+    private final static String SCOPE = "testAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
     private final static String SCALE_UP_STREAM_NAME = "testScaleUp";
     private final static String SCALE_UP_TXN_STREAM_NAME = "testTxnScaleUp";
     private final static String SCALE_DOWN_STREAM_NAME = "testScaleDown";

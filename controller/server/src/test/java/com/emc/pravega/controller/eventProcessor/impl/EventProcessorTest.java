@@ -5,6 +5,8 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
+import com.emc.pravega.ClientFactory;
+import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -18,6 +20,8 @@ import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.ReaderGroup;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -25,6 +29,7 @@ import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -39,11 +44,14 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 
 /**
  * Event processor test.
  */
+@Slf4j
 public class EventProcessorTest {
 
     private static final String SCOPE = "scope";
@@ -166,6 +174,7 @@ public class EventProcessorTest {
     }
 
     @Test(timeout = 10000)
+    @SuppressWarnings("unchecked")
     public void testEventProcessorCell() throws CheckpointStoreException, ReinitializationRequiredException {
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
 
@@ -254,7 +263,7 @@ public class EventProcessorTest {
 
         // Test case 5. startup fails for an event processor
         eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
-                .supplier(() -> new StartFailingEventProcessor())
+                .supplier(StartFailingEventProcessor::new)
                 .serializer(new JavaSerializer<>())
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
@@ -265,6 +274,136 @@ public class EventProcessorTest {
         cell.startAsync();
         cell.awaitTerminated();
         Assert.assertTrue(true);
+    }
+
+    @Test(timeout = 10000)
+    public void testEventProcessorGroup() {
+        int count = 4;
+        int initialCount = count / 2;
+        String systemName = "testSystem";
+        String readerGroupName = "testReaderGroup";
+        int[] input = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        int expectedSum = input.length * (input.length + 1) / 2;
+
+        CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+
+        EventProcessorGroupConfig config = createEventProcessorGroupConfig(initialCount);
+
+        EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(count, input),
+                readerGroupName);
+
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new TestEventProcessor(false))
+                .serializer(new JavaSerializer<>())
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(config)
+                .build();
+
+        // Create EventProcessorGroup.
+        EventProcessorGroupImpl<TestEvent> group;
+        try {
+            group = (EventProcessorGroupImpl<TestEvent>) system.createEventProcessorGroup(eventProcessorConfig,
+                    checkpointStore);
+        } catch (CheckpointStoreException e) {
+            log.error("Error creating event processor group");
+            Assert.fail("Error creating event processor group");
+            return;
+        }
+
+        try {
+            group.awaitRunning();
+        } catch (IllegalStateException e) {
+            log.error("Error awaiting event processor group to get ready");
+            Assert.fail("Error awaiting event processor group to get ready");
+        }
+
+        // Add a few event processors to the group.
+        try {
+            group.changeEventProcessorCount(count - initialCount);
+        } catch (CheckpointStoreException e) {
+            log.error("Error increasing event processor count");
+            Assert.fail("Error increasing event processor count");
+        }
+
+        long actualSum = 0;
+        for (EventProcessorCell<TestEvent> cell : group.getEventProcessorMap().values()) {
+            cell.awaitTerminated();
+            TestEventProcessor actor = (TestEventProcessor) cell.getActor();
+            actualSum += actor.sum;
+        }
+        assertEquals(count * expectedSum, actualSum);
+
+        // Stop the group, and await its termmination.
+        group.stopAsync();
+        try {
+            group.awaitTerminated();
+        } catch (IllegalStateException e) {
+            log.error("Error awaiting termination of event processor group");
+            Assert.fail("Error awaiting termination of event processor group");
+        }
+    }
+
+    private EventProcessorGroupConfig createEventProcessorGroupConfig(int count) {
+        CheckpointConfig.CheckpointPeriod period =
+                CheckpointConfig.CheckpointPeriod.builder()
+                        .numEvents(1)
+                        .numSeconds(1)
+                        .build();
+        CheckpointConfig checkpointConfig =
+                CheckpointConfig.builder()
+                        .type(CheckpointConfig.Type.Periodic)
+                        .checkpointPeriod(period)
+                        .build();
+        return EventProcessorGroupConfigImpl.builder()
+                .eventProcessorCount(count)
+                .readerGroupName(READER_GROUP)
+                .streamName(STREAM_NAME)
+                .checkpointConfig(checkpointConfig)
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private EventProcessorSystemImpl createMockSystem(final String name, final String processId, final String scope,
+                                                  final SequenceAnswer<EventStreamReader<TestEvent>> readers,
+                                                  String readerGroupName) {
+        ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
+        Mockito.when(clientFactory.createReader(anyString(), anyString(), any(), any()))
+                .thenAnswer(readers);
+
+        ReaderGroup readerGroup = Mockito.mock(ReaderGroup.class);
+        Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
+
+        ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
+        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class), any()))
+                .then(invocation -> readerGroup);
+
+        return new EventProcessorSystemImpl(name, processId, scope, clientFactory, readerGroupManager);
+    }
+
+    private SequenceAnswer<EventStreamReader<TestEvent>> createEventReaders(int count, int[] input) {
+        List<EventStreamReader<TestEvent>> list = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            list.add(createMockReader(input));
+        }
+        return new SequenceAnswer<>(list);
+    }
+
+    @SuppressWarnings("unchecked")
+    private EventStreamReader<TestEvent> createMockReader(int[] input) {
+        List<MockEventRead<TestEvent>> inputEvents = new ArrayList<>(input.length);
+        for (int i = 0; i < input.length; i++) {
+            inputEvents.add(new MockEventRead<>(i, new TestEvent(input[i])));
+        }
+        inputEvents.add(new MockEventRead<>(input.length, new TestEvent(-1)));
+
+        EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
+        try {
+            Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
+        } catch (ReinitializationRequiredException e) {
+            log.error("ReinitializationRequiredException  error thrown", e);
+            Assert.fail("ReinitializationRequiredException  error thrown");
+        }
+        return reader;
     }
 
     private void testEventProcessor(final EventProcessorSystem system,

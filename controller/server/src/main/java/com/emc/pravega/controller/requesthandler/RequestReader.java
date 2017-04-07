@@ -141,9 +141,9 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                     try {
                         next = counter.incrementAndGet();
 
-                        event = reader.readNextEvent(60000);
+                        event = reader.readNextEvent(2000);
                         if (event == null || event.getEvent() == null) {
-                            log.info("timeout elapsed but no request received.");
+                            log.trace("timeout elapsed but no request received.");
                             continue;
                         }
 

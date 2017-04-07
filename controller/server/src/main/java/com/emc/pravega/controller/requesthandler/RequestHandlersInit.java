@@ -18,6 +18,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -43,7 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class RequestHandlersInit {
     private static final StreamConfiguration REQUEST_STREAM_CONFIG = StreamConfiguration.builder()
-                                                                                        .scope(Config.INTERNAL_SCOPE)
+                                                                                        .scope(NameUtils.INTERNAL_SCOPE_NAME)
                                                                                         .streamName(Config.SCALE_STREAM_NAME)
                                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                                                         .build();
@@ -63,9 +64,9 @@ public class RequestHandlersInit {
         Preconditions.checkNotNull(executor);
 
         final LocalController localController = new LocalController(controller);
-        ClientFactory clientFactory = ClientFactory.withScope(Config.INTERNAL_SCOPE, localController);
+        ClientFactory clientFactory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, localController);
 
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, localController, clientFactory);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(NameUtils.INTERNAL_SCOPE_NAME, localController, clientFactory);
 
         CHECKPOINT_STORE_REF.set(checkpointStore);
         SERIALIZER_REF.set(new JavaSerializer<>());
@@ -97,7 +98,7 @@ public class RequestHandlersInit {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Retry.indefinitelyWithExpBackoff(10, 10, 10000,
                 e -> log.error("Exception while creating request stream {}", e))
-                .runAsync(() -> controller.createScope(Config.INTERNAL_SCOPE)
+                .runAsync(() -> controller.createScope(NameUtils.INTERNAL_SCOPE_NAME)
                         .whenComplete((res, ex) -> {
                             if (ex != null) {
                                 // fail and exit
