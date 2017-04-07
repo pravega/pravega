@@ -141,7 +141,7 @@ interface Stream {
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments created
      * @param scaleTimestamp scaling timestamp
-     * @return sequence of newly created segments
+     * @return future
      */
     CompletableFuture<Void> scaleNewSegmentsCreated(final List<Integer> sealedSegments,
                                                     final List<Integer> newSegments,
@@ -153,7 +153,7 @@ interface Stream {
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments created
      * @param scaleTimestamp scaling timestamp
-     * @return sequence of newly created segments
+     * @return future
      */
     CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
                                                    final List<Integer> newSegments,

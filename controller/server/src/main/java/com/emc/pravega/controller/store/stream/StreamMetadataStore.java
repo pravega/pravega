@@ -239,7 +239,7 @@ public interface StreamMetadataStore {
      * @param scaleTimestamp timestamp at which scale was requested
      * @param context        operation context
      * @param executor       callers executor
-     * @return the list of newly created segments
+     * @return future
      */
     CompletableFuture<Void> scaleNewSegmentsCreated(final String scope, final String name,
                                                     final List<Integer> sealedSegments,
@@ -258,7 +258,7 @@ public interface StreamMetadataStore {
      * @param scaleTimestamp timestamp at which scale was requested
      * @param context        operation context
      * @param executor       callers executor
-     * @return the list of newly created segments
+     * @return future
      */
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
                                                 final List<Integer> sealedSegments,
