@@ -39,10 +39,10 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
-    private static Service controllerServiceInstance1, controllerServiceInstance2;
+    private Service controllerServiceInstance1, controllerServiceInstance2;
 
     @Environment
-    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+    public void setup() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
         Service zkService = new ZookeeperService("zookeeper");
@@ -130,8 +130,8 @@ public class ControllerFailoverTest {
         controller.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
 
         // Scale operation should now complete on the second controller instance.
-        // Sleep for a minute for it to complete
-        Thread.sleep(60000);
+        // Sleep for some time for it to complete
+        Thread.sleep(90000);
 
         // Ensure that the stream has 3 segments now.
         StreamSegments streamSegments = controller.getCurrentSegments(scope, stream).join();
