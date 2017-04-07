@@ -160,7 +160,7 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "createStream", traceId);
             switch (x.getStatus()) {
             case FAILURE:
-                throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
+                throw new ControllerFailureException("Failed to create stream: " + streamConfig);
             case INVALID_STREAM_NAME:
                 throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
             case SCOPE_NOT_FOUND:

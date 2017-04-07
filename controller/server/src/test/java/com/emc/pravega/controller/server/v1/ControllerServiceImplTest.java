@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
@@ -202,6 +203,15 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.createStream(ModelHelper.decode(configuration4), result5);
         status = result5.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.INVALID_STREAM_NAME);
+
+        // Create stream with an internal stream name.
+        ResultObserver<CreateStreamStatus> result6 = new ResultObserver<>();
+        final StreamConfiguration configuration6 =
+                StreamConfiguration.builder().scope(SCOPE1).streamName(
+                        NameUtils.getInternalNameForStream("abcdef")).scalingPolicy(policy2).build();
+        this.controllerService.createStream(ModelHelper.decode(configuration6), result6);
+        status = result6.get();
+        assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
     }
 
     @Test

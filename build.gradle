@@ -183,6 +183,7 @@ project('clients:streaming') {
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
+        compile project(':shared')
         compile project(":controller:contract")
         testCompile project(':testcommon')
     }
@@ -548,6 +549,7 @@ project('controller:server') {
 
     dependencies {
         compile project(':common')
+        compile project(':shared')
         compile project(":controller:contract")
         compile project(":clients:streaming")
         compile project(":shared")

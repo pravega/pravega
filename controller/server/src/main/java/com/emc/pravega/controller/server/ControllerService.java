@@ -8,6 +8,7 @@ package com.emc.pravega.controller.server;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Lombok;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -51,6 +53,7 @@ import org.apache.commons.lang3.tuple.Pair;
  */
 @Getter
 @AllArgsConstructor
+@Slf4j
 public class ControllerService {
 
     private final StreamMetadataStore streamStore;
@@ -83,6 +86,13 @@ public class ControllerService {
             final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
+        try {
+            NameUtils.validateStreamName(streamConfig.getStreamName());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create stream failed due to invalid stream name {}", streamConfig.getStreamName());
+            return CompletableFuture.completedFuture(
+                    CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
+        }
         return streamMetadataTasks.createStream(streamConfig.getScope(),
                                                 streamConfig.getStreamName(),
                                                 streamConfig,
@@ -353,6 +363,13 @@ public class ControllerService {
      */
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
+        try {
+            NameUtils.validateScopeName(scope);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create scope failed due to invalid scope name {}", scope);
+            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
+                    CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
+        }
         return streamStore.createScope(scope);
     }
 

@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.server.rest.resources;
 
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.server.rest.ModelHelper;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
@@ -31,6 +32,8 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
 
+import static com.emc.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
+
 /**
  * Stream metadata resource implementation.
  */
@@ -54,6 +57,14 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     public void createScope(final CreateScopeRequest createScopeRequest, final SecurityContext securityContext,
             final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "createScope");
+        try {
+            NameUtils.validateUserScopeName(createScopeRequest.getScopeName());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create scope failed due to invalid scope name {}", createScopeRequest.getScopeName());
+            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            LoggerHelpers.traceLeave(log, "createScope", traceId);
+            return;
+        }
 
         controllerService.createScope(createScopeRequest.getScopeName()).thenApply(scopeStatus -> {
             if (scopeStatus.getStatus() == CreateScopeStatus.Status.SUCCESS) {
@@ -87,6 +98,14 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "createStream");
 
+        try {
+            NameUtils.validateUserStreamName(createStreamRequest.getStreamName());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create stream failed due to invalid stream name {}", createStreamRequest.getStreamName());
+            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            LoggerHelpers.traceLeave(log, "createStream", traceId);
+            return;
+        }
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scopeName);
         controllerService.createStream(streamConfiguration, System.currentTimeMillis())
                 .thenApply(streamStatus -> {
@@ -272,14 +291,24 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
      * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing.
      */
     @Override
-    public void listStreams(final String scopeName, final SecurityContext securityContext,
-            final AsyncResponse asyncResponse) {
+    public void listStreams(final String scopeName, final String showInternalStreams,
+                            final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "listStreams");
 
+        boolean showOnlyInternalStreams = showInternalStreams != null && showInternalStreams.equals("true");
         controllerService.listStreamsInScope(scopeName)
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();
-                    streamsList.forEach(stream -> streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream)));
+                    streamsList.forEach(stream -> {
+                        // If internal streams are requested select only the ones that have the special stream names
+                        // otherwise display the regular user created streams.
+                        // TODO: Remove the 200 size limit once issue - https://github.com/pravega/pravega/issues/926
+                        // is fixed.
+                        if ((!showOnlyInternalStreams ^ stream.getStreamName().startsWith(INTERNAL_NAME_PREFIX)) &&
+                                streams.getStreams().size() < 200) {
+                            streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream));
+                        }
+                    });
                     log.info("Successfully fetched streams for scope: {}", scopeName);
                     return Response.status(Status.OK).entity(streams).build();
                 }).exceptionally(exception -> {

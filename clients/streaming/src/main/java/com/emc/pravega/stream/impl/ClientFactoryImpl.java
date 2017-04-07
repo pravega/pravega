@@ -6,6 +6,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.RevisionedStreamClient;
@@ -120,10 +121,11 @@ public class ClientFactoryImpl implements ClientFactory {
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
                                           Supplier<Long> nanoTime, Supplier<Long> milliTime) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(readerGroup,
-                                                                           new JavaSerializer<>(),
-                                                                           new JavaSerializer<>(),
-                                                                           synchronizerConfig);
+        StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(
+                NameUtils.getStreamForReaderGroup(readerGroup),
+                new JavaSerializer<>(),
+                new JavaSerializer<>(),
+                synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
         stateManager.initializeReader();
         return new EventStreamReaderImpl<T>(inFactory, s, stateManager, new Orderer(), milliTime, config);
