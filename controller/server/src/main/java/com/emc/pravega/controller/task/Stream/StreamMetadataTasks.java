@@ -360,12 +360,12 @@ public class StreamMetadataTasks extends TaskBase {
                         return withRetries(() -> streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, context, executor), executor)
                                 .thenCompose((List<Segment> newSegments) -> notifyNewSegments(scope, stream, newSegments, context)
                                         .thenApply((Void v) -> newSegments))
-                                .thenCompose(newSegments -> streamMetadataStore.continueScale(scope, stream, segmentsToSeal,
+                                .thenCompose(newSegments -> streamMetadataStore.scaleNewSegmentsCreated(scope, stream, segmentsToSeal,
                                         newSegments, scaleTimestamp, context, executor).thenApply(v -> newSegments))
                                 .thenCompose(newSegments -> notifySealedSegments(scope, stream, segmentsToSeal)
                                         .thenApply((Void v) -> newSegments))
                                 .thenCompose(newSegments ->
-                                        withRetries(() -> streamMetadataStore.completeScale(scope, stream, segmentsToSeal,
+                                        withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, segmentsToSeal,
                                                 newSegments, scaleTimestamp, context, executor), executor).thenApply(x -> newSegments))
                                 .thenApply((List<Segment> newSegments) -> {
                                     ScaleResponse.Builder response = ScaleResponse.newBuilder();

@@ -113,16 +113,16 @@ public class ControllerServiceTest {
         List<Integer> sealedSegments = Collections.singletonList(1);
 
         List<Segment> segmentCreated = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs + 20, null, executor).get();
-        streamStore.continueScale(SCOPE, stream1, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
-        streamStore.completeScale(SCOPE, stream1, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
+        streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
         sealedSegments = Arrays.asList(0, 1, 2);
         segmentCreated = streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), startTs + 20, null, executor).get();
-        streamStore.continueScale(SCOPE, stream2, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
-        streamStore.completeScale(SCOPE, stream2, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
+        streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
         // endregion
     }
 

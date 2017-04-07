@@ -96,8 +96,8 @@ public abstract class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
         List<Integer> sealedSegments = Collections.singletonList(1);
         List<Segment> segmentsCreated = store.startScale(scope, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, null, executor).join();
-        store.continueScale(scope, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).join();
-        store.completeScale(scope, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).join();
+        store.scaleNewSegmentsCreated(scope, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).join();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
@@ -113,8 +113,8 @@ public abstract class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
         sealedSegments = Arrays.asList(0, 1, 2);
         segmentsCreated = store.startScale(scope, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), start + 20, null, executor).get();
-        store.continueScale(scope, stream2, sealedSegments, segmentsCreated, start + 20, null, executor).get();
-        store.completeScale(scope, stream2, sealedSegments, segmentsCreated, start + 20, null, executor).get();
+        store.scaleNewSegmentsCreated(scope, stream2, sealedSegments, segmentsCreated, start + 20, null, executor).get();
+        store.scaleSegmentsSealed(scope, stream2, sealedSegments, segmentsCreated, start + 20, null, executor).get();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());

@@ -19,11 +19,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +29,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import javax.annotation.ParametersAreNonnullByDefault;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import static com.emc.pravega.MetricsNames.ABORT_TRANSACTION;
 import static com.emc.pravega.MetricsNames.COMMIT_TRANSACTION;
@@ -310,27 +310,27 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> continueScale(final String scope, final String name,
-                                                 final List<Integer> sealedSegments,
-                                                 final List<Segment> newSegments,
-                                                 final long scaleTimestamp,
-                                                 final OperationContext context,
-                                                 final Executor executor) {
+    public CompletableFuture<Void> scaleNewSegmentsCreated(final String scope, final String name,
+                                                           final List<Integer> sealedSegments,
+                                                           final List<Segment> newSegments,
+                                                           final long scaleTimestamp,
+                                                           final OperationContext context,
+                                                           final Executor executor) {
         List<Integer> collect = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
         return withCompletion(getStream(scope, name, context)
-                .continueScale(sealedSegments, collect, scaleTimestamp), executor);
+                .scaleNewSegmentsCreated(sealedSegments, collect, scaleTimestamp), executor);
     }
 
     @Override
-    public CompletableFuture<Void> completeScale(final String scope, final String name,
-                                                 final List<Integer> sealedSegments,
-                                                 final List<Segment> newSegments,
-                                                 final long scaleTimestamp,
-                                                 final OperationContext context,
-                                                 final Executor executor) {
+    public CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
+                                                       final List<Integer> sealedSegments,
+                                                       final List<Segment> newSegments,
+                                                       final long scaleTimestamp,
+                                                       final OperationContext context,
+                                                       final Executor executor) {
         List<Integer> collect = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
         CompletableFuture<Void> future = withCompletion(getStream(scope, name, context)
-                .completeScale(sealedSegments, collect, scaleTimestamp), executor);
+                .scaleOldSegmentsSealed(sealedSegments, collect, scaleTimestamp), executor);
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 

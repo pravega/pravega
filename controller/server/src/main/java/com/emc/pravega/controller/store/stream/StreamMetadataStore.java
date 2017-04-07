@@ -230,7 +230,7 @@ public interface StreamMetadataStore {
                                                 final Executor executor);
 
     /**
-     * Called after new segmants are created in pravega.
+     * Called after new segments are created in pravega.
      *
      * @param scope          stream scope
      * @param name           stream name.
@@ -241,12 +241,12 @@ public interface StreamMetadataStore {
      * @param executor       callers executor
      * @return the list of newly created segments
      */
-    CompletableFuture<Void> continueScale(final String scope, final String name,
-                                          final List<Integer> sealedSegments,
-                                          final List<Segment> newSegments,
-                                          final long scaleTimestamp,
-                                          final OperationContext context,
-                                          final Executor executor);
+    CompletableFuture<Void> scaleNewSegmentsCreated(final String scope, final String name,
+                                                    final List<Integer> sealedSegments,
+                                                    final List<Segment> newSegments,
+                                                    final long scaleTimestamp,
+                                                    final OperationContext context,
+                                                    final Executor executor);
 
     /**
      * Called after old segments are sealed in pravega.
@@ -260,12 +260,12 @@ public interface StreamMetadataStore {
      * @param executor       callers executor
      * @return the list of newly created segments
      */
-    CompletableFuture<Void> completeScale(final String scope, final String name,
-                                          final List<Integer> sealedSegments,
-                                          final List<Segment> newSegments,
-                                          final long scaleTimestamp,
-                                          final OperationContext context,
-                                          final Executor executor);
+    CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
+                                                final List<Integer> sealedSegments,
+                                                final List<Segment> newSegments,
+                                                final long scaleTimestamp,
+                                                final OperationContext context,
+                                                final Executor executor);
 
     /**
      * Method to create a new transaction on a stream.

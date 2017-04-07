@@ -296,9 +296,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @return : list of newly created segments
      */
     @Override
-    public CompletableFuture<Void> continueScale(final List<Integer> sealedSegments,
-                                                 final List<Integer> newSegments,
-                                                 final long scaleTimestamp) {
+    public CompletableFuture<Void> scaleNewSegmentsCreated(final List<Integer> sealedSegments,
+                                                           final List<Integer> newSegments,
+                                                           final long scaleTimestamp) {
         return verifyLegalState(FutureHelpers.toVoid(addPartialHistoryRecord(sealedSegments, newSegments)));
     }
 
@@ -311,9 +311,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @return : list of newly created segments
      */
     @Override
-    public CompletableFuture<Void> completeScale(final List<Integer> sealedSegments,
-                                                 final List<Integer> newSegments,
-                                                 final long scaleTimestamp) {
+    public CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
+                                                          final List<Integer> newSegments,
+                                                          final long scaleTimestamp) {
         return verifyLegalState(FutureHelpers.toVoid(
                 completeHistoryRecord(scaleTimestamp, sealedSegments, newSegments)
                         .thenCompose(this::addIndexRecord)));
@@ -651,7 +651,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         return CompletableFuture.completedFuture(lastRecord);
                     }
 
-                    assert lastRecord.isPartial();
                     long scaleEventTime = Math.max(System.currentTimeMillis(), scaleTimestamp);
                     final Optional<HistoryRecord> previousOpt = HistoryRecord.fetchPrevious(lastRecord, historyTable.getData());
                     if (previousOpt.isPresent()) {

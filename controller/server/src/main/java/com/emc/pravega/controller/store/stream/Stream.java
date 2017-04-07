@@ -143,9 +143,9 @@ interface Stream {
      * @param scaleTimestamp scaling timestamp
      * @return sequence of newly created segments
      */
-    CompletableFuture<Void> continueScale(final List<Integer> sealedSegments,
-                                          final List<Integer> newSegments,
-                                          final long scaleTimestamp);
+    CompletableFuture<Void> scaleNewSegmentsCreated(final List<Integer> sealedSegments,
+                                                    final List<Integer> newSegments,
+                                                    final long scaleTimestamp);
 
     /**
      * Called after sealing old segments is complete.
@@ -155,9 +155,9 @@ interface Stream {
      * @param scaleTimestamp scaling timestamp
      * @return sequence of newly created segments
      */
-    CompletableFuture<Void> completeScale(final List<Integer> sealedSegments,
-                                          final List<Integer> newSegments,
-                                          final long scaleTimestamp);
+    CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
+                                                   final List<Integer> newSegments,
+                                                   final long scaleTimestamp);
 
     /**
      * Sets cold marker which is valid till the specified time stamp.

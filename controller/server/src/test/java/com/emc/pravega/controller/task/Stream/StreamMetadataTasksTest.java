@@ -106,8 +106,8 @@ public class StreamMetadataTasksTest {
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
         List<Integer> sealedSegments = Collections.singletonList(1);
         List<Segment> segmentsCreated = streamStorePartialMock.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, null, executor).get();
-        streamStorePartialMock.continueScale(SCOPE, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).get();
-        streamStorePartialMock.completeScale(SCOPE, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).get();
+        streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).get();
+        streamStorePartialMock.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).get();
     }
 
     @After

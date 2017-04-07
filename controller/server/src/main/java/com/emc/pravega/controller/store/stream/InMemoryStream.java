@@ -139,12 +139,12 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<Void> continueScale(List<Integer> sealedSegments, List<Integer> newSegments, long scaleTimestamp) {
+        public CompletableFuture<Void> scaleNewSegmentsCreated(List<Integer> sealedSegments, List<Integer> newSegments, long scaleTimestamp) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
         @Override
-        public CompletableFuture<Void> completeScale(List<Integer> sealedSegments, List<Integer> newSegments, long ts) {
+        public CompletableFuture<Void> scaleOldSegmentsSealed(List<Integer> sealedSegments, List<Integer> newSegments, long ts) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -366,12 +366,12 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Void> continueScale(List<Integer> sealedSegments, List<Integer> newSegments, long timestamp) {
+    public CompletableFuture<Void> scaleNewSegmentsCreated(List<Integer> sealedSegments, List<Integer> newSegments, long timestamp) {
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Void> completeScale(List<Integer> sealedSegments, List<Integer> newSegments, long timestamp) {
+    public CompletableFuture<Void> scaleOldSegmentsSealed(List<Integer> sealedSegments, List<Integer> newSegments, long timestamp) {
         Preconditions.checkNotNull(sealedSegments);
         Preconditions.checkArgument(sealedSegments.size() > 0);
 
