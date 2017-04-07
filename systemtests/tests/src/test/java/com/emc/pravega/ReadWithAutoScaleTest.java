@@ -18,6 +18,7 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
@@ -206,7 +207,8 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     }
 
     private CompletableFuture<Void> startReader(final String id, final ClientFactory clientFactory, final String
-            readerGroupName, ConcurrentLinkedQueue<Long> result, final AtomicBoolean exitFlag) {
+            readerGroupName, final ConcurrentLinkedQueue<Long> result, final AtomicLong writeCount , final AtomicBoolean
+            exitFlag) {
 
         return CompletableFuture.runAsync(() -> {
             @Cleanup
@@ -215,17 +217,15 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
             boolean isLastEventNull = false;
-            while (!(exitFlag.get() && isLastEventNull)) { // exit only if exitFlag and isLastEventNull are true
-                final Long longEvent;
+            while (!(exitFlag.get() && result.size() == writeCount.get())) {
+                // exit only if exitFlag and read Count and write count are same.
                 try {
-                    longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
+                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
                     if (longEvent != null) {
                         //update if event read is not null.
                         result.add(longEvent);
-                    } else {
-                        isLastEventNull = true;
                     }
-                } catch (Throwable e) { //TODO: Remove throwable once issue #862 is resolved.
+                } catch (ReinitializationRequiredException e) { //TODO: Remove throwable once issue #862 is resolved.
                     log.warn("Test Exception while reading from the stream", e);
                     break;
                 }
