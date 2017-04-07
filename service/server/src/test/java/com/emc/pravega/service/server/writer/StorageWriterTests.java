@@ -13,8 +13,8 @@ import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
-import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
@@ -23,6 +23,7 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
@@ -212,14 +213,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         // Corrupt (one segment should suffice).
         byte[] corruptionData = "foo".getBytes();
-        String corruptedSegmentName = context.metadata.getStreamSegmentMetadata(segmentIds.get(0)).getName();
+        SegmentHandle corruptedSegmentHandle = InMemoryStorage.newHandle(context.metadata.getStreamSegmentMetadata(segmentIds.get(0)).getName(), false);
         Supplier<Exception> exceptionSupplier = () -> {
             // Corrupt data. We use an internal method (append) to atomically write data at the end of the segment.
             // GetLength+Write would not work well because there may be concurrent writes that modify the data between
             // requesting the length and attempting to write, thus causing the corruption to fail.
             // NOTE: this is a synchronous call, but append() is also a sync method. If append() would become async,
             // care must be taken not to block a thread while waiting for it.
-            context.storage.append(corruptedSegmentName, new ByteArrayInputStream(corruptionData), corruptionData.length);
+            context.storage.append(corruptedSegmentHandle, new ByteArrayInputStream(corruptionData), corruptionData.length);
 
             // Return some other kind of exception.
             return new TimeoutException("Intentional");
@@ -262,7 +263,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger writeFailCount = new AtomicInteger();
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
             if (writeCount.incrementAndGet() % failWriteEvery == 0) {
-                return storage.write(segmentName, offset, data, length, TIMEOUT)
+                return storage.write(InMemoryStorage.newHandle(segmentName, false), offset, data, length, TIMEOUT)
                               .thenRun(() -> {
                                   writeFailCount.incrementAndGet();
                                   throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
@@ -277,7 +278,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger sealFailCount = new AtomicInteger();
         context.storage.setSealInterceptor((segmentName, storage) -> {
             if (sealCount.incrementAndGet() % failSealEvery == 0) {
-                return storage.seal(segmentName, TIMEOUT)
+                return storage.seal(InMemoryStorage.newHandle(segmentName, false), TIMEOUT)
                               .thenRun(() -> {
                                   sealFailCount.incrementAndGet();
                                   throw new IntentionalException(String.format("S=%s", segmentName));
@@ -292,7 +293,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger mergeFailCount = new AtomicInteger();
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
             if (mergeCount.incrementAndGet() % failMergeEvery == 0) {
-                return storage.concat(targetSegment, offset, sourceSegment, TIMEOUT)
+                return storage.concat(InMemoryStorage.newHandle(targetSegment, false), offset, InMemoryStorage.newHandle(sourceSegment, false), TIMEOUT)
                               .thenRun(() -> {
                                   mergeFailCount.incrementAndGet();
                                   throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
@@ -417,7 +418,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                                                 .with(WriterConfig.ERROR_SLEEP_MILLIS, 0L)
                                                 .build();
         @Cleanup
-        final TestContext context = new TestContext(config);
+        TestContext context = new TestContext(config);
         context.writer.startAsync();
 
         // Create a bunch of segments and Transaction.
@@ -546,7 +547,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
             byte[] expected = segmentContents.get(segmentId).toByteArray();
             byte[] actual = new byte[expected.length];
-            int actualLength = context.storage.read(metadata.getName(), 0, actual, 0, actual.length, TIMEOUT).join();
+            int actualLength = context.storage.read(InMemoryStorage.newHandle(metadata.getName(), true), 0, actual, 0, actual.length, TIMEOUT).join();
             Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentId, metadata.getStorageLength(), actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentId, expected, actual);
         }
@@ -736,6 +737,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.baseStorage = new InMemoryStorage(executorService());
             this.storage = new TestStorage(this.baseStorage);
+            this.storage.initialize(0);
             this.config = config;
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();

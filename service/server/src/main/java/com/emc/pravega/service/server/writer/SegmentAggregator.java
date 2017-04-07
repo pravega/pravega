@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.writer;
 
@@ -27,6 +25,7 @@ import com.emc.pravega.service.server.logs.operations.OperationType;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 import java.io.DataInputStream;
@@ -62,6 +61,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private final AbstractTimer timer;
     private final String traceObjectId;
     private final Storage storage;
+    private final AtomicReference<SegmentHandle> handle;
     private final WriterDataSource dataSource;
     private final AtomicInteger mergeTransactionCount;
     private final AtomicBoolean hasSealPending;
@@ -105,6 +105,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         this.operations = new OperationQueue();
         this.state = new AtomicReference<>(AggregatorState.NotInitialized);
         this.reconciliationState = new AtomicReference<>();
+        this.handle = new AtomicReference<>();
     }
 
     //endregion
@@ -211,18 +212,18 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     /**
      * Initializes the SegmentAggregator by pulling information from the given Storage.
      *
-     * @param timeout Timeout for the operation.
+     * @param timeout  Timeout for the operation.
+     * @param executor An executor to execute async tasks on.
      * @return A CompletableFuture that, when completed, will indicate that the operation finished successfully. If any
      * errors occurred during the operation, the Future will be completed with the appropriate exception.
      */
-    CompletableFuture<Void> initialize(Duration timeout) {
+    CompletableFuture<Void> initialize(Duration timeout, Executor executor) {
         Exceptions.checkNotClosed(isClosed(), this);
         Preconditions.checkState(this.state.get() == AggregatorState.NotInitialized, "SegmentAggregator has already been initialized.");
+        assert this.handle.get() == null : "non-null handle but state == " + this.state.get();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "initialize");
 
-        return this.storage
-                .open(this.metadata.getName())
-                .thenCompose(v -> this.storage.getStreamSegmentInfo(this.metadata.getName(), timeout))
+        return openWrite(this.metadata.getName(), this.handle, executor, timeout)
                 .thenAccept(segmentInfo -> {
                     // Check & Update StorageLength in metadata.
                     if (this.metadata.getStorageLength() != segmentInfo.getLength()) {
@@ -565,7 +566,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // Flush them.
         InputStream inputStream = flushArgs.getStream();
         return this.storage
-                .write(this.metadata.getName(), this.metadata.getStorageLength(), inputStream, flushArgs.getLength(), timeout)
+                .write(this.handle.get(), this.metadata.getStorageLength(), inputStream, flushArgs.getLength(), timeout)
                 .thenApply(v -> {
                     FlushResult result = updateStatePostFlush(flushArgs);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "flushPendingAppends", traceId, result);
@@ -674,8 +675,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         AtomicLong mergedLength = new AtomicLong();
-        return this.storage
-                .getStreamSegmentInfo(transactionMetadata.getName(), timer.getRemaining())
+        AtomicReference<SegmentHandle> transactionHandle = new AtomicReference<>();
+        return openWrite(transactionMetadata.getName(), transactionHandle, executor, timer.getRemaining())
                 .thenAcceptAsync(transProperties -> {
                     // One last verification before the actual merger:
                     // Check that the Storage agrees with our metadata (if not, we have a problem ...)
@@ -699,7 +700,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
                     mergedLength.set(transProperties.getLength());
                 }, executor)
-                .thenComposeAsync(v1 -> storage.concat(this.metadata.getName(), mergeOp.getStreamSegmentOffset(), transactionMetadata.getName(), timer.getRemaining()), executor)
+                .thenComposeAsync(v1 -> storage.concat(this.handle.get(), mergeOp.getStreamSegmentOffset(), transactionHandle.get(), timer.getRemaining()), executor)
                 .thenComposeAsync(v2 -> storage.getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining()), executor)
                 .thenApplyAsync(segmentProperties -> {
                     // We have processed a MergeTransactionOperation, pop the first operation off and decrement the counter.
@@ -759,7 +760,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "sealIfNecessary");
         return this.storage
-                .seal(this.metadata.getName(), timer.getRemaining())
+                .seal(this.handle.get(), timer.getRemaining())
                 .handle((v, ex) -> {
                     if (ex != null && !(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentSealedException)) {
                         // The operation failed, and it was not because the Segment was already Sealed. Throw it again.
@@ -903,7 +904,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return FutureHelpers
                 .loop(
                         () -> bytesReadSoFar.get() < readLength,
-                        () -> this.storage.read(this.metadata.getName(), op.getStreamSegmentOffset() + bytesReadSoFar.get(), storageData, bytesReadSoFar.get(), (int) readLength - bytesReadSoFar.get(), timer.getRemaining()),
+                        () -> this.storage.read(this.handle.get(), op.getStreamSegmentOffset() + bytesReadSoFar.get(), storageData, bytesReadSoFar.get(), (int) readLength - bytesReadSoFar.get(), timer.getRemaining()),
                         bytesRead -> {
                             assert bytesRead > 0 : String.format("Unable to make any read progress when reconciling operation '%s' after reading %s bytes.", op, bytesReadSoFar);
                             bytesReadSoFar.addAndGet(bytesRead);
@@ -1172,6 +1173,24 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         this.state.set(newState);
+    }
+
+    /**
+     * Opens the given segment for writing.
+     *
+     * @param segmentName The segment to open.
+     * @param handleRef   An AtomicReference that will contain the SegmentHandle for the opened segment.
+     * @param executor    An executor to run async tasks.
+     * @param timeout     Timeout for the operation.
+     * @return A Future that will contain information about the opened Segment.
+     */
+    private CompletableFuture<SegmentProperties> openWrite(String segmentName, AtomicReference<SegmentHandle> handleRef, Executor executor, Duration timeout) {
+        return this.storage
+                .openWrite(segmentName)
+                .thenComposeAsync(handle -> {
+                    handleRef.set(handle);
+                    return this.storage.getStreamSegmentInfo(segmentName, timeout);
+                }, executor);
     }
 
     //endregion
