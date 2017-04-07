@@ -19,7 +19,7 @@ public class ServiceConfigTests {
                 .with(ServiceConfig.LISTENING_PORT, 4000)
                 .build();
         Assert.assertTrue("Published IP and port should default to listening IP and port",
-                cfg1.getListeningIPAddress().equals(cfg1.getListeningIPAddress())
+                cfg1.getListeningIPAddress().equals(cfg1.getPublishedIPAddress())
                         && cfg1.getListeningPort() == cfg1.getPublishedPort());
         // Published IP not defined but port is different as compared to listening port
         ServiceConfig cfg2 = ServiceConfig.builder()
