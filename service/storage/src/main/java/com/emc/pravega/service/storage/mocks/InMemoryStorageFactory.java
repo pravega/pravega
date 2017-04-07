@@ -18,16 +18,22 @@ import lombok.RequiredArgsConstructor;
 /**
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.
  */
-public class InMemoryStorageFactory implements StorageFactory {
+public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     private final InMemoryStorage baseStorage;
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.baseStorage = new InMemoryStorage(executor);
+        this.baseStorage.initialize(0); // InMemoryStorage does not use epochs.
     }
 
     @Override
     public TruncateableStorage createStorageAdapter() {
         return new FencedWrapper(this.baseStorage);
+    }
+
+    @Override
+    public void close() {
+        this.baseStorage.close();
     }
 
     //region FencedWrapper
@@ -39,7 +45,13 @@ public class InMemoryStorageFactory implements StorageFactory {
 
         @Override
         public void initialize(long epoch) {
-            this.baseStorage.initialize(epoch);
+            // This method intentionally left blank.
+        }
+
+        @Override
+        public void close() {
+            // We purposefully do not close the base adapter, as that is shared between all instances of this class.
+            this.closed.set(true);
         }
 
         @Override
@@ -116,11 +128,6 @@ public class InMemoryStorageFactory implements StorageFactory {
         @Override
         public CompletableFuture<Void> registerSealTrigger(String segmentName, Duration timeout) {
             return this.baseStorage.registerSealTrigger(segmentName, timeout);
-        }
-
-        @Override
-        public void close() {
-            this.closed.set(true);
         }
     }
 
