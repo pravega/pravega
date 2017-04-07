@@ -16,32 +16,35 @@ import java.util.Optional;
  * HistoryRecords are of variable length, so we will maintain markers for
  * start of row and end of row. We need it in both directions because we need to traverse
  * in both directions on the history table
- * Row : [EoR ptr][List-of-active-segment-numbers, [SoL ptr], eventTime][SoR ptr]
+ * Row : [length][List-of-active-segment-numbers, [#bytes-back-to-start], eventTime][#bytes-back-to-start]
  */
 public class HistoryRecord {
-    private final int endOfRowPointer;
-    private final int numOfSegments;
+
+    private static final int FIXED_FIELDS_LENGTH = Integer.BYTES + Integer.BYTES + Long.BYTES + Integer.BYTES;
+    private final int length;
     @Getter
     private final List<Integer> segments;
-    private final int startOfRowPointer1;
+    @Getter
+    private final int offset;
     @Getter
     private final long eventTime;
-    private final int startOfRowPointer2;
+    @Getter
+    private final boolean partial;
 
     public HistoryRecord(final List<Integer> segments, final int offset) {
-        this(segments, 0L, offset);
+        this(segments, 0L, offset, true);
     }
 
     public HistoryRecord(final List<Integer> segments, final long eventTime, final int offset) {
-        // Endofrow pointer is deterministic even for partial records.
-        // All partial records have to be completed before a new record can be written.
-        this.endOfRowPointer = offset + (Integer.BYTES + Integer.BYTES + segments.size() * Integer.BYTES +
-                Integer.BYTES + Long.BYTES + Integer.BYTES) - 1;
-        this.numOfSegments = segments.size();
+        this(segments, eventTime, offset, false);
+    }
+
+    public HistoryRecord(final List<Integer> segments, final long eventTime, final int offset, boolean partial) {
+        this.offset = offset;
+        this.length = FIXED_FIELDS_LENGTH + segments.size() * Integer.BYTES;
         this.segments = segments;
-        this.startOfRowPointer1 = offset;
         this.eventTime = eventTime;
-        this.startOfRowPointer2 = offset;
+        this.partial = partial;
     }
 
     public static Optional<HistoryRecord> readRecord(final byte[] historyTable, final int offset, boolean ignorePartial) {
@@ -49,9 +52,9 @@ public class HistoryRecord {
             return Optional.empty();
         }
 
-        final int rowEndOffset = BitConverter.readInt(historyTable, offset);
+        final int length = BitConverter.readInt(historyTable, offset);
 
-        if (rowEndOffset > historyTable.length) {
+        if (offset + length > historyTable.length) {
             // this is a partial record
             if (ignorePartial) {
                 return Optional.empty();
@@ -68,12 +71,10 @@ public class HistoryRecord {
             return Optional.empty();
         }
 
-        // This will either be rowStartPointer1 or rowStartPointer2 both of which point to start of the row.
-        final int lastRowStartOffset = BitConverter.readInt(historyTable,
-                historyTable.length - (Integer.BYTES));
+        final int backToTop = BitConverter.readInt(historyTable, historyTable.length - (Integer.BYTES));
 
         // ignore partial means if latest record is partial, read the previous record
-        Optional<HistoryRecord> record = readRecord(historyTable, lastRowStartOffset, false);
+        Optional<HistoryRecord> record = readRecord(historyTable, historyTable.length - backToTop, false);
         assert record.isPresent();
 
         if (ignorePartial && record.get().isPartial()) {
@@ -87,10 +88,10 @@ public class HistoryRecord {
                                                     boolean ignorePartial) {
         Preconditions.checkArgument(historyTable.length >= record.getOffset());
 
-        if (historyTable.length <= record.endOfRowPointer) {
+        if (historyTable.length < record.offset + record.length) {
             return Optional.empty();
         } else {
-            return HistoryRecord.readRecord(historyTable, record.endOfRowPointer + 1, ignorePartial);
+            return HistoryRecord.readRecord(historyTable, record.offset + record.length, ignorePartial);
         }
     }
 
@@ -98,79 +99,68 @@ public class HistoryRecord {
         if (record.getOffset() == 0) { // if first record
             return Optional.empty();
         } else {
-            final int rowStartOffset = BitConverter.readInt(historyTable,
+            final int rowStartOffset = record.offset - BitConverter.readInt(historyTable,
                     record.getOffset() - (Integer.BYTES));
-
+            assert rowStartOffset >= 0;
             return HistoryRecord.readRecord(historyTable, rowStartOffset, true);
         }
     }
 
     private static HistoryRecord parsePartial(final byte[] table, final int offset) {
-        final int endOfRowPtr = BitConverter.readInt(table, offset);
-        final int count = BitConverter.readInt(table, offset + Integer.BYTES);
+        final int length = BitConverter.readInt(table, offset);
+        assert length > FIXED_FIELDS_LENGTH && (length - FIXED_FIELDS_LENGTH) % Integer.BYTES == 0;
+        int count = (length - FIXED_FIELDS_LENGTH) / Integer.BYTES;
         final List<Integer> segments = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            segments.add(BitConverter.readInt(table, offset + 2 * Integer.BYTES + i * Integer.BYTES));
+            segments.add(BitConverter.readInt(table, offset + (1 + i) * Integer.BYTES));
         }
 
-        final int offset1 = BitConverter.readInt(table, offset + ((2 + count) * Integer.BYTES));
-        assert offset1 == offset;
+        final int backToTop = BitConverter.readInt(table, offset + ((1 + count) * Integer.BYTES));
+        assert backToTop == (count + 2) * Integer.BYTES;
 
-        HistoryRecord historyRecord = new HistoryRecord(segments, offset1);
-        assert historyRecord.endOfRowPointer == endOfRowPtr;
-        return historyRecord;
+        return new HistoryRecord(segments, offset);
     }
 
     private static HistoryRecord parse(final byte[] table, final int offset) {
         HistoryRecord partial = parsePartial(table, offset);
 
-        final long eventTime = BitConverter.readLong(table, offset + (3 + partial.numOfSegments) * Integer.BYTES);
+        final long eventTime = BitConverter.readLong(table, offset + (2 + partial.segments.size()) * Integer.BYTES);
 
-        final int offset1 = BitConverter.readInt(table, offset + (3 + partial.numOfSegments) * Integer.BYTES + Long.BYTES);
+        final int backToTop = BitConverter.readInt(table, offset + (2 + partial.segments.size()) * Integer.BYTES + Long.BYTES);
 
-        assert offset1 == offset;
-        return new HistoryRecord(partial.segments, eventTime, offset1);
+        assert backToTop == partial.length;
+
+        return new HistoryRecord(partial.segments, eventTime, offset, false);
     }
 
     public byte[] toBytePartial() {
-        byte[] b = new byte[(3 + numOfSegments) * Integer.BYTES];
+        byte[] b = new byte[(2 + segments.size()) * Integer.BYTES];
 
-        BitConverter.writeInt(b, 0, endOfRowPointer);
-        BitConverter.writeInt(b, Integer.BYTES, numOfSegments);
+        BitConverter.writeInt(b, 0, length);
         for (int i = 0; i < segments.size(); i++) {
-            BitConverter.writeInt(b, (2 + i) * Integer.BYTES, segments.get(i));
+            BitConverter.writeInt(b, (1 + i) * Integer.BYTES, segments.get(i));
         }
-        BitConverter.writeInt(b, (2 + numOfSegments) * Integer.BYTES, startOfRowPointer1);
+        BitConverter.writeInt(b, (1 + segments.size()) * Integer.BYTES, length - Long.BYTES - Integer.BYTES);
         return b;
     }
 
     public byte[] remainingByteArray() {
         byte[] b = new byte[Long.BYTES + Integer.BYTES];
         BitConverter.writeLong(b, 0, eventTime);
-        BitConverter.writeInt(b, Long.BYTES, startOfRowPointer2);
+        BitConverter.writeInt(b, Long.BYTES, length);
         return b;
     }
 
     public byte[] toByteArray() {
-        byte[] b = new byte[(4 + numOfSegments) * Integer.BYTES + Long.BYTES];
-        BitConverter.writeInt(b, 0, endOfRowPointer);
-        BitConverter.writeInt(b, Integer.BYTES, numOfSegments);
+        byte[] b = new byte[(segments.size()) * Integer.BYTES + FIXED_FIELDS_LENGTH];
+        BitConverter.writeInt(b, 0, length);
         for (int i = 0; i < segments.size(); i++) {
-            BitConverter.writeInt(b, (2 + i) * Integer.BYTES, segments.get(i));
+            BitConverter.writeInt(b, (1 + i) * Integer.BYTES, segments.get(i));
         }
-        BitConverter.writeInt(b, (2 + numOfSegments) * Integer.BYTES, startOfRowPointer1);
-        BitConverter.writeLong(b, (3 + numOfSegments) * Integer.BYTES, eventTime);
-        BitConverter.writeInt(b, (3 + numOfSegments) * Integer.BYTES + Long.BYTES, startOfRowPointer2);
+        BitConverter.writeInt(b, (1 + segments.size()) * Integer.BYTES, (2 + segments.size()) * Integer.BYTES);
+        BitConverter.writeLong(b, (2 + segments.size()) * Integer.BYTES, eventTime);
+        BitConverter.writeInt(b, (2 + segments.size()) * Integer.BYTES + Long.BYTES, (3 + segments.size()) * Integer.BYTES + Long.BYTES);
 
         return b;
     }
-
-    public int getOffset() {
-        return startOfRowPointer1;
-    }
-
-    public boolean isPartial() {
-        return eventTime == 0L;
-    }
-
 }
