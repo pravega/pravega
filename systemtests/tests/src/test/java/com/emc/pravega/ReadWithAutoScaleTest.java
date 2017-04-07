@@ -133,13 +133,13 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
-        final AtomicLong data = new AtomicLong(); //data used by each of the writers.
+        final AtomicLong eventData = new AtomicLong(); //data used by each of the writers.
 
         @Cleanup
         ClientFactory clientFactory = getClientFactory(SCOPE);
 
         //1. Start writing events to the Stream.
-        CompletableFuture<Void> writer1 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer1 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
 
         //2. Start a reader group with 2 readers (The stream is configured with 2 segments.)
 
@@ -152,17 +152,17 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //2.2 Create readers.
         CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega, data, stopReadFlag );
+                eventsReadFromPravega, eventData, stopReadFlag );
         CompletableFuture<Void> reader2 = startReader("reader2", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega, data, stopWriteFlag);
+                eventsReadFromPravega, eventData, stopWriteFlag);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
-        CompletableFuture<Void> writer2 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        CompletableFuture<Void> writer3 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        CompletableFuture<Void> writer4 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        CompletableFuture<Void> writer5 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        CompletableFuture<Void> writer6 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer2 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer3 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer4 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer5 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer6 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
 
         //4 Wait until the scale operation is triggered (else time out)
         //    validate the data read by the readers ensuring all the events are read and there are no duplicates.
@@ -188,10 +188,10 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                 .thenCompose(v -> {
                     stopReadFlag.set(true);
                     log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
-                            "Count: {}", data.get(), eventsReadFromPravega.size());
+                            "Count: {}", eventData.get(), eventsReadFromPravega.size());
                     return CompletableFuture.allOf(reader1, reader2);
                 })
-                .thenRun(() -> validateResults(data.get(), eventsReadFromPravega));
+                .thenRun(() -> validateResults(eventData.get(), eventsReadFromPravega));
 
         FutureHelpers.getAndHandleExceptions(testResult
                 .whenComplete((r, e) -> {
