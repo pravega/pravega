@@ -10,6 +10,8 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatu
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.collect.Lists;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.AbstractMap;
@@ -31,8 +33,18 @@ import static org.junit.Assert.fail;
 public class InMemoryStreamTest {
     private static final String SCOPE = "scope";
 
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    private ScheduledExecutorService executor;
 
+    @Before
+    public void setUp() {
+        executor = Executors.newSingleThreadScheduledExecutor();
+    }
+
+    @After
+    public void teardown() {
+        executor.shutdown();
+    }
+    
     @Test
     public void testCreateStreamState() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
