@@ -17,9 +17,10 @@ public class Host implements Serializable {
     @NonNull
     private final String ipAddr;
     private final int port;
+    private final String hostId;
 
     @Override
     public String toString() {
-        return this.getIpAddr() + ":" + this.getPort();
+        return this.getIpAddr() + ":" + this.getPort() + ((this.getHostId() == null) ? "" : ":" + this.getHostId());
     }
 }

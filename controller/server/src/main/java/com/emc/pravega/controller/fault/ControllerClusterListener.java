@@ -66,7 +66,7 @@ public class ControllerClusterListener extends AbstractIdleService {
 
             Set<String> activeProcesses = clusterZK.getClusterMembers()
                     .stream()
-                    .map(Host::toString)
+                    .map(Host::getHostId)
                     .collect(Collectors.toSet());
 
             // Await initialization of components.
@@ -88,9 +88,9 @@ public class ControllerClusterListener extends AbstractIdleService {
                         break;
                     case HOST_REMOVED:
                         log.info("Received controller cluster event: {} for host: {}", type, host);
-                        taskSweeper.sweepOrphanedTasks(host.toString());
+                        taskSweeper.sweepOrphanedTasks(host.getHostId());
                         if (eventProcessorsOpt.isPresent()) {
-                            eventProcessorsOpt.get().notifyProcessFailure(host.toString());
+                            eventProcessorsOpt.get().notifyProcessFailure(host.getHostId());
                         }
                         break;
                     case ERROR:

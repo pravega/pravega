@@ -71,6 +71,8 @@ public class Main {
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
                 .port(Config.RPC_SERVER_PORT)
+                .publishedRPCHost(Config.RPC_PUBLISHED_SERVER_HOST)
+                .publishedRPCPort(Config.RPC_PUBLISHED_SERVER_PORT)
                 .build();
 
         RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()

@@ -63,7 +63,7 @@ public class HostMonitorConfigImpl implements HostMonitorConfig {
         Preconditions.checkArgument(port > 0, "port");
         Preconditions.checkArgument(containerCount > 0, "containerCount");
         Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
-        hostContainerMap.put(new Host(host, port), IntStream.range(0, containerCount).boxed().collect(Collectors.toSet()));
+        hostContainerMap.put(new Host(host, port, null), IntStream.range(0, containerCount).boxed().collect(Collectors.toSet()));
         return hostContainerMap;
     }
 }

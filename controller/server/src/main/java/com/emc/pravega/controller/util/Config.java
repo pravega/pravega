@@ -31,10 +31,14 @@ public final class Config {
     //RPC Server configuration
     public static final int RPC_SERVER_PORT = CONFIG.getInt("config.controller.server.port");
     public static final int ASYNC_TASK_POOL_SIZE = CONFIG.getInt("config.controller.server.asyncTaskPoolSize");
+    public static final String RPC_PUBLISHED_SERVER_HOST = CONFIG.getString("config.controller.server.publishedRPCHost");
+    public static final int RPC_PUBLISHED_SERVER_PORT = CONFIG.getInt("config.controller.server.publishedRPCPort");
 
     //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
     public static final String SERVICE_HOST = CONFIG.getString("config.controller.server.serviceHostIp");
     public static final int SERVICE_PORT = CONFIG.getInt("config.controller.server.serviceHostPort");
+
+
 
     //Store configuration.
     //Stream store configuration.
