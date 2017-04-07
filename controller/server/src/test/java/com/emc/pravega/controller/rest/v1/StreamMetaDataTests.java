@@ -566,7 +566,7 @@ public class StreamMetaDataTests extends JerseyTest {
                 streamsListResp.getStreams().get(0).getStreamName());
 
         // Test to list large number of streams.
-        streamsList = Collections.nCopies(200, streamConfiguration1);
+        streamsList = Collections.nCopies(1000, streamConfiguration1);
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
         response = target(resourceURI).request().async().get();
         final StreamsList streamsList2 = response.get().readEntity(StreamsList.class);
