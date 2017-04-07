@@ -260,9 +260,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (serviceConfig.isRequestHandlersEnabled()) {
                 log.info("Shutting down request handlers");
                 RequestHandlersInit.shutdownRequestHandlers();
+                log.info("Request handlers shutdown");
             }
             if (controllerEventProcessors != null) {
+                log.info("Stopping controller event processors");
                 controllerEventProcessors.stopAsync();
+                log.info("Controller event processors shutdown");
             }
             if (monitor != null) {
                 log.info("Stopping the segment container monitor");
@@ -271,6 +274,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (controllerClusterListener != null) {
                 log.info("Stopping controller cluster listener");
                 controllerClusterListener.stopAsync();
+                log.info("Controller cluster listener shutdown");
             }
             timeoutService.stopAsync();
 

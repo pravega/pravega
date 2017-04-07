@@ -80,6 +80,7 @@ public class RESTServer extends AbstractIdleService {
             channel.close();
             log.info("Awaiting termination of REST server");
             channel.closeFuture().sync();
+            log.info("REST server terminated");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
