@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Checkpoint store test.
@@ -41,11 +42,17 @@ public abstract class CheckpointStoreTests {
         final String reader1 = "reader1";
         final String reader2 = "reader2";
 
+        Set<String> processes = checkpointStore.getProcesses();
+        Assert.assertEquals(0, processes.size());
+
         checkpointStore.addReaderGroup(process1, readerGroup1);
         List<String> result = checkpointStore.getReaderGroups(process1);
         Assert.assertNotNull(result);
         Assert.assertEquals(1, result.size());
         Assert.assertEquals(readerGroup1, result.get(0));
+
+        processes = checkpointStore.getProcesses();
+        Assert.assertEquals(1, processes.size());
 
         checkpointStore.addReader(process1, readerGroup1, reader1);
         Map<String, Position> resultMap = checkpointStore.getPositions(process1, readerGroup1);
@@ -96,11 +103,54 @@ public abstract class CheckpointStoreTests {
         Assert.assertNotNull(map);
         Assert.assertEquals(0, map.size());
 
+        try {
+            checkpointStore.addReader(process1, readerGroup2, "randomReader");
+            Assert.assertTrue(false);
+        } catch (CheckpointStoreException cse) {
+            Assert.assertEquals(CheckpointStoreException.Type.Sealed, cse.getType());
+        }
+
+        try {
+            checkpointStore.addReader(process1, "dummyReaderGroup", "randomReader");
+            Assert.assertTrue(false);
+        } catch (CheckpointStoreException cse) {
+            Assert.assertEquals(CheckpointStoreException.Type.NoNode, cse.getType());
+        }
+
+        try {
+            checkpointStore.sealReaderGroup(process1, "dummyReaderGroup");
+            Assert.assertTrue(false);
+        } catch (CheckpointStoreException cse) {
+            Assert.assertEquals(CheckpointStoreException.Type.NoNode, cse.getType());
+        }
+
         checkpointStore.removeReaderGroup(process1, readerGroup2);
         result = checkpointStore.getReaderGroups(process1);
         Assert.assertNotNull(result);
         Assert.assertEquals(1, result.size());
         Assert.assertEquals(readerGroup1, result.get(0));
+
+        try {
+            checkpointStore.addReader(process1, readerGroup1, reader1);
+        } catch (CheckpointStoreException cse) {
+            Assert.assertEquals(CheckpointStoreException.Type.NodeExists, cse.getType());
+        }
+
+        map = checkpointStore.sealReaderGroup(process1, readerGroup1);
+        Assert.assertNotNull(map);
+        Assert.assertEquals(2, map.size());
+
+        try {
+            checkpointStore.removeReaderGroup(process1, readerGroup1);
+        } catch (CheckpointStoreException cse) {
+            Assert.assertEquals(CheckpointStoreException.Type.NodeNotEmpty, cse.getType());
+        }
+
+        try {
+            checkpointStore.addReader(process1, readerGroup1, "dummyReader");
+        } catch (CheckpointStoreException cse) {
+            Assert.assertEquals(CheckpointStoreException.Type.Sealed, cse.getType());
+        }
 
         checkpointStore.removeReader(process1, readerGroup1, reader1);
 
@@ -127,10 +177,6 @@ public abstract class CheckpointStoreTests {
         Assert.assertNotNull(result);
         Assert.assertEquals(1, result.size());
         Assert.assertEquals(readerGroup1, result.get(0));
-
-        map = checkpointStore.sealReaderGroup(process1, readerGroup1);
-        Assert.assertNotNull(map);
-        Assert.assertEquals(0, map.size());
 
         checkpointStore.removeReaderGroup(process1, readerGroup1);
         result = checkpointStore.getReaderGroups(process1);

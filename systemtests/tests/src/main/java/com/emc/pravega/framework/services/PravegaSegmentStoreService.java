@@ -138,7 +138,6 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
         Map<String, String> map = new HashMap<>();
         map.put("HOST_OPTS", hostSystemProperties);
-        map.put("ZK_URL", zk);
         app.setEnv(map);
 
         return app;

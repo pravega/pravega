@@ -49,6 +49,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testCreate() {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
+            s.initialize(0);
             s.create(segmentName, null).join();
             assertThrows("create() did not throw for existing StreamSegment.",
                     s.create(segmentName, null),
@@ -57,15 +58,21 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the open() method.
+     * Tests the openRead() and openWrite() methods.
      */
     @Test
     public void testOpen() {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
+            s.initialize(0);
+
             // Segment does not exist.
-            assertThrows("open() did not throw for non-existent StreamSegment.",
-                    s.open(segmentName),
+            assertThrows("openWrite() did not throw for non-existent StreamSegment.",
+                    s.openWrite(segmentName),
+                    ex -> ex instanceof StreamSegmentNotExistsException);
+
+            assertThrows("openRead() did not throw for non-existent StreamSegment.",
+                    s.openRead(segmentName),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
@@ -81,36 +88,44 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         int appendCount = 100;
 
         try (Storage s = createStorage()) {
+            s.initialize(0);
             s.create(segmentName, TIMEOUT).join();
 
-            // Invalid segment name.
+            // Invalid handle.
+            val readOnlyHandle = s.openRead(segmentName).join();
             assertThrows(
-                    "write() did not throw for invalid segment name.",
-                    () -> s.write(segmentName + "invalid", 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
+                    "write() did not throw for read-only handle.",
+                    () -> s.write(readOnlyHandle, 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
+                    ex -> ex instanceof IllegalArgumentException);
+
+            assertThrows(
+                    "write() did not throw for handle pointing to inexistent segment.",
+                    () -> s.write(createHandle(segmentName + "_1", false), 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
+            val writeHandle = s.openWrite(segmentName).join();
             long offset = 0;
             for (int j = 0; j < appendCount; j++) {
                 byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
                 ByteArrayInputStream dataStream = new ByteArrayInputStream(writeData);
-                s.write(segmentName, offset, dataStream, writeData.length, TIMEOUT).join();
+                s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 offset += writeData.length;
             }
 
             // Check bad offset.
             final long finalOffset = offset;
             assertThrows("write() did not throw bad offset write (smaller).",
-                    () -> s.write(segmentName, finalOffset - 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
+                    () -> s.write(writeHandle, finalOffset - 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
 
             assertThrows("write() did not throw bad offset write (larger).",
-                    () -> s.write(segmentName, finalOffset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
+                    () -> s.write(writeHandle, finalOffset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
 
             // Check post-delete write.
-            s.delete(segmentName, TIMEOUT).join();
+            s.delete(writeHandle, TIMEOUT).join();
             assertThrows("write() did not throw for a deleted StreamSegment.",
-                    () -> s.write(segmentName, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
+                    () -> s.write(writeHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
@@ -124,9 +139,11 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testRead() throws Exception {
         final String context = "Read";
         try (Storage s = createStorage()) {
+            s.initialize(0);
+
             // Check invalid segment name.
             assertThrows("read() did not throw for invalid segment name.",
-                    () -> s.read("foo_read_1", 0, new byte[1], 0, 1, TIMEOUT),
+                    () -> s.read(createHandle("foo_read_1", true), 0, new byte[1], 0, 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
@@ -134,13 +151,13 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             // Do some reading.
             for (Entry<String, ByteArrayOutputStream> entry : appendData.entrySet()) {
                 String segmentName = entry.getKey();
-                s.open(segmentName).join();
+                val readHandle = s.openRead(segmentName).join();
                 byte[] expectedData = entry.getValue().toByteArray();
 
                 for (int offset = 0; offset < expectedData.length / 2; offset++) {
                     int length = expectedData.length - 2 * offset;
                     byte[] readBuffer = new byte[length];
-                    int bytesRead = s.read(segmentName, offset, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+                    int bytesRead = s.read(readHandle, offset, readBuffer, 0, readBuffer.length, TIMEOUT).join();
                     Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
                             length, bytesRead);
                     AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
@@ -150,33 +167,33 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
             // Test bad parameters.
             val testSegment = getSegmentName(0, context);
-            s.open(testSegment).join();
+            val testSegmentHandle = s.openRead(testSegment).join();
             byte[] testReadBuffer = new byte[10];
             assertThrows("read() allowed reading with negative read offset.",
-                    () -> s.read(getSegmentName(0, context), -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
+                    () -> s.read(createHandle(getSegmentName(0, context), true), -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with offset beyond Segment length.",
-                    () -> s.read(testSegment, s.getStreamSegmentInfo(testSegment, TIMEOUT).join().getLength() + 1,
+                    () -> s.read(testSegmentHandle, s.getStreamSegmentInfo(testSegment, TIMEOUT).join().getLength() + 1,
                             testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with negative read buffer offset.",
-                    () -> s.read(testSegment, 0, testReadBuffer, -1, testReadBuffer.length, TIMEOUT),
+                    () -> s.read(testSegmentHandle, 0, testReadBuffer, -1, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with invalid read buffer length.",
-                    () -> s.read(testSegment, 0, testReadBuffer, 1, testReadBuffer.length, TIMEOUT),
+                    () -> s.read(testSegmentHandle, 0, testReadBuffer, 1, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with invalid read length.",
-                    () -> s.read(testSegment, 0, testReadBuffer, 0, testReadBuffer.length + 1, TIMEOUT),
+                    () -> s.read(testSegmentHandle, 0, testReadBuffer, 0, testReadBuffer.length + 1, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             // Check post-delete read.
-            s.delete(testSegment, TIMEOUT).join();
+            s.delete(s.openWrite(testSegment).join(), TIMEOUT).join();
             assertThrows("read() did not throw for a deleted StreamSegment.",
-                    () -> s.read(testSegment, 0, new byte[1], 0, 1, TIMEOUT),
+                    () -> s.read(testSegmentHandle, 0, new byte[1], 0, 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
@@ -190,30 +207,37 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testSeal() throws Exception {
         final String context = "Seal";
         try (Storage s = createStorage()) {
-            // Check invalid segment name.
+            s.initialize(0);
+
+            // Check segment not exists.
             assertThrows("seal() did not throw for non-existent segment name.",
-                    () -> s.seal("foo", TIMEOUT),
+                    () -> s.seal(createHandle("foo", false), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
             for (String segmentName : appendData.keySet()) {
-                s.open(segmentName).join();
-                val segmentInfo = s.seal(segmentName, TIMEOUT).join();
+                val readHandle = s.openRead(segmentName).join();
+                assertThrows("seal() did not throw for read-only handle.",
+                        () -> s.seal(readHandle, TIMEOUT),
+                        ex -> ex instanceof IllegalArgumentException);
+
+                val writeHandle = s.openWrite(segmentName).join();
+                val segmentInfo = s.seal(writeHandle, TIMEOUT).join();
                 Assert.assertTrue("seal() did not return a segmentInfo with isSealed == true.", segmentInfo.isSealed());
 
-                //Seal is reentrant. Resealing an already sealed segment should work.
-                val segmentInfo1 = s.seal(segmentName, TIMEOUT).join();
+                //Seal is idempotent. Resealing an already sealed segment should work.
+                val segmentInfo1 = s.seal(writeHandle, TIMEOUT).join();
                 Assert.assertTrue("seal() did not return a segmentInfo with isSealed == true for an already sealed segment.", segmentInfo1.isSealed());
 
                 assertThrows("write() did not throw for a sealed StreamSegment.",
-                        () -> s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).
+                        () -> s.write(writeHandle, s.getStreamSegmentInfo(segmentName, TIMEOUT).
                                 join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);
 
                 // Check post-delete seal.
-                s.delete(segmentName, TIMEOUT).join();
+                s.delete(writeHandle, TIMEOUT).join();
                 assertThrows("seal() did not throw for a deleted StreamSegment.",
-                        () -> s.seal(segmentName, TIMEOUT),
+                        () -> s.seal(writeHandle, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
             }
         }
@@ -228,19 +252,20 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testConcat() throws Exception {
         final String context = "Concat";
         try (Storage s = createStorage()) {
+            s.initialize(0);
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
 
             // Check invalid segment name.
             val firstSegmentName = getSegmentName(0, context);
-            s.open(firstSegmentName).join();
+            val firstSegmentHandle = s.openWrite(firstSegmentName).join();
             AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
                     TIMEOUT).join().getLength());
             assertThrows("concat() did not throw for non-existent target segment name.",
-                    () -> s.concat("foo1", 0, firstSegmentName, TIMEOUT),
+                    () -> s.concat(createHandle("foo1", false), 0, firstSegmentHandle, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             assertThrows("concat() did not throw for invalid source StreamSegment name.",
-                    () -> s.concat(firstSegmentName, firstSegmentLength.get(), "foo2", TIMEOUT),
+                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), createHandle("foo2", false), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             ArrayList<String> concatOrder = new ArrayList<>();
@@ -251,17 +276,17 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
                     continue;
                 }
 
-                s.open(sourceSegment).join();
+                val sourceWriteHandle = s.openWrite(sourceSegment).join();
                 assertThrows("Concat allowed when source segment is not sealed.",
-                        () -> s.concat(firstSegmentName, firstSegmentLength.get(), sourceSegment, TIMEOUT),
+                        () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceWriteHandle, TIMEOUT),
                         ex -> ex instanceof IllegalStateException);
 
                 // Seal the source segment and then re-try the concat
-                s.seal(sourceSegment, TIMEOUT).join();
+                s.seal(sourceWriteHandle, TIMEOUT).join();
                 SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceSegment, TIMEOUT).join();
 
-                s.concat(firstSegmentName, firstSegmentLength.get(), sourceSegment, TIMEOUT).join();
+                s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceWriteHandle, TIMEOUT).join();
                 concatOrder.add(sourceSegment);
                 SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 Assert.assertFalse("concat() did not delete source segment", s.exists(sourceSegment, TIMEOUT).join());
@@ -277,7 +302,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             byte[] readBuffer = new byte[(int) segmentProperties.getLength()];
 
             // Read the entire StreamSegment.
-            int bytesRead = s.read(firstSegmentName, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+            int bytesRead = s.read(firstSegmentHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
             Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
 
             // Check, concat-by-concat, that the final data is correct.
@@ -313,6 +338,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             String segmentName = getSegmentName(segmentId, context);
 
             s.create(segmentName, TIMEOUT).join();
+            val writeHandle = s.openWrite(segmentName).join();
             ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
             appendData.put(segmentName, writeStream);
 
@@ -320,7 +346,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
                 byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
                 ByteArrayInputStream dataStream = new ByteArrayInputStream(writeData);
-                s.write(segmentName, offset, dataStream, writeData.length, TIMEOUT).join();
+                s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 writeStream.write(writeData);
                 offset += writeData.length;
             }
@@ -337,6 +363,15 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      * test termination.
      */
     protected abstract Storage createStorage();
+
+    /**
+     * Creates a new handle for the given Segment, regardless of whether the Segment exists or not.
+     *
+     * @param segmentName The name of the segment.
+     * @param readOnly    Whether this is a read-only handle or not.
+     * @return The handle.
+     */
+    protected abstract SegmentHandle createHandle(String segmentName, boolean readOnly);
 
     //endregion
 }

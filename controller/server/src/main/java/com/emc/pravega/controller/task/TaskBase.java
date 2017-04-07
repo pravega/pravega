@@ -141,6 +141,10 @@ public abstract class TaskBase implements AutoCloseable {
         return readyLatch.await(timeout, timeUnit);
     }
 
+    public void awaitInitialization() throws InterruptedException {
+        readyLatch.await();
+    }
+
     private <T> CompletableFuture<T> executeTask(final Resource resource,
                                                  final TaskData taskData,
                                                  final String tag,

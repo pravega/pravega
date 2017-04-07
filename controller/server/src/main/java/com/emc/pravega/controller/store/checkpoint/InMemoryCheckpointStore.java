@@ -16,6 +16,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * In memory checkpoint store.
@@ -155,6 +157,11 @@ class InMemoryCheckpointStore implements CheckpointStore {
         }
     }
 
+    @Override
+    public Set<String> getProcesses() throws CheckpointStoreException {
+        return map.keySet().stream().map(this::getProcess).collect(Collectors.toSet());
+    }
+
     private String getKey(final String process, final String readerGroup) {
         return process + SEPARATOR + readerGroup;
     }
@@ -166,5 +173,10 @@ class InMemoryCheckpointStore implements CheckpointStore {
         } else {
             return null;
         }
+    }
+
+    private String getProcess(final String key) {
+        String[] splits = key.split(SEPARATOR);
+        return splits[0];
     }
 }

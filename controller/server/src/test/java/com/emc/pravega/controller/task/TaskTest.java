@@ -168,7 +168,7 @@ public class TaskTest {
 
         taskMetadataStore.lock(resource, taskData, deadHost, deadThreadId, null, null).join();
 
-        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, streamMetadataTasks);
+        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
         taskSweeper.sweepOrphanedTasks(deadHost).get();
 
         Optional<TaskData> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
@@ -218,9 +218,9 @@ public class TaskTest {
         taskMetadataStore.lock(resource1, taskData1, deadHost, deadThreadId1, null, null).join();
         taskMetadataStore.lock(resource2, taskData2, deadHost, deadThreadId2, null, null).join();
 
-        final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks,
+        final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, executor, taskMetadataStore, streamMetadataTasks,
                 deadHost);
-        final SweeperThread sweeperThread2 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks,
+        final SweeperThread sweeperThread2 = new SweeperThread(HOSTNAME, executor, taskMetadataStore, streamMetadataTasks,
                 deadHost);
 
         sweeperThread1.start();
@@ -267,17 +267,19 @@ public class TaskTest {
         private final CompletableFuture<Void> result;
         private final String deadHostId;
         private final TaskSweeper taskSweeper;
+        private final String hostId;
 
-        public SweeperThread(String hostId, TaskMetadataStore taskMetadataStore,
+        public SweeperThread(String hostId, ScheduledExecutorService executor, TaskMetadataStore taskMetadataStore,
                              StreamMetadataTasks streamMetadataTasks, String deadHostId) {
             this.result = new CompletableFuture<>();
-            this.taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks);
+            this.taskSweeper = new TaskSweeper(taskMetadataStore, hostId, executor, streamMetadataTasks);
             this.deadHostId = deadHostId;
+            this.hostId = hostId;
         }
 
         @Override
         public void run() {
-            taskSweeper.sweepOrphanedTasks(this.deadHostId)
+            taskSweeper.sweepOrphanedTasks(Collections.singleton(hostId))
                     .whenComplete((value, e) -> {
                         if (e != null) {
                             result.completeExceptionally(e);
