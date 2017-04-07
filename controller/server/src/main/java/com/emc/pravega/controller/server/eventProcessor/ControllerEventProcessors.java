@@ -147,13 +147,17 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private CompletableFuture<Void> createScope(final String scopeName) {
         return FutureHelpers.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor scope " + scopeName, e))
-                .runAsync(() -> controller.createScope(scopeName), executor));
+                .runAsync(() -> controller.createScope(scopeName)
+                        .thenAccept(x -> log.info("Created controller scope {}", scopeName)), executor));
     }
 
     private CompletableFuture<Void> createStream(final StreamConfiguration streamConfig) {
         return FutureHelpers.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
-                .runAsync(() -> controller.createStream(streamConfig), executor));
+                .runAsync(() -> controller.createStream(streamConfig)
+                        .thenAccept(x ->
+                                log.info("Created stream %s/%s", streamConfig.getScope(), streamConfig.getStreamName())),
+                        executor));
     }
 
 

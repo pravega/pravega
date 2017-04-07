@@ -124,7 +124,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .serviceThreadPoolSize(3)
                 .taskThreadPoolSize(3)
                 .storeThreadPoolSize(3)
-                .eventProcThreadPoolSize(3)
+                .eventProcThreadPoolSize(6)
                 .requestHandlerThreadPoolSize(3)
                 .storeClientConfig(storeClientConfig)
                 .controllerClusterListenerConfig(controllerClusterListenerConfig)

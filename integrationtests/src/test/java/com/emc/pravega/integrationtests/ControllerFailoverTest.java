@@ -149,7 +149,7 @@ public class ControllerFailoverTest {
         controllerWrapper.awaitTerminated();
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testStop() {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
