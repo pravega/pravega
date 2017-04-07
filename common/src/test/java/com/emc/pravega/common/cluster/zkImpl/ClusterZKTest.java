@@ -92,13 +92,13 @@ public class ClusterZKTest {
         //Create Add a node to the cluster.
         @Cleanup
         Cluster clusterZKInstance1 = new ClusterZKImpl(client, ClusterType.HOST);
-        clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
+        clusterZKInstance1.registerHost(new Host(HOST_1, PORT, null));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
         //Create a separate instance of Cluster and add node to same Cluster
         @Cleanup
         Cluster clusterZKInstance2 = new ClusterZKImpl(client, ClusterType.HOST);
-        clusterZKInstance1.registerHost(new Host(HOST_2, PORT));
+        clusterZKInstance1.registerHost(new Host(HOST_2, PORT, null));
         assertEquals(HOST_2, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
         assertEquals(2, clusterListener.getClusterMembers().size());
 
@@ -148,10 +148,10 @@ public class ClusterZKTest {
         //Create Add a node to the cluster.
         @Cleanup
         Cluster clusterZKInstance1 = new ClusterZKImpl(client, ClusterType.HOST);
-        clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
+        clusterZKInstance1.registerHost(new Host(HOST_1, PORT, null));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
-        clusterZKInstance1.deregisterHost(new Host(HOST_1, PORT));
+        clusterZKInstance1.deregisterHost(new Host(HOST_1, PORT, null));
         assertEquals(HOST_1, nodeRemovedQueue.poll(5, TimeUnit.SECONDS));
 
         Exception exception = exceptionsQueue.poll();

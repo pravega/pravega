@@ -34,12 +34,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Optional;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -137,16 +137,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
             log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
 
-            String hostName;
-            try {
-                //On each controller process restart, it gets a fresh hostId,
-                //which is a combination of hostname and random GUID.
-                hostName = InetAddress.getLocalHost().getHostAddress() + "-" + UUID.randomUUID().toString();
-            } catch (UnknownHostException e) {
-                log.warn("Failed to get host address.", e);
-                hostName = UUID.randomUUID().toString();
-            }
-            Host host = new Host(hostName, getPort());
+            // On each controller process restart, we use a fresh hostId,
+            // which is a combination of hostname and random GUID.
+            String hostName = getHostName();
+            Host host = new Host(hostName, getPort(), hostName + "-" + UUID.randomUUID().toString());
 
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
@@ -160,9 +154,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             connectionFactory = new ConnectionFactoryImpl(false);
             SegmentHelper segmentHelper = new SegmentHelper();
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, taskExecutor, host.toString(), connectionFactory);
+                    segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, taskMetadataStore, segmentHelper, taskExecutor, host.toString(), connectionFactory);
+                    hostStore, taskMetadataStore, segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
@@ -174,7 +168,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // are processed and deleted, that failed HostId is removed from FH folder.
             // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
             // controllers and starts sweeping tasks orphaned by those hostIds.
-            TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.toString(), taskExecutor,
+            TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.getHostId(), taskExecutor,
                     streamMetadataTasks, streamTransactionMetadataTasks);
 
             // Setup event processors.
@@ -182,7 +176,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 // Create ControllerEventProcessor object.
-                controllerEventProcessors = new ControllerEventProcessors(host.toString(),
+                controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
                         hostStore, segmentHelper, connectionFactory, eventProcExecutor);
 
@@ -366,14 +360,28 @@ public class ControllerServiceStarter extends AbstractIdleService {
         controllerReadyLatch.countDown();
     }
 
-    private int getPort() {
+    private String getHostName() {
+        String hostName = null;
         if (serviceConfig.getGRPCServerConfig().isPresent()) {
-            return serviceConfig.getGRPCServerConfig().get().getPort();
-        } else if (serviceConfig.getRestServerConfig().isPresent()) {
-            return serviceConfig.getRestServerConfig().get().getPort();
-        } else {
-            // return a random number between 0 and 999
-            return new Random().nextInt(1000);
+            hostName = serviceConfig.getGRPCServerConfig().get().getPublishedRPCHost();
         }
+
+        if (StringUtils.isEmpty(hostName)) {
+            try {
+                hostName = InetAddress.getLocalHost().getHostAddress();
+            } catch (UnknownHostException e) {
+                log.warn("Failed to get host address, defaulting to localhost: {}", e);
+                hostName = "localhost";
+            }
+        }
+        return hostName;
+    }
+
+    private int getPort() {
+        int port = 0;
+        if (serviceConfig.getGRPCServerConfig().isPresent()) {
+            port = serviceConfig.getGRPCServerConfig().get().getPublishedRPCPort();
+        }
+        return port;
     }
 }

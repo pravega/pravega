@@ -50,7 +50,7 @@ public class ZKSegmentContainerManagerTest {
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
     private static final int PORT = TestUtils.getAvailableListenPort();
-    private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT);
+    private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT, null);
     private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
     private String zkUrl;
 

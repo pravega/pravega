@@ -129,20 +129,20 @@ public class SegmentContainerMonitorTest {
         assertEquals(0, hostStore.getHostContainersMap().size());
 
         //New host added.
-        cluster.registerHost(new Host("localhost1", 1));
+        cluster.registerHost(new Host("localhost1", 1, null));
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(1, hostStore.getHostContainersMap().size());
 
         //Multiple hosts added and removed.
-        cluster.registerHost(new Host("localhost2", 2));
-        cluster.registerHost(new Host("localhost3", 3));
-        cluster.registerHost(new Host("localhost4", 4));
-        cluster.deregisterHost(new Host("localhost1", 1));
+        cluster.registerHost(new Host("localhost2", 2, null));
+        cluster.registerHost(new Host("localhost3", 3, null));
+        cluster.registerHost(new Host("localhost4", 4, null));
+        cluster.deregisterHost(new Host("localhost1", 1, null));
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(3, hostStore.getHostContainersMap().size());
 
         //Add a host.
-        cluster.registerHost(new Host("localhost1", 1));
+        cluster.registerHost(new Host("localhost1", 1, null));
 
         //Rebalance should not have been triggered since the min rebalance interval is not yet elapsed.
         assertEquals(3, hostStore.getHostContainersMap().size());
