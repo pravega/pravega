@@ -688,12 +688,12 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
+        public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
             throw new NotImplementedException();
         }
 
         @Override
-        public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
+        public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
             throw new NotImplementedException();
         }
 

@@ -116,7 +116,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
         s.create(newSegmentName, TIMEOUT).join();
         val targetHandle = s.openWrite(newSegmentName).join();
         assertThrows("concat() allowed concatenation of truncated segment.",
-                () -> s.concat(targetHandle, 0, handle, TIMEOUT),
+                () -> s.concat(targetHandle, 0, handle.getSegmentName(), TIMEOUT),
                 ex -> ex instanceof IllegalStateException);
     }
 

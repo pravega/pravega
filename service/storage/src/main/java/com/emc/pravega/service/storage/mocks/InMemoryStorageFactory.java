@@ -97,15 +97,15 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
+        public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
             Exceptions.checkNotClosed(this.closed.get(), this);
             return this.baseStorage.seal(handle, timeout);
         }
 
         @Override
-        public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
+        public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
             Exceptions.checkNotClosed(this.closed.get(), this);
-            return this.baseStorage.concat(targetHandle, offset, sourceHandle, timeout);
+            return this.baseStorage.concat(targetHandle, offset, sourceSegment, timeout);
         }
 
         @Override

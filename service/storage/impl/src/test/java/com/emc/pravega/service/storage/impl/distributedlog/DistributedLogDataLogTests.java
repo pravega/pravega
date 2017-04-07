@@ -203,25 +203,37 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     public void testExclusiveWriteLock() throws Exception {
         // Tests the ability of the DurableDataLog to enforce an exclusive writer, by only allowing one client at a time
         // to write to the same physical log.
+        final long initialEpoch;
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
+            initialEpoch = log.getEpoch();
+            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", 0, initialEpoch);
 
             // Simulate a different client trying to open the same log. This should not be allowed.
             @Cleanup
             val factory = new DistributedLogDataLogFactory(CLIENT_ID + "_secondary", config.get(), executorService());
             factory.initialize();
-            AssertExtensions.assertThrows(
-                    "A second log was able to acquire the exclusive write lock, even if another log held it.",
-                    () -> {
-                        try (DurableDataLog log2 = factory.createDurableDataLog(CONTAINER_ID)) {
-                            log2.initialize(TIMEOUT);
-                        }
-                    },
-                    ex -> ex instanceof DataLogWriterNotPrimaryException);
+            try (DurableDataLog log2 = factory.createDurableDataLog(CONTAINER_ID)) {
+                AssertExtensions.assertThrows(
+                        "A second log was able to acquire the exclusive write lock, even if another log held it.",
+                        () -> log2.initialize(TIMEOUT),
+                        ex -> ex instanceof DataLogWriterNotPrimaryException);
+
+                AssertExtensions.assertThrows(
+                        "getEpoch() did not throw after failed initialization.",
+                        log2::getEpoch,
+                        ex -> ex instanceof IllegalStateException);
+            }
 
             // Verify we can still append and read to/from the first log.
             TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForWrites());
             verifyReads(log, createLogAddress(-1), writeData);
+        }
+
+        try (DurableDataLog log = createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+            long epoch = log.getEpoch();
+            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on non-empty log initialization.", initialEpoch, epoch);
         }
     }
 

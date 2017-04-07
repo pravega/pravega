@@ -41,4 +41,14 @@ public interface RecoverableMetadata {
      * @throws IllegalArgumentException If the new Sequence Number is not greater than the previous one.
      */
     void setOperationSequenceNumber(long value);
+
+    /**
+     * Sets the current Container Epoch.
+     *
+     * See getContainerEpoch() for a description of what Epoch is.
+     *
+     * @param value The value to set.
+     * @throws IllegalStateException If the Metadata is not in Recovery Mode.
+     */
+    void setContainerEpoch(long value);
 }

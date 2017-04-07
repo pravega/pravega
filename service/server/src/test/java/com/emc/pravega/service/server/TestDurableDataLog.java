@@ -98,6 +98,11 @@ public class TestDurableDataLog implements DurableDataLog {
         return this.wrappedLog.getLastAppendSequence();
     }
 
+    @Override
+    public long getEpoch() {
+        return this.wrappedLog.getEpoch();
+    }
+
     //endregion
 
     //region Test Helper Methods

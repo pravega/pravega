@@ -293,7 +293,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger mergeFailCount = new AtomicInteger();
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
             if (mergeCount.incrementAndGet() % failMergeEvery == 0) {
-                return storage.concat(InMemoryStorage.newHandle(targetSegment, false), offset, InMemoryStorage.newHandle(sourceSegment, false), TIMEOUT)
+                return storage.concat(InMemoryStorage.newHandle(targetSegment, false), offset, sourceSegment, TIMEOUT)
                               .thenRun(() -> {
                                   mergeFailCount.incrementAndGet();
                                   throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));

@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.mocks;
 
@@ -23,6 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -44,6 +43,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     private long offset;
     @GuardedBy("entries")
     private long lastAppendSequence;
+    private long epoch;
     private boolean closed;
     private boolean initialized;
 
@@ -60,6 +60,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         this.executorService = executorService;
         this.offset = Long.MIN_VALUE;
         this.lastAppendSequence = Long.MIN_VALUE;
+        this.epoch = Long.MIN_VALUE;
         this.clientId = UUID.randomUUID().toString();
     }
 
@@ -80,13 +81,15 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     @Override
     public void initialize(Duration timeout) {
+        long newEpoch;
         try {
-            this.entries.acquireLock(this.clientId);
+            newEpoch = this.entries.acquireLock(this.clientId);
         } catch (DataLogWriterNotPrimaryException ex) {
             throw new CompletionException(ex);
         }
 
         synchronized (this.entries) {
+            this.epoch = newEpoch;
             Entry last = this.entries.getLast();
             if (last == null) {
                 this.offset = 0;
@@ -112,6 +115,12 @@ class InMemoryDurableDataLog implements DurableDataLog {
         synchronized (this.entries) {
             return this.lastAppendSequence;
         }
+    }
+
+    @Override
+    public long getEpoch() {
+        ensurePreconditions();
+        return this.epoch;
     }
 
     @Override
@@ -238,6 +247,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     static class EntryCollection {
         private final SequencedItemList<Entry> entries;
         private final AtomicReference<String> writeLock;
+        private final AtomicLong epoch;
         private final int maxAppendSize;
 
         EntryCollection() {
@@ -247,6 +257,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         EntryCollection(int maxAppendSize) {
             this.entries = new SequencedItemList<>();
             this.writeLock = new AtomicReference<>();
+            this.epoch = new AtomicLong();
             this.maxAppendSize = maxAppendSize;
         }
 
@@ -272,16 +283,18 @@ class InMemoryDurableDataLog implements DurableDataLog {
             return this.entries.read(Long.MIN_VALUE, Integer.MAX_VALUE);
         }
 
-        void acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
+        long acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
-            if (!writeLock.compareAndSet(null, clientId)) {
+            if (!this.writeLock.compareAndSet(null, clientId)) {
                 throw new DataLogWriterNotPrimaryException("Unable to acquire exclusive write lock because is already owned by " + clientId);
             }
+            return this.epoch.incrementAndGet();
         }
 
-        void forceAcquireLock(String clientId) {
+        long forceAcquireLock(String clientId) {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             this.writeLock.set(clientId);
+            return this.epoch.incrementAndGet();
         }
 
         void releaseLock(String clientId) throws DataLogWriterNotPrimaryException {

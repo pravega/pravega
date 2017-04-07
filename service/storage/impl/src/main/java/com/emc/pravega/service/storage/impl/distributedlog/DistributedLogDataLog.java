@@ -14,6 +14,7 @@ import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.WriteFailureException;
 import com.google.common.base.Preconditions;
+import com.twitter.distributedlog.DLSN;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,6 +23,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -41,6 +43,7 @@ class DistributedLogDataLog implements DurableDataLog {
     private final LogClient client;
     private final String logName;
     private final AtomicReference<DLSNAddress> truncatedAddress;
+    private final AtomicLong epoch;
     private final ScheduledExecutorService executor;
     private final AtomicBoolean closed;
     private final Retry.RetryAndThrowBase<Exception> retryPolicy;
@@ -49,7 +52,7 @@ class DistributedLogDataLog implements DurableDataLog {
     @GuardedBy("handleLock")
     private LogHandle handle;
     @GuardedBy("handleLock")
-    private LogHandle truncateHandle;
+    private LogHandle metadataHandle;
 
     //endregion
 
@@ -75,6 +78,7 @@ class DistributedLogDataLog implements DurableDataLog {
         this.executor = executor;
         this.truncatedAddress = new AtomicReference<>();
         this.closed = new AtomicBoolean();
+        this.epoch = new AtomicLong(Long.MIN_VALUE);
         this.traceObjectId = String.format("Log[%s]", logName);
         this.retryPolicy = config.getRetryPolicy()
                                  .retryWhen(DistributedLogDataLog::isRetryable)
@@ -99,6 +103,7 @@ class DistributedLogDataLog implements DurableDataLog {
     @Override
     public void initialize(Duration timeout) throws DurableDataLogException {
         openHandles();
+        updateEpoch();
     }
 
     @Override
@@ -113,11 +118,8 @@ class DistributedLogDataLog implements DurableDataLog {
         Preconditions.checkArgument(logAddress instanceof DLSNAddress, "Invalid logAddress. Expected a DLSNAddress.");
         DLSNAddress dlsnAddress = (DLSNAddress) logAddress;
         return withRetries(() -> getHandle().truncate(dlsnAddress))
-                .thenComposeAsync(
-                        v -> withRetries(() -> getTruncateHandle().append(new ByteArrayInputStream(dlsnAddress.serialize()))),
-                        this.executor)
-                .thenComposeAsync(
-                        truncateAddress -> withRetries(() -> getTruncateHandle().truncate((DLSNAddress) truncateAddress)),
+                .thenComposeAsync(v -> recordTruncation(dlsnAddress), this.executor)
+                .thenComposeAsync(truncateAddress -> withRetries(() -> getMetadataHandle().truncate((DLSNAddress) truncateAddress)),
                         this.executor)
                 .thenRun(() -> this.truncatedAddress.set(dlsnAddress));
     }
@@ -143,6 +145,12 @@ class DistributedLogDataLog implements DurableDataLog {
     public long getLastAppendSequence() {
         ensureActive();
         return getHandle().getLastTransactionId();
+    }
+
+    @Override
+    public long getEpoch() {
+        ensureActive();
+        return this.epoch.get();
     }
 
     private void ensureActive() {
@@ -176,13 +184,13 @@ class DistributedLogDataLog implements DurableDataLog {
      * reopened.
      */
     @SneakyThrows(DurableDataLogException.class)
-    private LogHandle getTruncateHandle() {
+    private LogHandle getMetadataHandle() {
         synchronized (this.handleLock) {
             if (!areHandlesOpen()) {
                 openHandles();
             }
 
-            return this.truncateHandle;
+            return this.metadataHandle;
         }
     }
 
@@ -196,14 +204,14 @@ class DistributedLogDataLog implements DurableDataLog {
         Preconditions.checkState(!areHandlesOpen(), "DistributedLogDataLog is already initialized.");
         try {
             this.handle = this.client.getLogHandle(this.logName);
-            this.truncateHandle = this.client.getLogHandle(this.logName + "#truncation");
+            this.metadataHandle = this.client.getLogHandle(this.logName + "#metadata");
 
             // Figure out the exact location of the last truncation, if any.
-            long lastTruncateSeq = this.truncateHandle.getLastTransactionId();
-            if (lastTruncateSeq > LogHandle.START_TRANSACTION_ID) {
-                try (val reader = this.truncateHandle.getReader(lastTruncateSeq - 1)) {
-                    val lastTruncateItem = reader.getNext();
-                    this.truncatedAddress.set(DLSNAddress.deserialize(lastTruncateItem.getPayload()));
+            long lastMetadataSeq = this.metadataHandle.getLastTransactionId();
+            if (lastMetadataSeq > LogHandle.START_TRANSACTION_ID) {
+                try (val reader = this.metadataHandle.getReader(lastMetadataSeq - 1)) {
+                    val lastMetadataItem = reader.getNext();
+                    this.truncatedAddress.set(DLSNAddress.deserialize(lastMetadataItem.getPayload()));
                 }
             }
         } catch (Throwable ex) {
@@ -218,11 +226,39 @@ class DistributedLogDataLog implements DurableDataLog {
     }
 
     /**
+     * Durably updates the current epoch to a number that is larger (strictly) than the currently persisted one. This is
+     * done by writing one entry to the Truncation Log and using that entry's LogAddress Sequence number as an epoch (the
+     * log entry's sequence number is a monotonically-strict increasing number, which satisfies the requirement for the
+     * epoch invariant).
+     *
+     * @throws DurableDataLogException If unable to update the epoch.
+     */
+    private void updateEpoch() throws DurableDataLogException {
+        assert this.epoch.get() < 0 : "Epoch has already been set: " + this.epoch.get();
+        DLSNAddress lastTruncate = this.truncatedAddress.get();
+        if (lastTruncate == null) {
+            // We are at the beginning of the log, so we don't have any sort of truncation info yet.
+            lastTruncate = new DLSNAddress(0, new DLSN(0, 0, 0));
+        }
+
+        try {
+            val truncateAddress = recordTruncation(lastTruncate).get();
+            this.epoch.set(truncateAddress.getSequence());
+        } catch (Exception ex) {
+            throw new DurableDataLogException("Unable to update Log Epoch.", ex);
+        }
+    }
+
+    private CompletableFuture<LogAddress> recordTruncation(DLSNAddress truncatedAddress) {
+        return withRetries(() -> getMetadataHandle().append(new ByteArrayInputStream(truncatedAddress.serialize())));
+    }
+
+    /**
      * Determines whether the Log Handles are open.
      */
     @GuardedBy("handleLock")
     private boolean areHandlesOpen() {
-        return this.handle != null && this.truncateHandle != null;
+        return this.handle != null && this.metadataHandle != null;
     }
 
     /**
@@ -235,9 +271,9 @@ class DistributedLogDataLog implements DurableDataLog {
                 this.handle = null;
             }
 
-            if (this.truncateHandle != null) {
-                this.truncateHandle.close();
-                this.truncateHandle = null;
+            if (this.metadataHandle != null) {
+                this.metadataHandle.close();
+                this.metadataHandle = null;
             }
         }
 
