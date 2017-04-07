@@ -57,8 +57,8 @@ import org.apache.commons.lang3.tuple.Pair;
 public class ControllerService {
     private static final long RETRY_INITIAL_DELAY_MS = 100;
     private static final int RETRY_MULTIPLIER = 2;
-    private static final int RETRY_MAX_ATTEMPTS = 100;
-    private static final long RETRY_MAX_DELAY_MS = Duration.ofSeconds(5).toMillis();
+    private static final int RETRY_MAX_ATTEMPTS = 10;
+    private static final long RETRY_MAX_DELAY_MS = Duration.ofSeconds(1).toMillis();
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;

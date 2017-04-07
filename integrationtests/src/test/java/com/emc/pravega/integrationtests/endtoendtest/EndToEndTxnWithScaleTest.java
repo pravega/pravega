@@ -149,8 +149,8 @@ public class EndToEndTxnWithScaleTest {
                 EventWriterConfig.builder().build());
 
         CountDownLatch latch = new CountDownLatch(1);
-        ExecutorService service = Executors.newFixedThreadPool(2);
-        List<Future<?>> futures = new ArrayList<>(2);
+        ExecutorService service = Executors.newFixedThreadPool(5);
+        List<Future<?>> futures = new ArrayList<>(10);
 
         final Runnable createTxn = () -> {
             try {
@@ -164,8 +164,10 @@ public class EndToEndTxnWithScaleTest {
             }
         };
 
-        futures.add(service.submit(createTxn));
-        futures.add(service.submit(createTxn));
+        //create 10 txns on the same stream.
+        for (int i = 0; i < 10; i++) {
+            futures.add(service.submit(createTxn));
+        }
 
         latch.countDown(); //Trigger concurrent createTxn for a given stream.
 
