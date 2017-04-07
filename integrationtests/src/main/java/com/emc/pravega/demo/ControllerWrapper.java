@@ -4,13 +4,16 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
+import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
+import com.emc.pravega.controller.fault.impl.ControllerClusterListenerConfigImpl;
 import com.emc.pravega.controller.server.ControllerServiceConfig;
-import com.emc.pravega.controller.server.ControllerServiceStarter;
+import com.emc.pravega.controller.server.ControllerServiceMain;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
+import com.emc.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
@@ -33,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class ControllerWrapper implements AutoCloseable {
 
-    private final ControllerServiceStarter controllerServiceStarter;
+    private final ControllerServiceMain controllerServiceMain;
 
     public ControllerWrapper(final String connectionString, final int servicePort) throws Exception {
         this(connectionString, false, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, servicePort,
@@ -49,11 +52,19 @@ public class ControllerWrapper implements AutoCloseable {
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
                              final boolean disableRequestHandler,
                              final int controllerPort, final String serviceHost, final int servicePort,
-                             final int containerCount) throws Exception {
+                             final int containerCount) {
+        this(connectionString, disableEventProcessor, disableRequestHandler, true, controllerPort, serviceHost,
+                servicePort, containerCount, -1);
+    }
+
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableRequestHandler, final boolean disableControllerCluster,
+                             final int controllerPort, final String serviceHost, final int servicePort,
+                             final int containerCount, int restPort) {
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
-                .initialSleepInterval(2000)
-                .maxRetries(1)
+                .initialSleepInterval(500)
+                .maxRetries(10)
                 .namespace("pravega/" + UUID.randomUUID())
                 .build();
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
@@ -61,9 +72,22 @@ public class ControllerWrapper implements AutoCloseable {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(false)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
-                .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
+                .containerCount(containerCount)
                 .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(serviceHost, servicePort, containerCount))
                 .build();
+
+        Optional<ControllerClusterListenerConfig> controllerClusterListenerConfig;
+        if (!disableControllerCluster) {
+            controllerClusterListenerConfig = Optional.of(ControllerClusterListenerConfigImpl.builder()
+                    .minThreads(2)
+                    .maxThreads(10)
+                    .idleTime(10)
+                    .idleTimeUnit(TimeUnit.SECONDS)
+                    .maxQueueSize(512)
+                    .build());
+        } else {
+            controllerClusterListenerConfig = Optional.empty();
+        }
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
@@ -91,6 +115,10 @@ public class ControllerWrapper implements AutoCloseable {
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder().port(controllerPort).build();
 
+        Optional<RESTServerConfig> restServerConfig = restPort > 0 ?
+                Optional.of(RESTServerConfigImpl.builder().host("localhost").port(restPort).build()) :
+                Optional.<RESTServerConfig>empty();
+
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .serviceThreadPoolSize(3)
                 .taskThreadPoolSize(3)
@@ -98,37 +126,50 @@ public class ControllerWrapper implements AutoCloseable {
                 .eventProcThreadPoolSize(3)
                 .requestHandlerThreadPoolSize(3)
                 .storeClientConfig(storeClientConfig)
+                .controllerClusterListenerConfig(controllerClusterListenerConfig)
                 .hostMonitorConfig(hostMonitorConfig)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(eventProcessorConfig)
                 .requestHandlersEnabled(!disableRequestHandler)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
-                .restServerConfig(Optional.<RESTServerConfig>empty())
+                .restServerConfig(restServerConfig)
                 .build();
 
-        controllerServiceStarter = new ControllerServiceStarter(serviceConfig);
-        controllerServiceStarter.startAsync();
+        controllerServiceMain = new ControllerServiceMain(serviceConfig);
+        controllerServiceMain.startAsync();
     }
 
     public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
-        return this.controllerServiceStarter.awaitTasksModuleInitialization(timeout, timeUnit);
+        return this.controllerServiceMain.awaitServiceStarting().awaitTasksModuleInitialization(timeout, timeUnit);
     }
 
     public ControllerService getControllerService() throws InterruptedException {
-        return this.controllerServiceStarter.getControllerService();
+        return this.controllerServiceMain.awaitServiceStarting().getControllerService();
     }
 
     public Controller getController() throws InterruptedException {
-        return this.controllerServiceStarter.getController();
+        return this.controllerServiceMain.awaitServiceStarting().getController();
     }
 
     public void awaitRunning() {
-        this.controllerServiceStarter.awaitRunning();
+        this.controllerServiceMain.awaitServiceStarting().awaitRunning();
+    }
+
+    public void awaitPaused() {
+        this.controllerServiceMain.awaitServicePausing().awaitTerminated();
+    }
+
+    public void awaitTerminated() {
+        this.controllerServiceMain.awaitTerminated();
+    }
+
+    public void forceClientSessionExpiry() throws Exception {
+        this.controllerServiceMain.forceClientSessionExpiry();
     }
 
     @Override
     public void close() throws Exception {
-        this.controllerServiceStarter.stopAsync();
-        this.controllerServiceStarter.awaitTerminated();
+        this.controllerServiceMain.stopAsync();
+        this.controllerServiceMain.awaitTerminated();
     }
 }
