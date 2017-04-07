@@ -126,6 +126,9 @@ public class ControllerFailoverTest {
         controllerUri = controllerServiceInstance2.getServiceDetails().get(0);
         controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
 
+        // Wait for controller to stop completely.
+        Thread.sleep(10000);
+
         // Abort the ongoing transaction.
         controller.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
 
