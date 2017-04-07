@@ -107,26 +107,35 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
             throw ex;
         }
 
-        // At this point, there are two possible scenarios:
-        // 1. Two competing containers get this far for the same segment and both believe they are owners of the lock.
-        // 2. No competing container exists. Life is good!
+        // At this point it is possible that two competing containers get this far for the same segment and both believe
+        // they are owners of the lock.
         //
-        // To alleviate #1 above, we consolidate all previous files into a single one and ensure that file is read-only.
-        // In addition to that, we also clean up any empty files, which provide no value.
-        // This will have two benefits:
+        // To handle this, we consolidate all previous files into a single one and ensure that file is read-only. If that
+        // file ends up being empty, we delete it. As such:
         // 1. Competing containers with lower epochs will not be able to do any damage.
-        // 2. We keep the number of files per segment under control, so that a large number of calls to open-write does not
-        //    result in a large number of files.
+        // 2. The number of files for a segment is always either 1 or 2, regardless of how many calls to OpenWrite we make
         cleanup(allFiles);
         return HDFSSegmentHandle.write(segmentName, allFiles);
     }
 
+    /**
+     * Compacts all but the last file into the first file (by means of concatenation). If the resulting file would be
+     * empty, it will be deleted.
+     *
+     * @param allFiles An ordered Sequence of FileDescriptors to operate on. This List will be modified to reflect the
+     *                 new state of the FileSystem after this method completes.
+     * @throws IOException If an Exception occurred.
+     */
     private void cleanup(List<FileDescriptor> allFiles) throws IOException {
         if (allFiles.size() > 2) {
             // We keep the last file alone - that is the file we just created above, and there is no point of combining
             // a file to itself.
             val lastFile = allFiles.get(allFiles.size() - 1);
             FileDescriptor combinedFile = combine(allFiles.get(0), allFiles.subList(1, allFiles.size() - 1), true);
+
+            assert combinedFile.getLastOffset() == lastFile.getOffset()
+                    : String.format("New file list would not be contiguous. Combined file ends at offset %d; Last file begins at %d.",
+                    combinedFile.getLastOffset(), lastFile.getOffset());
 
             allFiles.clear();
             allFiles.add(combinedFile);
