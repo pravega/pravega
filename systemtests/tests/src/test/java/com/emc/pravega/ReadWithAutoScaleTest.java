@@ -124,7 +124,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
-    @Test(timeout = 6*60*1000) //timeout of 6 mins.
+    @Test(timeout = 6 * 60 * 1000) //timeout of 6 mins.
     public void scaleTestsWithReader() throws URISyntaxException, InterruptedException {
 
         URI controllerUri = getControllerURI();
@@ -187,6 +187,8 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                 .thenCompose(v -> CompletableFuture.allOf(writer1, writer2, writer3, writer4, writer5, writer6))
                 .thenCompose(v -> {
                     stopReadFlag.set(true);
+                    log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
+                            "Count: {}", data.get(), eventsReadFromPravega.size());
                     return CompletableFuture.allOf(reader1, reader2);
                 })
                 .thenRun(() -> validateResults(data.get(), eventsReadFromPravega));
@@ -201,13 +203,13 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     private void validateResults(final long lastEventCount, final Collection<Long> readEvents) {
         log.info("Last Event Count is {}", lastEventCount);
         assertTrue("Overflow in the number of events published ", lastEventCount > 0);
-        assertEquals(lastEventCount, readEvents.size()); // Number of event read should be equal to number of events
-        // published.
+        // Number of event read should be equal to number of events published.
+        assertEquals(lastEventCount, readEvents.size());
         assertEquals(lastEventCount, new TreeSet<>(readEvents).size()); //check unique events.
     }
 
     private CompletableFuture<Void> startReader(final String id, final ClientFactory clientFactory, final String
-            readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount , final AtomicBoolean
+            readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final AtomicBoolean
             exitFlag) {
 
         return CompletableFuture.runAsync(() -> {
@@ -217,7 +219,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
             while (!(exitFlag.get() && readResult.size() == writeCount.get())) {
-                // exit only if exitFlag and read Count and write count are same.
+                // exit only if exitFlag is true  and read Count equals write count.
                 try {
                     final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
                     if (longEvent != null) {
@@ -266,13 +268,13 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         try {
             //Default max scale grace period is 30000
             txn = writer.beginTxn(5000, 3600000, 29000);
-            log.debug("Transaction created with id:{} ", txn.getTxnId());
+            log.info("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
             final Class<? extends Throwable> exceptionClass = ex.getCause().getClass();
             if (exceptionClass.equals(io.grpc.StatusRuntimeException.class) && !exitFlag.get())  {
                 //Exit flag is true no need to retry.
-                log.debug("Cause for failure is {} and we need to retry", exceptionClass.getName());
+                log.warn("Cause for failure is {} and we need to retry", exceptionClass.getName());
                 throw new TxnCreationFailedException(); // we can retry on this exception.
             } else {
                 throw ex;
