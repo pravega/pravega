@@ -3,14 +3,13 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.MetricsNames;
+import com.emc.pravega.shared.MetricsNames;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.metrics.DynamicLogger;
-import com.emc.pravega.metrics.MetricsProvider;
-import com.emc.pravega.metrics.OpStatsLogger;
-import com.emc.pravega.metrics.StatsLogger;
-import com.emc.pravega.metrics.StatsProvider;
-import com.emc.pravega.common.util.NameVerifier;
+import com.emc.pravega.shared.metrics.DynamicLogger;
+import com.emc.pravega.shared.metrics.MetricsProvider;
+import com.emc.pravega.shared.metrics.OpStatsLogger;
+import com.emc.pravega.shared.metrics.StatsLogger;
+import com.emc.pravega.shared.metrics.StatsProvider;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -34,14 +33,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import static com.emc.pravega.MetricsNames.ABORT_TRANSACTION;
-import static com.emc.pravega.MetricsNames.COMMIT_TRANSACTION;
-import static com.emc.pravega.MetricsNames.CREATE_TRANSACTION;
-import static com.emc.pravega.MetricsNames.OPEN_TRANSACTIONS;
-import static com.emc.pravega.MetricsNames.SEGMENTS_COUNT;
-import static com.emc.pravega.MetricsNames.SEGMENTS_MERGES;
-import static com.emc.pravega.MetricsNames.SEGMENTS_SPLITS;
-import static com.emc.pravega.MetricsNames.nameFromStream;
+import static com.emc.pravega.shared.MetricsNames.ABORT_TRANSACTION;
+import static com.emc.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
+import static com.emc.pravega.shared.MetricsNames.CREATE_TRANSACTION;
+import static com.emc.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.shared.MetricsNames.SEGMENTS_COUNT;
+import static com.emc.pravega.shared.MetricsNames.SEGMENTS_MERGES;
+import static com.emc.pravega.shared.MetricsNames.SEGMENTS_SPLITS;
+import static com.emc.pravega.shared.MetricsNames.nameFromStream;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
@@ -160,13 +159,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      */
     @Override
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
-        try {
-            NameVerifier.validateName(scopeName);
-        } catch (IllegalArgumentException | NullPointerException e) {
-            log.error("Create scope failed due to invalid scope name {}", scopeName);
-            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
-                    CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
-        }
         return getScope(scopeName).createScope().handle((result, ex) -> {
             if (ex == null) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
