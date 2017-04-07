@@ -62,8 +62,8 @@ public class ServiceConfig {
 
 
     /**
-     * Pravega SSS allows a configuration in which it connects to an IP address:port pair on the node and a different
-     * IP address:port pair is advertised to the clients through controller.
+     * Pravega segment store allows a configuration in which it connects to an IP address:port pair on the node and a
+     * different IP address:port pair is advertised to the clients through controller.
      * In this configuration: publishedIPAddress and publishedPort configs are defined and this pair is registered to
      * the controller. In case these configs need not be different, they are not defined and they default to
      * listeningIPAddress and listeningPort.
@@ -118,12 +118,14 @@ public class ServiceConfig {
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.listeningPort = properties.getInt(LISTENING_PORT);
 
-        int publishedPort = properties.getInt(PUBLISHED_PORT);
-        if (publishedPort != -1) {
-             this.publishedPort = publishedPort;
-        } else {
-            this.publishedPort = this.listeningPort;
+        int publishedPort;
+        try {
+            publishedPort = properties.getInt(PUBLISHED_PORT);
+        }  catch (ConfigurationException e) {
+            publishedPort = this.listeningPort;
         }
+        this.publishedPort = publishedPort;
+
         String ipAddress = properties.get(LISTENING_IP_ADDRESS);
         if (ipAddress == null || ipAddress.equals(LISTENING_IP_ADDRESS.getDefaultValue())) {
             // Can't put this in the 'defaultValue' above because that would cause getHostAddress to be evaluated every time.

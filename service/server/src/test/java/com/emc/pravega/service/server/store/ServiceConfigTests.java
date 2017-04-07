@@ -12,7 +12,7 @@ import org.junit.Test;
 public class ServiceConfigTests {
     @Test
     public void testListeningAndPublicIPAndPort() {
-        // When the published IP and port is not specified, it should default to listening IP and port
+        // When the published IP and port are not specified, it should default to listening IP and port
         ServiceConfig cfg1 = ServiceConfig.builder()
                 .with(ServiceConfig.CONTAINER_COUNT, 1)
                 .with(ServiceConfig.LISTENING_IP_ADDRESS, "myhost")
