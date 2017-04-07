@@ -6,19 +6,30 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.SegmentHandle;
-import lombok.EqualsAndHashCode;
+import com.google.common.base.Preconditions;
+import java.util.Collection;
+import java.util.List;
 import lombok.Getter;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang.StringUtils;
+import org.apache.http.annotation.GuardedBy;
+import org.apache.http.annotation.ThreadSafe;
 
 /**
- * SegmentHandle for HDFSStorage.
+ * Base Handle for HDFSStorage.
  */
-@EqualsAndHashCode(of = {"segmentName", "readOnly"})
+@ThreadSafe
 class HDFSSegmentHandle implements SegmentHandle {
+    //region Members
+
     @Getter
     private final String segmentName;
     @Getter
     private final boolean readOnly;
+    @GuardedBy("files")
+    @Getter
+    private final List<FileDescriptor> files;
+
+    //endregion
 
     //region Constructor
 
@@ -26,40 +37,130 @@ class HDFSSegmentHandle implements SegmentHandle {
      * Creates a new instance of the HDFSSegmentHandle class.
      *
      * @param segmentName The name of the Segment in this Handle, as perceived by users of the Segment interface.
-     * @param readOnly    If true, this handle can only be used for non-modify operations.
+     * @param readOnly    Whether this handle is read-only or not.
+     * @param files       A ordered list of initial files for this handle.
      */
-    HDFSSegmentHandle(String segmentName, boolean readOnly) {
+    private HDFSSegmentHandle(String segmentName, boolean readOnly, List<FileDescriptor> files) {
         Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
+        Exceptions.checkNotNullOrEmpty(files, "files");
+
         this.segmentName = segmentName;
         this.readOnly = readOnly;
+        this.files = files;
+    }
+
+    /**
+     * Creates a read-write handle.
+     *
+     * @param segmentName The name of the Segment to create the handle for.
+     * @param files       A ordered list of initial files for this handle.
+     * @return The new handle.
+     */
+    static HDFSSegmentHandle write(String segmentName, List<FileDescriptor> files) {
+        return new HDFSSegmentHandle(segmentName, false, files);
+    }
+
+    /**
+     * Creates a read-only handle.
+     *
+     * @param segmentName The name of the Segment to create the handle for.
+     * @param files       A ordered list of initial files for this handle.
+     * @return The new handle.
+     */
+    static HDFSSegmentHandle read(String segmentName, List<FileDescriptor> files) {
+        return new HDFSSegmentHandle(segmentName, true, files);
     }
 
     //endregion
 
+    //region Properties
+
+    /**
+     * Gets the last file in the file list for this handle.
+     */
+    FileDescriptor getLastFile() {
+        synchronized (this.files) {
+            return this.files.get(this.files.size() - 1);
+        }
+    }
+
+    /**
+     * Replaces the files in this handle with the given ones.
+     *
+     * @param newFiles The new files to replace with.
+     */
+    void replaceFiles(Collection<FileDescriptor> newFiles) {
+        synchronized (this.files) {
+            this.files.clear();
+            this.files.addAll(newFiles);
+        }
+    }
+
+    /**
+     * Replaces the last file with the given one.
+     *
+     * @param fileDescriptor The file to replace with.
+     */
+    void replaceLastFile(FileDescriptor fileDescriptor) {
+        synchronized (this.files) {
+            Preconditions.checkState(this.files.size() > 0, "Insufficient number of files in the handle to perform this operation.");
+            int lastIndex = this.files.size() - 1;
+            FileDescriptor lastFile = this.files.get(lastIndex);
+
+            long expectedOffset = lastFile.getOffset();
+            Preconditions.checkArgument(fileDescriptor.getOffset() == expectedOffset,
+                    "Invalid offset. Expected %s, actual %s.", expectedOffset, fileDescriptor.getOffset());
+
+            long expectedMinEpoch = lastFile.getEpoch();
+            Preconditions.checkArgument(fileDescriptor.getEpoch() >= expectedMinEpoch,
+                    "Invalid epoch. Expected at least %s, actual %s.", expectedMinEpoch, fileDescriptor.getEpoch());
+
+            this.files.remove(lastIndex);
+            this.files.add(fileDescriptor);
+        }
+    }
+
+    /**
+     * Removes the last file from this handle.
+     */
+    void removeLastFile() {
+        synchronized (this.files) {
+            // Need at least one file in the handle at any given time.
+            Preconditions.checkState(this.files.size() > 1, "Insufficient number of files in the handle to perform this operation.");
+            this.files.remove(this.files.size() - 1);
+        }
+    }
+
+    /**
+     * Adds a new file at the end of this handle.
+     *
+     * @param fileDescriptor The FileDescriptor of the file to add.
+     */
+    void addLastFile(FileDescriptor fileDescriptor) {
+        synchronized (this.files) {
+            FileDescriptor lastFile = getLastFile();
+            Preconditions.checkState(lastFile.isReadOnly(), "Cannot add a new file if the current last file is not read-only.");
+
+            long expectedOffset = lastFile.getLastOffset();
+            Preconditions.checkArgument(fileDescriptor.getOffset() == expectedOffset,
+                    "Invalid offset. Expected %s, actual %s.", expectedOffset, fileDescriptor.getOffset());
+
+            long expectedMinEpoch = lastFile.getEpoch();
+            Preconditions.checkArgument(fileDescriptor.getEpoch() >= expectedMinEpoch,
+                    "Invalid epoch. Expected at least %s, actual %s.", expectedMinEpoch, fileDescriptor.getEpoch());
+
+            this.files.add(fileDescriptor);
+        }
+    }
+
     @Override
     public String toString() {
-        return String.format("(%s) %s", this.readOnly ? "R" : "RW", this.segmentName);
-    }
+        String fileNames;
+        synchronized (this.files) {
+            fileNames = StringUtils.join(this.files, ", ");
+        }
 
-    //region Not yet implemented methods. TODO: implement these in the next phase.
-
-    /**
-     * Gets a value indicating whether the Segment is sealed for modifications.
-     * Note that isReadOnly() == true and isSealed() == true is a valid combination; in this case we were able to open
-     * a ReadWrite handle, but it is up to the Storage adapter to enforce Seal constraints.
-     */
-    public boolean isSealed() {
-        throw new NotImplementedException();
-    }
-
-    /**
-     * Gets a value indicating the Epoch of this handle. An Epoch is a monotonically strict increasing number that changes
-     * every time the owning SegmentContainer has been successfully recovered. The monotonicity of this number can be used
-     * as a proxy to determine the Container that should currently own the Segment should there be situations that
-     * require conflict resolution. See HDFSStorage documentation for more details.
-     */
-    public long getEpoch() {
-        throw new NotImplementedException();
+        return String.format("[%s] %s (Files: %s)", this.readOnly ? "R" : "RW", this.segmentName, fileNames);
     }
 
     //endregion

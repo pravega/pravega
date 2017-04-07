@@ -675,8 +675,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         AtomicLong mergedLength = new AtomicLong();
-        AtomicReference<SegmentHandle> transactionHandle = new AtomicReference<>();
-        return openWrite(transactionMetadata.getName(), transactionHandle, executor, timer.getRemaining())
+        return this.storage
+                .getStreamSegmentInfo(transactionMetadata.getName(), timer.getRemaining())
                 .thenAcceptAsync(transProperties -> {
                     // One last verification before the actual merger:
                     // Check that the Storage agrees with our metadata (if not, we have a problem ...)
@@ -700,7 +700,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
                     mergedLength.set(transProperties.getLength());
                 }, executor)
-                .thenComposeAsync(v1 -> storage.concat(this.handle.get(), mergeOp.getStreamSegmentOffset(), transactionHandle.get(), timer.getRemaining()), executor)
+                .thenComposeAsync(v1 -> storage.concat(this.handle.get(), mergeOp.getStreamSegmentOffset(), transactionMetadata.getName(), timer.getRemaining()), executor)
                 .thenComposeAsync(v2 -> storage.getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining()), executor)
                 .thenApplyAsync(segmentProperties -> {
                     // We have processed a MergeTransactionOperation, pop the first operation off and decrement the counter.

@@ -312,7 +312,8 @@ public class DurableLog extends AbstractService implements OperationLog {
         try {
             this.durableDataLog.initialize(timer.getRemaining());
             anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
-            log.info("{} Recovery completed. Items Recovered = {}.", this.traceObjectId, anyItemsRecovered);
+            this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
+            log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), anyItemsRecovered);
             successfulRecovery = true;
         } catch (Exception ex) {
             log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);

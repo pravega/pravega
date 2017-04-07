@@ -119,6 +119,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
     }
 
     @Override
+    public long getContainerEpoch() {
+        return this.metadata.getContainerEpoch();
+    }
+
+    @Override
     public boolean isRecoveryMode() {
         return this.metadata.isRecoveryMode();
     }
