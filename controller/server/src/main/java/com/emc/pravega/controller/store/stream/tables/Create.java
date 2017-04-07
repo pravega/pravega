@@ -10,6 +10,6 @@ import lombok.Data;
 
 @Data
 public class Create {
-    private final long eventTime;
+    private final long creationTime;
     private final StreamConfiguration configuration;
 }

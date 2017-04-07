@@ -90,12 +90,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(x -> createSegmentFile(create))
                 .thenCompose(x -> {
                     final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
-                    final byte[] historyTable = TableHelper.createHistoryTable(create.getEventTime(),
+                    final byte[] historyTable = TableHelper.createHistoryTable(create.getCreationTime(),
                             IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
 
                     return createHistoryTable(new Data<>(historyTable, null));
                 })
-                .thenCompose(x -> createIndexTable(new Data<>(TableHelper.createIndexTable(create.getEventTime(), 0), null)))
+                .thenCompose(x -> createIndexTable(new Data<>(TableHelper.createIndexTable(create.getCreationTime(), 0), null)))
                 .thenApply(x -> true);
     }
 

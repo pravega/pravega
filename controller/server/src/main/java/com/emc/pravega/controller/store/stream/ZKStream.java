@@ -106,7 +106,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenCompose(x -> {
                     if (x) {
                         return cache.getCachedData(creationPath)
-                                .thenApply(creationTime -> BitConverter.readLong(creationTime.getData(), 0) != create.getEventTime());
+                                .thenApply(creationTime -> BitConverter.readLong(creationTime.getData(), 0) != create.getCreationTime());
                     } else {
                         return CompletableFuture.completedFuture(false);
                     }
@@ -135,7 +135,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> storeCreationTime(final Create create) {
         byte[] b = new byte[Long.BYTES];
-        BitConverter.writeLong(b, 0, create.getEventTime());
+        BitConverter.writeLong(b, 0, create.getCreationTime());
 
         return store.createZNodeIfNotExist(creationPath, b);
     }
@@ -196,7 +196,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         final byte[] segmentTable = TableHelper.updateSegmentTable(startingSegmentNumber,
                 new byte[0],
                 newRanges,
-                create.getEventTime()
+                create.getCreationTime()
         );
 
         final String segmentChunkPath = String.format(segmentChunkPathTemplate, chunkFileName);
