@@ -7,6 +7,8 @@ package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -30,6 +32,8 @@ import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.google.common.base.Preconditions;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -37,12 +41,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+
 
 /**
  * Stream controller RPC server implementation.
@@ -50,6 +55,10 @@ import org.apache.commons.lang3.tuple.Pair;
 @Getter
 @AllArgsConstructor
 public class ControllerService {
+    private static final long RETRY_INITIAL_DELAY_MS = 100;
+    private static final int RETRY_MULTIPLIER = 2;
+    private static final int RETRY_MAX_ATTEMPTS = 10;
+    private static final long RETRY_MAX_DELAY_MS = Duration.ofSeconds(1).toMillis();
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
@@ -57,7 +66,7 @@ public class ControllerService {
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final TimeoutService timeoutService;
     private final SegmentHelper segmentHelper;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
             final long createTimestamp) {
@@ -209,13 +218,22 @@ public class ControllerService {
             + Math.min(scaleGracePeriod, Math.min(maxExecutionTime, timeoutService.getMaxLeaseValue()))));
         }
 
-        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionTime, scaleGracePeriod, null)
+        return createTxnWithRetries(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
                     timeoutService.addTxn(scope, stream, data.getId(), data.getVersion(), lease,
                             data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
                     return new ImmutablePair<>(data.getId(), getSegmentRanges(pair.getValue(), scope, stream));
                 });
+    }
+
+    private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnWithRetries(String scope,
+                                       String stream, long lease, long maxExecutionTime, long scaleGracePeriod) {
+        return Retry
+                .withExpBackoff(RETRY_INITIAL_DELAY_MS, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY_MS)
+                .retryWhen(RetryableException::isRetryable)
+                .throwingOn(RuntimeException.class).runAsync(() -> streamTransactionMetadataTasks
+                        .createTxn(scope, stream, lease, maxExecutionTime, scaleGracePeriod, null), executor);
     }
 
     private List<SegmentRange> getSegmentRanges(List<Segment> activeSegments, String scope, String stream) {
