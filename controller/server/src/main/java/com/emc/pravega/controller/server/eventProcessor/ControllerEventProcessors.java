@@ -156,7 +156,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                 e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
                 .runAsync(() -> controller.createStream(streamConfig)
                         .thenAccept(x ->
-                                log.info("Created stream %s/%s", streamConfig.getScope(), streamConfig.getStreamName())),
+                                log.info("Created stream {}/{}", streamConfig.getScope(), streamConfig.getStreamName())),
                         executor));
     }
 

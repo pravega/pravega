@@ -42,6 +42,8 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -193,9 +195,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             // Start request handlers
+            CompletableFuture<Void> requestHandlersFuture = CompletableFuture.completedFuture(null);
             if (serviceConfig.isRequestHandlersEnabled()) {
                 log.info("Starting request handlers");
-                RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
+                requestHandlersFuture = RequestHandlersInit.bootstrapRequestHandlers(controllerService,
+                        streamStore, requestExecutor);
             }
 
             // Setup and start controller cluster listener.
@@ -231,11 +235,23 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 restServer.awaitRunning();
             }
 
-            // Finally wait for controller event processors to start
+            // Wait for controller event processors to start.
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 log.info("Awaiting start of controller event processors");
                 controllerEventProcessors.awaitRunning();
             }
+
+            // Wait for request handlers to start.
+            if (serviceConfig.isRequestHandlersEnabled()) {
+                log.info("Awaiting start of request handlers");
+                try {
+                    requestHandlersFuture.join();
+                } catch (CompletionException e) {
+                    throw new IllegalStateException("Request handlers failed to start", e);
+                }
+            }
+
+            // Wait for controller cluster listeners to start.
             if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
                 log.info("Awaiting start of controller cluster listener");
                 controllerClusterListener.awaitRunning();
