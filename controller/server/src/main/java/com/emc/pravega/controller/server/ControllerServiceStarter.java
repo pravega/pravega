@@ -4,7 +4,10 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.fault.ControllerClusterListener;
 import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
@@ -90,6 +93,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private GRPCServer grpcServer;
     private RESTServer restServer;
 
+    private Cluster cluster = null;
+
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
@@ -140,7 +145,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // On each controller process restart, we use a fresh hostId,
             // which is a combination of hostname and random GUID.
             String hostName = getHostName();
-            Host host = new Host(hostName, getPort(), hostName + "-" + UUID.randomUUID().toString());
+            Host host = new Host(hostName, getPort(), UUID.randomUUID().toString());
 
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
@@ -159,8 +164,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     hostStore, taskMetadataStore, segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
-            controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerServiceExecutor);
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -170,6 +173,28 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // controllers and starts sweeping tasks orphaned by those hostIds.
             TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.getHostId(), taskExecutor,
                     streamMetadataTasks, streamTransactionMetadataTasks);
+
+            // Setup and start controller cluster listener.
+            if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
+                ControllerClusterListenerConfig controllerClusterListenerConfig = serviceConfig.getControllerClusterListenerConfig().get();
+                clusterListenerExecutor = new ThreadPoolExecutor(controllerClusterListenerConfig.getMinThreads(),
+                        controllerClusterListenerConfig.getMaxThreads(), controllerClusterListenerConfig.getIdleTime(),
+                        controllerClusterListenerConfig.getIdleTimeUnit(),
+                        new ArrayBlockingQueue<>(controllerClusterListenerConfig.getMaxQueueSize()),
+                        new ThreadFactoryBuilder().setNameFormat("clusterlistenerpool-%d").build());
+
+                cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
+                controllerClusterListener = new ControllerClusterListener(host, cluster,
+                        controllerEventProcessors == null ? Optional.empty() : Optional.of(controllerEventProcessors),
+                        taskSweeper, clusterListenerExecutor);
+
+                log.info("Starting controller cluster listener");
+                controllerClusterListener.startAsync();
+            }
+
+            controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                    streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerServiceExecutor,
+                    cluster);
 
             // Setup event processors.
             setController(new LocalController(controllerService));
@@ -190,23 +215,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (serviceConfig.isRequestHandlersEnabled()) {
                 log.info("Starting request handlers");
                 RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
-            }
-
-            // Setup and start controller cluster listener.
-            if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
-                ControllerClusterListenerConfig controllerClusterListenerConfig = serviceConfig.getControllerClusterListenerConfig().get();
-                clusterListenerExecutor = new ThreadPoolExecutor(controllerClusterListenerConfig.getMinThreads(),
-                        controllerClusterListenerConfig.getMaxThreads(), controllerClusterListenerConfig.getIdleTime(),
-                        controllerClusterListenerConfig.getIdleTimeUnit(),
-                        new ArrayBlockingQueue<>(controllerClusterListenerConfig.getMaxQueueSize()),
-                        new ThreadFactoryBuilder().setNameFormat("clusterlistenerpool-%d").build());
-
-                controllerClusterListener = new ControllerClusterListener(host, (CuratorFramework) storeClient.getClient(),
-                        controllerEventProcessors == null ? Optional.empty() : Optional.of(controllerEventProcessors),
-                        taskSweeper, clusterListenerExecutor);
-
-                log.info("Starting controller cluster listener");
-                controllerClusterListener.startAsync();
             }
 
             // Start RPC server.
@@ -330,6 +338,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting termination of controller cluster listener executor");
                 clusterListenerExecutor.awaitTermination(5, TimeUnit.SECONDS);
             }
+
+            if (cluster != null) {
+                log.info("Closing controller cluster instance");
+                cluster.close();
+            }
+
             log.info("Closing connection factory");
             connectionFactory.close();
         } finally {

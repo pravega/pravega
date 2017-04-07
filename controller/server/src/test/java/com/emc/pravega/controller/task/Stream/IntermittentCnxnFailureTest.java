@@ -93,7 +93,7 @@ public class IntermittentCnxnFailureTest {
                 TimeoutServiceConfig.defaultConfig());
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, segmentHelperMock, executor);
+                streamTransactionMetadataTasks, timeoutService, segmentHelperMock, executor, null);
 
         controllerService.createScope(SCOPE).get();
     }

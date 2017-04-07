@@ -123,7 +123,7 @@ public class ControllerClusterListenerTest {
                 new TestTasks(taskStore, executor, host.getHostId()));
 
         ControllerClusterListener clusterListener =
-                new ControllerClusterListener(host, curatorClient, Optional.<ControllerEventProcessors>empty(),
+                new ControllerClusterListener(host, clusterZK, Optional.<ControllerEventProcessors>empty(),
                         taskSweeper, executor);
         clusterListener.startAsync();
 

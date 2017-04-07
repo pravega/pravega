@@ -3,6 +3,10 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.ClusterType;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
@@ -33,6 +37,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -54,6 +59,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
     private TimeoutService timeoutService;
+    private Cluster cluster;
 
     @Override
     public void setup() throws Exception {
@@ -80,8 +86,14 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 
+        cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
+        final CountDownLatch latch = new CountDownLatch(1);
+        cluster.addListener((type, host) -> latch.countDown());
+        cluster.registerHost(new Host("localhost", 9090, null));
+        latch.await();
+
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executorService);
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executorService, cluster);
         controllerService = new ControllerServiceImpl(controller);
     }
 
@@ -99,6 +111,9 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         }
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
+        }
+        if (cluster != null) {
+            cluster.close();
         }
         zkClient.close();
         zkServer.close();
