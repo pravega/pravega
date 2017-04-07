@@ -7,7 +7,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
-import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
@@ -73,7 +72,7 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
 
     public static ControllerEventProcessorConfig withDefault() {
         return ControllerEventProcessorConfigImpl.builder()
-                .scopeName(Config.INTERNAL_SCOPE)
+                .scopeName(NameUtils.INTERNAL_SCOPE_NAME)
                 .commitStreamName(NameUtils.getInternalNameForStream("commitStream"))
                 .abortStreamName(NameUtils.getInternalNameForStream("abortStream"))
                 .commitStreamScalingPolicy(ScalingPolicy.fixed(2))

@@ -98,7 +98,7 @@ public class ControllerWrapper implements AutoCloseable {
         Optional<ControllerEventProcessorConfig> eventProcessorConfig;
         if (!disableEventProcessor) {
             eventProcessorConfig = Optional.of(ControllerEventProcessorConfigImpl.builder()
-                    .scopeName(Config.INTERNAL_SCOPE)
+                    .scopeName(NameUtils.INTERNAL_SCOPE_NAME)
                     .commitStreamName(NameUtils.getInternalNameForStream("commitStream"))
                     .abortStreamName(NameUtils.getInternalNameForStream("abortStream"))
                     .commitStreamScalingPolicy(ScalingPolicy.fixed(2))

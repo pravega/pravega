@@ -15,7 +15,6 @@ import java.time.Duration;
 
 @Data
 public class AutoScalerConfig {
-    public static final Property<String> INTERNAL_SCOPE = Property.named("scope", "_system");
     public static final Property<String> REQUEST_STREAM = Property.named("requestStream", "_requeststream");
     public static final Property<Integer> COOLDOWN_IN_SECONDS = Property.named("cooldownInSeconds", 10 * 60);
     public static final Property<Integer> MUTE_IN_SECONDS = Property.named("muteInSeconds", 10 * 60);
@@ -30,11 +29,6 @@ public class AutoScalerConfig {
      */
     @Getter
     private final URI controllerUri;
-    /**
-     * Scope name for request stream.
-     */
-    @Getter
-    private final String internalScope;
     /**
      * Stream on which scale requests have to be posted.
      */
@@ -70,7 +64,6 @@ public class AutoScalerConfig {
     private final Duration cacheCleanup;
 
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
-        this.internalScope = properties.get(INTERNAL_SCOPE);
         this.internalRequestStream = properties.get(REQUEST_STREAM);
         this.cooldownDuration = Duration.ofSeconds(properties.getInt(COOLDOWN_IN_SECONDS));
         this.muteDuration = Duration.ofSeconds(properties.getInt(MUTE_IN_SECONDS));

@@ -114,10 +114,10 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames) {
         NameUtils.validateReaderGroupName(groupName);
-        createStreamHelper(NameUtils.getInternalNameForStream(groupName),
+        createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                            StreamConfiguration.builder()
                                               .scope(scope)
-                                              .streamName(NameUtils.getInternalNameForStream(groupName))
+                                              .streamName(NameUtils.getStreamForReaderGroup(groupName))
                                               .scalingPolicy(ScalingPolicy.fixed(1)).build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope,

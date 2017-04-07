@@ -122,7 +122,7 @@ public class ClientFactoryImpl implements ClientFactory {
                                           Supplier<Long> nanoTime, Supplier<Long> milliTime) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(
-                NameUtils.getInternalNameForStream(readerGroup),
+                NameUtils.getStreamForReaderGroup(readerGroup),
                 new JavaSerializer<>(),
                 new JavaSerializer<>(),
                 synchronizerConfig);

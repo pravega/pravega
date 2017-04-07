@@ -80,7 +80,7 @@ public class ReaderGroupImpl implements ReaderGroup {
     }
 
     private StateSynchronizer<ReaderGroupState> createSynchronizer() {
-        return clientFactory.createStateSynchronizer(NameUtils.getInternalNameForStream(groupName),
+        return clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                 updateSerializer, initSerializer, synchronizerConfig);
     }
 

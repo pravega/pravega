@@ -54,10 +54,10 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streams) {
         NameUtils.validateReaderGroupName(groupName);
-        createStreamHelper(NameUtils.getInternalNameForStream(groupName),
+        createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                            StreamConfiguration.builder()
                                               .scope(scope)
-                                              .streamName(NameUtils.getInternalNameForStream(groupName))
+                                              .streamName(NameUtils.getStreamForReaderGroup(groupName))
                                               .scalingPolicy(ScalingPolicy.fixed(1))
                                               .build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();

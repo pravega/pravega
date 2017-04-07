@@ -164,4 +164,10 @@ public class NameUtilsTest {
         Assert.assertTrue(NameUtils.getInternalNameForStream("stream").startsWith(
                 NameUtils.INTERNAL_NAME_PREFIX));
     }
+
+    @Test
+    public void testInternalReaderGroupName() {
+        Assert.assertTrue(NameUtils.getStreamForReaderGroup("readergroup1").startsWith(
+                NameUtils.READER_GROUP_STREAM_PREFIX));
+    }
 }

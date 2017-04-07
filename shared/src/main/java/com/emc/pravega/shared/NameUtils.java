@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.shared;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 /**
@@ -15,6 +16,13 @@ public class NameUtils {
     // The prefix which will be used to name all internal streams.
     public static final String INTERNAL_NAME_PREFIX = "_";
 
+    // The scope name which has to be used when creating internally used pravega streams.
+    public static final String INTERNAL_SCOPE_NAME = "_system";
+
+    // The prefix which has to be appended to streams created internally for readerGroups.
+    @VisibleForTesting
+    static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
+
     /**
      * Construct an internal representation of stream name. This is required to distinguish between user created
      * and pravega internally created streams.
@@ -24,6 +32,16 @@ public class NameUtils {
      */
     public static String getInternalNameForStream(String streamName) {
         return INTERNAL_NAME_PREFIX + streamName;
+    }
+
+    /**
+     * Construct a stream name which will internally be used by the readergroup implementation.
+     *
+     * @param groupNameName The readergroup name for which we need to construct an internal stream name.
+     * @return              The stream name which has to be used internally by the reader group implementation.
+     */
+    public static String getStreamForReaderGroup(String groupNameName) {
+        return READER_GROUP_STREAM_PREFIX + groupNameName;
     }
 
     /**
