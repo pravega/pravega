@@ -21,13 +21,13 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.testcommon.TestUtils;
 import lombok.Cleanup;
-import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -158,9 +158,9 @@ public class EndToEndTxnWithScaleTest {
                 Transaction<String> transaction = producer.beginTxn(5000, 60000, 29000);
                 transaction.writeEvent("0", "event");
                 transaction.commit();
-            } catch (Exception e) {
-                log.error("Error encountered", e);
-                throw Lombok.sneakyThrow(e);
+            } catch (InterruptedException | TxnFailedException e) {
+              log.error("Error encountered", e);
+              throw new RuntimeException(e);
             }
         };
 
