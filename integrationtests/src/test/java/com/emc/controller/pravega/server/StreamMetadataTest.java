@@ -30,6 +30,7 @@ public class StreamMetadataTest {
 
     @Test(timeout = 60000)
     public void testMedadataOperations() throws Exception {
+        System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
 

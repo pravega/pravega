@@ -45,6 +45,7 @@ public class ControllerBootstrapTest {
         final int containerCount = 4;
 
         // 1. Start ZK
+        System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
         try {
             zkTestServer = new TestingServer();
         } catch (Exception e) {

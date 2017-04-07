@@ -48,9 +48,8 @@ public class ControllerServiceTest {
     
     @Before
     public void setUp() throws Exception {
-        int zkServerPort = TestUtils.getAvailableListenPort();
-        log.info("Starting ZK server at port {}", zkServerPort);
-        zkTestServer = new TestingServer(zkServerPort);
+        System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
+        zkTestServer = new TestingServer();
         
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

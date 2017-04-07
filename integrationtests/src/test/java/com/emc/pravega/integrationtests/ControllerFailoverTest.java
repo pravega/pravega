@@ -38,6 +38,7 @@ public class ControllerFailoverTest {
     @Before
     public void setup() {
         // 1. Start ZK
+        System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
         try {
             zkTestServer = new TestingServer();
         } catch (Exception e) {

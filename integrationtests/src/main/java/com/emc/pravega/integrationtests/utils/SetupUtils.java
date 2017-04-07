@@ -67,6 +67,7 @@ public final class SetupUtils {
         }
 
         // Start zookeeper.
+        System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
         this.zkTestServer = new TestingServer();
         this.zkTestServer.start();
 

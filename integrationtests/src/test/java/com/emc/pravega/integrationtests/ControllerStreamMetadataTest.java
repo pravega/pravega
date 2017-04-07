@@ -49,6 +49,7 @@ public class ControllerStreamMetadataTest {
 
         try {
             // 1. Start ZK
+            System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
             this.zkTestServer = new TestingServer();
 
             // 2. Start Pravega service.

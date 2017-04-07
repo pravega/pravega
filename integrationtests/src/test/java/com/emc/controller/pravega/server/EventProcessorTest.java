@@ -89,6 +89,7 @@ public class EventProcessorTest {
 
     @Test(timeout = 60000)
     public void testEventProcessor() throws Exception {
+        System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
 
