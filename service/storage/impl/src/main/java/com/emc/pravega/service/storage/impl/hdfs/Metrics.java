@@ -4,11 +4,11 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.MetricsNames;
-import com.emc.pravega.metrics.Counter;
-import com.emc.pravega.metrics.MetricsProvider;
-import com.emc.pravega.metrics.OpStatsLogger;
-import com.emc.pravega.metrics.StatsLogger;
+import com.emc.pravega.shared.MetricsNames;
+import com.emc.pravega.shared.metrics.Counter;
+import com.emc.pravega.shared.metrics.MetricsProvider;
+import com.emc.pravega.shared.metrics.OpStatsLogger;
+import com.emc.pravega.shared.metrics.StatsLogger;
 
 /**
  * Defines all Metrics used by the HDFSStorage class.
