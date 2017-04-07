@@ -7,6 +7,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
@@ -22,6 +23,9 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
     private static final int WRITES_PER_FILE = 10;
     private static final int WRITE_SIZE = 100;
 
+    /**
+     * Tests a read scenario with no issues or failures.
+     */
     @Test
     public void testNormalRead() throws Exception {
         // Write data.
@@ -64,7 +68,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
      * current known limits).
      */
     @Test
-    public void testRefreshHandle() throws Exception {
+    public void testRefreshHandleOffset() throws Exception {
         val rnd = new Random(0);
         @Cleanup
         val fs = new MockFileSystem();
@@ -99,5 +103,74 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
 
         Assert.assertEquals("Unexpected number of bytes read.", actualData.length, readBytes);
         Assert.assertArrayEquals("Unexpected data read back.", expectedData, actualData);
+    }
+
+    /**
+     * Tests the case when the handle has become stale due to the segment having been compacted externally. The read operation
+     * should refresh the handle and continue working as expected.
+     */
+    @Test
+    public void testRefreshHandleMissingFile() throws Exception {
+        val rnd = new Random(0);
+        @Cleanup
+        val fs = new MockFileSystem();
+        int length = 0;
+        val writtenData = new ByteArrayOutputStream();
+        for (int i = 0; i < FILE_COUNT; i++) {
+            val context = newContext(i, fs);
+            val path = context.createEmptyFile(SEGMENT_NAME, length);
+            byte[] data = new byte[WRITE_SIZE];
+            rnd.nextBytes(data);
+            try (val stream = fs.append(path)) {
+                stream.write(data);
+            }
+
+            writtenData.write(data);
+            length += data.length;
+        }
+
+        val finalContext = newContext(FILE_COUNT, fs);
+
+        // Get a read handle with all the original files.
+        val readHandle = new OpenReadOperation(SEGMENT_NAME, finalContext).call();
+
+        // Verify that the read handle files are read-write (this was done on purpose).
+        Assert.assertEquals("Unexpected number of files in the read handle before external compaction.", FILE_COUNT, readHandle.getFiles().size());
+        for (FileDescriptor fd : readHandle.getFiles()) {
+            Assert.assertFalse("Read Handle contains read-only files.", fd.isReadOnly());
+        }
+
+        // Create a write handle, which should compact all files into one (plus an empty one).
+        val writeHandle = new OpenWriteOperation(SEGMENT_NAME, finalContext).call();
+        Assert.assertEquals("Unexpected number of files in the write handle after external compaction.", 2, writeHandle.getFiles().size());
+        Assert.assertTrue("Write Handle first file is not read-only.", writeHandle.getFiles().get(0).isReadOnly());
+        Assert.assertFalse("Write Handle last file is read-only.", writeHandle.getLastFile().isReadOnly());
+
+        byte[] actualData = new byte[length];
+        new ReadOperation(readHandle, 0, actualData, 0, actualData.length, finalContext).call();
+        AssertExtensions.assertListEquals("Unexpected files in read handle after read operation.",
+                writeHandle.getFiles(), readHandle.getFiles(), (f1, f2) ->
+                        f1.getPath().toString().equals(f2.getPath().toString())
+                                && f1.getOffset() == f2.getOffset()
+                                && f1.getLength() == f2.getLength()
+                                && f1.isReadOnly() == f2.isReadOnly());
+
+        byte[] expectedData = writtenData.toByteArray();
+        Assert.assertArrayEquals("Unexpected data read.", expectedData, actualData);
+
+        // Delete the first file, and try again.
+        fs.delete(writeHandle.getFiles().get(0).getPath(), true);
+
+        // With a write handle.
+        AssertExtensions.assertThrows(
+                "ReadOperation did not throw when file was actually missing (write handle).",
+                () -> new ReadOperation(writeHandle, 0, actualData, 0, actualData.length, finalContext).call(),
+                ex -> ex instanceof FileNotFoundException || ex instanceof SegmentFilesCorruptedException);
+
+        // With a read handle.
+        AssertExtensions.assertThrows(
+                "ReadOperation did not throw when file was actually missing (read handle).",
+                () -> new ReadOperation(readHandle, 0, actualData, 0, actualData.length, finalContext).call(),
+                ex -> ex instanceof FileNotFoundException || ex instanceof SegmentFilesCorruptedException);
     }
 }

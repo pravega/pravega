@@ -121,7 +121,7 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
         return HDFSSegmentHandle.write(segmentName, allFiles);
     }
 
-    private void cleanup(List<FileDescriptor> allFiles) throws IOException{
+    private void cleanup(List<FileDescriptor> allFiles) throws IOException {
         if (allFiles.size() > 2) {
             // We keep the last file alone - that is the file we just created above, and there is no point of combining
             // a file to itself.

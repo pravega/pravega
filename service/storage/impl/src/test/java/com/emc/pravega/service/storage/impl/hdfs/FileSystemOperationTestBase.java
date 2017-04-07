@@ -6,6 +6,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import java.io.IOException;
 import java.util.List;
+import lombok.val;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -44,9 +45,10 @@ abstract class FileSystemOperationTestBase {
             return this.operation.makeReadOnly(file);
         }
 
-        void createEmptyFile(String segmentName, long offset) throws IOException {
+        Path createEmptyFile(String segmentName, long offset) throws IOException {
+            val path = this.operation.getFilePath(segmentName, offset, this.epoch);
             this.fileSystem
-                    .create(this.operation.getFilePath(segmentName, offset, this.epoch),
+                    .create(path,
                             new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                             false,
                             0,
@@ -54,6 +56,7 @@ abstract class FileSystemOperationTestBase {
                             this.config.getBlockSize(),
                             null)
                     .close();
+            return path;
         }
 
         List<FileDescriptor> findAllFiles(String segmentName) throws IOException {
