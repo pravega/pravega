@@ -115,7 +115,7 @@ public class TableHelper {
      */
     public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable) {
         Optional<HistoryRecord> record = HistoryRecord.readRecord(historyTable, 0, true);
-        if (record.isPresent() && timestamp > record.get().getEventTime()) {
+        if (record.isPresent() && timestamp > record.get().getScaleTime()) {
             final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
             final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
@@ -196,10 +196,10 @@ public class TableHelper {
         // we cant do anything on index table, fall through. OR
         // if segment exists at the last indexed record in history table, fall through,
         // no binary search possible on index
-        if (lastIndexedRecord.get().getEventTime() < historyRecordOpt.get().getEventTime() ||
+        if (lastIndexedRecord.get().getScaleTime() < historyRecordOpt.get().getScaleTime() ||
                 lastIndexedRecord.get().getSegments().contains(segment.getNumber())) {
             // segment was sealed after the last index entry
-            HistoryRecord startPoint = lastIndexedRecord.get().getEventTime() < historyRecordOpt.get().getEventTime() ?
+            HistoryRecord startPoint = lastIndexedRecord.get().getScaleTime() < historyRecordOpt.get().getScaleTime() ?
                     historyRecordOpt.get() : lastIndexedRecord.get();
             Optional<HistoryRecord> next = HistoryRecord.fetchNext(startPoint, historyTable, false);
 
@@ -308,7 +308,8 @@ public class TableHelper {
     }
 
     /**
-     * Add a new row to the history table.
+     * Add a new row to the history table. This row is only partial as it only contains list of segments.
+     * Timestamp is added using completeHistoryRecord method.
      *
      * @param historyTable      history table
      * @param newActiveSegments new active segments
@@ -328,7 +329,7 @@ public class TableHelper {
     }
 
     /**
-     * Add a new row to the history table.
+     * Adds timestamp to the last record in the history table.
      *
      * @param historyTable         history table
      * @param partialHistoryRecord partial history record
@@ -338,10 +339,14 @@ public class TableHelper {
     public static byte[] completePartialRecordInHistoryTable(final byte[] historyTable,
                                                              final HistoryRecord partialHistoryRecord,
                                                              final long timestamp) {
+        Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyTable, false);
+        assert record.isPresent() && record.get().isPartial();
+
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
         try {
             historyStream.write(historyTable);
+
             historyStream.write(new HistoryRecord(partialHistoryRecord.getSegments(),
                     timestamp, partialHistoryRecord.getOffset()).remainingByteArray());
         } catch (Exception e) {
@@ -426,7 +431,7 @@ public class TableHelper {
                                                                     final boolean ignorePartial) {
         final Optional<HistoryRecord> recordOpt = HistoryRecord.readRecord(historyTable, startingOffset, ignorePartial);
 
-        if (!recordOpt.isPresent() || recordOpt.get().getEventTime() > timeStamp) {
+        if (!recordOpt.isPresent() || recordOpt.get().getScaleTime() > timeStamp) {
             return Optional.empty();
         }
 
@@ -435,8 +440,8 @@ public class TableHelper {
 
         // check if current record is correct else we need to fall through
         // if timestamp is > record.timestamp and less than next.timestamp
-        assert timeStamp >= record.getEventTime();
-        while (next.isPresent() && !next.get().isPartial() && timeStamp >= next.get().getEventTime()) {
+        assert timeStamp >= record.getScaleTime();
+        while (next.isPresent() && !next.get().isPartial() && timeStamp >= next.get().getScaleTime()) {
             record = next.get();
             next = HistoryRecord.fetchNext(record, historyTable, ignorePartial);
         }

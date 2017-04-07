@@ -11,7 +11,7 @@ import com.emc.pravega.metrics.OpStatsLogger;
 import com.emc.pravega.metrics.StatsLogger;
 import com.emc.pravega.metrics.StatsProvider;
 import com.emc.pravega.common.util.NameVerifier;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -457,8 +457,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(final String scope, final String stream,
-                                                                      final OperationContext context, final Executor executor) {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream,
+                                                                       final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, stream, context).getActiveTxns(), executor);
     }
 

@@ -4,7 +4,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
@@ -209,7 +209,7 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+        public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -465,7 +465,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         return null;
     }
 

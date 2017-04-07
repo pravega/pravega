@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -387,7 +387,7 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return map of txId to TxRecord
      */
-    CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
      * Api to mark a segment as cold.

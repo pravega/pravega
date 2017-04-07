@@ -16,7 +16,7 @@ import java.util.Optional;
  * HistoryRecords are of variable length, so we will maintain markers for
  * start of row and end of row. We need it in both directions because we need to traverse
  * in both directions on the history table
- * Row : [length][List-of-active-segment-numbers, [#bytes-back-to-start], eventTime][#bytes-back-to-start]
+ * Row : [length][List-of-active-segment-numbers, [length-so-far], scaleTime][length]
  */
 public class HistoryRecord {
 
@@ -27,7 +27,7 @@ public class HistoryRecord {
     @Getter
     private final int offset;
     @Getter
-    private final long eventTime;
+    private final long scaleTime;
     @Getter
     private final boolean partial;
 
@@ -35,18 +35,26 @@ public class HistoryRecord {
         this(segments, 0L, offset, true);
     }
 
-    public HistoryRecord(final List<Integer> segments, final long eventTime, final int offset) {
-        this(segments, eventTime, offset, false);
+    public HistoryRecord(final List<Integer> segments, final long scaleTime, final int offset) {
+        this(segments, scaleTime, offset, false);
     }
 
-    public HistoryRecord(final List<Integer> segments, final long eventTime, final int offset, boolean partial) {
+    public HistoryRecord(final List<Integer> segments, final long scaleTime, final int offset, boolean partial) {
         this.offset = offset;
         this.length = FIXED_FIELDS_LENGTH + segments.size() * Integer.BYTES;
         this.segments = segments;
-        this.eventTime = eventTime;
+        this.scaleTime = scaleTime;
         this.partial = partial;
     }
 
+    /**
+     * Read record from the history table at the specified offset.
+     *
+     * @param historyTable  history table
+     * @param offset        offset to read from
+     * @param ignorePartial if set, ignore if the record is partial
+     * @return
+     */
     public static Optional<HistoryRecord> readRecord(final byte[] historyTable, final int offset, boolean ignorePartial) {
         if (offset >= historyTable.length) {
             return Optional.empty();
@@ -66,6 +74,13 @@ public class HistoryRecord {
         return Optional.of(parse(historyTable, offset));
     }
 
+    /**
+     * Return latest record in the history table.
+     *
+     * @param historyTable  history table
+     * @param ignorePartial If latest entry is partial entry, if ignore is set then read the previous
+     * @return returns the history record if it is found.
+     */
     public static Optional<HistoryRecord> readLatestRecord(final byte[] historyTable, boolean ignorePartial) {
         if (historyTable.length == 0) {
             return Optional.empty();
@@ -146,7 +161,7 @@ public class HistoryRecord {
 
     public byte[] remainingByteArray() {
         byte[] b = new byte[Long.BYTES + Integer.BYTES];
-        BitConverter.writeLong(b, 0, eventTime);
+        BitConverter.writeLong(b, 0, scaleTime);
         BitConverter.writeInt(b, Long.BYTES, length);
         return b;
     }
@@ -158,7 +173,7 @@ public class HistoryRecord {
             BitConverter.writeInt(b, (1 + i) * Integer.BYTES, segments.get(i));
         }
         BitConverter.writeInt(b, (1 + segments.size()) * Integer.BYTES, (2 + segments.size()) * Integer.BYTES);
-        BitConverter.writeLong(b, (2 + segments.size()) * Integer.BYTES, eventTime);
+        BitConverter.writeLong(b, (2 + segments.size()) * Integer.BYTES, scaleTime);
         BitConverter.writeInt(b, (2 + segments.size()) * Integer.BYTES + Long.BYTES, (3 + segments.size()) * Integer.BYTES + Long.BYTES);
 
         return b;

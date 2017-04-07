@@ -6,8 +6,8 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.BitConverter;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
-import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.Data;
 import com.emc.pravega.controller.store.stream.tables.HistoryRecord;
@@ -334,19 +334,19 @@ public abstract class PersistentStreamBase<T> implements Stream {
     public CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease) {
         return getActiveTx(txId)
                 .thenCompose(data -> {
-                    ActiveTxRecord activeTxRecord = ActiveTxRecord.parse(data.getData());
-                    if (activeTxRecord.getTxnStatus() == TxnStatus.OPEN) {
+                    ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
+                    if (activeTxnRecord.getTxnStatus() == TxnStatus.OPEN) {
                         // Update txn record with new lease value and return versioned tx data.
-                        ActiveTxRecord newData = new ActiveTxRecord(activeTxRecord.getTxCreationTimestamp(),
-                                System.currentTimeMillis() + lease, activeTxRecord.getMaxExecutionExpiryTime(),
-                                activeTxRecord.getScaleGracePeriod(), activeTxRecord.getTxnStatus());
+                        ActiveTxnRecord newData = new ActiveTxnRecord(activeTxnRecord.getTxCreationTimestamp(),
+                                System.currentTimeMillis() + lease, activeTxnRecord.getMaxExecutionExpiryTime(),
+                                activeTxnRecord.getScaleGracePeriod(), activeTxnRecord.getTxnStatus());
 
                         return updateActiveTx(txId, newData.toByteArray())
                                 .thenApply(x ->
                                         new VersionedTransactionData(txId, data.getVersion() + 1,
-                                                TxnStatus.OPEN, activeTxRecord.getTxCreationTimestamp(),
-                                                activeTxRecord.getMaxExecutionExpiryTime(),
-                                                activeTxRecord.getScaleGracePeriod()));
+                                                TxnStatus.OPEN, activeTxnRecord.getTxCreationTimestamp(),
+                                                activeTxnRecord.getMaxExecutionExpiryTime(),
+                                                activeTxnRecord.getScaleGracePeriod()));
                     } else {
                         return FutureHelpers.failedFuture(new IllegalStateException(txId.toString()));
                     }
@@ -357,10 +357,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
     public CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId) {
         return getActiveTx(txId)
                 .thenApply(data -> {
-                    ActiveTxRecord activeTxRecord = ActiveTxRecord.parse(data.getData());
+                    ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
                     return new VersionedTransactionData(txId, data.getVersion(),
-                            activeTxRecord.getTxnStatus(), activeTxRecord.getTxCreationTimestamp(),
-                            activeTxRecord.getMaxExecutionExpiryTime(), activeTxRecord.getScaleGracePeriod());
+                            activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
+                            activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getScaleGracePeriod());
                 });
     }
 
@@ -375,7 +375,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     } else if (ex != null) {
                         throw new CompletionException(ex);
                     }
-                    return ActiveTxRecord.parse(ok.getData()).getTxnStatus();
+                    return ActiveTxnRecord.parse(ok.getData()).getTxnStatus();
                 });
 
         return verifyLegalState(activeTx
@@ -389,7 +389,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                     } else if (ex != null) {
                                         throw new CompletionException(ex);
                                     }
-                                    return CompletedTxRecord.parse(ok.getData()).getCompletionStatus();
+                                    return CompletedTxnRecord.parse(ok.getData()).getCompletionStatus();
                                 });
                     } else {
                         return CompletableFuture.completedFuture(x);
@@ -491,11 +491,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         return verifyLegalState(getCurrentTxns()
                 .thenApply(x -> x.entrySet().stream()
                         .collect(Collectors.toMap(k -> UUID.fromString(k.getKey()),
-                                v -> ActiveTxRecord.parse(v.getValue().getData())))));
+                                v -> ActiveTxnRecord.parse(v.getValue().getData())))));
     }
 
     @Override
@@ -655,7 +655,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     final Optional<HistoryRecord> previousOpt = HistoryRecord.fetchPrevious(lastRecord, historyTable.getData());
                     if (previousOpt.isPresent()) {
                         // To ensure that we always have ascending time in history records irrespective of controller clock mismatches.
-                        scaleEventTime = Math.max(scaleEventTime, previousOpt.get().getEventTime() + 1);
+                        scaleEventTime = Math.max(scaleEventTime, previousOpt.get().getScaleTime() + 1);
                     }
 
                     byte[] updatedTable = TableHelper.completePartialRecordInHistoryTable(historyTable.getData(), lastRecord, scaleEventTime);
@@ -685,7 +685,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     }
 
                     final byte[] updatedTable = TableHelper.updateIndexTable(indexTable.getData(),
-                            historyRecord.getEventTime(),
+                            historyRecord.getScaleTime(),
                             historyRecord.getOffset());
                     final Data<T> updated = new Data<>(updatedTable, indexTable.getVersion());
                     return updateIndexTable(updated);

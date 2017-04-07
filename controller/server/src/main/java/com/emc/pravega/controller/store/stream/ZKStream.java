@@ -6,9 +6,9 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.BitConverter;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.Cache;
-import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.Data;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
@@ -265,7 +265,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                                                  final long scaleGracePeriod) {
         final String activePath = getActiveTxPath(txId.toString());
         return store.createZNodeIfNotExist(activePath,
-                new ActiveTxRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
+                new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
                         .toByteArray())
                 .thenApply(x -> cache.invalidateCache(activePath));
     }
@@ -292,8 +292,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     if (version.isPresent() && version.get().intValue() != x.getVersion()) {
                         throw new WriteConflictException(txId.toString());
                     }
-                    ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
-                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
+                    ActiveTxnRecord previous = ActiveTxnRecord.parse(x.getData());
+                    ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
                             previous.getLeaseExpiryTime(),
                             previous.getMaxExecutionExpiryTime(),
                             previous.getScaleGracePeriod(),
@@ -326,7 +326,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
         final String completedTxPath = getCompletedTxPath(txId.toString());
         return store.createZNodeIfNotExist(completedTxPath,
-                new CompletedTxRecord(timestamp, complete).toByteArray())
+                new CompletedTxnRecord(timestamp, complete).toByteArray())
                 .thenAccept(x -> cache.invalidateCache(completedTxPath));
     }
 

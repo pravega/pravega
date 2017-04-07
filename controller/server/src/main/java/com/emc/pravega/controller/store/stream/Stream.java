@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 
@@ -255,7 +255,7 @@ interface Stream {
      */
     CompletableFuture<Integer> getNumberOfOngoingTransactions();
 
-    CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns();
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.
