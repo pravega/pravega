@@ -7,6 +7,7 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
@@ -108,7 +109,7 @@ public class AutoScaleProcessor {
                 e -> log.error("error while creating writer for requeststream {}", e))
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
-                        clientFactory.compareAndSet(null, ClientFactory.withScope(configuration.getInternalScope(), configuration.getControllerUri()));
+                        clientFactory.compareAndSet(null, ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri()));
                     }
 
                     this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalRequestStream(),
