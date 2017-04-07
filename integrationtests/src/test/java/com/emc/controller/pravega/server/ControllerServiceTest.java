@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -32,6 +34,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+@Slf4j
 public class ControllerServiceTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
@@ -45,7 +48,9 @@ public class ControllerServiceTest {
     
     @Before
     public void setUp() throws Exception {
-        zkTestServer = new TestingServer();
+        int zkServerPort = TestUtils.getAvailableListenPort();
+        log.info("Starting ZK server at port {}", zkServerPort);
+        zkTestServer = new TestingServer(zkServerPort);
         
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
