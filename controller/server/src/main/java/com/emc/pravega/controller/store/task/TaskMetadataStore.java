@@ -8,6 +8,7 @@ package com.emc.pravega.controller.store.task;
 import com.emc.pravega.controller.task.TaskData;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -99,4 +100,11 @@ public interface TaskMetadataStore {
      * @return A randomly selected child if parent has children, otherwise Optional.empty().
      */
     CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent);
+
+    /**
+     * Returns the list of hosts performing some task. This list is obtained from the hostIndex.
+     *
+     * @return the list of hosts performing some task.
+     */
+    CompletableFuture<Set<String>> getHosts();
 }

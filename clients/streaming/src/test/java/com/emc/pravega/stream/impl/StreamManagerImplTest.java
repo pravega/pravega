@@ -11,6 +11,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 
+import com.emc.pravega.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,6 +42,9 @@ public class StreamManagerImplTest {
         Assert.assertTrue(streamManager.createScope(defaultScope));
         Assert.assertFalse(streamManager.createScope(defaultScope));
         Assert.assertTrue(streamManager.deleteScope(defaultScope));
+
+        // Try to create invalid scope name.
+        AssertExtensions.assertThrows(Exception.class, () -> streamManager.createScope("_system"));
 
         // This call should actually fail
         Assert.assertFalse(streamManager.deleteScope(defaultScope));

@@ -4,6 +4,7 @@
 package com.emc.pravega.controller.server.eventProcessor.impl;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -71,9 +72,9 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
 
     public static ControllerEventProcessorConfig withDefault() {
         return ControllerEventProcessorConfigImpl.builder()
-                .scopeName("system")
-                .commitStreamName("commitStream")
-                .abortStreamName("abortStream")
+                .scopeName(NameUtils.INTERNAL_SCOPE_NAME)
+                .commitStreamName(NameUtils.getInternalNameForStream("commitStream"))
+                .abortStreamName(NameUtils.getInternalNameForStream("abortStream"))
                 .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
                 .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
                 .commitReaderGroupName("commitStreamReaders")

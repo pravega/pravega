@@ -4,11 +4,13 @@
 package com.emc.pravega.controller.server.impl;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
 import com.emc.pravega.controller.server.ControllerServiceConfig;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
+import com.emc.pravega.controller.store.client.StoreType;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.google.common.base.Preconditions;
@@ -30,6 +32,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final int requestHandlerThreadPoolSize;
     private final StoreClientConfig storeClientConfig;
     private final HostMonitorConfig hostMonitorConfig;
+    private final Optional<ControllerClusterListenerConfig> controllerClusterListenerConfig;
     private final TimeoutServiceConfig timeoutServiceConfig;
 
     private final Optional<ControllerEventProcessorConfig> eventProcessorConfig;
@@ -47,6 +50,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                             final int requestHandlerThreadPoolSize,
                             final StoreClientConfig storeClientConfig,
                             final HostMonitorConfig hostMonitorConfig,
+                            final Optional<ControllerClusterListenerConfig> controllerClusterListenerConfig,
                             final TimeoutServiceConfig timeoutServiceConfig,
                             final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
                             final boolean requestHandlersEnabled,
@@ -59,9 +63,14 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         Exceptions.checkArgument(requestHandlerThreadPoolSize > 0, "requestHandlerThreadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
+        Preconditions.checkNotNull(controllerClusterListenerConfig, "controllerClusterListenerConfig");
         Preconditions.checkNotNull(timeoutServiceConfig, "timeoutServiceConfig");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
+        if (controllerClusterListenerConfig.isPresent()) {
+            Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper,
+                    "If controllerCluster is enabled, store type should be Zookeeper");
+        }
         if (eventProcessorConfig.isPresent()) {
             Preconditions.checkNotNull(eventProcessorConfig.get());
         }
@@ -79,6 +88,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.requestHandlerThreadPoolSize = requestHandlerThreadPoolSize;
         this.storeClientConfig = storeClientConfig;
         this.hostMonitorConfig = hostMonitorConfig;
+        this.controllerClusterListenerConfig = controllerClusterListenerConfig;
         this.timeoutServiceConfig = timeoutServiceConfig;
         this.eventProcessorConfig = eventProcessorConfig;
         this.requestHandlersEnabled = requestHandlersEnabled;
