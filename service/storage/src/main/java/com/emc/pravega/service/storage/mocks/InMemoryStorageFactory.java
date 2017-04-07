@@ -19,15 +19,16 @@ import lombok.RequiredArgsConstructor;
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.
  */
 public class InMemoryStorageFactory implements StorageFactory {
-    private final InMemoryStorage baseStorage;
+    private final ScheduledExecutorService executor;
+
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
-        this.baseStorage = new InMemoryStorage(executor);
+        this.executor = executor;
     }
 
     @Override
     public TruncateableStorage createStorageAdapter() {
-        return new FencedWrapper(this.baseStorage);
+        return new FencedWrapper( new InMemoryStorage(executor));
     }
 
     //region FencedWrapper
