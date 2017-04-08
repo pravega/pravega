@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.controller.server.v1;
 
-import static org.junit.Assert.assertEquals;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -42,6 +41,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Controller service implementation test.
