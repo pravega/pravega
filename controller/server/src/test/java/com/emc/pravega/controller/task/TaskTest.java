@@ -3,6 +3,9 @@
  */
 package com.emc.pravega.controller.task;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -12,6 +15,7 @@ import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.LockFailedException;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
@@ -46,10 +50,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Task test cases.
@@ -99,10 +99,12 @@ public class TaskTest {
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
 
         // region createStream
-        streamStore.createScope(SCOPE);
+        streamStore.createScope(SCOPE).get();
         long start = System.currentTimeMillis();
-        streamStore.createStream(SCOPE, stream1, configuration1, start, null, executor);
-        streamStore.createStream(SCOPE, stream2, configuration2, start, null, executor);
+        streamStore.createStream(SCOPE, stream1, configuration1, start, null, executor).get();
+        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStore.createStream(SCOPE, stream2, configuration2, start, null, executor).get();
+        streamStore.setState(SCOPE, stream2, State.ACTIVE, null, executor).get();
         // endregion
 
         // region scaleSegments

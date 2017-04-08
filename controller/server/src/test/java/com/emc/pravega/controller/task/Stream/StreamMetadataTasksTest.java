@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -12,6 +12,7 @@ import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
@@ -46,7 +47,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
-
 
 public class StreamMetadataTasksTest {
 
@@ -97,10 +97,11 @@ public class StreamMetadataTasksTest {
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        streamStorePartialMock.createScope(SCOPE);
+        streamStorePartialMock.createScope(SCOPE).get();
 
         long start = System.currentTimeMillis();
-        streamStorePartialMock.createStream(SCOPE, stream1, configuration1, start, null, executor);
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration1, start, null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);

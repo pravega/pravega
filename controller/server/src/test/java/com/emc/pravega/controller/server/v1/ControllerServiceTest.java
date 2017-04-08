@@ -12,6 +12,7 @@ import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
@@ -103,7 +104,10 @@ public class ControllerServiceTest {
         // region createStream
         startTs = System.currentTimeMillis();
         streamStore.createStream(SCOPE, stream1, configuration1, startTs, null, executor).get();
+        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
         streamStore.createStream(SCOPE, stream2, configuration2, startTs, null, executor).get();
+        streamStore.setState(SCOPE, stream2, State.ACTIVE, null, executor).get();
+
         // endregion
 
         // region scaleSegments
