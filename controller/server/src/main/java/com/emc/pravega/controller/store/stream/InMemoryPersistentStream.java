@@ -16,8 +16,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang.SerializationUtils;
 
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +26,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 @ThreadSafe
 class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
@@ -98,7 +98,7 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException {
-        if (creationTime != null && creationTime.get() != create.getEventTime()) {
+        if (creationTime.get() != null && creationTime.get() != create.getEventTime()) {
             return FutureHelpers.failedFuture(new DataExistsException(getName()));
         } else {
             return CompletableFuture.completedFuture(null);
@@ -327,18 +327,13 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> setStateData(final State state) {
-
-        if (this.state.get() == null) {
-            return FutureHelpers.failedFuture(new DataNotFoundException("state"));
-        } else {
-            this.state.set(new Data<>(SerializationUtils.serialize(state), null));
-            return CompletableFuture.completedFuture(null);
-        }
+        this.state.set(new Data<>(SerializationUtils.serialize(state), null));
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     CompletableFuture<State> getStateData() {
-        if (state == null) {
+        if (state.get() == null) {
             return FutureHelpers.failedFuture(new DataNotFoundException(""));
         }
         return CompletableFuture.completedFuture((State) SerializationUtils.deserialize(state.get().getData()));

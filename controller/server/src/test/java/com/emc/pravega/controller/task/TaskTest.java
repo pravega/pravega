@@ -89,7 +89,7 @@ public class TaskTest {
     }
 
     @Before
-    public void setUp() {
+    public void setUp() throws ExecutionException, InterruptedException {
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
@@ -97,21 +97,22 @@ public class TaskTest {
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
 
         // region createStream
-        streamStore.createScope(SCOPE);
-        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor);
-        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null, executor);
+        streamStore.createScope(SCOPE).get();
+        long start = System.currentTimeMillis();
+        streamStore.createStream(SCOPE, stream1, configuration1, start, null, executor).get();
+        streamStore.createStream(SCOPE, stream2, configuration2, start, null, executor).get();
         // endregion
 
         // region scaleSegments
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null, executor);
+        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), start + 20, null, executor).get();
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null, executor);
+        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), start + 20, null, executor).get();
         // endregion
     }
 
@@ -132,7 +133,7 @@ public class TaskTest {
             assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
         }
 
-        streamStore.createScope(SCOPE);
+        streamStore.createScope(SCOPE).join();
         CreateStreamStatus.Status result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
                 System.currentTimeMillis()).join();
         assertEquals(result, CreateStreamStatus.Status.SUCCESS);

@@ -69,10 +69,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (scopes.containsKey(scopeName)) {
             if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
                 InMemoryPersistentStream stream = new InMemoryPersistentStream(scopeName, streamName);
-                stream.create(configuration, timeStamp);
-                streams.put(scopedStreamName(scopeName, streamName), stream);
-                scopes.get(scopeName).addStreamToScope(streamName);
-                return CompletableFuture.completedFuture(true);
+                return stream.create(configuration, timeStamp)
+                        .thenApply(x -> {
+                            streams.put(scopedStreamName(scopeName, streamName), stream);
+                            scopes.get(scopeName).addStreamToScope(streamName);
+                            return true;
+                        });
             } else {
                 return FutureHelpers.
                         failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Stream already exists."));
