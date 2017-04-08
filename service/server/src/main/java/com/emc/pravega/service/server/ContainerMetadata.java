@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server;
 
@@ -23,6 +21,21 @@ public interface ContainerMetadata {
      * Gets a value indicating the Id of the StreamSegmentContainer this Metadata refers to.
      */
     int getContainerId();
+
+    /**
+     * Gets a value indicating the current Container Epoch.
+     * <p>
+     * An Epoch is a monotonically strictly number that changes (not necessarily incremented) every time the Container
+     * is successfully recovered. This usually corresponds to a successful exclusive lock acquisition of the DurableDataLog
+     * corresponding to this Container, thus fencing out any other existing instances of this Container holding that lock.
+     * <p>
+     * For example, if Container X instance A has an epoch smaller than that of Container X instance B, then it is safe
+     * to assume that B was recovered later than A and A should be in the process of shutting down and not respond to any
+     * requests or make any further modifications.
+     *
+     * @return The Epoch of the current Container instance.
+     */
+    long getContainerEpoch();
 
     /**
      * Gets a value indicating whether we are currently in Recovery Mode.

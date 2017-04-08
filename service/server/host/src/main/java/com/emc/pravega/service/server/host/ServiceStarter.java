@@ -7,9 +7,9 @@ package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.metrics.MetricsConfig;
-import com.emc.pravega.metrics.MetricsProvider;
-import com.emc.pravega.metrics.StatsProvider;
+import com.emc.pravega.shared.metrics.MetricsConfig;
+import com.emc.pravega.shared.metrics.MetricsProvider;
+import com.emc.pravega.shared.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.host.stat.AutoScalerConfig;
@@ -169,7 +169,7 @@ public final class ServiceStarter {
             return new ZKSegmentContainerManager(setup.getContainerRegistry(),
                     setup.getSegmentToContainerMapper(),
                     zkClient,
-                    new Host(this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort()));
+                    new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort()));
         });
     }
 

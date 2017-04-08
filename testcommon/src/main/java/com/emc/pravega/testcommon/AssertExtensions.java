@@ -78,6 +78,7 @@ public class AssertExtensions {
             Assert.fail(message + " No exception has been thrown.");
         } catch (CompletionException ex) {
             if (!tester.test(getRealException(ex))) {
+                ex.printStackTrace();
                 Assert.fail(message + " Exception thrown was of unexpected type: " + getRealException(ex));
             }
         } catch (Exception ex) {

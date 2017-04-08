@@ -10,6 +10,7 @@ import com.emc.pravega.common.util.TypedProperties;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 
+import com.google.common.base.Strings;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -22,7 +23,9 @@ public class ServiceConfig {
     public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 50);
     public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
+    public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
+    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("publishedIPAddress", "");
     public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
@@ -56,6 +59,26 @@ public class ServiceConfig {
      */
     @Getter
     private final String listeningIPAddress;
+
+
+    /**
+     * Pravega segment store allows a configuration in which it connects to an IP address:port pair on the node and a
+     * different IP address:port pair is advertised to the clients through controller.
+     * In this configuration: publishedIPAddress and publishedPort configs are defined and this pair is registered to
+     * the controller. In case these configs need not be different, they are not defined and they default to
+     * listeningIPAddress and listeningPort.
+     */
+
+    /**
+     * The port registered with controller
+     */
+    @Getter
+    private final int publishedPort;
+    /**
+     * The IP address registered with controller.
+     */
+    @Getter
+    private final String publishedIPAddress;
 
     /**
      * The Zookeeper URL.
@@ -94,6 +117,15 @@ public class ServiceConfig {
         this.containerCount = properties.getInt(CONTAINER_COUNT);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.listeningPort = properties.getInt(LISTENING_PORT);
+
+        int publishedPort;
+        try {
+            publishedPort = properties.getInt(PUBLISHED_PORT);
+        }  catch (ConfigurationException e) {
+            publishedPort = this.listeningPort;
+        }
+        this.publishedPort = publishedPort;
+
         String ipAddress = properties.get(LISTENING_IP_ADDRESS);
         if (ipAddress == null || ipAddress.equals(LISTENING_IP_ADDRESS.getDefaultValue())) {
             // Can't put this in the 'defaultValue' above because that would cause getHostAddress to be evaluated every time.
@@ -101,6 +133,12 @@ public class ServiceConfig {
         }
 
         this.listeningIPAddress = ipAddress;
+        String publishedIPAddress = properties.get(PUBLISHED_IP_ADDRESS);
+        if (Strings.isNullOrEmpty(publishedIPAddress)) {
+            this.publishedIPAddress = this.listeningIPAddress;
+        } else {
+            this.publishedIPAddress = publishedIPAddress;
+        }
         this.zkURL = properties.get(ZK_URL);
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
