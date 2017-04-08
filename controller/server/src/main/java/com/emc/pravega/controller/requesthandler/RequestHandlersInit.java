@@ -71,12 +71,13 @@ public class RequestHandlersInit {
         CHECKPOINT_STORE_REF.set(checkpointStore);
         SERIALIZER_REF.set(new JavaSerializer<>());
 
-        return createScope(controller, executor)
+        CompletableFuture<Void> initFuture = createScope(controller, executor)
                 .thenCompose(x -> createStreams(controller, executor))
                 .thenCompose(y -> startScaleReader(clientFactory, readerGroupManager, controller.getStreamMetadataTasks(),
                         controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
-                        executor))
-                .thenCompose(z -> SCALE_REQUEST_READER_REF.get().run());
+                        executor));
+        initFuture.thenCompose(z -> SCALE_REQUEST_READER_REF.get().run());
+        return initFuture;
     }
 
     public static void shutdownRequestHandlers() throws Exception {
@@ -100,8 +101,8 @@ public class RequestHandlersInit {
                 e -> log.error("Exception while creating request stream {}", e))
                 .runAsync(() -> controller.createScope(NameUtils.INTERNAL_SCOPE_NAME)
                         .whenComplete((res, ex) -> {
-                            log.info("Request handler's create scope {} complete\nresult = {}\nex = {}",
-                                    NameUtils.INTERNAL_SCOPE_NAME, res, ex.getMessage());
+                            log.info("Request handler's create scope {} complete\nresult = {}\n",
+                                    NameUtils.INTERNAL_SCOPE_NAME, res);
                             if (ex != null) {
                                 // fail and exit
                                 throw new CompletionException(ex);
@@ -120,6 +121,8 @@ public class RequestHandlersInit {
                 e -> log.error("Exception while creating request stream {}", e))
                 .runAsync(() -> controller.createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis())
                         .whenComplete((res, ex) -> {
+                            log.info("Request handler's create stream {}/{} returned\nresult = {}\nex = {}",
+                                    REQUEST_STREAM_CONFIG.getScope(), REQUEST_STREAM_CONFIG.getStreamName(), res, ex);
                             if (ex != null && !(ex instanceof StreamAlreadyExistsException)) {
                                 // fail and exit
                                 throw new CompletionException(ex);

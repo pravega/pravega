@@ -300,18 +300,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             log.info("Closing stream transaction metadata tasks");
             streamTransactionMetadataTasks.close();
 
-            // Next stop all executors
-            log.info("Stopping executors");
-            eventProcExecutor.shutdownNow();
-            requestExecutor.shutdownNow();
-            storeExecutor.shutdownNow();
-            taskExecutor.shutdownNow();
-            controllerServiceExecutor.shutdownNow();
-            if (clusterListenerExecutor != null) {
-                clusterListenerExecutor.shutdownNow();
-            }
-
-            // Finally, await termination of all services
+            // Await termination of all services
             if (restServer != null) {
                 log.info("Awaiting termination of REST server");
                 restServer.awaitTerminated();
@@ -335,6 +324,17 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (controllerClusterListener != null) {
                 log.info("Awaiting termination of controller cluster listener");
                 controllerClusterListener.awaitTerminated();
+            }
+
+            // Next stop all executors
+            log.info("Stopping executors");
+            eventProcExecutor.shutdownNow();
+            requestExecutor.shutdownNow();
+            storeExecutor.shutdownNow();
+            taskExecutor.shutdownNow();
+            controllerServiceExecutor.shutdownNow();
+            if (clusterListenerExecutor != null) {
+                clusterListenerExecutor.shutdownNow();
             }
 
             log.info("Awaiting termination of eventProc executor");
