@@ -38,8 +38,6 @@ public final class Config {
     public static final String SERVICE_HOST = CONFIG.getString("config.controller.server.serviceHostIp");
     public static final int SERVICE_PORT = CONFIG.getInt("config.controller.server.serviceHostPort");
 
-
-
     //Store configuration.
     //Stream store configuration.
     public static final String STREAM_STORE_TYPE = CONFIG.getString("config.controller.server.store.stream.type");
