@@ -101,8 +101,6 @@ public class RequestHandlersInit {
                 e -> log.error("Exception while creating request stream {}", e))
                 .runAsync(() -> controller.createScope(NameUtils.INTERNAL_SCOPE_NAME)
                         .whenComplete((res, ex) -> {
-                            log.info("Request handler's create scope {} complete\nresult = {}\n",
-                                    NameUtils.INTERNAL_SCOPE_NAME, res);
                             if (ex != null) {
                                 // fail and exit
                                 throw new CompletionException(ex);
@@ -121,8 +119,6 @@ public class RequestHandlersInit {
                 e -> log.error("Exception while creating request stream {}", e))
                 .runAsync(() -> controller.createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis())
                         .whenComplete((res, ex) -> {
-                            log.info("Request handler's create stream {}/{} returned\nresult = {}\nex = {}",
-                                    REQUEST_STREAM_CONFIG.getScope(), REQUEST_STREAM_CONFIG.getStreamName(), res, ex);
                             if (ex != null && !(ex instanceof StreamAlreadyExistsException)) {
                                 // fail and exit
                                 throw new CompletionException(ex);
