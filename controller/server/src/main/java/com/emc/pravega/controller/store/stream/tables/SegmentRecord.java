@@ -5,10 +5,7 @@ package com.emc.pravega.controller.store.stream.tables;
 
 import com.emc.pravega.common.util.BitConverter;
 import lombok.Data;
-import org.apache.commons.lang3.ArrayUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.Optional;
 
 @Data
@@ -33,30 +30,27 @@ public class SegmentRecord {
         if (offset >= segmentTable.length) {
             return Optional.empty();
         }
-        return Optional.of(parse(ArrayUtils.subarray(segmentTable, offset, offset + SEGMENT_RECORD_SIZE)));
+        return Optional.of(parse(segmentTable, offset));
     }
 
-    private static SegmentRecord parse(final byte[] bytes) {
-        assert bytes.length == SEGMENT_RECORD_SIZE;
+    private static SegmentRecord parse(final byte[] table, final int offset) {
+        return new SegmentRecord(BitConverter.readInt(table, offset),
+                BitConverter.readLong(table, offset + Integer.BYTES),
+                toDouble(table, offset + Integer.BYTES + Long.BYTES),
+                toDouble(table, offset + Integer.BYTES + Long.BYTES + Double.BYTES));
+    }
 
-        return new SegmentRecord(BitConverter.readInt(bytes, 0),
-                BitConverter.readLong(bytes, Integer.BYTES),
-                Utilities.toDouble(bytes, Integer.BYTES + Long.BYTES),
-                Utilities.toDouble(bytes, Integer.BYTES + Long.BYTES + Double.BYTES));
+    private static double toDouble(byte[] b, int offset) {
+        return Double.longBitsToDouble(BitConverter.readLong(b, offset));
     }
 
     public byte[] toByteArray() {
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] b = new byte[SEGMENT_RECORD_SIZE];
+        BitConverter.writeInt(b, 0, segmentNumber);
+        BitConverter.writeLong(b, Integer.BYTES, startTime);
+        BitConverter.writeLong(b, Integer.BYTES + Long.BYTES, Double.doubleToRawLongBits(routingKeyStart));
+        BitConverter.writeLong(b, Integer.BYTES + 2 * Long.BYTES, Double.doubleToRawLongBits(routingKeyEnd));
 
-        try {
-            outputStream.write(Utilities.toByteArray(segmentNumber));
-            outputStream.write(Utilities.toByteArray(startTime));
-            outputStream.write(Utilities.toByteArray(routingKeyStart));
-            outputStream.write(Utilities.toByteArray(routingKeyEnd));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        return outputStream.toByteArray();
+        return b;
     }
 }

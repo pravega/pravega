@@ -137,7 +137,7 @@ public class ControllerService {
         });
     }
 
-    public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
+    public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatelyFollowing(SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
         return streamStore.getSuccessors(segment.getStreamInfo().getScope(),
                                          segment.getStreamInfo().getStream(),
