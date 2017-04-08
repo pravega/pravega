@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.integrationtests;
 
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -46,7 +47,7 @@ public class ControllerBootstrapTest {
 
         // 1. Start ZK
         try {
-            zkTestServer = new TestingServer();
+            zkTestServer = new TestingServerStarter().start();
         } catch (Exception e) {
             Assert.fail("Failed starting ZK test server");
         }

@@ -24,6 +24,7 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -41,7 +42,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
     public static void main(String[] args) throws Exception {
         try {
             @Cleanup
-            TestingServer zkTestServer = new TestingServer();
+            TestingServer zkTestServer = new TestingServerStarter().start();
             int port = Config.SERVICE_PORT;
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);

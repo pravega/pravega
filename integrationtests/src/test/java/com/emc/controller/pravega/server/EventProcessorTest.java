@@ -4,6 +4,7 @@
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
@@ -90,7 +91,7 @@ public class EventProcessorTest {
     @Test(timeout = 60000)
     public void testEventProcessor() throws Exception {
         @Cleanup
-        TestingServer zkTestServer = new TestingServer();
+        TestingServer zkTestServer = new TestingServerStarter().start();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
