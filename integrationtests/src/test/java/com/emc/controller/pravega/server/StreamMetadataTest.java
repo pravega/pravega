@@ -50,7 +50,6 @@ public class StreamMetadataTest {
                 "localhost",
                 servicePort,
                 4);
-        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String scope1 = "scope1";

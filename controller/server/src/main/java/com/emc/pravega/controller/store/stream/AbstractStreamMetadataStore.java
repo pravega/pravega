@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.shared.MetricsNames;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.shared.metrics.DynamicLogger;
@@ -10,7 +11,6 @@ import com.emc.pravega.shared.metrics.MetricsProvider;
 import com.emc.pravega.shared.metrics.OpStatsLogger;
 import com.emc.pravega.shared.metrics.StatsLogger;
 import com.emc.pravega.shared.metrics.StatsProvider;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -213,8 +213,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return getScope(scopeName).listStreamsInScope().thenCompose(streams -> {
             return FutureHelpers.allOfWithResults(
                     streams.stream()
-                           .map(s -> getStream(scopeName, s, null).getConfiguration())
-                           .collect(Collectors.toList()));
+                            .map(s -> getStream(scopeName, s, null).getConfiguration())
+                            .collect(Collectors.toList()));
         });
     }
 
@@ -290,18 +290,44 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<Segment>> scale(final String scope, final String name,
-                                                  final List<Integer> sealedSegments,
-                                                  final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                  final long scaleTimestamp,
-                                                  final OperationContext context,
-                                                  final Executor executor) {
-        CompletableFuture<List<Segment>> future = withCompletion(getStream(scope, name, context)
-                .scale(sealedSegments, newRanges, scaleTimestamp), executor);
+    public CompletableFuture<List<Segment>> startScale(final String scope, final String name,
+                                                       final List<Integer> sealedSegments,
+                                                       final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                       final long scaleTimestamp,
+                                                       final OperationContext context,
+                                                       final Executor executor) {
+        return withCompletion(getStream(scope, name, context)
+                .startScale(sealedSegments, newRanges, scaleTimestamp), executor);
+    }
 
-        future.thenApply(result -> {
+    @Override
+    public CompletableFuture<Void> scaleNewSegmentsCreated(final String scope, final String name,
+                                                           final List<Integer> sealedSegments,
+                                                           final List<Segment> newSegments,
+                                                           final long scaleTimestamp,
+                                                           final OperationContext context,
+                                                           final Executor executor) {
+        List<Integer> collect = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        return withCompletion(getStream(scope, name, context)
+                .scaleNewSegmentsCreated(sealedSegments, collect, scaleTimestamp), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
+                                                       final List<Integer> sealedSegments,
+                                                       final List<Segment> newSegments,
+                                                       final long scaleTimestamp,
+                                                       final OperationContext context,
+                                                       final Executor executor) {
+        List<Integer> collect = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        CompletableFuture<Void> future = withCompletion(getStream(scope, name, context)
+                .scaleOldSegmentsSealed(sealedSegments, collect, scaleTimestamp), executor);
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
+                new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
+
+        future.thenAccept(result -> {
             DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                    newRanges.size() - sealedSegments.size());
+                    newSegments.size() - sealedSegments.size());
             getSealedRanges(scope, name, sealedSegments, context, executor)
                     .thenAccept(sealedRanges -> {
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
@@ -309,7 +335,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name),
                                 findSplits(newRanges, sealedRanges));
                     });
-            return result;
         });
 
         return future;
@@ -423,8 +448,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(final String scope, final String stream,
-                                                                      final OperationContext context, final Executor executor) {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream,
+                                                                       final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, stream, context).getActiveTxns(), executor);
     }
 

@@ -6,19 +6,18 @@ package com.emc.pravega.controller.store.stream.tables;
 
 import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.controller.store.stream.TxnStatus;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import lombok.Data;
 
 @Data
-public class ActiveTxRecord {
+public class ActiveTxnRecord {
+    private static final int ACTIVE_TXN_RECORD_SIZE = 4 * Long.BYTES + Integer.BYTES;
     private final long txCreationTimestamp;
     private final long leaseExpiryTime;
     private final long maxExecutionExpiryTime;
     private final long scaleGracePeriod;
     private final TxnStatus txnStatus;
 
-    public static ActiveTxRecord parse(final byte[] bytes) {
+    public static ActiveTxnRecord parse(final byte[] bytes) {
         final int longSize = Long.BYTES;
 
         final long txCreationTimestamp = BitConverter.readLong(bytes, 0);
@@ -31,22 +30,17 @@ public class ActiveTxRecord {
 
         final TxnStatus status = TxnStatus.values()[BitConverter.readInt(bytes, 4 * longSize)];
 
-        return new ActiveTxRecord(txCreationTimestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, status);
+        return new ActiveTxnRecord(txCreationTimestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, status);
     }
 
     public byte[] toByteArray() {
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] b = new byte[ACTIVE_TXN_RECORD_SIZE];
+        BitConverter.writeLong(b, 0, txCreationTimestamp);
+        BitConverter.writeLong(b, Long.BYTES, leaseExpiryTime);
+        BitConverter.writeLong(b, 2 * Long.BYTES, maxExecutionExpiryTime);
+        BitConverter.writeLong(b, 3 * Long.BYTES, scaleGracePeriod);
+        BitConverter.writeInt(b, 4 * Long.BYTES, txnStatus.ordinal());
 
-        try {
-            outputStream.write(Utilities.toByteArray(txCreationTimestamp));
-            outputStream.write(Utilities.toByteArray(leaseExpiryTime));
-            outputStream.write(Utilities.toByteArray(maxExecutionExpiryTime));
-            outputStream.write(Utilities.toByteArray(scaleGracePeriod));
-            outputStream.write(Utilities.toByteArray(txnStatus.ordinal()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        return outputStream.toByteArray();
+        return b;
     }
 }

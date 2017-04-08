@@ -37,6 +37,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndTxnWithScaleTest {
@@ -104,7 +105,9 @@ public class EndToEndTxnWithScaleTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        controller.scaleStream(stream, Collections.singletonList(0), map).get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map).get();
+
+        assertTrue(result);
 
         transaction = test.beginTxn(5000, 3600000, 29000);
         transaction.writeEvent("0", "txntest2");
