@@ -18,31 +18,34 @@ public interface TaskMetadataStore {
 
     /**
      * Locks a resource for reads or updates.
-     * If (oldOwner, oldTag) are specified then it revokes old owner's lock and itself acquires it.
-     * This is non-reentrant lock, i.e., a process/thread cannot lock the same resource twice.
-     * If oldOwner is null then it first creates a node LOCKTYPE<SEQ_NUMBER> having data (owner, tag, taskData)
-     * as a child of /taskRoot/resource.
      *
-     * Then it waits until the following happens
-     * 1. For WRITE lock type, it waits until SEQ_NUMBER is the smallest sequence number
-     *    among all children of /taskRoot/resource
-     * 2. For READ lock type it waits until no child of /taskRoot/resource with write lock
-     *    type has a smaller sequence number than SEQ_NUMBER
+     * If oldOwner is null then
+     * 1. It first creates a node LOCKTYPE<SEQ_NUMBER> having data
+     *    Tuple(owner, tag, taskData) as a child of /taskRoot/resource.
      *
-     * If oldOwner is non-null then it first replaces data of node LOCKTYPE<seqNumber> from (oldOwner, oldTag, taskData)
-     * to (owner, tag, taskData).
+     * 2. Then,
+     *    a. For WRITE lock type, it waits until SEQ_NUMBER is the smallest
+     *       sequence number among all children of /taskRoot/resource
+     *    b. For READ lock type it waits until no child of /taskRoot/resource
+     *       with write lock type has a smaller sequence number than SEQ_NUMBER
      *
-     * Then it waits until the conditions mentioned above are satisfied.
+     * If oldOwner is non-null then it first atomically updates data of node
+     * LOCKTYPE<seqNumber> from Tuple(oldOwner, oldTag, taskData)
+     * to Tuple(owner, tag, taskData).
      *
-     * @param resource resource identifier.
-     * @param type     lock type.
-     * @param taskData details of update task on the resource.
-     * @param owner    owner of the task.
-     * @param tag      tag.
-     * @param seqNumber optional sequence number in case the lock was previously held by some other host.
-     * @param oldOwner host that had previously locked the resource.
-     * @param oldTag   tag that took the lock
-     * @return sequence number of the lock node when lock is acquired, throws LockFailedException on error.
+     * Then, it waits until the conditions mentioned above are satisfied.
+     *
+     * @param resource  resource identifier.
+     * @param type      lock type.
+     * @param taskData  details of update task on the resource.
+     * @param owner     owner of the task.
+     * @param tag       tag.
+     * @param seqNumber optional sequence number in case the lock was previously
+     *                  held by some other host.
+     * @param oldOwner  host that had previously locked the resource.
+     * @param oldTag    tag that took the lock
+     * @return          sequence number of the lock node when lock is acquired,
+     *                  throws LockFailedException on error.
      */
     CompletableFuture<Integer> lock(final Resource resource,
                                     final LockType type,
@@ -54,23 +57,25 @@ public interface TaskMetadataStore {
                                     final String oldTag);
 
     /**
-     * Unlocks a resource if it is owned by the specified owner (owner, tag) by deleting the child
-     * LOCKTYPE<seqNumber> of /taskRoot/resource
+     * Unlocks a resource if it is owned by the specified owner (owner, tag)
+     * by deleting the child LOCKTYPE<seqNumber> of /taskRoot/resource
      *
-     * Delete the key value pair LOCKTYPE<seqNumber> -> (owner', tag', taskData) iff owner' == owner and tag' == tag.
+     * Delete the key value pair LOCKTYPE<seqNumber> -> Tuple(owner', tag', taskData)
+     * iff owner' == owner and tag' == tag.
      *
-     * @param resource resource identifier.
-     * @param type     lock type.
+     * @param resource  resource identifier.
+     * @param type      lock type.
      * @param seqNumber sequence number returned by the lock method.
-     * @param owner    owner of the lock.
-     * @param tag      tag.
-     * @return void if successful, otherwise throws UnlockFailedException.
+     * @param owner     owner of the lock.
+     * @param tag       tag.
+     * @return          void if successful, otherwise throws UnlockFailedException.
      */
     CompletableFuture<Void> unlock(final Resource resource,
                                    final LockType type,
                                    final int seqNumber,
                                    final String owner,
                                    final String tag);
+
 
     /**
      * Fetch details of task associated with the specified resource and locked/owned by specified owner and tag, along
