@@ -4,14 +4,14 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
-import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
+import com.emc.pravega.common.util.BitConverter;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.Data;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
-import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang.SerializationUtils;
@@ -80,7 +80,7 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> storeCreationTime(final Create create) {
-        creationTime.compareAndSet(null, create.getEventTime());
+        creationTime.compareAndSet(null, create.getCreationTime());
         return CompletableFuture.completedFuture(null);
     }
 
@@ -98,7 +98,7 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException {
-        if (creationTime.get() != null && creationTime.get() != create.getEventTime()) {
+        if (creationTime.get() != null && creationTime.get() != create.getCreationTime()) {
             return FutureHelpers.failedFuture(new DataExistsException(getName()));
         } else {
             return CompletableFuture.completedFuture(null);
@@ -122,11 +122,10 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createIndexTable(final Create create) {
+    public CompletableFuture<Void> createIndexTable(final Data<Integer> data) {
         synchronized (indexTableLock) {
             if (indexTable == null) {
-                final byte[] indexTableData = TableHelper.updateIndexTable(new byte[0], create.getEventTime(), 0);
-                indexTable = new Data<>(indexTableData, 0);
+                indexTable = new Data<>(data.getData(), 0);
                 return CompletableFuture.completedFuture(null);
             } else {
                 return FutureHelpers.failedFuture(new DataExistsException("indexTable"));
@@ -147,15 +146,10 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createHistoryTable(final Create create) {
+    CompletableFuture<Void> createHistoryTable(Data<Integer> data) {
         synchronized (historyTableLock) {
             if (historyTable == null) {
-                final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
-                final byte[] historyTableData = TableHelper.updateHistoryTable(new byte[0],
-                        create.getEventTime(),
-                        IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
-
-                historyTable = new Data<>(historyTableData, 0);
+                historyTable = new Data<>(data.getData(), 0);
                 return CompletableFuture.completedFuture(null);
             } else {
                 return FutureHelpers.failedFuture(new DataExistsException("history table"));
@@ -190,9 +184,8 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
         final byte[] segmentTableChunkData = TableHelper.updateSegmentTable(startingSegmentNumber,
                 new byte[0],
-                toCreate,
                 newRanges,
-                create.getEventTime()
+                create.getCreationTime()
         );
 
         synchronized (segmentTableMap) {
@@ -203,7 +196,9 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<Void> createMarkerData(int segmentNumber, long timestamp) {
         synchronized (markers) {
-            return createEntryInMap(markers, segmentNumber, Utilities.toByteArray(timestamp), "marker");
+            byte[] b = new byte[Long.BYTES];
+            BitConverter.writeLong(b, 0, timestamp);
+            return createEntryInMap(markers, segmentNumber, b, "marker");
         }
     }
 
@@ -246,7 +241,7 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
                                                  final long maxExecutionExpiryTime,
                                                  final long scaleGracePeriod) {
         synchronized (activeTxns) {
-            return createEntryInMap(activeTxns, txId.toString(), new ActiveTxRecord(timestamp,
+            return createEntryInMap(activeTxns, txId.toString(), new ActiveTxnRecord(timestamp,
                     leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN).toByteArray(), "active txns");
         }
     }
@@ -275,8 +270,8 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
                         throw new WriteConflictException(txId.toString());
                     }
 
-                    ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
-                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
+                    ActiveTxnRecord previous = ActiveTxnRecord.parse(x.getData());
+                    ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
                             previous.getLeaseExpiryTime(),
                             previous.getMaxExecutionExpiryTime(),
                             previous.getScaleGracePeriod(),
@@ -306,7 +301,7 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
         synchronized (completedTxns) {
             return createEntryInMap(completedTxns, txId.toString(),
-                    new CompletedTxRecord(timestamp, complete).toByteArray(), "completed tx");
+                    new CompletedTxnRecord(timestamp, complete).toByteArray(), "completed tx");
         }
     }
 
