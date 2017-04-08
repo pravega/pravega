@@ -71,27 +71,32 @@ public class RequestHandlersInit {
         CHECKPOINT_STORE_REF.set(checkpointStore);
         SERIALIZER_REF.set(new JavaSerializer<>());
 
-        return createScope(controller, executor)
+        CompletableFuture<Void> initFuture = createScope(controller, executor)
                 .thenCompose(x -> createStreams(controller, executor))
                 .thenCompose(y -> startScaleReader(clientFactory, readerGroupManager, controller.getStreamMetadataTasks(),
                         controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
-                        executor))
-                .thenCompose(z -> SCALE_REQUEST_READER_REF.get().run());
+                        executor));
+        initFuture.thenComposeAsync(z -> SCALE_REQUEST_READER_REF.get().run(), executor);
+        return initFuture;
     }
 
     public static void shutdownRequestHandlers() throws Exception {
+        final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = SCALE_REQUEST_READER_REF.getAndSet(null);
+        log.info("Closing scale request handler");
+        if (prevHandler != null) {
+            prevHandler.close();
+        }
         final EventStreamReader<ScaleRequest> reader = SCALE_READER_REF.getAndSet(null);
+        log.info("Closing scale request stream reader");
         if (reader != null) {
             reader.close();
         }
         final EventStreamWriter<ScaleRequest> writer = SCALE_WRITER_REF.getAndSet(null);
+        log.info("Closing scale request stream writer");
         if (writer != null) {
             writer.close();
         }
-        final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = SCALE_REQUEST_READER_REF.getAndSet(null);
-        if (prevHandler != null) {
-            prevHandler.close();
-        }
+        log.info("Request handlers shutdown complete");
     }
 
     private static CompletableFuture<Void> createScope(ControllerService controller, ScheduledExecutorService executor) {
@@ -187,7 +192,7 @@ public class RequestHandlersInit {
                                 executor));
                     }
 
-                    log.debug("bootstrapping request handlers done");
+                    log.info("Bootstrapping request handlers complete");
                     result.complete(null);
                     return result;
                 }, executor);

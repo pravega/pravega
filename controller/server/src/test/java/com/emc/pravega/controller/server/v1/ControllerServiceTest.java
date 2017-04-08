@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -67,7 +68,7 @@ public class ControllerServiceTest {
     private long startTs;
 
     public ControllerServiceTest() throws Exception {
-        zkServer = new TestingServer();
+        zkServer = new TestingServerStarter().start();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));

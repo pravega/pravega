@@ -6,6 +6,7 @@ package com.emc.pravega.controller.task.Stream;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -66,7 +67,7 @@ public class IntermittentCnxnFailureTest {
 
     @Before
     public void setup() throws Exception {
-        zkServer = new TestingServer();
+        zkServer = new TestingServerStarter().start();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));

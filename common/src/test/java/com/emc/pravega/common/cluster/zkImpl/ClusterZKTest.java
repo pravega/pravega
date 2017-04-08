@@ -12,6 +12,8 @@ import com.emc.pravega.common.cluster.Host;
 import java.io.IOException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
+import com.emc.pravega.testcommon.TestingServerStarter;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -41,7 +43,7 @@ public class ClusterZKTest {
 
     @Before
     public void startZookeeper() throws Exception {
-        zkTestServer = new TestingServer();
+        zkTestServer = new TestingServerStarter().start();
         zkUrl = zkTestServer.getConnectString();
     }
 
