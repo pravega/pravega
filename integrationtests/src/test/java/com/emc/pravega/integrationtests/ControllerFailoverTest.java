@@ -6,6 +6,7 @@
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.common.util.ZKCuratorUtils;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -38,9 +39,8 @@ public class ControllerFailoverTest {
     @Before
     public void setup() {
         // 1. Start ZK
-        System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
         try {
-            zkTestServer = new TestingServer();
+            zkTestServer = ZKCuratorUtils.createTestServer();
         } catch (Exception e) {
             Assert.fail("Failed starting ZK test server");
         }

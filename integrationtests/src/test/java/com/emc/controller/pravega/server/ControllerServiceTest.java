@@ -6,6 +6,7 @@
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.ZKCuratorUtils;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -48,8 +49,7 @@ public class ControllerServiceTest {
     
     @Before
     public void setUp() throws Exception {
-        System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
-        zkTestServer = new TestingServer();
+        zkTestServer = ZKCuratorUtils.createTestServer();
         
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

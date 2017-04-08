@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
+import com.emc.pravega.common.util.ZKCuratorUtils;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -65,7 +66,7 @@ public class StreamMetadataTasksTest {
 
     @Before
     public void setup() throws Exception {
-        zkServer = new TestingServer();
+        zkServer = ZKCuratorUtils.createTestServer();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));

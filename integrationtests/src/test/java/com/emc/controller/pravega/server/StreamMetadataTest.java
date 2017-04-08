@@ -3,6 +3,7 @@
  */
 package com.emc.controller.pravega.server;
 
+import com.emc.pravega.common.util.ZKCuratorUtils;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -30,9 +31,8 @@ public class StreamMetadataTest {
 
     @Test(timeout = 60000)
     public void testMedadataOperations() throws Exception {
-        System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
         @Cleanup
-        TestingServer zkTestServer = new TestingServer();
+        TestingServer zkTestServer = ZKCuratorUtils.createTestServer();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

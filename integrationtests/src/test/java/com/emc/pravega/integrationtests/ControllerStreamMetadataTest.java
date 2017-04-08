@@ -7,6 +7,7 @@ package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.ZKCuratorUtils;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -49,8 +50,7 @@ public class ControllerStreamMetadataTest {
 
         try {
             // 1. Start ZK
-            System.setProperty("zookeeper.admin.serverPort", Integer.toString(TestUtils.getAvailableListenPort()));
-            this.zkTestServer = new TestingServer();
+            this.zkTestServer = ZKCuratorUtils.createTestServer();
 
             // 2. Start Pravega service.
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());

@@ -4,6 +4,7 @@
 package com.emc.pravega.controller.request;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.ZKCuratorUtils;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
 import com.emc.pravega.controller.requests.ScaleRequest;
@@ -58,7 +59,7 @@ public class RequestTest {
 
     @Before
     public void setup() throws Exception {
-        zkServer = new TestingServer();
+        zkServer = ZKCuratorUtils.createTestServer();
         zkServer.start();
 
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),

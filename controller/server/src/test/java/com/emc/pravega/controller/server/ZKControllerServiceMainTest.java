@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.server;
 
+import com.emc.pravega.common.util.ZKCuratorUtils;
 import com.emc.pravega.controller.store.client.ZKClientConfig;
 import com.emc.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import com.emc.pravega.controller.store.client.impl.ZKClientConfigImpl;
@@ -28,7 +29,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
     @Override
     public void setup() {
         try {
-            zkServer = new TestingServer();
+            zkServer = ZKCuratorUtils.createTestServer();
         } catch (Exception e) {
             log.error("Error starting test zk server");
             Assert.fail("Error starting test zk server");
