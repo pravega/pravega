@@ -81,18 +81,22 @@ public class RequestHandlersInit {
     }
 
     public static void shutdownRequestHandlers() throws Exception {
+        final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = SCALE_REQUEST_READER_REF.getAndSet(null);
+        log.info("Closing scale request handler");
+        if (prevHandler != null) {
+            prevHandler.close();
+        }
         final EventStreamReader<ScaleRequest> reader = SCALE_READER_REF.getAndSet(null);
+        log.info("Closing scale request stream reader");
         if (reader != null) {
             reader.close();
         }
         final EventStreamWriter<ScaleRequest> writer = SCALE_WRITER_REF.getAndSet(null);
+        log.info("Closing scale request stream writer");
         if (writer != null) {
             writer.close();
         }
-        final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = SCALE_REQUEST_READER_REF.getAndSet(null);
-        if (prevHandler != null) {
-            prevHandler.close();
-        }
+        log.info("Closed request handlers");
     }
 
     private static CompletableFuture<Void> createScope(ControllerService controller, ScheduledExecutorService executor) {
