@@ -13,6 +13,7 @@ import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -44,12 +45,11 @@ public class EndToEndAutoScaleUpWithTxnTest {
             int port = Config.SERVICE_PORT;
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
-            controllerWrapper.awaitRunning();
             Controller controller = controllerWrapper.getController();
-            controllerWrapper.getControllerService().createScope("pravega").get();
+            controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
             @Cleanup
-            ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
+            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(false));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
@@ -113,7 +113,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
         CompletableFuture.runAsync(() -> {
             while (!done.get()) {
                 try {
-                    Transaction<String> transaction = test.beginTxn(5000, 3600000, 60000);
+                    Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
 
                     for (int i = 0; i < 1000; i++) {
                         transaction.writeEvent("0", "txntest");

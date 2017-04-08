@@ -79,24 +79,32 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
     public void testExclusiveWriteLock() throws Exception {
         InMemoryDurableDataLog.EntryCollection entries = new InMemoryDurableDataLog.EntryCollection();
 
+        final long initialEpoch;
+        final long secondEpoch;
         try (DurableDataLog log = new InMemoryDurableDataLog(entries, executorService())) {
             log.initialize(TIMEOUT);
+            initialEpoch = log.getEpoch();
+            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", 0, initialEpoch);
 
             // 1. No two logs can use the same EntryCollection.
-            AssertExtensions.assertThrows(
-                    "A second log was able to acquire the exclusive write lock, even if another log held it.",
-                    () -> {
-                        try (DurableDataLog log2 = new InMemoryDurableDataLog(entries, executorService())) {
-                            log2.initialize(TIMEOUT);
-                        }
-                    },
-                    ex -> ex instanceof DataLogWriterNotPrimaryException);
+            try (DurableDataLog log2 = new InMemoryDurableDataLog(entries, executorService())) {
+                AssertExtensions.assertThrows(
+                        "A second log was able to acquire the exclusive write lock, even if another log held it.",
+                        () -> log2.initialize(TIMEOUT),
+                        ex -> ex instanceof DataLogWriterNotPrimaryException);
+
+                AssertExtensions.assertThrows(
+                        "getEpoch() did not throw after failed initialization.",
+                        log2::getEpoch,
+                        ex -> ex instanceof IllegalStateException);
+            }
 
             // Verify we can still append to the first log.
             TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForWrites());
 
             // 2. If during the normal operation of a log, it loses its lock, it should no longer be able to append...
-            entries.forceAcquireLock("ForceLock");
+            secondEpoch = entries.forceAcquireLock("ForceLock");
+            AssertExtensions.assertGreaterThan("forceAcquireLock did not increase epoch.", initialEpoch, secondEpoch);
             AssertExtensions.assertThrows(
                     "A second log acquired the exclusive write lock, but the first log could still append to it.",
                     () -> log.append(new ByteArrayInputStream("h".getBytes()), TIMEOUT).join(),
@@ -110,6 +118,14 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
 
             // ... but it should still be able to read.
             verifyReads(log, createLogAddress(-1), writeData);
+        }
+
+        // Verify epoch is incremented with every call to initialize().
+        entries.releaseLock("ForceLock");
+        try (DurableDataLog log = new InMemoryDurableDataLog(entries, executorService())) {
+            log.initialize(TIMEOUT);
+            long epoch = log.getEpoch();
+            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on non-empty log initialization.", secondEpoch, epoch);
         }
     }
 }

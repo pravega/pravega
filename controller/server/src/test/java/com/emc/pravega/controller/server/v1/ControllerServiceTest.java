@@ -3,12 +3,14 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import static org.junit.Assert.assertEquals;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.stream.tables.State;
@@ -35,12 +37,11 @@ import org.junit.Test;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
-import static org.junit.Assert.assertEquals;
 
 /**
  * Controller service implementation test.
@@ -62,7 +63,8 @@ public class ControllerServiceTest {
 
     private final CuratorFramework zkClient;
     private final TestingServer zkServer;
-    private final long createTimestamp = System.currentTimeMillis();
+
+    private long startTs;
 
     public ControllerServiceTest() throws Exception {
         zkServer = new TestingServer();
@@ -99,9 +101,10 @@ public class ControllerServiceTest {
         streamStore.createScope(SCOPE).get();
 
         // region createStream
-        streamStore.createStream(SCOPE, stream1, configuration1, createTimestamp, null, executor).get();
+        startTs = System.currentTimeMillis();
+        streamStore.createStream(SCOPE, stream1, configuration1, startTs, null, executor).get();
         streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
-        streamStore.createStream(SCOPE, stream2, configuration2, createTimestamp, null, executor).get();
+        streamStore.createStream(SCOPE, stream2, configuration2, startTs, null, executor).get();
         streamStore.setState(SCOPE, stream2, State.ACTIVE, null, executor).get();
 
         // endregion
@@ -110,12 +113,19 @@ public class ControllerServiceTest {
 
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), createTimestamp + 20, null, executor).get();
+        List<Integer> sealedSegments = Collections.singletonList(1);
+
+        List<Segment> segmentCreated = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs + 20, null, executor).get();
+        streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), createTimestamp + 20, null, executor).get();
+        sealedSegments = Arrays.asList(0, 1, 2);
+        segmentCreated = streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), startTs + 20, null, executor).get();
+        streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments, segmentCreated, startTs + 20, null, executor).get();
         // endregion
     }
 
@@ -135,24 +145,24 @@ public class ControllerServiceTest {
     public void testMethods() throws InterruptedException, ExecutionException {
         Map<SegmentId, Long> segments;
 
-        segments = consumer.getSegmentsAtTime(SCOPE, stream1, createTimestamp + 10).get();
+        segments = consumer.getSegmentsAtTime(SCOPE, stream1, startTs + 10).get();
         assertEquals(2, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 1)));
 
-        segments = consumer.getSegmentsAtTime(SCOPE, stream2, createTimestamp + 10).get();
+        segments = consumer.getSegmentsAtTime(SCOPE, stream2, startTs + 10).get();
         assertEquals(3, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 1)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 2)));
 
-        segments = consumer.getSegmentsAtTime(SCOPE, stream1, createTimestamp + 25).get();
+        segments = consumer.getSegmentsAtTime(SCOPE, stream1, startTs + 25).get();
         assertEquals(3, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 2)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 3)));
 
-        segments = consumer.getSegmentsAtTime(SCOPE, stream2, createTimestamp + 25).get();
+        segments = consumer.getSegmentsAtTime(SCOPE, stream2, startTs + 25).get();
         assertEquals(3, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 3)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 4)));

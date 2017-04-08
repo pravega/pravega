@@ -16,6 +16,10 @@ public class StorageNotPrimaryException extends StreamSegmentException {
      * @param streamSegmentName The name of the segment for which the Storage is no longer primary.
      */
     public StorageNotPrimaryException(String streamSegmentName) {
-        super(streamSegmentName, "The current instance is no longer the primary writer for this StreamSegment.");
+        this(streamSegmentName, null);
+    }
+
+    public StorageNotPrimaryException(String streamSegmentName, String message) {
+        super(streamSegmentName, "The current instance is no longer the primary writer for this StreamSegment." + (message == null ? "" : " ") + message);
     }
 }

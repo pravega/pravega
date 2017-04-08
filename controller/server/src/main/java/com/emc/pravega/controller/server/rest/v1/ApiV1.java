@@ -23,6 +23,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.Suspended;
 import javax.ws.rs.core.Context;
@@ -191,6 +192,8 @@ public final class ApiV1 {
                 @io.swagger.annotations.ApiResponse(
                         code = 500, message = "Server error", response = StreamsList.class) })
         void listStreams(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                         @ApiParam(value = "Flag whether to display only system created streams")
+                         @QueryParam("showInternalStreams") String showInternalStreams,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         @PUT
