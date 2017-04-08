@@ -6,7 +6,7 @@
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.ZKCuratorUtils;
+import com.emc.pravega.testcommon.ZKCuratorUtils;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;

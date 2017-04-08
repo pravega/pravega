@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.util.ZKCuratorUtils;
+import com.emc.pravega.testcommon.ZKCuratorUtils;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.testcommon.AssertExtensions;

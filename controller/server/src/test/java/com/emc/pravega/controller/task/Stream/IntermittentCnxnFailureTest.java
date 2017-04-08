@@ -6,7 +6,7 @@ package com.emc.pravega.controller.task.Stream;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.common.util.ZKCuratorUtils;
+import com.emc.pravega.testcommon.ZKCuratorUtils;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;

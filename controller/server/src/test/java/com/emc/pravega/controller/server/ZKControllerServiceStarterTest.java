@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.util.ZKCuratorUtils;
+import com.emc.pravega.testcommon.ZKCuratorUtils;
 import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.client.ZKClientConfig;
 import com.emc.pravega.controller.store.client.impl.StoreClientConfigImpl;

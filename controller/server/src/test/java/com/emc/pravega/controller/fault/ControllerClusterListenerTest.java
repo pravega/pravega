@@ -8,7 +8,7 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
-import com.emc.pravega.common.util.ZKCuratorUtils;
+import com.emc.pravega.testcommon.ZKCuratorUtils;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;

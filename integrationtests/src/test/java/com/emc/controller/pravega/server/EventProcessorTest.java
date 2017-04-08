@@ -4,7 +4,7 @@
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.common.util.ZKCuratorUtils;
+import com.emc.pravega.testcommon.ZKCuratorUtils;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;

@@ -3,9 +3,8 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package com.emc.pravega.common.util;
+package com.emc.pravega.testcommon;
 
-import com.emc.pravega.testcommon.TestUtils;
 import org.apache.curator.test.TestingServer;
 
 /**

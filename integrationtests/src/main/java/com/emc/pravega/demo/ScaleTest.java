@@ -20,6 +20,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+
+import com.emc.pravega.testcommon.ZKCuratorUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -34,7 +36,7 @@ public class ScaleTest {
     
     public static void main(String[] args) throws Exception {
         @Cleanup
-        TestingServer zkTestServer = new TestingServer();
+        TestingServer zkTestServer = ZKCuratorUtils.createTestServer();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

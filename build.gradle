@@ -215,6 +215,7 @@ project('testcommon') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
 }
 

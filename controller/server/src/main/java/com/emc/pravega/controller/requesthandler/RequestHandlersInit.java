@@ -76,7 +76,7 @@ public class RequestHandlersInit {
                 .thenCompose(y -> startScaleReader(clientFactory, readerGroupManager, controller.getStreamMetadataTasks(),
                         controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
                         executor));
-        initFuture.thenCompose(z -> SCALE_REQUEST_READER_REF.get().run());
+        initFuture.thenComposeAsync(z -> SCALE_REQUEST_READER_REF.get().run(), executor);
         return initFuture;
     }
 
@@ -96,7 +96,7 @@ public class RequestHandlersInit {
         if (writer != null) {
             writer.close();
         }
-        log.info("Closed request handlers");
+        log.info("Request handlers shutdown complete");
     }
 
     private static CompletableFuture<Void> createScope(ControllerService controller, ScheduledExecutorService executor) {
