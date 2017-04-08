@@ -172,6 +172,6 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             // Update gRPC load balancer with the new set of server addresses.
             log.info("Updating client with controllers: {}", serverInfoGroup);
             this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
-        };
+        }
     }
 }
