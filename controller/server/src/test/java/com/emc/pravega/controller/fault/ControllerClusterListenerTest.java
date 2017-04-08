@@ -8,7 +8,7 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
@@ -52,7 +52,7 @@ public class ControllerClusterListenerTest {
     public void setup() {
         // 1. Start ZK server.
         try {
-            zkServer = ZKCuratorUtils.createTestServer();
+            zkServer = new TestingServerStarter().start();
         } catch (Exception e) {
             Assert.fail("Failed starting ZK test server");
         }

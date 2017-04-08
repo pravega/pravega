@@ -5,7 +5,7 @@ package com.emc.pravega.integrationtests.endtoendtest;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -53,7 +53,7 @@ public class EndToEndTxnWithScaleTest {
 
     @Before
     public void setUp() throws Exception {
-        zkTestServer = ZKCuratorUtils.createTestServer();
+        zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

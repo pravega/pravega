@@ -21,7 +21,7 @@ import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.testcommon.TestUtils;
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.google.common.base.Preconditions;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -68,7 +68,7 @@ public final class SetupUtils {
         }
 
         // Start zookeeper.
-        this.zkTestServer = ZKCuratorUtils.createTestServer();
+        this.zkTestServer = new TestingServerStarter().start();
         this.zkTestServer.start();
 
         // Start Pravega Service.

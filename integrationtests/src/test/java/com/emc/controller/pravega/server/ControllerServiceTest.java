@@ -6,7 +6,7 @@
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -49,7 +49,7 @@ public class ControllerServiceTest {
     
     @Before
     public void setUp() throws Exception {
-        zkTestServer = ZKCuratorUtils.createTestServer();
+        zkTestServer = new TestingServerStarter().start();
         
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

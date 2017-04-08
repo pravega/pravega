@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -26,7 +26,7 @@ public class ZKTaskMetadataStoreTests extends TaskMetadataStoreTests {
     @Override
     public void setupTaskStore() throws Exception {
         executor = Executors.newScheduledThreadPool(10);
-        zkServer = ZKCuratorUtils.createTestServer();
+        zkServer = new TestingServerStarter().start();
         zkServer.start();
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();

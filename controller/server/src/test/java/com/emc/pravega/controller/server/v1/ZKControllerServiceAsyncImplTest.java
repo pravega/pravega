@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.server.v1;
 
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
@@ -58,7 +58,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
 
     @Override
     public void setup() throws Exception {
-        zkServer = ZKCuratorUtils.createTestServer();
+        zkServer = new TestingServerStarter().start();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));

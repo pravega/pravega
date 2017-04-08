@@ -6,7 +6,7 @@
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -40,7 +40,7 @@ public class ControllerFailoverTest {
     public void setup() {
         // 1. Start ZK
         try {
-            zkTestServer = ZKCuratorUtils.createTestServer();
+            zkTestServer = new TestingServerStarter().start();
         } catch (Exception e) {
             Assert.fail("Failed starting ZK test server");
         }
@@ -150,7 +150,7 @@ public class ControllerFailoverTest {
         controllerWrapper.awaitTerminated();
     }
 
-    @Test(timeout = 120000)
+    @Test(timeout = 30000)
     public void testStop() {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";

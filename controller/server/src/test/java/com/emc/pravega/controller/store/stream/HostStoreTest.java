@@ -6,7 +6,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
 import com.emc.pravega.controller.store.client.StoreClientFactory;
@@ -59,7 +59,7 @@ public class HostStoreTest {
     public void zkHostStoreTests() {
         try {
             @Cleanup
-            TestingServer zkTestServer = ZKCuratorUtils.createTestServer();
+            TestingServer zkTestServer = new TestingServerStarter().start();
 
             ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkTestServer.getConnectString())
                     .initialSleepInterval(2000)

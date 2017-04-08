@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.timeout;
 
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -76,7 +76,7 @@ public class TimeoutServiceTest {
         final String hostId = "host";
 
         // Instantiate test ZK service.
-        zkTestServer = ZKCuratorUtils.createTestServer();
+        zkTestServer = new TestingServerStarter().start();
         String connectionString = zkTestServer.getConnectString();
 
         // Initialize the executor service.

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -30,7 +30,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     @Override
     public void setupTaskStore() throws Exception {
-        zkServer = ZKCuratorUtils.createTestServer();
+        zkServer = new TestingServerStarter().start();
         zkServer.start();
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();

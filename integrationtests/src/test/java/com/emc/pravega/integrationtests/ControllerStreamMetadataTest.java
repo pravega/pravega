@@ -7,7 +7,7 @@ package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -50,7 +50,7 @@ public class ControllerStreamMetadataTest {
 
         try {
             // 1. Start ZK
-            this.zkTestServer = ZKCuratorUtils.createTestServer();
+            this.zkTestServer = new TestingServerStarter().start();
 
             // 2. Start Pravega service.
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
-import com.emc.pravega.testcommon.ZKCuratorUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import com.emc.pravega.stream.Position;
@@ -30,7 +30,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
 
     @Override
     public void setupCheckpointStore() throws Exception {
-        zkServer = ZKCuratorUtils.createTestServer();
+        zkServer = new TestingServerStarter().start();
         zkServer.start();
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
