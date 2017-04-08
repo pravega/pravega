@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.contracts;
 
@@ -21,7 +19,7 @@ public class StreamSegmentSealedException extends StreamSegmentException {
      * @param streamSegmentName The name of the StreamSegment that is sealed.
      */
     public StreamSegmentSealedException(String streamSegmentName) {
-        super(streamSegmentName, null);
+        super(streamSegmentName, "The StreamSegment is closed for appends.", null);
     }
 
     /**

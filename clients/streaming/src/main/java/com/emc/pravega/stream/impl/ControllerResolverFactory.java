@@ -94,24 +94,6 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         // The controller RPC client required for calling the discovery API.
         private ControllerServiceGrpc.ControllerServiceBlockingStub client = null;
 
-        // The controller discovery API invoker.
-        private final Runnable getControllerServers = () -> {
-            final ServerResponse controllerServerList =
-                    this.client.getControllerServerList(ServerRequest.getDefaultInstance());
-            final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder()
-                    .addAll(controllerServerList.getNodeURIList()
-                            .stream()
-                            .map(node ->
-                                    new ResolvedServerInfo(
-                                            new InetSocketAddress(node.getEndpoint(), node.getPort())))
-                            .collect(Collectors.toList()))
-                    .build();
-
-            // Update gRPC load balancer with the new set of server addresses.
-            log.info("Updating client with controllers: {}", serverInfoGroup);
-            this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
-        };
-
         /**
          * Creates the NameResolver instance.
          *
@@ -153,7 +135,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 this.scheduledExecutor = Executors.newScheduledThreadPool(1,
                         new ThreadFactoryBuilder().setNameFormat("fetch-controllers-%d").setDaemon(true).build());
                 this.scheduledExecutor.scheduleWithFixedDelay(
-                        this.getControllerServers, 0L, 120L, TimeUnit.SECONDS);
+                        this::getControllers, 0L, 120L, TimeUnit.SECONDS);
             } else {
                 // Use the bootstrapped server list as the final set of controllers.
                 final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder().addAll(
@@ -170,8 +152,26 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         public void shutdown() {
             Preconditions.checkState(started.compareAndSet(true, false));
             if (this.scheduledExecutor != null) {
-                this.scheduledExecutor.shutdown();
+                this.scheduledExecutor.shutdownNow();
             }
         }
+
+        // The controller discovery API invoker.
+        private void getControllers() {
+            final ServerResponse controllerServerList =
+                    this.client.getControllerServerList(ServerRequest.getDefaultInstance());
+            final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder()
+                    .addAll(controllerServerList.getNodeURIList()
+                            .stream()
+                            .map(node ->
+                                    new ResolvedServerInfo(
+                                            new InetSocketAddress(node.getEndpoint(), node.getPort())))
+                            .collect(Collectors.toList()))
+                    .build();
+
+            // Update gRPC load balancer with the new set of server addresses.
+            log.info("Updating client with controllers: {}", serverInfoGroup);
+            this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
+        };
     }
 }

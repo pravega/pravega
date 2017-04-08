@@ -99,6 +99,7 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
 
     @Override
     public void initialize(long epoch) {
+        // InMemoryStorage does not use epochs; we don't do anything with it.
         Preconditions.checkState(this.initialized.compareAndSet(false, true), "InMemoryStorage is already initialized.");
     }
 
@@ -151,12 +152,11 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> seal(SegmentHandle handle, Duration timeout) {
+    public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot seal using a read-only handle.");
-        CompletableFuture<SegmentProperties> result =
-                CompletableFuture.supplyAsync(() ->
-                        getStreamSegmentData(handle.getSegmentName()).markSealed(), this.executor);
+        CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
+                getStreamSegmentData(handle.getSegmentName()).markSealed(), this.executor);
         result.thenRunAsync(() -> fireSealTrigger(handle.getSegmentName()), this.executor);
         return result;
     }
@@ -179,21 +179,21 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         ensurePreconditions();
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "Cannot concat using a read-only handle.");
         AtomicLong newLength = new AtomicLong();
         CompletableFuture<Void> result = CompletableFuture.runAsync(() -> {
-            StreamSegmentData sourceData = getStreamSegmentData(sourceHandle.getSegmentName());
+            StreamSegmentData sourceData = getStreamSegmentData(sourceSegment);
             StreamSegmentData targetData = getStreamSegmentData(targetHandle.getSegmentName());
             targetData.concat(sourceData, offset);
-            deleteInternal(sourceHandle);
+            deleteInternal(new InMemorySegmentHandle(sourceSegment, false));
             newLength.set(targetData.getInfo().getLength());
         }, this.executor);
 
         result.thenRunAsync(() -> {
             fireOffsetTriggers(targetHandle.getSegmentName(), newLength.get());
-            fireSealTrigger(sourceHandle.getSegmentName());
+            fireSealTrigger(sourceSegment);
         }, this.executor);
         return result;
     }
@@ -464,11 +464,10 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
             }
         }
 
-        SegmentProperties markSealed() {
+        void markSealed() {
             synchronized (this.lock) {
                 checkOpened();
                 this.sealed = true;
-                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new ImmutableDate());
             }
         }
 

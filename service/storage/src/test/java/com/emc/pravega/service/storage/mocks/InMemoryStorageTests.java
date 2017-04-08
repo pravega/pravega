@@ -28,7 +28,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
 
         @Cleanup
         val storage = new InMemoryStorage();
-        storage.initialize(0);
+        storage.initialize(DEFAULT_EPOCH);
 
         // Part 1: Create a segment and verify all operations are allowed.
         storage.create(segment1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -92,7 +92,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
     }
 
     @Override
-    protected SegmentHandle createHandle(String segmentName, boolean readOnly) {
+    protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
         return InMemoryStorage.newHandle(segmentName, readOnly);
     }
 }

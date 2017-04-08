@@ -1241,6 +1241,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.container.close();
             this.dataLogFactory.close();
             this.storage.close();
+            this.storageFactory.close();
         }
     }
 

@@ -31,6 +31,13 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.google.common.base.Preconditions;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.UUID;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
@@ -41,15 +48,6 @@ import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-
-import javax.annotation.concurrent.GuardedBy;
-import java.io.File;
-import java.io.IOException;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.apache.bookkeeper.util.LocalBookKeeper.runZookeeper;
 
@@ -63,21 +61,21 @@ public class InProcPravegaCluster implements AutoCloseable {
     private final String clusterName = "singlenode-" + UUID.randomUUID();
 
     /*Controller related variables*/
-    private boolean isInprocController;
+    private boolean isInProcController;
     private int controllerCount;
     private int[] controllerPorts = null;
 
     private String controllerURI = null;
 
-    /*SSS related variables*/
-    private boolean isInprocSSS;
-    private int sssCount = 0;
-    private int[] sssPorts = null;
+    /*SegmentStore related variables*/
+    private boolean isInProcSegmentStore;
+    private int segmentStoreCount = 0;
+    private int[] segmentStorePorts = null;
 
     /*Distributed log related variables*/
     private boolean isInProcDL;
     private int bookieCount;
-    private int initialBookiePort;
+    private final int initialBookiePort;
 
 
     /*ZK related variables*/
@@ -90,13 +88,12 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String hdfsUrl;
 
 
-    /* SSS configuration*/
+    /* SegmentStore configuration*/
     private int containerCount = 4;
-    private ServiceStarter[] nodeServiceStarter = new ServiceStarter[sssCount];
+    private ServiceStarter[] nodeServiceStarter = new ServiceStarter[segmentStoreCount];
 
     private LocalHDFSEmulator localHdfs;
     private LocalDLMEmulator localDlm;
-    private ScheduledExecutorService[] controllerExecutors;
     @GuardedBy("$lock")
     private ControllerServiceMain[] controllerServers;
 
@@ -105,22 +102,22 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     @Builder
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
-                boolean isInProcHDFS, boolean isInProcDL, int initialBookiePort,
-                boolean isInprocController, int controllerCount, String controllerURI,
-                boolean isInprocSSS, int sssCount, int containerCount, boolean startRestServer) {
+                                boolean isInProcHDFS, boolean isInProcBK, int initialBookiePort,
+                                boolean isInProcController, int controllerCount, String controllerURI,
+                                boolean isInProcSegmentStore, int segmentStoreCount, int containerCount, boolean startRestServer) {
 
         //Check for valid combinations of flags
         //For ZK
         Preconditions.checkState(isInProcZK || zkUrl != null, "ZkUrl must be specified");
 
         //For controller
-        Preconditions.checkState( isInprocController || controllerURI != null,
+        Preconditions.checkState( isInProcController || controllerURI != null,
                 "ControllerURI should be defined for external controller");
-        Preconditions.checkState(isInprocController || this.controllerPorts != null,
+        Preconditions.checkState(isInProcController || this.controllerPorts != null,
                 "Controller ports not present");
 
-        //For SSS
-        Preconditions.checkState(  isInprocSSS || this.sssPorts != null, "SSS ports not declared");
+        //For SegmentStore
+        Preconditions.checkState(  isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
 
         this.isInMemStorage = isInMemStorage;
         if ( isInMemStorage ) {
@@ -128,17 +125,17 @@ public class InProcPravegaCluster implements AutoCloseable {
             this.isInProcDL = false;
         } else {
             this.isInProcHDFS = isInProcHDFS;
-            this.isInProcDL = isInProcDL;
+            this.isInProcDL = isInProcBK;
         }
         this.isInProcZK = isInProcZK;
         this.zkUrl = zkUrl;
         this.zkPort = zkPort;
         this.initialBookiePort = initialBookiePort;
-        this.isInprocController = isInprocController;
+        this.isInProcController = isInProcController;
         this.controllerURI = controllerURI;
         this.controllerCount = controllerCount;
-        this.isInprocSSS = isInprocSSS;
-        this.sssCount = sssCount;
+        this.isInProcSegmentStore = isInProcSegmentStore;
+        this.segmentStoreCount = segmentStoreCount;
         this.containerCount = containerCount;
         this.startRestServer = startRestServer;
         checkAvailableFeatures();
@@ -150,8 +147,8 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     @Synchronized
-    public void setSssPorts(int[] sssPorts) {
-        this.sssPorts = Arrays.copyOf(sssPorts, sssPorts.length);
+    public void setSegmentStorePorts(int[] segmentStorePorts) {
+        this.segmentStorePorts = Arrays.copyOf(segmentStorePorts, segmentStorePorts.length);
 
     }
 
@@ -184,13 +181,13 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
         configureDLBinding(this.zkUrl);
 
-        if (isInprocController) {
+        if (isInProcController) {
             startLocalControllers();
         }
 
-        if (isInprocSSS) {
-            nodeServiceStarter = new ServiceStarter[sssCount];
-            startLocalSSSs();
+        if (isInProcSegmentStore) {
+            nodeServiceStarter = new ServiceStarter[segmentStoreCount];
+            startLocalSegmentStores();
         }
 
     }
@@ -255,20 +252,20 @@ public class InProcPravegaCluster implements AutoCloseable {
         localHdfs.start();
     }
 
-    private void startLocalSSSs() throws IOException {
-        for (int i = 0; i < this.sssCount; i++) {
-            startLocalSSS(i);
+    private void startLocalSegmentStores() throws IOException {
+        for (int i = 0; i < this.segmentStoreCount; i++) {
+            startLocalSegmentStore(i);
         }
 
     }
 
     /**
-     * Starts a SSS with a SSS id. This is re-entrant. Eventually this will allow starting and stopping of
-     * individual SSS instances. This is not possible right now.
+     * Starts a SegmentStore with the given id. This is re-entrant. Eventually this will allow starting and stopping of
+     * individual SegmentStore instances. This is not possible right now.
      *
-     * @param sssId id of the SSS.
+     * @param segmentStoreId id of the SegmentStore.
      */
-    private void startLocalSSS(int sssId) throws IOException {
+    private void startLocalSegmentStore(int segmentStoreId) throws IOException {
 
         try {
                 ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
@@ -279,7 +276,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                                           .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
-                                          .with(ServiceConfig.LISTENING_PORT, this.sssPorts[sssId])
+                                          .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                                           .with(ServiceConfig.CLUSTER_NAME, this.clusterName))
                     .include(DurableLogConfig.builder()
                                           .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
@@ -305,12 +302,12 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
                     .zkSegmentManager(true);
 
-            nodeServiceStarter[sssId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs(!isInMemStorage)
+            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs(!isInMemStorage)
                     .distributedLog(!isInMemStorage).build());
         } catch (Exception e) {
             throw e;
         }
-        nodeServiceStarter[sssId].start();
+        nodeServiceStarter[segmentStoreId].start();
     }
 
     private void startLocalControllers() {
@@ -387,12 +384,12 @@ public class InProcPravegaCluster implements AutoCloseable {
     @Override
     @Synchronized
     public void close() {
-        if (isInprocSSS) {
+        if (isInProcSegmentStore) {
             for ( ServiceStarter starter : this.nodeServiceStarter ) {
                 starter.shutdown();
             }
         }
-        if (isInprocController) {
+        if (isInProcController) {
             for ( ControllerServiceMain controller : this.controllerServers ) {
                     controller.stopAsync();
                 }
