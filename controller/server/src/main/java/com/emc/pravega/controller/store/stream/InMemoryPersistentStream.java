@@ -319,7 +319,7 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<StreamConfiguration> getConfigurationData() {
         if (configuration.get() == null) {
-            return FutureHelpers.failedFuture(new DataNotFoundException(""));
+            return FutureHelpers.failedFuture(new DataNotFoundException("configuration"));
         }
 
         return CompletableFuture.completedFuture((StreamConfiguration) SerializationUtils.deserialize(configuration.get().getData()));
@@ -327,6 +327,10 @@ class InMemoryPersistentStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> setStateData(final State state) {
+        if (this.state.get() == null) {
+            return FutureHelpers.failedFuture(new DataNotFoundException("state"));
+        }
+
         this.state.set(new Data<>(SerializationUtils.serialize(state), null));
         return CompletableFuture.completedFuture(null);
     }
