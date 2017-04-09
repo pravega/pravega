@@ -286,6 +286,11 @@ public class DurableLog extends AbstractService implements OperationLog {
                 });
     }
 
+    @Override
+    public long getEpoch() {
+        return this.durableDataLog.getEpoch();
+    }
+
     //endregion
 
     //region Recovery

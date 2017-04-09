@@ -100,7 +100,9 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     @Override
     public void initialize(long epoch) {
         // InMemoryStorage does not use epochs; we don't do anything with it.
+        Preconditions.checkArgument(epoch > 0, "epoch must be a positive number.");
         Preconditions.checkState(this.initialized.compareAndSet(false, true), "InMemoryStorage is already initialized.");
+
     }
 
     @Override

@@ -8,6 +8,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.TruncateableStorage;
+import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -23,7 +24,7 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.baseStorage = new InMemoryStorage(executor);
-        this.baseStorage.initialize(0); // InMemoryStorage does not use epochs.
+        this.baseStorage.initialize(1); // InMemoryStorage does not use epochs.
     }
 
     @Override
@@ -45,7 +46,9 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
 
         @Override
         public void initialize(long epoch) {
-            // This method intentionally left blank.
+            Preconditions.checkArgument(epoch > 0, "epoch must be a positive number.");
+
+            // InMemoryStorage does not use epochs.
         }
 
         @Override
