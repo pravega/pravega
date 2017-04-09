@@ -45,6 +45,8 @@ import java.net.UnknownHostException;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -212,9 +214,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             // Start request handlers
+            CompletableFuture<Void> requestHandlersFuture = CompletableFuture.completedFuture(null);
             if (serviceConfig.isRequestHandlersEnabled()) {
                 log.info("Starting request handlers");
-                RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
+                requestHandlersFuture = RequestHandlersInit.bootstrapRequestHandlers(controllerService,
+                        streamStore, requestExecutor);
             }
 
             // Start RPC server.
@@ -233,11 +237,23 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 restServer.awaitRunning();
             }
 
-            // Finally wait for controller event processors to start
+            // Wait for controller event processors to start.
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 log.info("Awaiting start of controller event processors");
                 controllerEventProcessors.awaitRunning();
             }
+
+            // Wait for request handlers to start.
+            if (serviceConfig.isRequestHandlersEnabled()) {
+                log.info("Awaiting start of request handlers");
+                try {
+                    requestHandlersFuture.join();
+                } catch (CompletionException e) {
+                    throw new IllegalStateException("Request handlers failed to start", e);
+                }
+            }
+
+            // Wait for controller cluster listeners to start.
             if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
                 log.info("Awaiting start of controller cluster listener");
                 controllerClusterListener.awaitRunning();
@@ -259,12 +275,13 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (grpcServer != null) {
                 grpcServer.stopAsync();
             }
+            if (controllerEventProcessors != null) {
+                log.info("Stopping controller event processors");
+                controllerEventProcessors.stopAsync();
+            }
             if (serviceConfig.isRequestHandlersEnabled()) {
                 log.info("Shutting down request handlers");
                 RequestHandlersInit.shutdownRequestHandlers();
-            }
-            if (controllerEventProcessors != null) {
-                controllerEventProcessors.stopAsync();
             }
             if (monitor != null) {
                 log.info("Stopping the segment container monitor");
@@ -273,6 +290,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (controllerClusterListener != null) {
                 log.info("Stopping controller cluster listener");
                 controllerClusterListener.stopAsync();
+                log.info("Controller cluster listener shutdown");
             }
             timeoutService.stopAsync();
 
@@ -282,18 +300,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             log.info("Closing stream transaction metadata tasks");
             streamTransactionMetadataTasks.close();
 
-            // Next stop all executors
-            log.info("Stopping executors");
-            eventProcExecutor.shutdownNow();
-            requestExecutor.shutdownNow();
-            storeExecutor.shutdownNow();
-            taskExecutor.shutdownNow();
-            controllerServiceExecutor.shutdownNow();
-            if (clusterListenerExecutor != null) {
-                clusterListenerExecutor.shutdownNow();
-            }
-
-            // Finally, await termination of all services
+            // Await termination of all services
             if (restServer != null) {
                 log.info("Awaiting termination of REST server");
                 restServer.awaitTerminated();
@@ -317,6 +324,17 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (controllerClusterListener != null) {
                 log.info("Awaiting termination of controller cluster listener");
                 controllerClusterListener.awaitTerminated();
+            }
+
+            // Next stop all executors
+            log.info("Stopping executors");
+            eventProcExecutor.shutdownNow();
+            requestExecutor.shutdownNow();
+            storeExecutor.shutdownNow();
+            taskExecutor.shutdownNow();
+            controllerServiceExecutor.shutdownNow();
+            if (clusterListenerExecutor != null) {
+                clusterListenerExecutor.shutdownNow();
             }
 
             log.info("Awaiting termination of eventProc executor");
@@ -346,6 +364,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Closing connection factory");
             connectionFactory.close();
+
+            log.info("Closing storeClient");
+            storeClient.close();
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }

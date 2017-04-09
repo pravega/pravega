@@ -20,6 +20,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+
+import com.emc.pravega.testcommon.TestingServerStarter;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -34,7 +36,7 @@ public class ScaleTest {
     
     public static void main(String[] args) throws Exception {
         @Cleanup
-        TestingServer zkTestServer = new TestingServer();
+        TestingServer zkTestServer = new TestingServerStarter().start();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -47,7 +49,6 @@ public class ScaleTest {
         // Create controller object for testing against a separate controller report.
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
-        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String scope = "scope";
@@ -87,7 +88,7 @@ public class ScaleTest {
         }
 
         // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
-        CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000, 3600000, 60000);
+        CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000, 3600000, 29000);
         TxnSegments transaction = txnFuture.get();
         if (transaction == null) {
             log.error("Create transaction failed, exiting");

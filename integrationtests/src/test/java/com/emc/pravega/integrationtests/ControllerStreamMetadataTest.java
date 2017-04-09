@@ -7,6 +7,7 @@ package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -49,7 +50,7 @@ public class ControllerStreamMetadataTest {
 
         try {
             // 1. Start ZK
-            this.zkTestServer = new TestingServer();
+            this.zkTestServer = new TestingServerStarter().start();
 
             // 2. Start Pravega service.
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -95,7 +96,7 @@ public class ControllerStreamMetadataTest {
         }
     }
 
-    @Test(timeout = 2000000)
+    @Test(timeout = 60000)
     public void streamMetadataTest() throws Exception {
         // Create test scope. This operation should succeed.
         assertTrue(controller.createScope(SCOPE).join());

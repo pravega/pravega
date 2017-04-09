@@ -3,6 +3,7 @@
  */
 package com.emc.controller.pravega.server;
 
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -31,7 +32,7 @@ public class StreamMetadataTest {
     @Test(timeout = 60000)
     public void testMedadataOperations() throws Exception {
         @Cleanup
-        TestingServer zkTestServer = new TestingServer();
+        TestingServer zkTestServer = new TestingServerStarter().start();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -50,7 +51,6 @@ public class StreamMetadataTest {
                 "localhost",
                 servicePort,
                 4);
-        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String scope1 = "scope1";

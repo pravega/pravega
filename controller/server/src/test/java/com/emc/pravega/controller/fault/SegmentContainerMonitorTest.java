@@ -9,6 +9,7 @@ import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
@@ -48,7 +49,7 @@ public class SegmentContainerMonitorTest {
 
     @Before
     public void startZookeeper() throws Exception {
-        zkTestServer = new TestingServer();
+        zkTestServer = new TestingServerStarter().start();
         String zkUrl = zkTestServer.getConnectString();
 
         zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(200, 10, 5000));

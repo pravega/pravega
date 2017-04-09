@@ -63,6 +63,7 @@ public class GRPCServer extends AbstractIdleService {
             this.server.shutdown();
             log.info("Awaiting termination of gRPC server");
             this.server.awaitTermination();
+            log.info("gRPC server terminated");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }

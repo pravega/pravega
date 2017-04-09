@@ -6,15 +6,14 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.BitConverter;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.Cache;
-import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.Data;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
-import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
@@ -107,7 +106,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenCompose(x -> {
                     if (x) {
                         return cache.getCachedData(creationPath)
-                                .thenApply(creationTime -> BitConverter.readLong(creationTime.getData(), 0) != create.getEventTime());
+                                .thenApply(creationTime -> BitConverter.readLong(creationTime.getData(), 0) != create.getCreationTime());
                     } else {
                         return CompletableFuture.completedFuture(false);
                     }
@@ -135,7 +134,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> storeCreationTime(final Create create) {
-        return store.createZNodeIfNotExist(creationPath, Utilities.toByteArray(create.getEventTime()));
+        byte[] b = new byte[Long.BYTES];
+        BitConverter.writeLong(b, 0, create.getCreationTime());
+
+        return store.createZNodeIfNotExist(creationPath, b);
     }
 
     @Override
@@ -163,20 +165,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createIndexTable(final Create create) {
-        final byte[] indexTable = TableHelper.updateIndexTable(new byte[0], create.getEventTime(), 0);
-        return store.createZNodeIfNotExist(indexPath, indexTable)
+    public CompletableFuture<Void> createIndexTable(final Data<Integer> indexTable) {
+        return store.createZNodeIfNotExist(indexPath, indexTable.getData())
                 .thenApply(x -> cache.invalidateCache(indexPath));
     }
 
     @Override
-    public CompletableFuture<Void> createHistoryTable(final Create create) {
-        final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
-        final byte[] historyTable = TableHelper.updateHistoryTable(new byte[0],
-                create.getEventTime(),
-                IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
-
-        return store.createZNodeIfNotExist(historyPath, historyTable)
+    public CompletableFuture<Void> createHistoryTable(final Data<Integer> historyTable) {
+        return store.createZNodeIfNotExist(historyPath, historyTable.getData())
                 .thenApply(x -> cache.invalidateCache(historyPath));
     }
 
@@ -196,13 +192,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .boxed()
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
-        final int toCreate = newRanges.size();
 
         final byte[] segmentTable = TableHelper.updateSegmentTable(startingSegmentNumber,
                 new byte[0],
-                toCreate,
                 newRanges,
-                create.getEventTime()
+                create.getCreationTime()
         );
 
         final String segmentChunkPath = String.format(segmentChunkPathTemplate, chunkFileName);
@@ -213,8 +207,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<Void> createMarkerData(int segmentNumber, long timestamp) {
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+        byte[] b = new byte[Long.BYTES];
+        BitConverter.writeLong(b, 0, timestamp);
 
-        return store.createZNodeIfNotExist(path, Utilities.toByteArray(timestamp))
+        return store.createZNodeIfNotExist(path, b)
                 .thenAccept(x -> cache.invalidateCache(markerPath));
     }
 
@@ -269,7 +265,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                                                  final long scaleGracePeriod) {
         final String activePath = getActiveTxPath(txId.toString());
         return store.createZNodeIfNotExist(activePath,
-                new ActiveTxRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
+                new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
                         .toByteArray())
                 .thenApply(x -> cache.invalidateCache(activePath));
     }
@@ -296,8 +292,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     if (version.isPresent() && version.get().intValue() != x.getVersion()) {
                         throw new WriteConflictException(txId.toString());
                     }
-                    ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
-                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
+                    ActiveTxnRecord previous = ActiveTxnRecord.parse(x.getData());
+                    ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
                             previous.getLeaseExpiryTime(),
                             previous.getMaxExecutionExpiryTime(),
                             previous.getScaleGracePeriod(),
@@ -330,7 +326,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
         final String completedTxPath = getCompletedTxPath(txId.toString());
         return store.createZNodeIfNotExist(completedTxPath,
-                new CompletedTxRecord(timestamp, complete).toByteArray())
+                new CompletedTxnRecord(timestamp, complete).toByteArray())
                 .thenAccept(x -> cache.invalidateCache(completedTxPath));
     }
 

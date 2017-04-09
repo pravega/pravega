@@ -122,8 +122,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getSegmentsImmediatlyFollowing(SegmentId segmentId,
             StreamObserver<SuccessorResponse> responseObserver) {
-        log.info("getSegmentsImmediatlyFollowing called for segment {} ", segmentId);
-        processResult(controllerService.getSegmentsImmediatlyFollowing(segmentId)
+        log.info("getSegmentsImmediatelyFollowing called for segment {} ", segmentId);
+        processResult(controllerService.getSegmentsImmediatelyFollowing(segmentId)
                               .thenApply(ModelHelper::createSuccessorResponse),
                       responseObserver);
     }
