@@ -172,6 +172,15 @@ project ('shared') {
     compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
     compile project(':common')
    }
+
+   publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-shared'
+                from components.java
+            }
+        }
+    }
 }
 
 project('clients:streaming') {
@@ -805,6 +814,7 @@ task publishAllJars() {
     dependsOn ':service:storage:impl:publish'
     dependsOn ':service:server:publish'
     dependsOn ':service:server:host:publish'
+    dependsOn ':shared:publish'
     dependsOn ':controller:contract:publish'
     dependsOn ':controller:server:publish'
     dependsOn ':connectors:flink:publish'
