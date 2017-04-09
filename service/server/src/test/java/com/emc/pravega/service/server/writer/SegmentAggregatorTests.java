@@ -1494,7 +1494,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         TestContext(WriterConfig config) {
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
             this.storage = new TestStorage(new InMemoryStorage(executorService()));
-            this.storage.initialize(0);
+            this.storage.initialize(1);
             this.timer = new ManualTimer();
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = TestWriterDataSource.DataSourceConfig.NO_METADATA_CHECKPOINT;

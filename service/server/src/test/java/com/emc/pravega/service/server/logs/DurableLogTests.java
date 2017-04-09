@@ -648,7 +648,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
-        storage.initialize(0);
+        storage.initialize(1);
 
         HashSet<Long> streamSegmentIds;
         AbstractMap<Long, Long> transactions;
@@ -716,7 +716,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
-        storage.initialize(0);
+        storage.initialize(1);
 
         HashSet<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
@@ -834,7 +834,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
-        storage.initialize(0);
+        storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
@@ -947,7 +947,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
-        storage.initialize(0);
+        storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
@@ -1017,6 +1017,30 @@ public class DurableLogTests extends OperationLogTestBase {
             // This closes whatever current instance this variable refers to, not necessarily the first one.
             durableLog.close();
         }
+    }
+
+    //endregion
+
+    //region Others
+
+    /**
+     * Tests the getEpoch method.
+     */
+    @Test
+    public void testEpoch() {
+        // Setup a DurableLog and start it.
+        @Cleanup
+        ContainerSetup setup = new ContainerSetup(executorService());
+        @Cleanup
+        DurableLog durableLog = setup.createDurableLog();
+        AssertExtensions.assertThrows(
+                "getEpoch did not throw before initialization.",
+                durableLog::getEpoch,
+                ex -> ex instanceof IllegalStateException);
+        durableLog.startAsync().awaitRunning();
+
+        long expectedEpoch = setup.dataLog.get().getEpoch();
+        Assert.assertEquals("Unexpected value from getEpoch.", expectedEpoch, durableLog.getEpoch());
     }
 
     //endregion
@@ -1128,7 +1152,7 @@ public class DurableLogTests extends OperationLogTestBase {
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.cacheFactory = new InMemoryCacheFactory();
             this.storage = new InMemoryStorage(this.executorService);
-            this.storage.initialize(0);
+            this.storage.initialize(1);
             this.cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), this.executorService);
             this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.cacheFactory, this.storage, this.cacheManager, this.executorService);
         }

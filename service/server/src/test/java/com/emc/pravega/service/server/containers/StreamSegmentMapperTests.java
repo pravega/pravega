@@ -585,6 +585,11 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public long getEpoch() {
+            return -1;
+        }
+
+        @Override
         public Service startAsync() {
             return null;
         }

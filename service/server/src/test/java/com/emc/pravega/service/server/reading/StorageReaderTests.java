@@ -59,7 +59,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
 
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executorService());
-        storage.initialize(0);
+        storage.initialize(1);
         byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
@@ -96,7 +96,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
     public void testInvalidRequests() {
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executorService());
-        storage.initialize(0);
+        storage.initialize(1);
         byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
