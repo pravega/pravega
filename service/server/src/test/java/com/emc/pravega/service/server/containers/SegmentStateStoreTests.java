@@ -22,7 +22,7 @@ public class SegmentStateStoreTests extends StateStoreTests {
     @Override
     protected AsyncMap<String, SegmentState> createStateStore() {
         val storage = new InMemoryStorage(executorService());
-        storage.initialize(0);
+        storage.initialize(1);
         return new SegmentStateStore(storage, executorService());
     }
 }
