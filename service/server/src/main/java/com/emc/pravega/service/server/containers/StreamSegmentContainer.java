@@ -140,7 +140,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.durableLog.startAsync();
         runAsyncOrFail(() -> {
             this.durableLog.awaitRunning();
-            this.storage.initialize(this.durableLog.getEpoch());
+            this.storage.initialize(this.metadata.getContainerEpoch());
 
             // DurableLog is running. Now start all other components that depend on it.
             this.metadataCleaner.startAsync();
