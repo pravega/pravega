@@ -105,7 +105,7 @@ public class ControllerFailoverTest {
 
         // Connect with first controller instance.
         URI controllerUri = controllerServiceInstance1.getServiceDetails().get(0);
-        Controller controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+        Controller controller = new ControllerImpl(controllerUri);
 
         // Create scope, stream, and a transaction with high timeout value.
         controller.createScope(scope).join();
@@ -124,7 +124,7 @@ public class ControllerFailoverTest {
 
         // Connect to another controller instance.
         controllerUri = controllerServiceInstance2.getServiceDetails().get(0);
-        controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+        controller = new ControllerImpl(controllerUri);
 
         // Wait for controller to stop completely.
         Thread.sleep(10000);

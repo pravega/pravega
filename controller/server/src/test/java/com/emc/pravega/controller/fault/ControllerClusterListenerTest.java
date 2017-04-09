@@ -72,10 +72,10 @@ public class ControllerClusterListenerTest {
             clusterZK.addListener((eventType, host) -> {
                 switch (eventType) {
                     case HOST_ADDED:
-                        nodeAddedQueue.offer(host.toString());
+                        nodeAddedQueue.offer(host.getHostId());
                         break;
                     case HOST_REMOVED:
-                        nodeRemovedQueue.offer(host.toString());
+                        nodeRemovedQueue.offer(host.getHostId());
                         break;
                     case ERROR:
                     default:
@@ -115,16 +115,16 @@ public class ControllerClusterListenerTest {
         }
     }
 
-    @Test(timeout = 1000000L)
+    @Test(timeout = 60000L)
     public void clusterListenerTest() {
         String hostName = "localhost";
-        Host host = new Host(hostName, 10);
+        Host host = new Host(hostName, 10, "host1");
         TaskMetadataStore taskStore = TaskStoreFactory.createInMemoryStore(executor);
-        TaskSweeper taskSweeper = new TaskSweeper(taskStore, host.toString(), executor,
-                new TestTasks(taskStore, executor, host.toString()));
+        TaskSweeper taskSweeper = new TaskSweeper(taskStore, host.getHostId(), executor,
+                new TestTasks(taskStore, executor, host.getHostId()));
 
         ControllerClusterListener clusterListener =
-                new ControllerClusterListener(host, curatorClient, Optional.<ControllerEventProcessors>empty(),
+                new ControllerClusterListener(host, clusterZK, Optional.<ControllerEventProcessors>empty(),
                         taskSweeper, executor);
         clusterListener.startAsync();
 
@@ -135,15 +135,15 @@ public class ControllerClusterListenerTest {
             Assert.fail();
         }
 
-        validateAddedNode(host.toString());
+        validateAddedNode(host.getHostId());
 
         // Add a new host
-        Host host1 = new Host(hostName, 20);
+        Host host1 = new Host(hostName, 20, "host2");
         clusterZK.registerHost(host1);
-        validateAddedNode(host1.toString());
+        validateAddedNode(host1.getHostId());
 
         clusterZK.deregisterHost(host1);
-        validateRemovedNode(host1.toString());
+        validateRemovedNode(host1.getHostId());
 
         clusterListener.stopAsync();
 
@@ -153,7 +153,7 @@ public class ControllerClusterListenerTest {
             log.error("Error stopping cluster listener", e);
             Assert.fail();
         }
-        validateRemovedNode(host.toString());
+        validateRemovedNode(host.getHostId());
     }
 
     private void validateAddedNode(String host) {

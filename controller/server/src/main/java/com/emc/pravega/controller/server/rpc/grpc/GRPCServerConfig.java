@@ -13,4 +13,18 @@ public interface GRPCServerConfig {
      * @return the port on which controller gRPC server listens.
      */
     int getPort();
+
+    /**
+     * Fetches the RPC address which has to be registered with the cluster used for external access.
+     *
+     * @return The RPC address which has to be registered with the cluster used for external access.
+     */
+    String getPublishedRPCHost();
+
+    /**
+     * Fetches the RPC port which has to be registered with the cluster used for external access.
+     *
+     * @return The RPC port which has to be registered with the cluster used for external access.
+     */
+    int getPublishedRPCPort();
 }

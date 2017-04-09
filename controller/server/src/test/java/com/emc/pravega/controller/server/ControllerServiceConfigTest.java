@@ -31,9 +31,23 @@ public class ControllerServiceConfigTest {
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> GRPCServerConfigImpl.builder().build());
 
+        AssertExtensions.assertThrows(NullPointerException.class,
+                () -> GRPCServerConfigImpl.builder().publishedRPCHost(null).port(10).build());
+
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> GRPCServerConfigImpl.builder().publishedRPCHost("").port(10).build());
+
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> GRPCServerConfigImpl.builder().publishedRPCHost("localhost").port(10).build());
+
         // Port should be positive integer
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> GRPCServerConfigImpl.builder().port(-10).build());
+
+        // Port should be positive integer
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> GRPCServerConfigImpl.builder().port(10).publishedRPCHost("localhost")
+                        .publishedRPCPort(-10).build());
 
         // Config parameters should be initialized, default values of the type are not allowed.
         AssertExtensions.assertThrows(NullPointerException.class,

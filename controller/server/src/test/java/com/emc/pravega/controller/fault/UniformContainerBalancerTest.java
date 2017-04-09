@@ -38,48 +38,48 @@ public class UniformContainerBalancerTest {
         assertEquals(0, rebalance.size());
 
         //Validate initialization.
-        hosts.add(new Host("host1", 123));
+        hosts.add(new Host("host1", 123, null));
         rebalance = balancer.rebalance(new HashMap<>(), hosts);
         assertEquals(1, rebalance.size());
         validateContainerCount(rebalance, hosts);
 
         //New host added.
-        hosts.add(new Host("host2", 123));
+        hosts.add(new Host("host2", 123, null));
         rebalance = balancer.rebalance(rebalance, hosts);
         assertEquals(2, rebalance.size());
         validateContainerCount(rebalance, hosts);
 
         //Add multiple hosts.
-        hosts.add(new Host("host3", 123));
-        hosts.add(new Host("host4", 123));
+        hosts.add(new Host("host3", 123, null));
+        hosts.add(new Host("host4", 123, null));
         rebalance = balancer.rebalance(rebalance, hosts);
         assertEquals(4, rebalance.size());
         validateContainerCount(rebalance, hosts);
 
         //Remove host.
-        hosts.remove(new Host("host2", 123));
+        hosts.remove(new Host("host2", 123, null));
         rebalance = balancer.rebalance(rebalance, hosts);
         assertEquals(3, rebalance.size());
         validateContainerCount(rebalance, hosts);
 
         //Add and remove multiple hosts.
-        hosts.add(new Host("host2", 123));
-        hosts.add(new Host("host5", 123));
-        hosts.add(new Host("host6", 123));
-        hosts.add(new Host("host7", 123));
-        hosts.add(new Host("host8", 123));
-        hosts.add(new Host("host9", 123));
-        hosts.remove(new Host("host1", 123));
-        hosts.remove(new Host("host3", 123));
-        hosts.remove(new Host("host4", 123));
+        hosts.add(new Host("host2", 123, null));
+        hosts.add(new Host("host5", 123, null));
+        hosts.add(new Host("host6", 123, null));
+        hosts.add(new Host("host7", 123, null));
+        hosts.add(new Host("host8", 123, null));
+        hosts.add(new Host("host9", 123, null));
+        hosts.remove(new Host("host1", 123, null));
+        hosts.remove(new Host("host3", 123, null));
+        hosts.remove(new Host("host4", 123, null));
         rebalance = balancer.rebalance(rebalance, hosts);
         assertEquals(6, rebalance.size());
         validateContainerCount(rebalance, hosts);
 
         //Remove multiple hosts.
-        hosts.remove(new Host("host2", 123));
-        hosts.remove(new Host("host5", 123));
-        hosts.remove(new Host("host6", 123));
+        hosts.remove(new Host("host2", 123, null));
+        hosts.remove(new Host("host5", 123, null));
+        hosts.remove(new Host("host6", 123, null));
         rebalance = balancer.rebalance(rebalance, hosts);
         assertEquals(3, rebalance.size());
         validateContainerCount(rebalance, hosts);

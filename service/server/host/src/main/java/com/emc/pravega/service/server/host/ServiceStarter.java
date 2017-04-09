@@ -169,7 +169,7 @@ public final class ServiceStarter {
             return new ZKSegmentContainerManager(setup.getContainerRegistry(),
                     setup.getSegmentToContainerMapper(),
                     zkClient,
-                    new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort()));
+                    new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort(), null));
         });
     }
 

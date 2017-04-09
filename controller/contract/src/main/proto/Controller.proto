@@ -12,6 +12,7 @@ option optimize_for = SPEED;
  * Producer, Consumer and Admin APIs supported by Stream Controller Service
  */
 service ControllerService {
+    rpc getControllerServerList(ServerRequest) returns (ServerResponse);
     rpc createStream(StreamConfig) returns (CreateStreamStatus);
     rpc alterStream(StreamConfig) returns (UpdateStreamStatus);
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
@@ -29,6 +30,13 @@ service ControllerService {
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
+}
+
+message ServerRequest {
+}
+
+message ServerResponse {
+    repeated NodeUri nodeURI = 1;
 }
 
 message CreateStreamStatus {
