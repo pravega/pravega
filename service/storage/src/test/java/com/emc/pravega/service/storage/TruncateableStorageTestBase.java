@@ -34,7 +34,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
     @Test
     public void testTruncate() throws Exception {
         try (TruncateableStorage s = createStorage()) {
-            s.initialize(0);
+            s.initialize(1);
             s.create(SEGMENT_NAME, TIMEOUT).join();
 
             // Invalid segment name.
