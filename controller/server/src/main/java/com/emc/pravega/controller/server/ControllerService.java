@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.retryable.RetryableException;
@@ -42,10 +43,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -69,7 +72,25 @@ public class ControllerService {
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final TimeoutService timeoutService;
     private final SegmentHelper segmentHelper;
-    private final ScheduledExecutorService executor;
+    private final Executor executor;
+    private final Cluster cluster;
+
+    public CompletableFuture<List<NodeUri>> getControllerServerList() {
+        if (cluster == null) {
+            return FutureHelpers.failedFuture(new IllegalStateException("Controller cluster not initialized"));
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return cluster.getClusterMembers().stream()
+                        .map(host -> NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build())
+                        .collect(Collectors.toList());
+            } catch (Exception e) {
+                // cluster implementation throws checked exceptions which cannot be thrown inside completable futures.
+                throw Lombok.sneakyThrow(e);
+            }
+        }, executor);
+    }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
             final long createTimestamp) {

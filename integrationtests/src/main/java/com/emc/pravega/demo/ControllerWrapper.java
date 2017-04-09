@@ -114,7 +114,8 @@ public class ControllerWrapper implements AutoCloseable {
             eventProcessorConfig = Optional.empty();
         }
 
-        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder().port(controllerPort).build();
+        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder().port(controllerPort)
+                .publishedRPCHost("localhost").publishedRPCPort(controllerPort).build();
 
         Optional<RESTServerConfig> restServerConfig = restPort > 0 ?
                 Optional.of(RESTServerConfigImpl.builder().host("localhost").port(restPort).build()) :

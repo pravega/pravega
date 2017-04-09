@@ -31,8 +31,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     public ReaderGroupManagerImpl(String scope, URI controllerUri) {
         this.scope = scope;
-        this.clientFactory = ClientFactory.withScope(scope, controllerUri);
-        this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+        this.controller = new ControllerImpl(controllerUri);
+        this.clientFactory = ClientFactory.withScope(scope, this.controller);
     }
 
     public ReaderGroupManagerImpl(String scope, Controller controller, ClientFactory clientFactory) {

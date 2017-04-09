@@ -6,15 +6,13 @@
 package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.cluster.ClusterType;
+import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
 
 import java.util.Optional;
 import java.util.Set;
@@ -34,27 +32,27 @@ public class ControllerClusterListener extends AbstractIdleService {
 
     private final String objectId;
     private final Host host;
+    private final Cluster cluster;
     private final ExecutorService executor;
     private final Optional<ControllerEventProcessors> eventProcessorsOpt;
     private final TaskSweeper taskSweeper;
-    private final ClusterZKImpl clusterZK;
 
-    public ControllerClusterListener(final Host host, final CuratorFramework client,
+    public ControllerClusterListener(final Host host, final Cluster cluster,
                                      final Optional<ControllerEventProcessors> eventProcessorsOpt,
                                      final TaskSweeper taskSweeper,
                                      final ExecutorService executor) {
         Preconditions.checkNotNull(host, "host");
-        Preconditions.checkNotNull(client, "client");
+        Preconditions.checkNotNull(cluster, "cluster");
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkNotNull(eventProcessorsOpt, "eventProcessorsOpt");
         Preconditions.checkNotNull(taskSweeper, "taskSweeper");
 
         this.objectId = "ControllerClusterListener";
         this.host = host;
+        this.cluster = cluster;
         this.executor = executor;
         this.eventProcessorsOpt = eventProcessorsOpt;
         this.taskSweeper = taskSweeper;
-        this.clusterZK = new ClusterZKImpl(client, ClusterType.CONTROLLER);
     }
 
     @Override
@@ -62,11 +60,11 @@ public class ControllerClusterListener extends AbstractIdleService {
         long traceId = LoggerHelpers.traceEnter(log, objectId, "startUp");
         try {
             log.info("Registering host {} with controller cluster", host);
-            clusterZK.registerHost(host);
+            cluster.registerHost(host);
 
-            Set<String> activeProcesses = clusterZK.getClusterMembers()
+            Set<String> activeProcesses = cluster.getClusterMembers()
                     .stream()
-                    .map(Host::toString)
+                    .map(Host::getHostId)
                     .collect(Collectors.toSet());
 
             // Await initialization of components.
@@ -80,7 +78,7 @@ public class ControllerClusterListener extends AbstractIdleService {
 
             // Register cluster listener.
             log.info("Adding controller cluster listener");
-            clusterZK.addListener((type, host) -> {
+            cluster.addListener((type, host) -> {
                 switch (type) {
                     case HOST_ADDED:
                         // We need to do nothing when a new controller instance joins the cluster.
@@ -88,9 +86,9 @@ public class ControllerClusterListener extends AbstractIdleService {
                         break;
                     case HOST_REMOVED:
                         log.info("Received controller cluster event: {} for host: {}", type, host);
-                        taskSweeper.sweepOrphanedTasks(host.toString());
+                        taskSweeper.sweepOrphanedTasks(host.getHostId());
                         if (eventProcessorsOpt.isPresent()) {
-                            eventProcessorsOpt.get().notifyProcessFailure(host.toString());
+                            eventProcessorsOpt.get().notifyProcessFailure(host.getHostId());
                         }
                         break;
                     case ERROR:
@@ -122,7 +120,7 @@ public class ControllerClusterListener extends AbstractIdleService {
         long traceId = LoggerHelpers.traceEnter(log, objectId, "shutDown");
         try {
             log.info("Deregistering host {} from controller cluster", host);
-            clusterZK.deregisterHost(host);
+            cluster.deregisterHost(host);
             log.info("Controller cluster listener shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, objectId, "shutDown", traceId);

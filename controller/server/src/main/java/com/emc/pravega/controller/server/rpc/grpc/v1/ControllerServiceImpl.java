@@ -25,6 +25,8 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime.SegmentLocation;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
@@ -51,6 +53,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
+
+    @Override
+    public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
+        log.info("getControllerServerList called.");
+        processResult(controllerService.getControllerServerList()
+                        .thenApply(servers -> ServerResponse.newBuilder().addAllNodeURI(servers).build()),
+                responseObserver);
+    }
 
     @Override
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {

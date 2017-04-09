@@ -21,7 +21,7 @@ public class StreamManagerImpl implements StreamManager {
     private final Controller controller;
 
     public StreamManagerImpl(URI controllerUri) {
-        this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+        this.controller = new ControllerImpl(controllerUri);
     }
 
     @VisibleForTesting

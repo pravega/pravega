@@ -3,6 +3,8 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -22,8 +24,12 @@ import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * InMemory stream store configuration.
@@ -58,9 +64,12 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
 
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
+
+        Cluster mockCluster = mock(Cluster.class);
+        when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      timeoutService, new SegmentHelper(), executorService));
+                                      timeoutService, new SegmentHelper(), executorService, mockCluster));
     }
 
     @Override
