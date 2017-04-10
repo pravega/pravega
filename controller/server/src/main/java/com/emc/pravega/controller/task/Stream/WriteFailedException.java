@@ -10,6 +10,14 @@ import com.emc.pravega.controller.retryable.RetryableException;
  */
 public class WriteFailedException extends RuntimeException implements RetryableException {
 
+    public WriteFailedException() {
+        super();
+    }
+
+    public WriteFailedException(String message) {
+        super(message);
+    }
+
     public WriteFailedException(Throwable cause) {
         super(cause);
     }

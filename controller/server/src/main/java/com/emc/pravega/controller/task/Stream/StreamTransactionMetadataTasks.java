@@ -55,10 +55,10 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
 
-    private EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
-    private EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
-    private String commitStreamName;
-    private String abortStreamName;
+    protected EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
+    protected EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
+    protected String commitStreamName;
+    protected String abortStreamName;
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
@@ -252,12 +252,13 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 log.debug("Transaction {}, sent request to {}", txid, streamName);
                 return txnStatus;
             } catch (InterruptedException e) {
-                log.warn("Unexpected interrupted exception received", e.getMessage());
+                log.warn("Transaction {}, unexpected interrupted exception while sending {} to {}. Retrying...",
+                        txid, event.getClass().getSimpleName(), streamName);
                 throw new WriteFailedException(e);
             } catch (ExecutionException e) {
                 Throwable realException = ExceptionHelpers.getRealException(e);
-                log.warn("Transaction {}, Failed sending {} to {}",
-                        txid, event.getClass().getName(), streamName);
+                log.warn("Transaction {}, failed sending {} to {}. Retrying...",
+                        txid, event.getClass().getSimpleName(), streamName);
                 throw new WriteFailedException(realException);
             }
         }, executor);
