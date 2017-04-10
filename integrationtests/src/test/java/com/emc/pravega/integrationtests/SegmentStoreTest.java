@@ -1,12 +1,16 @@
 package com.emc.pravega.integrationtests;
 
+import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.containers.ContainerConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
@@ -15,16 +19,31 @@ import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.server.writer.WriterConfig;
+import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.StorageFactory;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
+import org.apache.hadoop.conf.Configuration;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -38,8 +57,7 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
     private static final int SEGMENT_COUNT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-
-    private static final ServiceBuilderConfig BUILDER_CONFIG = ServiceBuilderConfig
+    private final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
             .include(ServiceConfig.builder()
                                   .with(ServiceConfig.CONTAINER_COUNT, 1))
@@ -60,19 +78,36 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
                     .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
                     .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
                     .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
-                    .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L))
-            .build();
+                    .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));
+
+    private File baseDir = null;
+    private MiniDFSCluster hdfsCluster = null;
 
     //region Test Setup
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
+        this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
+        Configuration conf = new Configuration();
+        conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
+        conf.setBoolean("dfs.permissions.enabled", true);
+        MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
+        this.hdfsCluster = builder.build();
 
+        this.configBuilder.include(HDFSStorageConfig
+                .builder()
+                .with(HDFSStorageConfig.REPLICATION, 1)
+                .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort())));
     }
 
     @After
     public void tearDown() {
-
+        if (hdfsCluster != null) {
+            hdfsCluster.shutdown();
+            hdfsCluster = null;
+            FileHelpers.deleteFileOrDirectory(baseDir);
+            baseDir = null;
+        }
     }
 
     @Override
@@ -82,32 +117,42 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
 
     //endregion
 
+    /**
+     * Tests an end-to-end scenario using real adapters for Cache (RocksDB) and Storage (HDFS).
+     * Currently this does not use a real adapter for DurableDataLog due to difficulties in getting DistributedLog
+     * to run in-process.
+     */
     @Test
-    public void testWithDistributedLogAndHDFS() throws Exception {
+    public void testEndToEnd() throws Exception {
+        AtomicReference<Storage> storage = new AtomicReference<>();
+        val builderConfig = configBuilder.build();
+        // Build up the Segment Store Service with RocksDb, DistributedLog and HDFS.
         @Cleanup
-        val builder = ServiceBuilder.newInMemoryBuilder(BUILDER_CONFIG, executorService());
+        val builder = ServiceBuilder
+                .newInMemoryBuilder(builderConfig, executorService())
+                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
+                .withStorageFactory(setup -> {
+                    StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), executorService());
+                    return new ListenableStorageFactory(f, storage::set);
+                });
         builder.initialize().join();
         val segmentStore = builder.createStreamSegmentService();
-        //TODO: setup HDFS and DL
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(segmentStore);
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
                 byte[] appendData = getAppendData(segmentName, i);
-                opFutures.add(segmentStore.append(segmentName, appendData, null, TIMEOUT));
+                segmentStore.append(segmentName, appendData, null, TIMEOUT).join();
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
             }
         }
-
-        FutureHelpers.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. getSegmentInfo
         for (String segmentName : segmentNames) {
@@ -117,16 +162,17 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, sp.getLength());
             Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
             Assert.assertFalse("Unexpected value for isSealed for segment " + segmentName, sp.isDeleted());
-         }
+        }
 
         // 4. Reads (regular reads, not tail reads).
         checkReads(segmentContents, lengths, segmentStore);
 
         // 5. Writer moving data to Storage.
-//        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-//        checkStorage(segmentContents, lengths, context);
+        waitForSegmentsInStorage(segmentNames, segmentStore, storage.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        checkStorage(segmentContents, lengths, segmentStore, storage.get());
     }
 
+    //region Helpers
 
     private ArrayList<String> createSegments(StreamSegmentStore store) {
         ArrayList<String> segmentNames = new ArrayList<>();
@@ -191,4 +237,96 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
         }
     }
 
+    private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, StreamSegmentStore store, Storage storage) {
+        for (String segmentName : segmentContents.keySet()) {
+            // 1. Deletion status
+            SegmentProperties sp = null;
+            try {
+                sp = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            } catch (Exception ex) {
+                if (!(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
+                    throw ex;
+                }
+            }
+
+            if (sp == null) {
+                Assert.assertFalse(
+                        "Segment is marked as deleted in SegmentStore but was not deleted in Storage " + segmentName,
+                        storage.exists(segmentName, TIMEOUT).join());
+
+                // No need to do other checks.
+                continue;
+            }
+
+            // 2. Seal Status
+            SegmentProperties storageProps = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            Assert.assertEquals("Segment seal status disagree between Store and Storage for segment " + segmentName, sp.isSealed(), storageProps.isSealed());
+
+            // 3. Contents.
+            long expectedLength = lengths.get(segmentName);
+            Assert.assertEquals("Unexpected Storage length for segment " + segmentName, expectedLength, storageProps.getLength());
+
+            byte[] expectedData = segmentContents.get(segmentName).toByteArray();
+            byte[] actualData = new byte[expectedData.length];
+            val readHandle = storage.openRead(segmentName).join();
+            int actualLength = storage.read(readHandle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+            Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName, expectedLength, actualLength);
+            Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentName, expectedData, actualData);
+        }
+    }
+
+    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore store, Storage storage) {
+        ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
+        for (String segmentName : segmentNames) {
+            SegmentProperties sp = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            segmentsCompletion.add(waitForSegmentInStorage(sp, storage));
+        }
+
+        return FutureHelpers.allOf(segmentsCompletion);
+    }
+
+    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
+        TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
+        AtomicBoolean tryAgain = new AtomicBoolean(true);
+        return FutureHelpers.loop(
+                tryAgain::get,
+                () -> storage.getStreamSegmentInfo(sp.getName(), TIMEOUT)
+                             .thenCompose(storageProps -> {
+                                 if (sp.isSealed()) {
+                                     tryAgain.set(!storageProps.isSealed());
+                                 } else {
+                                     tryAgain.set(sp.getLength() != storageProps.getLength());
+                                 }
+
+                                 if (tryAgain.get() && !timer.hasRemaining()) {
+                                     return FutureHelpers.<Void>failedFuture(new TimeoutException(
+                                             String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
+                                 } else {
+                                     return FutureHelpers.delayedFuture(Duration.ofMillis(100), executorService());
+                                 }
+                             }), executorService());
+    }
+
+    //endregion
+
+    //region ListenableStorageFactory
+
+    @RequiredArgsConstructor
+    private static class ListenableStorageFactory implements StorageFactory {
+        private final StorageFactory wrappedFactory;
+        private final Consumer<Storage> storageCreated;
+
+        @Override
+        public Storage createStorageAdapter() {
+            Storage storage = this.wrappedFactory.createStorageAdapter();
+            val callback = this.storageCreated;
+            if (callback != null) {
+                callback.accept(storage);
+            }
+
+            return storage;
+        }
+    }
+
+    //endregion
 }
