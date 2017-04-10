@@ -14,7 +14,6 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.lang3.RandomUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -24,7 +23,6 @@ import org.junit.runner.RunWith;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -34,10 +32,11 @@ import java.util.stream.Collectors;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class MultiControllerTest {
+    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
+
     private Service controllerServiceInstance1 = null;
     private Service controllerServiceInstance2 = null;
     private Service controllerServiceInstance3 = null;
-    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     private URI controllerURIDirect = null;
     private URI controllerURIDiscover = null;
