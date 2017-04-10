@@ -72,7 +72,7 @@ public class ControllerService {
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final TimeoutService timeoutService;
     private final SegmentHelper segmentHelper;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
     private final Cluster cluster;
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
