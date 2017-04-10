@@ -5,6 +5,7 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -29,21 +30,27 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -53,14 +60,17 @@ import org.junit.Test;
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog
  */
 public class SegmentStoreTest extends ThreadPooledTestSuite {
+    //region Members
+
     private static final int THREADPOOL_SIZE = 20;
-    private static final int SEGMENT_COUNT = 1;
+    private static final int SEGMENT_COUNT = 20;
+    private static final int TRANSACTIONS_PER_SEGMENT = 2;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
             .include(ServiceConfig.builder()
-                                  .with(ServiceConfig.CONTAINER_COUNT, 1))
+                                  .with(ServiceConfig.CONTAINER_COUNT, 4))
             .include(ContainerConfig
                     .builder()
                     .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS))
@@ -82,6 +92,8 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
 
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
+
+    //endregion
 
     //region Test Setup
 
@@ -126,7 +138,8 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
     public void testEndToEnd() throws Exception {
         AtomicReference<Storage> storage = new AtomicReference<>();
         val builderConfig = configBuilder.build();
-        // Build up the Segment Store Service with RocksDb, DistributedLog and HDFS.
+
+        // Build up the Segment Store Service and attach the appropriate components.
         @Cleanup
         val builder = ServiceBuilder
                 .newInMemoryBuilder(builderConfig, executorService())
@@ -140,19 +153,17 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(segmentStore);
+        HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, segmentStore);
 
         // 2. Add some appends.
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
+        transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
+        appendData(segmentsAndTransactions, segmentContents, lengths, segmentStore).join();
 
-        for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
-            for (String segmentName : segmentNames) {
-                byte[] appendData = getAppendData(segmentName, i);
-                segmentStore.append(segmentName, appendData, null, TIMEOUT).join();
-                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                recordAppend(segmentName, appendData, segmentContents);
-            }
-        }
+        // 2.1 Merge all transactions.
+        mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore);
 
         // 3. getSegmentInfo
         for (String segmentName : segmentNames) {
@@ -174,6 +185,50 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
 
     //region Helpers
 
+    private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
+                                               HashMap<String, Long> lengths, StreamSegmentStore store) {
+        val segmentFutures = new ArrayList<CompletableFuture<Void>>();
+        for (String segmentName : segmentNames) {
+            AtomicInteger count = new AtomicInteger();
+            segmentFutures.add(FutureHelpers.loop(
+                    () -> count.incrementAndGet() < APPENDS_PER_SEGMENT,
+                    () -> {
+                        byte[] appendData = getAppendData(segmentName, count.get());
+                        synchronized (lengths) {
+                            lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                            recordAppend(segmentName, appendData, segmentContents);
+                        }
+
+                        return store.append(segmentName, appendData, null, TIMEOUT);
+                    },
+                    executorService()));
+        }
+
+        return FutureHelpers.allOf(segmentFutures);
+    }
+
+    private void mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
+                                   HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
+        ArrayList<CompletableFuture<Void>> mergeFutures = new ArrayList<>();
+        for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
+            String parentName = e.getKey();
+            for (String transactionName : e.getValue()) {
+                store.sealStreamSegment(transactionName, TIMEOUT)
+                     .thenCompose(v -> store.mergeTransaction(transactionName, TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+                // Update parent length.
+                lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));
+                lengths.remove(transactionName);
+
+                // Update parent contents.
+                segmentContents.get(parentName).write(segmentContents.get(transactionName).toByteArray());
+                segmentContents.remove(transactionName);
+            }
+        }
+
+        FutureHelpers.allOf(mergeFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
     private ArrayList<String> createSegments(StreamSegmentStore store) {
         ArrayList<String> segmentNames = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -187,11 +242,41 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
         return segmentNames;
     }
 
+    private HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, StreamSegmentStore store) {
+        // Create the Transaction.
+        ArrayList<CompletableFuture<String>> futures = new ArrayList<>();
+        for (String segmentName : segmentNames) {
+            for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
+                futures.add(store.createTransaction(segmentName, UUID.randomUUID(), null, TIMEOUT));
+            }
+        }
+
+        FutureHelpers.allOf(futures).join();
+
+        // Get the Transaction names and index them by parent segment names.
+        HashMap<String, ArrayList<String>> transactions = new HashMap<>();
+        for (CompletableFuture<String> transactionFuture : futures) {
+            String transactionName = transactionFuture.join();
+            String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
+            assert parentName != null : "Transaction created with invalid parent";
+            ArrayList<String> segmentTransactions = transactions.get(parentName);
+            if (segmentTransactions == null) {
+                segmentTransactions = new ArrayList<>();
+                transactions.put(parentName, segmentTransactions);
+            }
+
+            segmentTransactions.add(transactionName);
+        }
+
+        return transactions;
+    }
+
     private byte[] getAppendData(String segmentName, int appendId) {
         return String.format("%s_%d", segmentName, appendId).getBytes();
     }
 
-    private void recordAppend(String segmentName, byte[] data, HashMap<String, ByteArrayOutputStream> segmentContents) throws Exception {
+    @SneakyThrows(IOException.class)
+    private void recordAppend(String segmentName, byte[] data, HashMap<String, ByteArrayOutputStream> segmentContents) {
         ByteArrayOutputStream contents = segmentContents.getOrDefault(segmentName, null);
         if (contents == null) {
             contents = new ByteArrayOutputStream();
@@ -223,7 +308,10 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
                 ReadResultEntry readEntry = readResult.next();
                 AssertExtensions.assertGreaterThan("getRequestedReadLength should be a positive integer for segment " + segmentName, 0, readEntry.getRequestedReadLength());
                 Assert.assertEquals("Unexpected value from getStreamSegmentOffset for segment " + segmentName, expectedCurrentOffset, readEntry.getStreamSegmentOffset());
-                Assert.assertTrue("getContent() did not return a completed future for segment" + segmentName, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
+                if (!readEntry.getContent().isDone()) {
+                    readEntry.requestContent(TIMEOUT);
+                }
+                readEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
 
                 ReadResultEntryContents readEntryContents = readEntry.getContent().join();
