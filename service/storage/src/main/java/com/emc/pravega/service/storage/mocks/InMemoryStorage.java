@@ -203,7 +203,8 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
         ensurePreconditions();
 
-        // We can only delete using a Read-Write handle or whether the Segment is Sealed.
+        // If we are given a read-only handle, we must ensure the segment is sealed. If the segment can accept modifications
+        // (it is not sealed), then we require a read-write handle.
         boolean canDelete = !handle.isReadOnly();
         if (!canDelete) {
             synchronized (this.lock) {
