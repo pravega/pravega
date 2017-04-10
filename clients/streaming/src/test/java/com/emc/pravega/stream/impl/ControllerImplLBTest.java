@@ -122,7 +122,8 @@ public class ControllerImplLBTest {
 
         // Use 2 servers for discovery. Bring down the first server and ensure discovery happens using the other one.
         fakeServer1.shutdownNow();
-        Assert.assertTrue(fakeServer1.isShutdown());
+        fakeServer1.awaitTermination();
+        Assert.assertTrue(fakeServer1.isTerminated());
         ControllerImpl controllerClient = new ControllerImpl(
                 URI.create("pravega://localhost:" + SERVER_PORT1 + ",localhost:" + SERVER_PORT2));
 
@@ -133,10 +134,20 @@ public class ControllerImplLBTest {
 
         // Bring down another one and verify.
         fakeServer2.shutdownNow();
-        Assert.assertTrue(fakeServer2.isShutdown());
+        fakeServer2.awaitTermination();
+        Assert.assertTrue(fakeServer2.isTerminated());
         uris = fetchFromServers(controllerClient);
         Assert.assertEquals(1, uris.size());
         Assert.assertTrue(uris.contains(new PravegaNodeUri("localhost3", 3)));
+
+        // Bring down all and verify.
+        fakeServer3.shutdownNow();
+        fakeServer3.awaitTermination();
+        Assert.assertTrue(fakeServer3.isTerminated());
+        controllerClient = new ControllerImpl(
+                URI.create("pravega://localhost:" + SERVER_PORT1 + ",localhost:" + SERVER_PORT2));
+        uris = fetchFromServers(controllerClient);
+        Assert.assertEquals(0, uris.size());
     }
 
     @Test
@@ -154,7 +165,8 @@ public class ControllerImplLBTest {
 
         // Bring down the first server and verify we can fallback to the remaining 2 servers.
         fakeServer1.shutdownNow();
-        Assert.assertTrue(fakeServer1.isShutdown());
+        fakeServer1.awaitTermination();
+        Assert.assertTrue(fakeServer1.isTerminated());
         ControllerImpl controllerClient = new ControllerImpl(URI.create(
                 "tcp://localhost:" + SERVER_PORT1 + ",localhost:" + SERVER_PORT2 + ",localhost:" + SERVER_PORT3));
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient);
@@ -163,10 +175,18 @@ public class ControllerImplLBTest {
 
         // Bring down another one and verify.
         fakeServer2.shutdownNow();
-        Assert.assertTrue(fakeServer2.isShutdown());
+        fakeServer2.awaitTermination();
+        Assert.assertTrue(fakeServer2.isTerminated());
         uris = fetchFromServers(controllerClient);
         Assert.assertEquals(1, uris.size());
         Assert.assertTrue(uris.contains(new PravegaNodeUri("localhost3", 3)));
+
+        // Bring down all and verify.
+        fakeServer3.shutdownNow();
+        fakeServer3.awaitTermination();
+        Assert.assertTrue(fakeServer3.isTerminated());
+        uris = fetchFromServers(controllerClient);
+        Assert.assertEquals(0, uris.size());
     }
 
     private Set<PravegaNodeUri> fetchFromServers(ControllerImpl client) {
