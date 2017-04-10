@@ -43,7 +43,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -72,7 +71,7 @@ public class ControllerService {
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final TimeoutService timeoutService;
     private final SegmentHelper segmentHelper;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
     private final Cluster cluster;
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
