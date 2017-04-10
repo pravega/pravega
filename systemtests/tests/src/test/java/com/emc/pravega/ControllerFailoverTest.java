@@ -39,7 +39,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
-    private static final String testControllerServiceName = "testController";
+    private static final String TEST_CONTROLLER_SERVICE_NAME = "testController";
 
     @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
@@ -70,7 +70,7 @@ public class ControllerFailoverTest {
         }
 
         //4. start test controller instances
-        Service testControllerService = new PravegaControllerService(testControllerServiceName, zkUri);
+        Service testControllerService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, zkUri);
         if (!testControllerService.isRunning()) {
             testControllerService.start(true);
         }
@@ -92,7 +92,7 @@ public class ControllerFailoverTest {
     }
 
     private static URI getTestControllerServiceURI() {
-        Service conService = new PravegaControllerService(testControllerServiceName, null);
+        Service conService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
     }
@@ -106,7 +106,7 @@ public class ControllerFailoverTest {
 
     private static void stopTestControllerService() {
         log.info("Stopping test controller service");
-        Service conService = new PravegaControllerService(testControllerServiceName, null);
+        Service conService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
         conService.stop();
     }
 
