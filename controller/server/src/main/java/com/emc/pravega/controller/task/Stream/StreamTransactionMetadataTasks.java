@@ -211,7 +211,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                                                         segment.getNumber(),
                                                                         txData.getId()))
                                                         .collect(Collectors.toList()))
-                                        .thenApply(v -> new ImmutablePair<>(txData, activeSegments))));
+                                                .thenApply(v -> new ImmutablePair<>(txData, activeSegments))));
     }
 
     private CompletableFuture<VersionedTransactionData> pingTxnBody(String scope, String stream, UUID txId, long lease,
@@ -222,15 +222,17 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
                                                       final Optional<Integer> version, final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, version, context, executor)
-                .thenComposeAsync(status -> writeEvent(abortEventEventStreamWriter, abortStreamName, txid.toString(),
-                        new AbortEvent(scope, stream, txid), txid, status), executor);
+                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
+                        writeEvent(abortEventEventStreamWriter, abortStreamName, txid.toString(),
+                                new AbortEvent(scope, stream, txid), txid, status), executor), executor);
     }
 
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
                                                        final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), context, executor)
-                .thenComposeAsync(status -> writeEvent(commitEventEventStreamWriter, commitStreamName, scope + stream,
-                        new CommitEvent(scope, stream, txid), txid, status), executor);
+                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
+                        writeEvent(commitEventEventStreamWriter, commitStreamName, scope + stream,
+                                new CommitEvent(scope, stream, txid), txid, status), executor), executor);
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
@@ -250,13 +252,13 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 log.debug("Transaction {}, sent request to {}", txid, streamName);
                 return txnStatus;
             } catch (InterruptedException e) {
-                log.error("Unexpected interrupted exception received", e.getMessage());
-                throw new RuntimeException(e);
+                log.warn("Unexpected interrupted exception received", e.getMessage());
+                throw new WriteFailedException(e);
             } catch (ExecutionException e) {
                 Throwable realException = ExceptionHelpers.getRealException(e);
-                log.error("Transaction {}, Failed sending {} to {}",
+                log.warn("Transaction {}, Failed sending {} to {}",
                         txid, event.getClass().getName(), streamName);
-                throw new RuntimeException(realException);
+                throw new WriteFailedException(realException);
             }
         }, executor);
     }
