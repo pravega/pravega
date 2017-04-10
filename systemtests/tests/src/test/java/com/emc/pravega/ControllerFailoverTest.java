@@ -146,9 +146,6 @@ public class ControllerFailoverTest {
         controllerUri = getControllerURI();
         controller = new ControllerImpl(controllerUri);
 
-        // Wait for controller to stop completely.
-        Thread.sleep(10000);
-
         // Abort the ongoing transaction.
         controller.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
 
