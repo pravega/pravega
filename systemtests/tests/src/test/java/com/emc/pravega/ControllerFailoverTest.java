@@ -64,9 +64,9 @@ public class ControllerFailoverTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
+        Service controllerService = new PravegaControllerService("controller", zkUri);
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
         }
 
         //4. start test controller instances
@@ -75,7 +75,7 @@ public class ControllerFailoverTest {
             testControllerService.start(true);
         }
 
-        List<URI> conUris = conService.getServiceDetails();
+        List<URI> conUris = controllerService.getServiceDetails();
         log.debug("Pravega Controller service instance details: {}", conUris);
 
         List<URI> testConUris = testControllerService.getServiceDetails();
@@ -92,22 +92,22 @@ public class ControllerFailoverTest {
     }
 
     private static URI getTestControllerServiceURI() {
-        Service conService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
-        List<URI> ctlURIs = conService.getServiceDetails();
+        Service controllerService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
+        List<URI> ctlURIs = controllerService.getServiceDetails();
         return ctlURIs.get(0);
     }
 
     private static URI getControllerURI() {
-        Service conService = new PravegaControllerService("controller", null);
-        List<URI> ctlURIs = conService.getServiceDetails();
+        Service controllerService = new PravegaControllerService("controller", null);
+        List<URI> ctlURIs = controllerService.getServiceDetails();
         return ctlURIs.get(0);
     }
 
 
     private static void stopTestControllerService() {
         log.info("Stopping test controller service");
-        Service conService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
-        conService.stop();
+        Service controllerService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
+        controllerService.stop();
     }
 
     @Test
@@ -145,9 +145,6 @@ public class ControllerFailoverTest {
         // Connect to another controller instance.
         controllerUri = getControllerURI();
         controller = new ControllerImpl(controllerUri);
-
-        // Wait for controller to stop completely.
-        Thread.sleep(10000);
 
         // Abort the ongoing transaction.
         controller.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
