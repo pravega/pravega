@@ -216,6 +216,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
+            int deleteCount = 0;
             for (String segmentName : appendData.keySet()) {
                 val readHandle = s.openRead(segmentName).join();
                 assertThrows("seal() did not throw for read-only handle.",
@@ -232,8 +233,15 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
                                 join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);
 
-                // Check post-delete seal.
-                s.delete(writeHandle, TIMEOUT).join();
+                // Check post-delete seal. Half of the segments use the existing handle, and half will re-acquire it.
+                // We want to reacquire it because OpenWrite will return a read-only handle for sealed segments.
+                boolean reacquireHandle = (deleteCount++) % 2 == 0;
+                SegmentHandle deleteHandle = writeHandle;
+                if (reacquireHandle) {
+                    deleteHandle = s.openWrite(segmentName).join();
+                }
+
+                s.delete(deleteHandle, TIMEOUT).join();
                 assertThrows("seal() did not throw for a deleted StreamSegment.",
                         () -> s.seal(writeHandle, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
