@@ -50,15 +50,15 @@ import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withRe
 @Slf4j
 public class StreamTransactionMetadataTasks extends TaskBase {
 
-    private final StreamMetadataStore streamMetadataStore;
-    private final HostControllerStore hostControllerStore;
-    private final SegmentHelper segmentHelper;
-    private final ConnectionFactory connectionFactory;
-
     protected EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
     protected EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
     protected String commitStreamName;
     protected String abortStreamName;
+
+    private final StreamMetadataStore streamMetadataStore;
+    private final HostControllerStore hostControllerStore;
+    private final SegmentHelper segmentHelper;
+    private final ConnectionFactory connectionFactory;
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
