@@ -122,7 +122,7 @@ class HDFSStorage implements Storage {
     public void initialize(long epoch) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.context == null, "HDFSStorage has already been initialized.");
-        Preconditions.checkArgument(epoch > 0, "epoch must be a positive number.");
+        Preconditions.checkArgument(epoch > 0, "epoch must be a positive number. Given %s.", epoch);
         Configuration conf = new Configuration();
         conf.set("fs.default.name", this.config.getHdfsHostURL());
         conf.set("fs.default.fs", this.config.getHdfsHostURL());

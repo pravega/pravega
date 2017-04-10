@@ -1021,30 +1021,6 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //endregion
 
-    //region Others
-
-    /**
-     * Tests the getEpoch method.
-     */
-    @Test
-    public void testEpoch() {
-        // Setup a DurableLog and start it.
-        @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
-        @Cleanup
-        DurableLog durableLog = setup.createDurableLog();
-        AssertExtensions.assertThrows(
-                "getEpoch did not throw before initialization.",
-                durableLog::getEpoch,
-                ex -> ex instanceof IllegalStateException);
-        durableLog.startAsync().awaitRunning();
-
-        long expectedEpoch = setup.dataLog.get().getEpoch();
-        Assert.assertEquals("Unexpected value from getEpoch.", expectedEpoch, durableLog.getEpoch());
-    }
-
-    //endregion
-
     //region Helpers
 
     private void performLogOperationChecks(Collection<OperationWithCompletion> operations, DurableLog durableLog) {

@@ -53,14 +53,5 @@ public interface OperationLog extends Container {
      * point will have completed (normally or exceptionally).
      */
     CompletableFuture<Void> operationProcessingBarrier(Duration timeout);
-
-    /**
-     * Gets a value indicating the current Epoch of this DurableDataLog.
-     *
-     * See DurableDataLog for a more detailed description of this.
-     *
-     * @return The current Epoch value. This value is never changed during the lifetime of this object.
-     */
-    long getEpoch();
 }
 
