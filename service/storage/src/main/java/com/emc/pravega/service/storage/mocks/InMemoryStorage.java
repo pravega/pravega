@@ -102,7 +102,6 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
         // InMemoryStorage does not use epochs; we don't do anything with it.
         Preconditions.checkArgument(epoch > 0, "epoch must be a positive number.");
         Preconditions.checkState(this.initialized.compareAndSet(false, true), "InMemoryStorage is already initialized.");
-
     }
 
     @Override
@@ -203,7 +202,19 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
         ensurePreconditions();
-        Preconditions.checkArgument(!handle.isReadOnly(), "Cannot delete using a read-only handle.");
+
+        // If we are given a read-only handle, we must ensure the segment is sealed. If the segment can accept modifications
+        // (it is not sealed), then we require a read-write handle.
+        boolean canDelete = !handle.isReadOnly();
+        if (!canDelete) {
+            synchronized (this.lock) {
+                if (this.streamSegments.containsKey(handle.getSegmentName())) {
+                    canDelete = this.streamSegments.get(handle.getSegmentName()).isSealed();
+                }
+            }
+        }
+
+        Preconditions.checkArgument(canDelete, "Cannot delete using a read-only handle, unless the segment is sealed.");
         return CompletableFuture.runAsync(() -> deleteInternal(handle), this.executor);
     }
 
@@ -422,9 +433,8 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
             synchronized (this.lock) {
                 // Get the current InMemoryStorageAdapter owner id and keep track of it; it will be used for validation.
                 this.currentOwnerId = this.context.getCurrentOwnerId.get();
+                return new InMemorySegmentHandle(this.name, this.sealed);
             }
-
-            return new InMemorySegmentHandle(this.name, false);
         }
 
         SegmentHandle openRead() {
@@ -470,6 +480,12 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
             synchronized (this.lock) {
                 checkOpened();
                 this.sealed = true;
+            }
+        }
+
+        boolean isSealed() {
+            synchronized (this.lock) {
+                return this.sealed;
             }
         }
 
