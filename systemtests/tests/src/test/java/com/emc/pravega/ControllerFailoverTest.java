@@ -39,10 +39,10 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
-    private Service controllerServiceInstance1, controllerServiceInstance2;
+    private static final String testControllerServiceName = "testController";
 
     @Environment
-    public void setup() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
         Service zkService = new ZookeeperService("zookeeper");
@@ -63,31 +63,51 @@ public class ControllerFailoverTest {
         List<URI> bkUris = bkService.getServiceDetails();
         log.debug("bookkeeper service details: {}", bkUris);
 
-        //3. start 2 controller instances
-        controllerServiceInstance1 = new PravegaControllerService("controller1", zkUri);
-        if (!controllerServiceInstance1.isRunning()) {
-            controllerServiceInstance1.start(true);
+        //3. start controller
+        Service conService = new PravegaControllerService("controller", zkUri);
+        if (!conService.isRunning()) {
+            conService.start(true);
         }
 
-        List<URI> conUris1 = controllerServiceInstance1.getServiceDetails();
-        log.debug("Pravega Controller service instance 1 details: {}", conUris1);
-
-        controllerServiceInstance2 = new PravegaControllerService("controller2", zkUri);
-        if (!controllerServiceInstance2.isRunning()) {
-            controllerServiceInstance2.start(true);
+        //4. start test controller instances
+        Service testControllerService = new PravegaControllerService(testControllerServiceName, zkUri);
+        if (!testControllerService.isRunning()) {
+            testControllerService.start(true);
         }
 
-        List<URI> conUris2 = controllerServiceInstance2.getServiceDetails();
-        log.debug("Pravega Controller service instance 1 details: {}", conUris2);
+        List<URI> conUris = conService.getServiceDetails();
+        log.debug("Pravega Controller service instance details: {}", conUris);
+
+        List<URI> testConUris = testControllerService.getServiceDetails();
+        log.debug("Pravega test Controller service instance details: {}", testConUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris1.get(0));
+        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
 
         List<URI> segUris = segService.getServiceDetails();
         log.debug("pravega host service details: {}", segUris);
+    }
+
+    private static URI getTestControllerServiceURI() {
+        Service conService = new PravegaControllerService(testControllerServiceName, null);
+        List<URI> ctlURIs = conService.getServiceDetails();
+        return ctlURIs.get(0);
+    }
+
+    private static URI getControllerURI() {
+        Service conService = new PravegaControllerService("controller", null);
+        List<URI> ctlURIs = conService.getServiceDetails();
+        return ctlURIs.get(0);
+    }
+
+
+    private static void stopTestControllerService() {
+        log.info("Stopping test controller service");
+        Service conService = new PravegaControllerService(testControllerServiceName, null);
+        conService.stop();
     }
 
     @Test
@@ -104,7 +124,7 @@ public class ControllerFailoverTest {
         long scaleGracePeriod = 30000;
 
         // Connect with first controller instance.
-        URI controllerUri = controllerServiceInstance1.getServiceDetails().get(0);
+        URI controllerUri = getTestControllerServiceURI();
         Controller controller = new ControllerImpl(controllerUri);
 
         // Create scope, stream, and a transaction with high timeout value.
@@ -120,10 +140,10 @@ public class ControllerFailoverTest {
         // Ensure that scale is not yet done.
         Assert.assertTrue(!scaleFuture.isDone());
         // Now stop the controller instance executing scale operation.
-        controllerServiceInstance1.stop();
+        stopTestControllerService();
 
         // Connect to another controller instance.
-        controllerUri = controllerServiceInstance2.getServiceDetails().get(0);
+        controllerUri = getControllerURI();
         controller = new ControllerImpl(controllerUri);
 
         // Wait for controller to stop completely.
