@@ -223,14 +223,14 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                                       final Optional<Integer> version, final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, version, context, executor)
                 .thenComposeAsync(status -> writeEvent(abortEventEventStreamWriter, abortStreamName, txid.toString(),
-                        new AbortEvent(scope, stream, txid), txid, status));
+                        new AbortEvent(scope, stream, txid), txid, status), executor);
     }
 
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
                                                        final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), context, executor)
                 .thenComposeAsync(status -> writeEvent(commitEventEventStreamWriter, commitStreamName, scope + stream,
-                        new CommitEvent(scope, stream, txid), txid, status));
+                        new CommitEvent(scope, stream, txid), txid, status), executor);
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
