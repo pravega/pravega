@@ -181,6 +181,9 @@ project ('shared') {
             }
         }
     }
+    javadoc {
+        exclude 'com/emc/pravega/shared/*'
+    }
 }
 
 project('clients:streaming') {
