@@ -51,7 +51,7 @@ public abstract class MarathonBasedService implements Service {
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     MarathonBasedService(final String id) {
-        this.id = id;
+        this.id = id.toLowerCase(); //Marathon allows only lowercase ids.
         this.marathonClient = AuthEnabledMarathonClient.getClient();
     }
 

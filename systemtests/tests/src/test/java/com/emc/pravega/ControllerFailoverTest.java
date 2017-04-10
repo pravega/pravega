@@ -39,7 +39,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
-    private static final String TEST_CONTROLLER_SERVICE_NAME = "testController";
+    private static final String TEST_CONTROLLER_SERVICE_NAME = "testcontroller";
 
     @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
