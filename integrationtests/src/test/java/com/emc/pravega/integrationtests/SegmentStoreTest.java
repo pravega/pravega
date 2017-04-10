@@ -1,3 +1,6 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ */
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.common.ExceptionHelpers;
@@ -57,7 +60,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog
+ * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
 public class SegmentStoreTest extends ThreadPooledTestSuite {
     //region Members
@@ -133,6 +136,8 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
      * Tests an end-to-end scenario using real adapters for Cache (RocksDB) and Storage (HDFS).
      * Currently this does not use a real adapter for DurableDataLog due to difficulties in getting DistributedLog
      * to run in-process.
+     *
+     * @throws Exception if one occurred.
      */
     @Test
     public void testEndToEnd() throws Exception {
