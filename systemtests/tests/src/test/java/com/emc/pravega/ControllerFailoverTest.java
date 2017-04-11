@@ -14,6 +14,7 @@ import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
@@ -111,7 +112,7 @@ public class ControllerFailoverTest {
     }
 
     @Test
-    public void scaleTests() throws URISyntaxException, InterruptedException {
+    public void failoverTest() throws URISyntaxException, InterruptedException {
         String scope = "testFailoverScope";
         String stream = "testFailoverStream";
         int initialSegments = 2;
@@ -119,7 +120,7 @@ public class ControllerFailoverTest {
         Map<Double, Double> newRangesToCreate = new HashMap<>();
         newRangesToCreate.put(0.0, 0.25);
         newRangesToCreate.put(0.25, 0.5);
-        long lease = 20000;
+        long lease = 29000;
         long maxExecutionTime = 60000;
         long scaleGracePeriod = 30000;
 
@@ -129,32 +130,54 @@ public class ControllerFailoverTest {
 
         // Create scope, stream, and a transaction with high timeout value.
         controller.createScope(scope).join();
+        log.info("Scope {} created successfully", scope);
+
         createStream(controller, scope, stream, ScalingPolicy.fixed(initialSegments));
+        log.info("Stream {}/{} created successfully", scope, stream);
+
+        long txnCreationTimestamp = System.nanoTime();
         TxnSegments txnSegments = controller.createTransaction(
                 new StreamImpl(scope, stream), lease, maxExecutionTime, scaleGracePeriod).join();
+        log.info("Transaction {} created successfully, beginTime={}", txnSegments.getTxnId(), txnCreationTimestamp);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
         CompletableFuture<Boolean> scaleFuture = controller.scaleStream(
                 new StreamImpl(scope, stream), segmentsToSeal, newRangesToCreate);
 
         // Ensure that scale is not yet done.
+        log.info("Status of scale operation isDone={}", scaleFuture.isDone());
         Assert.assertTrue(!scaleFuture.isDone());
+
         // Now stop the controller instance executing scale operation.
         stopTestControllerService();
+        log.info("Successfully stopped test controller service");
 
         // Connect to another controller instance.
         controllerUri = getControllerURI();
         controller = new ControllerImpl(controllerUri);
 
-        // Abort the ongoing transaction.
-        controller.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
+        // Fetch status of transaction.
+        log.info("Fetching status of transaction {}, time elapsed since its creation={}",
+                txnSegments.getTxnId(), System.nanoTime() - txnCreationTimestamp);
+        Transaction.Status status = controller.checkTransactionStatus(new StreamImpl(scope, stream),
+                txnSegments.getTxnId()).join();
+        log.info("Transaction {} status={}", txnSegments.getTxnId(), status);
+
+        if (status != Transaction.Status.OPEN) {
+            // Abort the ongoing transaction.
+            log.info("Trying to abort transaction {}, by sending request to controller at {}", txnSegments.getTxnId(),
+                    controllerUri);
+            controller.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
+        }
 
         // Scale operation should now complete on the second controller instance.
         // Sleep for some time for it to complete
         Thread.sleep(90000);
 
         // Ensure that the stream has 3 segments now.
+        log.info("Checking whether scale operation succeeded by fetching current segments");
         StreamSegments streamSegments = controller.getCurrentSegments(scope, stream).join();
+        log.info("Current segment count=", streamSegments.getSegments().size());
         Assert.assertEquals(initialSegments - segmentsToSeal.size() + newRangesToCreate.size(),
                 streamSegments.getSegments().size());
     }
