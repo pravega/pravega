@@ -22,6 +22,7 @@ import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.TxnSegments;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
+import org.apache.commons.lang.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -114,8 +115,8 @@ public class ControllerFailoverTest {
 
     @Test
     public void failoverTest() throws URISyntaxException, InterruptedException {
-        String scope = "testFailoverScope" + new Random().nextInt(Integer.MAX_VALUE);
-        String stream = "testFailoverStream" + new Random().nextInt(Integer.MAX_VALUE);
+        String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
+        String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
         int initialSegments = 2;
         List<Integer> segmentsToSeal = Collections.singletonList(0);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
