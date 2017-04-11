@@ -19,6 +19,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
+@RunWith(SystemTestRunner.class)
 public class PravegaSegmentStoreTest {
 
     /**
@@ -26,6 +27,7 @@ public class PravegaSegmentStoreTest {
      *
      * @throws MarathonException if error in setup
      */
+    @Environment
     public static void setup() throws MarathonException {
         Service zk = new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
@@ -49,6 +51,7 @@ public class PravegaSegmentStoreTest {
      * Invoke the segmentstore test.
      * The test fails incase segmentstore is not running on given port.
      */
+    @Test
     public void segmentStoreTest() {
         log.debug("Start execution of segmentStoreTest");
         Service seg = new PravegaSegmentStoreService("segmentstore", null, null,  0, 0.0, 0.0);

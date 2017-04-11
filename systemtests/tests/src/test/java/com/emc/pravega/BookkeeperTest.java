@@ -17,12 +17,14 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
+@RunWith(SystemTestRunner.class)
 public class BookkeeperTest {
     /**
      * This is used to setup the various services required by the system test framework.
      *
      * @throws MarathonException if error in setup
      */
+    @Environment
     public static void setup() throws MarathonException {
         Service zk = new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
@@ -38,6 +40,7 @@ public class BookkeeperTest {
      * Invoke the bookkeeper test.
      * The test fails incase bookkeeper is not running on given port.
      */
+    @Test
     public void bkTest() {
         log.debug("Start execution of bkTest");
         Service bk = new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);

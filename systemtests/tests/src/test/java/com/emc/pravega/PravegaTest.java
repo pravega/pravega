@@ -40,6 +40,7 @@ import org.junit.runner.RunWith;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
+@RunWith(SystemTestRunner.class)
 public class PravegaTest {
 
     private final static String STREAM_NAME = "testStreamSampleY";
@@ -56,6 +57,7 @@ public class PravegaTest {
      * @throws MarathonException    when error in setup
      * @throws URISyntaxException   If URI is invalid
      */
+    @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
@@ -97,6 +99,7 @@ public class PravegaTest {
         URI segUri = segUris.get(0);
     }
 
+    @Before
     public static void beforeClass() throws InterruptedException, ExecutionException, TimeoutException {
         // This is the placeholder to perform any operation on the services before executing the system tests
     }
@@ -108,6 +111,7 @@ public class PravegaTest {
      * @throws URISyntaxException   If URI is invalid
      * @throws ExecutionException   if error in create stream
      */
+    @Before
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
         Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
@@ -127,6 +131,7 @@ public class PravegaTest {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
+    @Test
     public void simpleTest() throws InterruptedException, URISyntaxException {
 
         Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);

@@ -51,6 +51,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
+@RunWith(SystemTestRunner.class)
 public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
     private final static String SCOPE = "testReadAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
@@ -64,6 +65,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
+    @Environment
     public static void setup() throws Exception {
 
         //1. check if zk is running, if not start it
@@ -107,6 +109,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
      * @throws URISyntaxException   If URI is invalid
      * @throws ExecutionException   if error in create stream
      */
+    @Before
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
         URI controllerUri = getControllerURI();
@@ -121,6 +124,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
+    @Test(timeout = 6 * 60 * 1000) //timeout of 6 mins.
     public void scaleTestsWithReader() throws URISyntaxException, InterruptedException {
 
         URI controllerUri = getControllerURI();
