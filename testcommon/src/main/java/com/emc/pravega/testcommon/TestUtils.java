@@ -15,8 +15,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class TestUtils {
     private static final int BASE_PORT = 11221;
-    private static final int MAX_PORT = 52767;
-    private static final AtomicInteger NEXT_PORT = new AtomicInteger(BASE_PORT);
+    private static final int MAX_PORT_COUNT = 41546;
+    private static final AtomicInteger NEXT_PORT = new AtomicInteger(1);
 
     /**
      * A helper method to get a random free port.
@@ -24,29 +24,20 @@ public class TestUtils {
      * @return free port.
      */
     public synchronized static int getAvailableListenPort() {
-        AtomicInteger candidatePort = new AtomicInteger(NEXT_PORT.intValue());
-
-        for (;;) {
-            candidatePort.incrementAndGet();
-
-            if (candidatePort.intValue() > MAX_PORT) {
-                candidatePort = new AtomicInteger(BASE_PORT);
+        int candidatePort = BASE_PORT + NEXT_PORT.getAndIncrement() % MAX_PORT_COUNT;
+        for (int i = 0; i < MAX_PORT_COUNT; i++) {
+            if (candidatePort > BASE_PORT + MAX_PORT_COUNT) {
+                candidatePort = BASE_PORT;
             }
-
-            if (candidatePort == NEXT_PORT) {
-                log.error("Could not find free port in range {} - {}", BASE_PORT, MAX_PORT);
-                return -1;
-            }
-
             try {
-                ServerSocket serverSocket = new ServerSocket(candidatePort.intValue());
+                ServerSocket serverSocket = new ServerSocket(candidatePort);
                 serverSocket.close();
-                NEXT_PORT.set(candidatePort.intValue());
-                return NEXT_PORT.intValue();
+                return candidatePort;
             } catch (IOException e) {
-                log.error("Could not bind to port {} in range {} - {}", NEXT_PORT.intValue(), BASE_PORT, MAX_PORT);
-                return -1;
+                candidatePort++;
             }
         }
+        throw new IllegalStateException(
+                String.format("Could not assign port in range %d - %d", BASE_PORT, MAX_PORT_COUNT + BASE_PORT));
     }
 }
