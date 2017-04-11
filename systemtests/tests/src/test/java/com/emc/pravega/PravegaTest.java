@@ -99,7 +99,7 @@ public class PravegaTest {
         URI segUri = segUris.get(0);
     }
 
-    @Before
+    @BeforeClass
     public static void beforeClass() throws InterruptedException, ExecutionException, TimeoutException {
         // This is the placeholder to perform any operation on the services before executing the system tests
     }

@@ -40,6 +40,7 @@ public class BookkeeperTest {
      * Invoke the bookkeeper test.
      * The test fails incase bookkeeper is not running on given port.
      */
+
     @Test
     public void bkTest() {
         log.debug("Start execution of bkTest");
