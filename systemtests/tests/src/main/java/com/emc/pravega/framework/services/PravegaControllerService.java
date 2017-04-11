@@ -132,9 +132,11 @@ public class PravegaControllerService extends MarathonBasedService {
         app.setHealthChecks(healthCheckList);
         //set env
         String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
-                                           setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
-                                           setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
-                                           setSystemProperty("log.level", "DEBUG");
+                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", this.id + ".marathon.mesos") +
+                setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
+                setSystemProperty("log.level", "DEBUG");
         Map<String, String> map = new HashMap<>();
         map.put("SERVER_OPTS", controllerSystemProperties);
         app.setEnv(map);
