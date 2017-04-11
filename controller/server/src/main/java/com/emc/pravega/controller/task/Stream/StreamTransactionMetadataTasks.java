@@ -4,6 +4,7 @@
 package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
@@ -20,6 +21,7 @@ import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
+import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
@@ -32,6 +34,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
@@ -47,13 +50,15 @@ import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withRe
 @Slf4j
 public class StreamTransactionMetadataTasks extends TaskBase {
 
+    protected EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
+    protected EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
+    protected String commitStreamName;
+    protected String abortStreamName;
+
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
-
-    private EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
-    private EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
@@ -86,11 +91,13 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      */
     public Void initializeStreamWriters(final ClientFactory clientFactory,
                                         final ControllerEventProcessorConfig config) {
+        this.commitStreamName = config.getCommitStreamName();
         this.commitEventEventStreamWriter = clientFactory.createEventWriter(
                 config.getCommitStreamName(),
                 ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
+        this.abortStreamName = config.getAbortStreamName();
         this.abortEventEventStreamWriter = clientFactory.createEventWriter(
                 config.getAbortStreamName(),
                 ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
@@ -204,7 +211,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                                                         segment.getNumber(),
                                                                         txData.getId()))
                                                         .collect(Collectors.toList()))
-                                        .thenApply(v -> new ImmutablePair<>(txData, activeSegments))));
+                                                .thenApply(v -> new ImmutablePair<>(txData, activeSegments))));
     }
 
     private CompletableFuture<VersionedTransactionData> pingTxnBody(String scope, String stream, UUID txId, long lease,
@@ -215,23 +222,46 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
                                                       final Optional<Integer> version, final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, version, context, executor)
-                .thenApplyAsync(status -> {
-                    this.abortEventEventStreamWriter
-                            .writeEvent(txid.toString(), new AbortEvent(scope, stream, txid));
-                    return status;
-                }, executor);
+                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
+                        writeEvent(abortEventEventStreamWriter, abortStreamName, txid.toString(),
+                                new AbortEvent(scope, stream, txid), txid, status), executor), executor);
     }
 
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
                                                        final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), context, executor)
-                .thenApplyAsync(status -> {
-                    // Todo: this returns an ack future that we dont wait for. How do we know this was complete?
-                    // And the problem is its Future and not completable future. So we cant chain to it here.
-                    this.commitEventEventStreamWriter
-                            .writeEvent(scope + stream, new CommitEvent(scope, stream, txid));
-                    return status;
-                }, executor);
+                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
+                        writeEvent(commitEventEventStreamWriter, commitStreamName, scope + stream,
+                                new CommitEvent(scope, stream, txid), txid, status), executor), executor);
+    }
+
+    private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
+                                                        final String streamName,
+                                                        final String key,
+                                                        final T event,
+                                                        final UUID txid,
+                                                        final TxnStatus txnStatus) {
+        log.debug("Transaction {}, state={}, sending request to {}", txid, txnStatus, streamName);
+        AckFuture future = streamWriter.writeEvent(key, event);
+        CompletableFuture<AckFuture> writeComplete = new CompletableFuture<>();
+        future.addListener(() -> writeComplete.complete(future), executor);
+        return writeComplete.thenApplyAsync(ackFuture -> {
+            try {
+                // ackFuture is complete by now, so we can do a get without blocking
+                ackFuture.get();
+                log.debug("Transaction {}, sent request to {}", txid, streamName);
+                return txnStatus;
+            } catch (InterruptedException e) {
+                log.warn("Transaction {}, unexpected interrupted exception while sending {} to {}. Retrying...",
+                        txid, event.getClass().getSimpleName(), streamName);
+                throw new WriteFailedException(e);
+            } catch (ExecutionException e) {
+                Throwable realException = ExceptionHelpers.getRealException(e);
+                log.warn("Transaction {}, failed sending {} to {}. Retrying...",
+                        txid, event.getClass().getSimpleName(), streamName);
+                throw new WriteFailedException(realException);
+            }
+        }, executor);
     }
 
 

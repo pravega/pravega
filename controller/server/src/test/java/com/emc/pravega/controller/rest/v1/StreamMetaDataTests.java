@@ -62,9 +62,9 @@ import static org.mockito.Mockito.when;
  */
 public class StreamMetaDataTests extends JerseyTest {
 
-    //Ensure each test completes within 5 seconds.
+    //Ensure each test completes within 20 seconds.
     @Rule
-    public Timeout globalTimeout = new Timeout(5, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     ControllerService mockControllerService;
     StreamMetadataStore mockStreamStore;
