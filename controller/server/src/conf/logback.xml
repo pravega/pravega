@@ -32,14 +32,6 @@
         <appender-ref ref="FILE"/>
     </root>
 
-    <Loggers>
-        <Logger name="org.apache.zookeeper" level="INFO" additivity="false">
-            <AppenderRef ref="FILE"/>
-        </Logger>
-    </Loggers>
-    <Loggers>
-        <Logger name="io.grpc.Server" level="INFO" additivity="false">
-            <AppenderRef ref="FILE"/>
-        </Logger>
-    </Loggers>
+    <logger name="org.apache.zookeeper" level="INFO"/>
+    <logger name="io.grpc.netty" level="INFO"/>
 </configuration>
