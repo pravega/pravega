@@ -192,7 +192,9 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     public void removeTxn(String scope, String stream, UUID txnId) {
         String key = getKey(scope, stream, txnId);
         final TxnData txnData = map.get(key);
-        txnData.getTimeout().cancel();
+        if (txnData != null) {
+            txnData.getTimeout().cancel();
+        }
         map.remove(key);
     }
 

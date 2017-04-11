@@ -37,4 +37,9 @@
             <AppenderRef ref="FILE"/>
         </Logger>
     </Loggers>
+    <Loggers>
+        <Logger name="io.grpc.Server" level="INFO" additivity="false">
+            <AppenderRef ref="FILE"/>
+        </Logger>
+    </Loggers>
 </configuration>
