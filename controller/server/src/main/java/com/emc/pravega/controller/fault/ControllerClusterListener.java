@@ -73,9 +73,6 @@ public class ControllerClusterListener extends AbstractIdleService {
                 eventProcessorsOpt.get().awaitRunning();
             }
 
-            log.info("Awaiting taskSweeper to become ready");
-            taskSweeper.awaitReady();
-
             // Register cluster listener.
             log.info("Adding controller cluster listener");
             cluster.addListener((type, host) -> {

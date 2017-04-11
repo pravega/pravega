@@ -192,8 +192,16 @@ public class TaskSweeper {
                                                                             taggedResource.getTag(),
                                                                             taggedResource.getResource()));
 
-                // finally execute the task by invoking corresponding method and return its result
-                return (CompletableFuture<Object>) method.invoke(o, (Object[]) taskData.getParameters());
+                if (o.isReady()) {
+                    // finally execute the task by invoking corresponding method and return its result
+                    return (CompletableFuture<Object>) method.invoke(o, (Object[]) taskData.getParameters());
+                } else {
+                    // If class for the method is not yet ready, throw an error,
+                    String errorMessage = String.format("Task module for method %s not yet ready, delaying processing it",
+                            method.getName());
+                    log.debug(errorMessage);
+                    return FutureHelpers.failedFuture(new RuntimeException(errorMessage));
+                }
 
             } else {
                 CompletableFuture<Object> error = new CompletableFuture<>();
