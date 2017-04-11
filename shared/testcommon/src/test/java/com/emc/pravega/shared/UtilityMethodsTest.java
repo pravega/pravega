@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.shared;
 
-
 import org.junit.Test;
 
 import java.util.Collections;

@@ -11,10 +11,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
+import com.emc.pravega.shared.testcommon.AssertExtensions.RunnableWithException;
 
 public class Async {
 
-    public static void testBlocking(AssertExtensions.RunnableWithException blockingFunction, Runnable unblocker) {
+    public static void testBlocking(RunnableWithException blockingFunction, Runnable unblocker) {
         final AtomicReference<Exception> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
         Thread t = new Thread(new Runnable() {
