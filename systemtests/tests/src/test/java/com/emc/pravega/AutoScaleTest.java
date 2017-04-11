@@ -6,7 +6,6 @@ package com.emc.pravega;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.BookkeeperService;
 import com.emc.pravega.framework.services.PravegaControllerService;
@@ -37,14 +36,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.Before;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-@RunWith(SystemTestRunner.class)
 public class AutoScaleTest extends AbstractScaleTests {
 
     private final static String SCOPE = "testAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
@@ -63,7 +59,6 @@ public class AutoScaleTest extends AbstractScaleTests {
             .streamName(SCALE_DOWN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
-    @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
@@ -112,7 +107,6 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws URISyntaxException   If URI is invalid
      * @throws ExecutionException   if error in create stream
      */
-    @Before
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
         //create a scope
@@ -145,7 +139,6 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("create stream status for txn stream {}", createStreamStatus);
     }
 
-    @Test
     public void scaleTests() throws URISyntaxException, InterruptedException {
         URI controllerUri = getControllerURI();
         CompletableFuture<Void> scaleup = scaleUpTest(controllerUri);

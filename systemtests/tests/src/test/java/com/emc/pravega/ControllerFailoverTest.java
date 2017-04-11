@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -113,8 +114,8 @@ public class ControllerFailoverTest {
 
     @Test
     public void failoverTest() throws URISyntaxException, InterruptedException {
-        String scope = "testFailoverScope";
-        String stream = "testFailoverStream";
+        String scope = "testFailoverScope" + new Random().nextInt(Integer.MAX_VALUE);
+        String stream = "testFailoverStream" + new Random().nextInt(Integer.MAX_VALUE);
         int initialSegments = 2;
         List<Integer> segmentsToSeal = Collections.singletonList(0);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
@@ -163,11 +164,11 @@ public class ControllerFailoverTest {
                 txnSegments.getTxnId()).join();
         log.info("Transaction {} status={}", txnSegments.getTxnId(), status);
 
-        if (status != Transaction.Status.OPEN) {
+        if (status == Transaction.Status.OPEN) {
             // Abort the ongoing transaction.
             log.info("Trying to abort transaction {}, by sending request to controller at {}", txnSegments.getTxnId(),
                     controllerUri);
-            controller.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
+            controller.commitTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
         }
 
         // Scale operation should now complete on the second controller instance.

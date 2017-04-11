@@ -31,4 +31,10 @@
         <appender-ref ref="consoleAppender"/>
         <appender-ref ref="FILE"/>
     </root>
+
+    <Loggers>
+        <Logger name="org.apache.zookeeper" level="INFO" additivity="false">
+            <AppenderRef ref="FILE"/>
+        </Logger>
+    </Loggers>
 </configuration>

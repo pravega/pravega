@@ -17,7 +17,6 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
-@RunWith(SystemTestRunner.class)
 public class PravegaControllerTest {
 
     /**
@@ -25,7 +24,6 @@ public class PravegaControllerTest {
      *
      * @throws MarathonException if error in setup
      */
-    @Environment
     public static void setup() throws MarathonException {
         Service zk = new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
@@ -41,8 +39,6 @@ public class PravegaControllerTest {
      * Invoke the controller test.
      * The test fails incase controller is not running on given ports
      */
-
-    @Test
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
         Service con = new PravegaControllerService("controller", null, 0, 0.0, 0.0);

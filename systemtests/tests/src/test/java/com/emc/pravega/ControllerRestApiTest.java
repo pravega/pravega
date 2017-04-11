@@ -46,7 +46,6 @@ import static javax.ws.rs.core.Response.Status.OK;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
-@RunWith(SystemTestRunner.class)
 public class ControllerRestApiTest {
 
     private final Client client;
@@ -68,7 +67,6 @@ public class ControllerRestApiTest {
      * @throws MarathonException    when error in setup
      * @throws URISyntaxException   If URI is invalid
      */
-    @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
@@ -109,7 +107,6 @@ public class ControllerRestApiTest {
         log.debug("pravega host service details: {}", segUris);
     }
 
-    @Test
     public void restApiTests() {
 
         Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
