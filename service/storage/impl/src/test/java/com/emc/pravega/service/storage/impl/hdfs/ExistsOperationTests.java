@@ -4,7 +4,7 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.hadoop.fs.Path;

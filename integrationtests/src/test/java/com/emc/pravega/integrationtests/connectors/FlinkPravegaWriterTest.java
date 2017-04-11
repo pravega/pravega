@@ -10,7 +10,7 @@ import com.emc.pravega.connectors.flink.FlinkPravegaWriter;
 import com.emc.pravega.connectors.flink.PravegaWriterMode;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import com.google.common.base.Preconditions;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;

@@ -25,10 +25,10 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
-import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.ErrorInjector;
-import com.emc.pravega.testcommon.IntentionalException;
-import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.ErrorInjector;
+import com.emc.pravega.shared.testcommon.IntentionalException;
+import com.emc.pravega.shared.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

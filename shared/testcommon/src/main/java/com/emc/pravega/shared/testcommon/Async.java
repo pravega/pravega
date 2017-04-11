@@ -3,7 +3,7 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package com.emc.pravega.testcommon;
+package com.emc.pravega.shared.testcommon;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
@@ -12,11 +12,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
 
-import com.emc.pravega.testcommon.AssertExtensions.RunnableWithException;
-
 public class Async {
 
-    public static void testBlocking(RunnableWithException blockingFunction, Runnable unblocker) {
+    public static void testBlocking(AssertExtensions.RunnableWithException blockingFunction, Runnable unblocker) {
         final AtomicReference<Exception> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
         Thread t = new Thread(new Runnable() {

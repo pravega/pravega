@@ -8,8 +8,8 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
@@ -21,7 +21,7 @@ import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
+import static com.emc.pravega.shared.testcommon.AssertExtensions.assertThrows;
 
 /**
  * Base class for testing any implementation of the Storage interface.

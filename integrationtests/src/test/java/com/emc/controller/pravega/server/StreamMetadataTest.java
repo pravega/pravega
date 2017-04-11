@@ -3,7 +3,7 @@
  */
 package com.emc.controller.pravega.server;
 
-import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -15,14 +15,14 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.shared.TestUtils;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
-import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
+import static com.emc.pravega.shared.testcommon.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

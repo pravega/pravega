@@ -25,7 +25,7 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockStreamManager;
-import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.shared.TestUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.ArrayList;
 import java.util.Collection;

@@ -26,7 +26,7 @@ import lombok.Data;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import static com.emc.pravega.testcommon.Async.testBlocking;
+import static com.emc.pravega.shared.testcommon.Async.testBlocking;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

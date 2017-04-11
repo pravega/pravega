@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.common.concurrent;
 
-import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.IntentionalException;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.IntentionalException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;

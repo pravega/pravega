@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;

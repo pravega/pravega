@@ -17,7 +17,7 @@ import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
-import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.shared.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;

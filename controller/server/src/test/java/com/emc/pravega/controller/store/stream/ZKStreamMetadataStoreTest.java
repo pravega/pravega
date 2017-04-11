@@ -5,10 +5,10 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;

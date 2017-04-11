@@ -14,7 +14,7 @@ import com.emc.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.timeout.TimeoutServiceConfig;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import org.junit.Test;
 
 import java.util.Optional;

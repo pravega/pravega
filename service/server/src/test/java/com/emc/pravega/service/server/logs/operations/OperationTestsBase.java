@@ -6,7 +6,7 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.MathHelpers;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;

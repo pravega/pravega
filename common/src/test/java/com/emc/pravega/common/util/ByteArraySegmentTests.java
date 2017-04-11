@@ -16,7 +16,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 
 /**
  * Unit tests for ByteArraySegment class.

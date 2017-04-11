@@ -7,7 +7,7 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;

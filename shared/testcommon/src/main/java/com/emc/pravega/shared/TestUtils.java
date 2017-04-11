@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.testcommon;
+package com.emc.pravega.shared;
 
 import lombok.extern.slf4j.Slf4j;
 

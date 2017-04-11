@@ -7,7 +7,7 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.common.util.CloseableIterator;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 
 import org.junit.Assert;
 

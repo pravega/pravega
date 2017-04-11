@@ -10,7 +10,7 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
-import com.emc.pravega.testcommon.ErrorInjector;
+import com.emc.pravega.shared.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;

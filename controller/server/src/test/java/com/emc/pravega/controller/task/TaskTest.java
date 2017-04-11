@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;

@@ -15,7 +15,7 @@ import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.segment.AsyncSegmentInputStream.ReadFuture;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
-import com.emc.pravega.testcommon.Async;
+import com.emc.pravega.shared.testcommon.Async;
 
 import java.nio.ByteBuffer;
 

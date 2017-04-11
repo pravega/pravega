@@ -6,7 +6,7 @@
 package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.controller.fault.impl.ControllerClusterListenerConfigImpl;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;

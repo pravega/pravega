@@ -7,7 +7,7 @@ import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
-import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;

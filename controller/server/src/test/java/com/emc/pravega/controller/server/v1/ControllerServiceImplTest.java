@@ -20,7 +20,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStat
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 

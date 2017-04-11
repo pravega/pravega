@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
-import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import com.emc.pravega.stream.Position;

@@ -5,7 +5,7 @@ package com.emc.pravega.integrationtests.endtoendtest;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
-import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -25,7 +25,7 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.shared.TestUtils;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;

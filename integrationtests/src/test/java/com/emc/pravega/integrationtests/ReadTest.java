@@ -41,7 +41,7 @@ import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockStreamManager;
-import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.shared.TestUtils;
 
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;

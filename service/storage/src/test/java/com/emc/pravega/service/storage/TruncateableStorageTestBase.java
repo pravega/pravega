@@ -4,7 +4,7 @@
 package com.emc.pravega.service.storage;
 
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Random;
@@ -14,7 +14,7 @@ import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
+import static com.emc.pravega.shared.testcommon.AssertExtensions.assertThrows;
 
 /**
  * Base class for testing any implementation of the TruncateableStorage interface.
