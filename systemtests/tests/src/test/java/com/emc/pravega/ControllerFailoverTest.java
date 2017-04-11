@@ -168,7 +168,7 @@ public class ControllerFailoverTest {
             // Abort the ongoing transaction.
             log.info("Trying to abort transaction {}, by sending request to controller at {}", txnSegments.getTxnId(),
                     controllerUri);
-            controller.commitTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
+            controller.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
         }
 
         // Scale operation should now complete on the second controller instance.
