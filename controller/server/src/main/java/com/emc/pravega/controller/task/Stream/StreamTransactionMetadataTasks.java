@@ -139,7 +139,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
         return execute(
                 new Resource(scope, stream),
-                new Serializable[]{scope, stream},
+                new Serializable[]{scope, stream, lease, maxExecutionTime, scaleGracePeriod, null},
                 () -> createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context));
     }
 
