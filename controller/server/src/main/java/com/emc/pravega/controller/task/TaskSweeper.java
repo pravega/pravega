@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -52,12 +53,6 @@ public class TaskSweeper {
         // reflection library org.reflections. However, this library is flagged by checkstyle as disallowed library.
         this.taskClassObjects = classes;
         initializeMappingTable();
-    }
-
-    public void awaitReady() throws InterruptedException {
-        for (TaskBase taskClassObject : taskClassObjects) {
-            taskClassObject.awaitInitialization();
-        }
     }
 
     public CompletableFuture<Void> sweepOrphanedTasks(final Set<String> activeHosts) {
@@ -196,11 +191,17 @@ public class TaskSweeper {
                     // finally execute the task by invoking corresponding method and return its result
                     return (CompletableFuture<Object>) method.invoke(o, (Object[]) taskData.getParameters());
                 } else {
-                    // If class for the method is not yet ready, throw an error,
-                    String errorMessage = String.format("Task module for method %s not yet ready, delaying processing it",
-                            method.getName());
-                    log.debug(errorMessage);
-                    return FutureHelpers.failedFuture(new RuntimeException(errorMessage));
+                    // The then branch of this if-then-else executes the task and releases the lock even if the
+                    // task execution fails. Eventually all the orphaned tasks of the failed host shall complete.
+                    // However, if the task object of a specific task is not ready, we do not attempt to execute
+                    // the task. Instead, we wait for a small random amount of time and then bail out, so that the
+                    // task can be retried some time in future, as it will be fetched by the
+                    // getRandomChild(failedHostId) statement in executeHostTask(failedHostId).
+                    // Eventually, when all task objects are ready, all the orphaned tasks of failed host shall
+                    // be executed and the failed host's identifier shall be removed from the hostIndex.
+                    log.debug("Task module for method {} not yet ready, delaying processing it", method.getName());
+                    return FutureHelpers.delayedFuture(Duration.ofMillis(100), executor)
+                            .thenApplyAsync(ignore -> null, executor);
                 }
 
             } else {

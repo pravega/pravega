@@ -67,12 +67,6 @@ public class ControllerClusterListener extends AbstractIdleService {
                     .map(Host::getHostId)
                     .collect(Collectors.toSet());
 
-            // Await initialization of components.
-            if (eventProcessorsOpt.isPresent()) {
-                log.info("Awaiting controller event processors' start");
-                eventProcessorsOpt.get().awaitRunning();
-            }
-
             // Register cluster listener.
             log.info("Adding controller cluster listener");
             cluster.addListener((type, host) -> {
@@ -84,7 +78,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                     case HOST_REMOVED:
                         log.info("Received controller cluster event: {} for host: {}", type, host);
                         taskSweeper.sweepOrphanedTasks(host.getHostId());
-                        if (eventProcessorsOpt.isPresent()) {
+                        if (eventProcessorsOpt.isPresent() && eventProcessorsOpt.get().isRunning()) {
                             eventProcessorsOpt.get().notifyProcessFailure(host.getHostId());
                         }
                         break;
@@ -97,14 +91,18 @@ public class ControllerClusterListener extends AbstractIdleService {
                 }
             }, executor);
 
-            // Sweep orphaned tasks or readers at startup.
+            log.info("Sweeping orphaned tasks at startup");
+            taskSweeper.sweepOrphanedTasks(activeProcesses);
+
             if (eventProcessorsOpt.isPresent()) {
+                // Await initialization of eventProcesorsOpt
+                log.info("Awaiting controller event processors' start");
+                eventProcessorsOpt.get().awaitRunning();
+
+                // Sweep orphaned tasks or readers at startup.
                 log.info("Sweeping orphaned readers at startup");
                 eventProcessorsOpt.get().handleOrphanedReaders(activeProcesses);
             }
-
-            log.info("Sweeping orphaned tasks at startup");
-            taskSweeper.sweepOrphanedTasks(activeProcesses);
 
             log.info("Controller cluster listener startUp complete");
         } finally {
