@@ -411,6 +411,7 @@ project('integrationtests') {
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
+        testCompile files(project(':service:storage:impl').sourceSets.test.output)
     }
 
     task startServer(type: JavaExec) {

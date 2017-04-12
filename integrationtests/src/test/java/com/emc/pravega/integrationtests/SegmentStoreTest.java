@@ -23,13 +23,19 @@ import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.server.writer.WriterConfig;
+import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogStarter;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.TestUtils;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -63,17 +69,21 @@ import org.junit.Test;
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
 public class SegmentStoreTest extends ThreadPooledTestSuite {
-    //region Members
+    //region Test Configuration and Setup
 
-    private static final int THREADPOOL_SIZE = 20;
-    private static final int SEGMENT_COUNT = 20;
-    private static final int TRANSACTIONS_PER_SEGMENT = 2;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
+    private static final int THREADPOOL_SIZE_TEST = 3;
+    private static final int SEGMENT_COUNT = 10;
+    private static final int TRANSACTIONS_PER_SEGMENT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
+    private static final String DLOG_NAMESPACE = "pravegae2e";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+
     private final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
             .include(ServiceConfig.builder()
-                                  .with(ServiceConfig.CONTAINER_COUNT, 4))
+                                  .with(ServiceConfig.CONTAINER_COUNT, 4)
+                                  .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE))
             .include(ContainerConfig
                     .builder()
                     .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS))
@@ -95,13 +105,38 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
 
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
+    private Process dlogProcess;
+    private int dlogPort;
 
-    //endregion
+    /**
+     * Start DistributedLog once for the duration of this class. This is pretty strenuous, and it actually starts a
+     * new process, so in the interest of running time we only do it once.
+     */
+    @Before
+    public void setUpDistributedLog() throws Exception {
+        // Pick a random port to reduce chances of collisions during concurrent test executions.
+        this.dlogPort = TestUtils.getAvailableListenPort();
+        this.dlogProcess = DistributedLogStarter.startOutOfProcess(this.dlogPort);
+        DistributedLogStarter.createNamespace(DLOG_NAMESPACE, this.dlogPort);
 
-    //region Test Setup
+        this.configBuilder.include(DistributedLogConfig
+                .builder()
+                .with(DistributedLogConfig.HOSTNAME, DistributedLogStarter.DLOG_HOST)
+                .with(DistributedLogConfig.PORT, this.dlogPort)
+                .with(DistributedLogConfig.NAMESPACE, DLOG_NAMESPACE));
+    }
+
+    @After
+    public void tearDownDistributedLog() throws Exception {
+        val process = this.dlogProcess;
+        if (process != null) {
+            process.destroy();
+            this.dlogProcess = null;
+        }
+    }
 
     @Before
-    public void setup() throws Exception {
+    public void setupHdfs() throws Exception {
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
         Configuration conf = new Configuration();
         conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
@@ -116,18 +151,18 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
     }
 
     @After
-    public void tearDown() {
-        if (hdfsCluster != null) {
-            hdfsCluster.shutdown();
-            hdfsCluster = null;
-            FileHelpers.deleteFileOrDirectory(baseDir);
-            baseDir = null;
+    public void tearDownHdfs() {
+        if (this.hdfsCluster != null) {
+            this.hdfsCluster.shutdown();
+            this.hdfsCluster = null;
+            FileHelpers.deleteFileOrDirectory(this.baseDir);
+            this.baseDir = null;
         }
     }
 
     @Override
     protected int getThreadPoolSize() {
-        return THREADPOOL_SIZE;
+        return THREADPOOL_SIZE_TEST;
     }
 
     //endregion
@@ -136,59 +171,83 @@ public class SegmentStoreTest extends ThreadPooledTestSuite {
      * Tests an end-to-end scenario using real adapters for Cache (RocksDB) and Storage (HDFS).
      * Currently this does not use a real adapter for DurableDataLog due to difficulties in getting DistributedLog
      * to run in-process.
-     *
-     * @throws Exception if one occurred.
      */
     @Test
     public void testEndToEnd() throws Exception {
         AtomicReference<Storage> storage = new AtomicReference<>();
-        val builderConfig = configBuilder.build();
 
-        // Build up the Segment Store Service and attach the appropriate components.
-        @Cleanup
-        val builder = ServiceBuilder
-                .newInMemoryBuilder(builderConfig, executorService())
-                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
-                .withStorageFactory(setup -> {
-                    StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), executorService());
-                    return new ListenableStorageFactory(f, storage::set);
-                });
-        builder.initialize().join();
-        val segmentStore = builder.createStreamSegmentService();
-
-        // 1. Create the StreamSegments.
-        ArrayList<String> segmentNames = createSegments(segmentStore);
-        HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, segmentStore);
-
-        // 2. Add some appends.
+        // Phase 1: Create segments and add some appends.
+        ArrayList<String> segmentNames;
+        HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
-        ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
-        transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
-        appendData(segmentsAndTransactions, segmentContents, lengths, segmentStore).join();
+        try (val builder = createBuilder(storage)) {
+            val segmentStore = builder.createStreamSegmentService();
 
-        // 2.1 Merge all transactions.
-        mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore);
+            // Create the StreamSegments.
+            segmentNames = createSegments(segmentStore);
+            transactionsBySegment = createTransactions(segmentNames, segmentStore);
 
-        // 3. getSegmentInfo
-        for (String segmentName : segmentNames) {
-            SegmentProperties sp = segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
-            long expectedLength = lengths.get(segmentName);
-
-            Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, sp.getLength());
-            Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
-            Assert.assertFalse("Unexpected value for isSealed for segment " + segmentName, sp.isDeleted());
+            // Add some appends.
+            ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
+            transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
+            appendData(segmentsAndTransactions, segmentContents, lengths, segmentStore).join();
         }
 
-        // 4. Reads (regular reads, not tail reads).
-        checkReads(segmentContents, lengths, segmentStore);
+        // Phase 2: Force a recovery and merge all transactions.
+        try (val builder = createBuilder(storage)) {
+            val segmentStore = builder.createStreamSegmentService();
 
-        // 5. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, segmentStore, storage.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        checkStorage(segmentContents, lengths, segmentStore, storage.get());
+            // Merge all transactions.
+            mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore);
+
+            // getSegmentInfo
+            for (String segmentName : segmentNames) {
+                SegmentProperties sp = segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+                long expectedLength = lengths.get(segmentName);
+
+                Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, sp.getLength());
+                Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
+                Assert.assertFalse("Unexpected value for isSealed for segment " + segmentName, sp.isDeleted());
+            }
+        }
+
+        // Phase 3: Force a recovery and check final reads.
+        try (val builder = createBuilder(storage)) {
+            val segmentStore = builder.createStreamSegmentService();
+
+            // Reads (regular reads, not tail reads).
+            checkReads(segmentContents, lengths, segmentStore);
+
+            // Writer moving data to Storage.
+            waitForSegmentsInStorage(segmentNames, segmentStore, storage.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            checkStorage(segmentContents, lengths, segmentStore, storage.get());
+        }
     }
 
     //region Helpers
+
+    private ServiceBuilder createBuilder(AtomicReference<Storage> storage) {
+        val builderConfig = this.configBuilder.build();
+        val builder = ServiceBuilder
+                .newInMemoryBuilder(builderConfig)
+                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
+                .withStorageFactory(setup -> {
+                    StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
+                    return new ListenableStorageFactory(f, storage::set);
+                })
+                .withDataLogFactory(this::createDistributedLogDataLogFactory);
+        builder.initialize().join();
+        return builder;
+    }
+
+    @SneakyThrows(DurableDataLogException.class)
+    private DurableDataLogFactory createDistributedLogDataLogFactory(ServiceBuilder.ComponentSetup setup) {
+        DistributedLogDataLogFactory f = new DistributedLogDataLogFactory("End2End",
+                setup.getConfig(DistributedLogConfig::builder), setup.getExecutor());
+        f.initialize();
+        return f;
+    }
 
     private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
                                                HashMap<String, Long> lengths, StreamSegmentStore store) {
