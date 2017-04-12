@@ -67,11 +67,7 @@ public class ZookeeperService extends MarathonBasedService {
         @Override
         public void stop() {
             log.info("Stopping Zookeeper Service : {}", getID());
-            try {
-                marathonClient.deleteApp(getID());
-            } catch (MarathonException e) {
-                handleMarathonException(e);
-            }
+            deleteApp(getID());
         }
 
     private App createZookeeperApp() {
