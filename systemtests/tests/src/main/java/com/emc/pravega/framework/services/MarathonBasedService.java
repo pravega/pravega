@@ -161,7 +161,7 @@ public abstract class MarathonBasedService implements Service {
         return new StringBuilder().append(" -D").append(propertyName).append("=").append(propertyValue).toString();
     }
 
-    void deleteApp(String appID) {
+    void deleteApp(final String appID) {
         try {
             Result result = marathonClient.deleteApp(appID);
             log.debug("App: {} deleted, Deployment id is: {}", appID, result.getDeploymentId());
@@ -177,7 +177,7 @@ public abstract class MarathonBasedService implements Service {
         }
     }
 
-    private boolean isDeploymentPresent(String deployementID) {
+    private boolean isDeploymentPresent(final String deployementID) {
         try {
             return marathonClient.getDeployments().stream()
                     .anyMatch(deployment -> deployment.getId().equals(deployementID));
@@ -187,7 +187,7 @@ public abstract class MarathonBasedService implements Service {
         }
     }
 
-    private CompletableFuture<Void> waitUntilDeploymentPresent(String deploymentID) {
+    private CompletableFuture<Void> waitUntilDeploymentPresent(final String deploymentID) {
         return FutureHelpers.loop(() -> isDeploymentPresent(deploymentID), //condition
                 () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
