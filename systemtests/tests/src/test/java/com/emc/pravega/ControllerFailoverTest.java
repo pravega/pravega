@@ -22,6 +22,7 @@ import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.TxnSegments;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
+import org.apache.commons.lang.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -111,10 +112,10 @@ public class ControllerFailoverTest {
         controllerService.stop();
     }
 
-    @Test
+    @Test(timeout = 180000)
     public void failoverTest() throws URISyntaxException, InterruptedException {
-        String scope = "testFailoverScope";
-        String stream = "testFailoverStream";
+        String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
+        String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
         int initialSegments = 2;
         List<Integer> segmentsToSeal = Collections.singletonList(0);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
@@ -163,7 +164,7 @@ public class ControllerFailoverTest {
                 txnSegments.getTxnId()).join();
         log.info("Transaction {} status={}", txnSegments.getTxnId(), status);
 
-        if (status != Transaction.Status.OPEN) {
+        if (status == Transaction.Status.OPEN) {
             // Abort the ongoing transaction.
             log.info("Trying to abort transaction {}, by sending request to controller at {}", txnSegments.getTxnId(),
                     controllerUri);

@@ -36,6 +36,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -124,18 +125,58 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     public void createTransactionSuccessTest() {
         int segmentsCount = 4;
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(segmentsCount));
+        Controller.CreateTxnResponse response = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000);
+        assertEquals(segmentsCount, response.getActiveSegmentsCount());
+    }
 
+    @Test
+    public void transactionTests() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
         Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, STREAM1);
+        Controller.TxnId txnId1 = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000).getTxnId();
+        Controller.TxnId txnId2 = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000).getTxnId();
 
+        // Abort first txn.
+        Controller.TxnStatus status = closeTransaction(SCOPE1, STREAM1, txnId1, true);
+        Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status.getStatus());
+
+        // Commit second txn.
+        status = closeTransaction(SCOPE1, STREAM1, txnId2, false);
+        Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status.getStatus());
+    }
+
+    private Controller.TxnStatus closeTransaction(final String scope,
+                                                  final String stream,
+                                                  final Controller.TxnId txnId,
+                                                  final boolean abort) {
+        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(scope, stream);
+        Controller.TxnRequest request = Controller.TxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setTxnId(txnId)
+                .build();
+        ResultObserver<Controller.TxnStatus> resultObserver = new ResultObserver<>();
+        if (abort) {
+            this.controllerService.abortTransaction(request, resultObserver);
+        } else {
+            this.controllerService.commitTransaction(request, resultObserver);
+        }
+        Controller.TxnStatus status = resultObserver.get();
+        Assert.assertNotNull(status);
+        return resultObserver.get();
+    }
+
+    private Controller.CreateTxnResponse createTransaction(final String scope, final String stream, final long lease,
+                                                           final long maxExecutionTime, final long scaleGracePeriod) {
+        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(scope, stream);
         Controller.CreateTxnRequest request = Controller.CreateTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
                 .setLease(10000)
                 .setMaxExecutionTime(10000)
                 .setScaleGracePeriod(10000).build();
         ResultObserver<Controller.CreateTxnResponse> resultObserver = new ResultObserver<>();
-
         this.controllerService.createTransaction(request, resultObserver);
         Controller.CreateTxnResponse response = resultObserver.get();
-        assertEquals(segmentsCount, response.getActiveSegmentsCount());
+        Assert.assertTrue(response != null);
+        return response;
     }
 }
