@@ -6,8 +6,10 @@
 package com.emc.pravega.controller.rest.v1;
 
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
+import com.emc.pravega.testcommon.TestUtils;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
+import org.glassfish.jersey.test.TestProperties;
 import org.junit.Test;
 
 import javax.ws.rs.core.Application;
@@ -22,6 +24,7 @@ public class PingTest extends JerseyTest {
 
     @Override
     protected Application configure() {
+        this.forceSet(TestProperties.CONTAINER_PORT, String.valueOf(TestUtils.getAvailableListenPort()));
         return new ResourceConfig(PingImpl.class);
     }
 
