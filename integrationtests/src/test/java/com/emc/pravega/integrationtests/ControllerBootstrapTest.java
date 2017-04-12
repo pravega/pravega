@@ -16,7 +16,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.TxnSegments;
-import com.emc.pravega.shared.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;

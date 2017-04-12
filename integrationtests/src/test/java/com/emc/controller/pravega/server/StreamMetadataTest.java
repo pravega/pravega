@@ -15,7 +15,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.shared.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;

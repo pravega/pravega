@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.shared.testcommon;
 
-import com.emc.pravega.shared.TestUtils;
 import lombok.Getter;
 import org.apache.curator.test.TestingServer;
 

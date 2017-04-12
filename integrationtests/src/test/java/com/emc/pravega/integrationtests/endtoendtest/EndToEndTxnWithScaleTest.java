@@ -25,7 +25,7 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.shared.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;

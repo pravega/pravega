@@ -29,7 +29,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.server.store.StreamSegmentService;
 import com.emc.pravega.shared.testcommon.InlineExecutor;
-import com.emc.pravega.shared.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;

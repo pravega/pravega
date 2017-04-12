@@ -21,7 +21,7 @@ import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.shared.testcommon.AssertExtensions;
-import com.emc.pravega.shared.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 
 import java.io.Serializable;
 import java.util.Collections;

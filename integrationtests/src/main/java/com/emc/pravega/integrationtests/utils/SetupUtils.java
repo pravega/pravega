@@ -20,7 +20,7 @@ import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.shared.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.google.common.base.Preconditions;
 import lombok.Cleanup;

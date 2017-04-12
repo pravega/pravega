@@ -9,7 +9,7 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogTestBase;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.shared.testcommon.AssertExtensions;
-import com.emc.pravega.shared.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 import com.twitter.distributedlog.DLSN;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import com.twitter.distributedlog.tools.Tool;
