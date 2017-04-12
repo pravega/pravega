@@ -225,7 +225,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Abort the second one
         status = streamTransactionMetadataTasks.abortTxn(SCOPE, STREAM, txData2.getId(),
-                Optional.of(txData2.getVersion()), null).join();
+                txData2.getVersion(), null).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
     }
 }
