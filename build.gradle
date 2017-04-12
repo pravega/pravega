@@ -52,9 +52,9 @@ allprojects {
             html.enabled true
         }
     }
-    compileJava { 
-        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
-    } 
+    compileJava {
+        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror"
+    }
 
     repositories {
         // Use 'jcenter' for resolving your dependencies.
@@ -126,18 +126,6 @@ project('common') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        // for Metrics
-        compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
-        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
-        compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-graphite
-        compile group: 'io.dropwizard.metrics', name: 'metrics-graphite', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-ganglia
-        compile group: 'io.dropwizard.metrics', name: 'metrics-ganglia', version: metricsVersion
-        // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
-        compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
@@ -151,12 +139,6 @@ project('common') {
     publishing {
         publications {
             maven(MavenPublication) {
-                pom.withXml {
-                    asNode().appendNode('repositories', '').appendNode('repository','').
-                            appendNode('id','jcenter').parent().
-                            appendNode('name','JCenter Repository').parent().
-                            appendNode('url','http://jcenter.bintray.com')
-                }
                 artifactId 'pravega-common'
                 from components.java
             }
@@ -167,15 +149,38 @@ project('common') {
     }
 }
 
-project ('shared:metrics') {
-   dependencies {
-    compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-    compile project(':common')
-   }
+project('shared') {
+    dependencies {
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+    }
+}
 
-   publishing {
+project('shared:metrics') {
+    dependencies {
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'com.readytalk', name: 'metrics3-statsd', version: metrics3StatsdVersion
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
+        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
+        compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: metricsVersion
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-graphite
+        compile group: 'io.dropwizard.metrics', name: 'metrics-graphite', version: metricsVersion
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-ganglia
+        compile group: 'io.dropwizard.metrics', name: 'metrics-ganglia', version: metricsVersion
+        // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
+        compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile project(':common')
+    }
+    publishing {
         publications {
             maven(MavenPublication) {
+                pom.withXml {
+                    asNode().appendNode('repositories', '').appendNode('repository', '').
+                            appendNode('id', 'jcenter').parent().
+                            appendNode('name', 'JCenter Repository').parent().
+                            appendNode('url', 'http://jcenter.bintray.com')
+                }
                 artifactId 'pravega-shared-metrics'
                 from components.java
             }
@@ -195,6 +200,7 @@ project('clients:streaming') {
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
+        compile project(':shared')
         compile project(':shared:metrics')
         compile project(":controller:contract")
         testCompile project(':shared:testcommon')
