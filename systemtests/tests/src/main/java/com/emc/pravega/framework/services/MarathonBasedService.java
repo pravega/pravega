@@ -164,7 +164,7 @@ public abstract class MarathonBasedService implements Service {
     void deleteApp(String appID) {
         try {
             Result result = marathonClient.deleteApp(appID);
-            log.debug("App : {} deleted. Result deployment id is :{}", result.getDeploymentId());
+            log.debug("App : {} deleted. Result deployment id is :{}", appID, result.getDeploymentId());
             waitUntilDeploymentPresent(result.getDeploymentId()).get();
         } catch (MarathonException e) {
             if (e.getStatus() == NOT_FOUND.code()) {
