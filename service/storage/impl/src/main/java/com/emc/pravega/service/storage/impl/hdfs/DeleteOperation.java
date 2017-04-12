@@ -7,6 +7,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
+import com.google.common.base.Preconditions;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
@@ -32,6 +33,7 @@ class DeleteOperation extends FileSystemOperation<HDFSSegmentHandle> implements 
     public void run() throws IOException, StorageNotPrimaryException {
         HDFSSegmentHandle handle = getTarget();
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
+        ensureCanDelete(handle);
 
         // Get an initial list of all files.
         List<FileDescriptor> files = handle.getFiles();
@@ -63,5 +65,19 @@ class DeleteOperation extends FileSystemOperation<HDFSSegmentHandle> implements 
         }
 
         LoggerHelpers.traceLeave(log, "delete", traceId, handle);
+    }
+
+    /**
+     * Ensures the given handle can be used for deleting a segment. Conditions:
+     * 1. Handle must be read-write OR
+     * 2. Segment must be sealed.
+     */
+    private void ensureCanDelete(HDFSSegmentHandle handle) throws IOException {
+        boolean canDelete = !handle.isReadOnly();
+        if (!canDelete) {
+            canDelete = isSealed(handle.getLastFile());
+        }
+
+        Preconditions.checkArgument(canDelete, "Cannot delete using a read-only handle, unless the segment is sealed.");
     }
 }

@@ -14,6 +14,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.ResolvedServerInfo;
 import io.grpc.ResolvedServerInfoGroup;
+import io.grpc.StatusRuntimeException;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -158,20 +159,25 @@ public class ControllerResolverFactory extends NameResolver.Factory {
 
         // The controller discovery API invoker.
         private void getControllers() {
-            final ServerResponse controllerServerList =
-                    this.client.getControllerServerList(ServerRequest.getDefaultInstance());
-            final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder()
-                    .addAll(controllerServerList.getNodeURIList()
-                            .stream()
-                            .map(node ->
-                                    new ResolvedServerInfo(
-                                            new InetSocketAddress(node.getEndpoint(), node.getPort())))
-                            .collect(Collectors.toList()))
-                    .build();
+            try {
+                final ServerResponse controllerServerList =
+                        this.client.getControllerServerList(ServerRequest.getDefaultInstance());
+                final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder()
+                        .addAll(controllerServerList.getNodeURIList()
+                                .stream()
+                                .map(node ->
+                                        new ResolvedServerInfo(
+                                                new InetSocketAddress(node.getEndpoint(), node.getPort())))
+                                .collect(Collectors.toList()))
+                        .build();
 
-            // Update gRPC load balancer with the new set of server addresses.
-            log.info("Updating client with controllers: {}", serverInfoGroup);
-            this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
+                // Update gRPC load balancer with the new set of server addresses.
+                log.info("Updating client with controllers: {}", serverInfoGroup);
+                this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
+            } catch (StatusRuntimeException e) {
+                log.warn("Failed to fetch controller addresses - {}", e);
+                this.resolverUpdater.onError(e.getStatus());
+            }
         }
     }
 }

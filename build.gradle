@@ -181,6 +181,9 @@ project ('shared') {
             }
         }
     }
+    javadoc {
+        exclude 'com/emc/pravega/shared/*'
+    }
 }
 
 project('clients:streaming') {
@@ -742,6 +745,7 @@ project('systemtests:tests') {
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
         compile project(':controller:server')
         compile project(":clients:streaming")
+        compile project(":testcommon")
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: jerseyVersion

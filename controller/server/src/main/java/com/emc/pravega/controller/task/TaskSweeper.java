@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -52,12 +53,6 @@ public class TaskSweeper {
         // reflection library org.reflections. However, this library is flagged by checkstyle as disallowed library.
         this.taskClassObjects = classes;
         initializeMappingTable();
-    }
-
-    public void awaitReady() throws InterruptedException {
-        for (TaskBase taskClassObject : taskClassObjects) {
-            taskClassObject.awaitInitialization();
-        }
     }
 
     public CompletableFuture<Void> sweepOrphanedTasks(final Set<String> activeHosts) {
@@ -187,16 +182,31 @@ public class TaskSweeper {
 
                 // find the method and object
                 Method method = methodMap.get(key);
-                TaskBase o = objectMap.get(key).copyWithContext(new Context(hostId,
-                                                                            oldHostId,
-                                                                            taggedResource.getTag(),
-                                                                            taggedResource.getResource()));
+                if (objectMap.get(key).isReady()) {
+                    TaskBase o = objectMap.get(key).copyWithContext(new Context(hostId,
+                            oldHostId,
+                            taggedResource.getTag(),
+                            taggedResource.getResource()));
 
-                // finally execute the task by invoking corresponding method and return its result
-                return (CompletableFuture<Object>) method.invoke(o, (Object[]) taskData.getParameters());
+                    // finally execute the task by invoking corresponding method and return its result
+                    return (CompletableFuture<Object>) method.invoke(o, (Object[]) taskData.getParameters());
+                } else {
+                    // The then branch of this if-then-else executes the task and releases the lock even if the
+                    // task execution fails. Eventually all the orphaned tasks of the failed host shall complete.
+                    // However, if the task object of a specific task is not ready, we do not attempt to execute
+                    // the task. Instead, we wait for a small random amount of time and then bail out, so that the
+                    // task can be retried some time in future, as it will be fetched by the
+                    // getRandomChild(failedHostId) statement in executeHostTask(failedHostId).
+                    // Eventually, when all task objects are ready, all the orphaned tasks of failed host shall
+                    // be executed and the failed host's identifier shall be removed from the hostIndex.
+                    log.info("Task module for method {} not yet ready, delaying processing it", method.getName());
+                    return FutureHelpers.delayedFuture(Duration.ofMillis(100), executor)
+                            .thenApplyAsync(ignore -> null, executor);
+                }
 
             } else {
                 CompletableFuture<Object> error = new CompletableFuture<>();
+                log.warn("Task {} not found", taskData.getMethodName());
                 error.completeExceptionally(
                         new RuntimeException(String.format("Task %s not found", taskData.getMethodName()))
                 );
