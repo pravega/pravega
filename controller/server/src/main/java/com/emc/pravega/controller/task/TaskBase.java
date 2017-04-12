@@ -136,6 +136,10 @@ public abstract class TaskBase implements AutoCloseable {
         readyLatch.countDown();
     }
 
+    public boolean isReady() {
+        return ready;
+    }
+
     @VisibleForTesting
     public boolean awaitInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
         return readyLatch.await(timeout, timeUnit);
