@@ -101,7 +101,7 @@ public abstract class MarathonBasedService implements Service {
         try {
             App updatedConfig = new App();
             updatedConfig.setInstances(instanceCount);
-            marathonClient.updateApp(getID(), updatedConfig, false);
+            marathonClient.updateApp(getID(), updatedConfig, true);
             if (wait) {
                 waitUntilServiceRunning().get(); // wait until scale operation is complete.
             }
