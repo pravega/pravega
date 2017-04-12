@@ -76,9 +76,9 @@ Vagrant.configure("2") do |config|
         end
 	controlnode.vm.provision :shell, inline: "sed -i'' '/^127.0.0.1\\t#{controlnode.vm.hostname}\\tcontrolnode$/d' /etc/hosts"
 	controlnode.vm.provision "shell", path:"vagrant/scripts/common.sh"
-	controlnode.vm.provision "shell", path:"vagrant/scripts/start_ZK_namenode_first_machine.sh"
-	controlnode.vm.provision "shell", path:"vagrant/scripts/start_other_machine_bk_datanode.sh"
-	controlnode.vm.provision "shell", path:"vagrant/scripts/start_pravega_nohup.sh"
+	controlnode.vm.provision "shell", path:"vagrant/scripts/start_ZK_namenode_first_machine.sh", run: "always"
+	controlnode.vm.provision "shell", path:"vagrant/scripts/start_other_machine_bk_datanode.sh", run: "always"
+	controlnode.vm.provision "shell", path:"vagrant/scripts/start_pravega_nohup.sh", run: "always"
   end
   config.vm.define "datanode" do |datanode|
         datanode.vm.hostname = "datanode"
@@ -88,7 +88,7 @@ Vagrant.configure("2") do |config|
 
 	datanode.vm.provision :shell, inline: "sed -i'' '/^127.0.0.1\\t#{datanode.vm.hostname}\\tdatanode$/d' /etc/hosts"
         datanode.vm.provision "shell", path:"vagrant/scripts/common.sh"
-        datanode.vm.provision "shell", path:"vagrant/scripts/start_other_machine_bk_datanode.sh"
-	datanode.vm.provision "shell", path:"vagrant/scripts/start_pravega_nohup.sh"
+        datanode.vm.provision "shell", path:"vagrant/scripts/start_other_machine_bk_datanode.sh", run: "always"
+	datanode.vm.provision "shell", path:"vagrant/scripts/start_pravega_nohup.sh", run: "always"
   end
 end
