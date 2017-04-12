@@ -27,9 +27,6 @@ public class TestUtils {
     public static int getAvailableListenPort() {
         for (int i = 0; i < MAX_PORT_COUNT; i++) {
             int candidatePort = BASE_PORT + NEXT_PORT.getAndIncrement() % MAX_PORT_COUNT;
-            if (candidatePort > BASE_PORT + MAX_PORT_COUNT) {
-                candidatePort = BASE_PORT;
-            }
             try {
                 ServerSocket serverSocket = new ServerSocket(candidatePort);
                 serverSocket.close();
