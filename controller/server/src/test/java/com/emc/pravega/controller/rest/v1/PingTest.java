@@ -6,7 +6,7 @@
 package com.emc.pravega.controller.rest.v1;
 
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
-import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.shared.TestUtils;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.glassfish.jersey.test.TestProperties;
