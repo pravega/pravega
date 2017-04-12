@@ -173,7 +173,7 @@ public class TaskSweeper {
     @SuppressWarnings("unchecked")
     private CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
 
-        log.info("Host={} attempting to execute task {} for child <{}, {}> of {}",
+        log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
                 this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
         try {
 

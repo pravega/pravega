@@ -223,7 +223,7 @@ public class TaskTest {
         // Timeout should kick in.
         try {
             FutureHelpers.getAndHandleExceptions(future, RuntimeException::new, 500);
-            Assert.fail("Filed, task sweeping complete, when timeout exception is expected");
+            Assert.fail("Failed, task sweeping complete, when timeout exception is expected");
         } catch (TimeoutException e) {
             Assert.assertTrue("Timeout exception expected", true);
         }
