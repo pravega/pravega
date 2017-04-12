@@ -25,6 +25,7 @@ import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -103,6 +104,17 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
+        this.setReady();
+        return null;
+    }
+
+    @VisibleForTesting
+    public Void initializeStreamWriters(final String commitStreamName, final EventStreamWriter<CommitEvent> commitWriter,
+                                 final String abortStreamName, final EventStreamWriter<AbortEvent> abortWriter) {
+        this.commitStreamName = commitStreamName;
+        this.commitEventEventStreamWriter = commitWriter;
+        this.abortStreamName = abortStreamName;
+        this.abortEventEventStreamWriter = abortWriter;
         this.setReady();
         return null;
     }
@@ -276,12 +288,17 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
     @Override
     public TaskBase copyWithContext(Context context) {
-        return new StreamTransactionMetadataTasks(streamMetadataStore,
-                hostControllerStore,
-                taskMetadataStore,
-                segmentHelper, executor,
-                context,
-                connectionFactory);
+        StreamTransactionMetadataTasks transactionMetadataTasks =
+                new StreamTransactionMetadataTasks(streamMetadataStore,
+                        hostControllerStore,
+                        taskMetadataStore,
+                        segmentHelper, executor,
+                        context,
+                        connectionFactory);
+        if (this.isReady()) {
+            transactionMetadataTasks.setReady();
+        }
+        return transactionMetadataTasks;
     }
 
     @Override
