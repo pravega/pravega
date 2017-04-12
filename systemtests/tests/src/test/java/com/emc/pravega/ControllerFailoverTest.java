@@ -112,7 +112,7 @@ public class ControllerFailoverTest {
         controllerService.stop();
     }
 
-    @Test
+    @Test(timeout = 180000)
     public void failoverTest() throws URISyntaxException, InterruptedException {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
