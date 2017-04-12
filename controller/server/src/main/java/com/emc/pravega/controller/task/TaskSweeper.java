@@ -173,7 +173,7 @@ public class TaskSweeper {
     @SuppressWarnings("unchecked")
     private CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
 
-        log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
+        log.info("Host={} attempting to execute task {} for child <{}, {}> of {}",
                 this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
         try {
 
@@ -182,12 +182,12 @@ public class TaskSweeper {
 
                 // find the method and object
                 Method method = methodMap.get(key);
-                TaskBase o = objectMap.get(key).copyWithContext(new Context(hostId,
-                                                                            oldHostId,
-                                                                            taggedResource.getTag(),
-                                                                            taggedResource.getResource()));
+                if (objectMap.get(key).isReady()) {
+                    TaskBase o = objectMap.get(key).copyWithContext(new Context(hostId,
+                            oldHostId,
+                            taggedResource.getTag(),
+                            taggedResource.getResource()));
 
-                if (o.isReady()) {
                     // finally execute the task by invoking corresponding method and return its result
                     return (CompletableFuture<Object>) method.invoke(o, (Object[]) taskData.getParameters());
                 } else {
@@ -199,13 +199,14 @@ public class TaskSweeper {
                     // getRandomChild(failedHostId) statement in executeHostTask(failedHostId).
                     // Eventually, when all task objects are ready, all the orphaned tasks of failed host shall
                     // be executed and the failed host's identifier shall be removed from the hostIndex.
-                    log.debug("Task module for method {} not yet ready, delaying processing it", method.getName());
+                    log.info("Task module for method {} not yet ready, delaying processing it", method.getName());
                     return FutureHelpers.delayedFuture(Duration.ofMillis(100), executor)
                             .thenApplyAsync(ignore -> null, executor);
                 }
 
             } else {
                 CompletableFuture<Object> error = new CompletableFuture<>();
+                log.warn("Task {} not found", taskData.getMethodName());
                 error.completeExceptionally(
                         new RuntimeException(String.format("Task %s not found", taskData.getMethodName()))
                 );

@@ -3,6 +3,12 @@
  */
 package com.emc.pravega.controller.task;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import com.emc.pravega.controller.store.stream.tables.State;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -32,14 +38,17 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -47,6 +56,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -65,7 +75,7 @@ public class TaskTest {
     private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-    private final StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
+    private final StreamMetadataStore streamStore;
 
     private final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
@@ -83,6 +93,7 @@ public class TaskTest {
 
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
+        streamStore = StreamStoreFactory.createZKStore(cli, executor);
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
@@ -100,10 +111,12 @@ public class TaskTest {
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
 
         // region createStream
-        streamStore.createScope(SCOPE);
+        streamStore.createScope(SCOPE).join();
         long start = System.currentTimeMillis();
-        streamStore.createStream(SCOPE, stream1, configuration1, start, null, executor);
-        streamStore.createStream(SCOPE, stream2, configuration2, start, null, executor);
+        streamStore.createStream(SCOPE, stream1, configuration1, start, null, executor).join();
+        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).join();
+        streamStore.createStream(SCOPE, stream2, configuration2, start, null, executor).join();
+        streamStore.setState(SCOPE, stream2, State.ACTIVE, null, executor).join();
         // endregion
 
         // region scaleSegments
@@ -128,10 +141,10 @@ public class TaskTest {
     @After
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
-        executor.shutdown();
         cli.close();
         zkServer.stop();
         zkServer.close();
+        executor.shutdown();
     }
 
     @Test
@@ -183,6 +196,54 @@ public class TaskTest {
         assertTrue(config.getStreamName().equals(configuration.getStreamName()));
         assertTrue(config.getScope().equals(configuration.getScope()));
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
+    }
+
+    @Test(timeout = 5000)
+    public void testTaskSweeperNotReady() throws ExecutionException, InterruptedException {
+        final String deadHost = "deadHost";
+        final String deadThreadId = UUID.randomUUID().toString();
+
+        final Resource resource = new Resource(SCOPE, stream1);
+        final TaskData taskData = new TaskData("createTransaction", "1.0",
+                new Serializable[]{SCOPE, stream1, 10000, 10000, 10000, null});
+        final TaggedResource taggedResource = new TaggedResource(deadThreadId, resource);
+
+        // Create entries for partial task execution on failed host in task metadata store.
+        taskMetadataStore.putChild(deadHost, taggedResource).join();
+        taskMetadataStore.lock(resource, taskData, deadHost, deadThreadId, null, null).join();
+
+        // Create TaskSweeper instance.
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
+                taskMetadataStore, segmentHelperMock, executor, HOSTNAME, Mockito.mock(ConnectionFactory.class));
+        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, txnTasks);
+
+        // Start sweeping tasks. This should not complete, since mockTxnTasks object is not yet ready.
+        CompletableFuture<Void> future = taskSweeper.sweepOrphanedTasks(deadHost);
+
+        // Timeout should kick in.
+        try {
+            FutureHelpers.getAndHandleExceptions(future, RuntimeException::new, 500);
+            Assert.fail("Filed, task sweeping complete, when timeout exception is expected");
+        } catch (TimeoutException e) {
+            Assert.assertTrue("Timeout exception expected", true);
+        }
+
+        // Now, set mockTxnTasks to ready.
+        txnTasks.initializeStreamWriters("commitStream", Mockito.mock(EventStreamWriter.class),
+                "abortStream", Mockito.mock(EventStreamWriter.class));
+
+        // Task sweeping should now complete, wait for it.
+        future.join();
+
+        // Ensure that a transaction is created, and task store entries are cleaned up.
+        Map<UUID, ActiveTxnRecord> map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
+        assertEquals(1, map.size());
+
+        Optional<TaskData> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
+        assertFalse(data.isPresent());
+
+        Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
+        assertFalse(child.isPresent());
     }
 
     @Test
