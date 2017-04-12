@@ -41,9 +41,12 @@ import java.util.concurrent.TimeUnit;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.core.Response;
+
+import com.emc.pravega.testcommon.TestUtils;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
+import org.glassfish.jersey.test.TestProperties;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -197,6 +200,7 @@ public class StreamMetaDataTests extends JerseyTest {
     protected Application configure() {
         mockControllerService = mock(ControllerService.class);
         streamMetadataResource = new StreamMetadataResourceImpl(mockControllerService);
+        this.forceSet(TestProperties.CONTAINER_PORT, String.valueOf(TestUtils.getAvailableListenPort()));
 
         final ResourceConfig resourceConfig = new ResourceConfig().register(streamMetadataResource)
                 .register(new AbstractBinder() {
