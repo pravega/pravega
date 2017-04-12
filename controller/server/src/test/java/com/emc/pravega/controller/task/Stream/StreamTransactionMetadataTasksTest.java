@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;

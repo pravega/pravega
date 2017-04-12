@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.LoggerHelpers;
 import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.util.ZKUtils;

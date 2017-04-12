@@ -3,15 +3,15 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.netty.ConnectionFailedException;
-import com.emc.pravega.common.netty.FailingReplyProcessor;
-import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.WireCommand;
-import com.emc.pravega.common.netty.WireCommandType;
-import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.cluster.Host;
+import com.emc.pravega.shared.protocol.netty.ConnectionFailedException;
+import com.emc.pravega.shared.protocol.netty.FailingReplyProcessor;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
+import com.emc.pravega.shared.protocol.netty.ReplyProcessor;
+import com.emc.pravega.shared.protocol.netty.WireCommand;
+import com.emc.pravega.shared.protocol.netty.WireCommandType;
+import com.emc.pravega.shared.protocol.netty.WireCommands;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;

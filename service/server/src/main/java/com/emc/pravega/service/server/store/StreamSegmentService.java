@@ -5,10 +5,10 @@
  */
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.function.CallbackHelpers;
-import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.function.CallbackHelpers;
+import com.emc.pravega.shared.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -25,7 +25,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.common.LoggerHelpers.traceLeave;
+import static com.emc.pravega.shared.LoggerHelpers.traceLeave;
 
 /**
  * This is the Log/StreamSegment Service, that puts together everything and is what should be exposed to the outside.

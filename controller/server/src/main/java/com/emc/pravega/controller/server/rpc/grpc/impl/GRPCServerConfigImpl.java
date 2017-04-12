@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.server.rpc.grpc.impl;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import com.google.common.base.Preconditions;
 import lombok.Builder;

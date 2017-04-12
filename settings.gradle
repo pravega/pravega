@@ -4,6 +4,6 @@
  *
  */
 
-include 'common', 'clients:streaming', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host',
+include 'shared:common', 'shared:protocol', 'clients:streaming', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host',
         'controller:contract', 'controller:server', 'connectors:flink',
         'integrationtests', 'shared:testcommon', 'benchmark', 'singlenode', 'systemtests:tests', 'shared:metrics'

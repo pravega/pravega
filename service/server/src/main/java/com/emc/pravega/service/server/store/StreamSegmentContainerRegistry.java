@@ -5,14 +5,14 @@
  */
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentContainerFactory;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.shared.common.concurrent.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Service;
 import java.util.concurrent.atomic.AtomicBoolean;

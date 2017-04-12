@@ -3,10 +3,10 @@
  */
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.function.CallbackHelpers;
-import com.emc.pravega.common.util.SequencedItemList;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.function.CallbackHelpers;
+import com.emc.pravega.shared.common.util.SequencedItemList;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;

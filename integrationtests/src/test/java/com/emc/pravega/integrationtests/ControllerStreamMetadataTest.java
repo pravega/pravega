@@ -6,7 +6,7 @@
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;

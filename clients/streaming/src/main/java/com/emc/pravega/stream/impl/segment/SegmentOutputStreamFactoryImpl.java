@@ -5,20 +5,20 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static com.emc.pravega.shared.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import com.emc.pravega.common.util.RetriesExhaustedException;
+import com.emc.pravega.shared.common.util.RetriesExhaustedException;
 import org.apache.commons.lang.NotImplementedException;
 
-import com.emc.pravega.common.netty.ConnectionFailedException;
-import com.emc.pravega.common.netty.FailingReplyProcessor;
-import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
-import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
-import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.shared.protocol.netty.ConnectionFailedException;
+import com.emc.pravega.shared.protocol.netty.FailingReplyProcessor;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
+import com.emc.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
+import com.emc.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
+import com.emc.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;

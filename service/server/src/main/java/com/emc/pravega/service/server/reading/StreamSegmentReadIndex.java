@@ -3,12 +3,12 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.AvlTreeIndex;
-import com.emc.pravega.common.util.ByteArraySegment;
-import com.emc.pravega.common.util.SortedIndex;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.util.AvlTreeIndex;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
+import com.emc.pravega.shared.common.util.SortedIndex;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;

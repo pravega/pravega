@@ -3,12 +3,12 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
-import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.ObjectClosedException;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.shared.common.io.StreamHelpers;
+import com.emc.pravega.shared.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;

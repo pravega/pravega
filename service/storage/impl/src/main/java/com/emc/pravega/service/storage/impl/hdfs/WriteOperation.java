@@ -4,9 +4,9 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.function.RunnableWithException;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.Timer;
+import com.emc.pravega.shared.common.function.RunnableWithException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import java.io.FileNotFoundException;

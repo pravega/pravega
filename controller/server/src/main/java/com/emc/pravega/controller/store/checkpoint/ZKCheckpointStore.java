@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.store.checkpoint;
 
-import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.shared.common.util.Retry;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import lombok.AllArgsConstructor;

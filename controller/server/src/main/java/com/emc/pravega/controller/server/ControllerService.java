@@ -5,9 +5,9 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.cluster.Cluster;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.cluster.Cluster;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;

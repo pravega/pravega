@@ -3,9 +3,9 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
-import com.emc.pravega.common.util.SequencedItemList;
+import com.emc.pravega.shared.ObjectClosedException;
+import com.emc.pravega.shared.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.shared.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;

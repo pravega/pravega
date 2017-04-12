@@ -5,10 +5,10 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;

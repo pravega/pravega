@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.controller.server.v1;
 
-import com.emc.pravega.common.cluster.Cluster;
-import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.shared.common.cluster.Cluster;
+import com.emc.pravega.shared.common.cluster.Host;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;

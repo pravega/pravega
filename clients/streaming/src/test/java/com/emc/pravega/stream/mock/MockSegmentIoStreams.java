@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.stream.mock;
 
-import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.shared.protocol.netty.WireCommands;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.PendingEvent;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;

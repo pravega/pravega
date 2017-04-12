@@ -5,9 +5,9 @@
  */
 package com.emc.pravega.stream.impl.netty;
 
-import com.emc.pravega.common.ExponentialMovingAverage;
-import com.emc.pravega.common.MathHelpers;
-import com.emc.pravega.common.netty.AppendBatchSizeTracker;
+import com.emc.pravega.shared.ExponentialMovingAverage;
+import com.emc.pravega.shared.MathHelpers;
+import com.emc.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;

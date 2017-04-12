@@ -5,10 +5,10 @@
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 

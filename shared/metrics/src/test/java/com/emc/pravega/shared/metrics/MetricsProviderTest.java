@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.shared.metrics;
 
-import com.emc.pravega.common.Timer;
+import com.emc.pravega.shared.Timer;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;

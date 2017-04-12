@@ -3,11 +3,11 @@
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.pravega.common.util.ConfigBuilder;
-import com.emc.pravega.common.util.ConfigurationException;
-import com.emc.pravega.common.util.Property;
-import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.common.util.TypedProperties;
+import com.emc.pravega.shared.common.util.ConfigBuilder;
+import com.emc.pravega.shared.common.util.ConfigurationException;
+import com.emc.pravega.shared.common.util.Property;
+import com.emc.pravega.shared.common.util.Retry;
+import com.emc.pravega.shared.common.util.TypedProperties;
 import lombok.Getter;
 
 /**

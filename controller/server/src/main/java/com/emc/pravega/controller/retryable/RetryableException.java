@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.retryable;
 
-import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.shared.ExceptionHelpers;
 
 /**
  * Retryable exception. Throw this when you want to let the caller know that this exception is transient and

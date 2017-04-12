@@ -3,20 +3,20 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.shared.metrics.MetricsConfig;
 import com.emc.pravega.shared.metrics.MetricsProvider;
 import com.emc.pravega.shared.metrics.OpStatsData;
-import com.emc.pravega.common.netty.WireCommands.CreateSegment;
-import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
-import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
-import com.emc.pravega.common.netty.WireCommands.ReadSegment;
-import com.emc.pravega.common.netty.WireCommands.SealSegment;
-import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
-import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
-import com.emc.pravega.common.netty.WireCommands.SegmentRead;
-import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
-import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.shared.protocol.netty.WireCommands.CreateSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.shared.protocol.netty.WireCommands.ReadSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SealSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
+import com.emc.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;

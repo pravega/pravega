@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.common.MathHelpers;
+import com.emc.pravega.shared.MathHelpers;
 import org.junit.Assert;
 
 import java.util.Random;

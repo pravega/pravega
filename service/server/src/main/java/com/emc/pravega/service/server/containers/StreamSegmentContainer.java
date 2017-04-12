@@ -3,14 +3,14 @@
  */
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.TimeoutTimer;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
-import com.emc.pravega.common.function.RunnableWithException;
-import com.emc.pravega.common.util.AsyncMap;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.TimeoutTimer;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.shared.common.function.RunnableWithException;
+import com.emc.pravega.shared.common.util.AsyncMap;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;

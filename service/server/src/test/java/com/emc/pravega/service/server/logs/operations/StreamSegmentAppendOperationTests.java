@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.common.MathHelpers;
+import com.emc.pravega.shared.MathHelpers;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import java.util.ArrayList;

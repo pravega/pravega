@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.controller.store.host.impl;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.cluster.Host;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;

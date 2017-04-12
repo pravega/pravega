@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.server.rest.impl;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.controller.server.rest.RESTServerConfig;
 import lombok.Builder;
 import lombok.Getter;

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.shared.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.logs.SerializationException;

@@ -6,8 +6,8 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.util.AsyncMap;
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.shared.common.util.AsyncMap;
+import com.emc.pravega.shared.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.shared.testcommon.AssertExtensions;
 import com.emc.pravega.shared.testcommon.ThreadPooledTestSuite;

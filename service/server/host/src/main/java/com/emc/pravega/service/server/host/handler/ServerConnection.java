@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
-import com.emc.pravega.common.netty.RequestProcessor;
-import com.emc.pravega.common.netty.WireCommand;
+import com.emc.pravega.shared.protocol.netty.RequestProcessor;
+import com.emc.pravega.shared.protocol.netty.WireCommand;
 
 /**
  * A connection object. Represents the TCP connection in the server process that is coming from the client.

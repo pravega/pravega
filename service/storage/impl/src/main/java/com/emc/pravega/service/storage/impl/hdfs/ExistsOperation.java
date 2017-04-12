@@ -4,7 +4,7 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.LoggerHelpers;
 import java.util.concurrent.Callable;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;

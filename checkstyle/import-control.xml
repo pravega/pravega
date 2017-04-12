@@ -9,7 +9,7 @@
 
     <!-- THINK HARD ABOUT THE LAYERING OF THE PROJECT BEFORE CHANGING THIS FILE -->
 
-    <!-- common library dependencies -->
+    <!-- shared library dependencies -->
     <allow pkg="java"/>
     <allow pkg="javax.management"/>
     <allow pkg="javax.annotation"/>

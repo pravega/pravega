@@ -4,8 +4,8 @@
 package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
 import com.emc.pravega.controller.server.eventProcessor.CommitEvent;

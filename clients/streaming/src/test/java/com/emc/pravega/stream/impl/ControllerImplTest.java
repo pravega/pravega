@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;

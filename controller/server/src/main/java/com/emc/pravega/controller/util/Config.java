@@ -6,7 +6,7 @@
 package com.emc.pravega.controller.util;
 
 import com.emc.pravega.shared.metrics.MetricsConfig;
-import com.emc.pravega.common.util.Property;
+import com.emc.pravega.shared.common.util.Property;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;

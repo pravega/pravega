@@ -3,12 +3,12 @@
  */
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.MathHelpers;
-import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.concurrent.AbstractThreadPoolService;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.MathHelpers;
+import com.emc.pravega.shared.Timer;
+import com.emc.pravega.shared.common.concurrent.AbstractThreadPoolService;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.Writer;

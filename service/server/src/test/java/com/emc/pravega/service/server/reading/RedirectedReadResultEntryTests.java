@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.ObjectClosedException;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;

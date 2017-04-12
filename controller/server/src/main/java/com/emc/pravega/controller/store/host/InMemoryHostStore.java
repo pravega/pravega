@@ -10,8 +10,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.shared.common.cluster.Host;
+import com.emc.pravega.shared.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 

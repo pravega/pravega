@@ -7,9 +7,9 @@ package com.emc.pravega.stream.impl.netty;
 
 import java.util.concurrent.Future;
 
-import com.emc.pravega.common.netty.Append;
-import com.emc.pravega.common.netty.ConnectionFailedException;
-import com.emc.pravega.common.netty.WireCommand;
+import com.emc.pravega.shared.protocol.netty.Append;
+import com.emc.pravega.shared.protocol.netty.ConnectionFailedException;
+import com.emc.pravega.shared.protocol.netty.WireCommand;
 
 /**
  * A connection object. Represents the TCP connection in the client process that connects to the server.

@@ -3,18 +3,18 @@
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.LoggerHelpers;
 import com.emc.pravega.shared.MetricsNames;
-import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.function.CallbackHelpers;
-import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.shared.Timer;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.function.CallbackHelpers;
+import com.emc.pravega.shared.common.io.StreamHelpers;
 import com.emc.pravega.shared.metrics.Counter;
 import com.emc.pravega.shared.metrics.MetricsProvider;
 import com.emc.pravega.shared.metrics.OpStatsLogger;
 import com.emc.pravega.shared.metrics.StatsLogger;
-import com.emc.pravega.common.util.CloseableIterator;
+import com.emc.pravega.shared.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DataLogInitializationException;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;

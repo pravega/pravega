@@ -4,8 +4,8 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.function.RunnableWithException;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.common.function.RunnableWithException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
@@ -65,7 +65,7 @@ public class ConcatOperation extends FileSystemOperation<HDFSSegmentHandle> impl
         // Set attributes (this helps with recovery from failures).
         boolean needsConcat = prepareConcatenation();
         if (needsConcat) {
-            // Invoke the common concat algorithm.
+            // Invoke the shared concat algorithm.
             resumeConcatenation();
         }
 

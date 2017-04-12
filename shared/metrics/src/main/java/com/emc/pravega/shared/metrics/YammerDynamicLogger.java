@@ -6,7 +6,7 @@
 package com.emc.pravega.shared.metrics;
 
 import com.codahale.metrics.MetricRegistry;
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;

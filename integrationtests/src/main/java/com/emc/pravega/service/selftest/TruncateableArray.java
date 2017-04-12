@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.common.util.ArrayView;
+import com.emc.pravega.shared.common.io.StreamHelpers;
+import com.emc.pravega.shared.common.util.ArrayView;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import java.io.ByteArrayInputStream;

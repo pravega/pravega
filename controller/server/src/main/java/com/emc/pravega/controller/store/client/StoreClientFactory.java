@@ -6,7 +6,7 @@
 package com.emc.pravega.controller.store.client;
 
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;

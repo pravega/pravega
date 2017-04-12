@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.segment.SegmentToContainerMapper;
-import com.emc.pravega.common.util.ConfigBuilder;
+import com.emc.pravega.shared.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.shared.common.util.ConfigBuilder;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;

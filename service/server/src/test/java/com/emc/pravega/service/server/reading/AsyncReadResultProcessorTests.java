@@ -5,9 +5,9 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;

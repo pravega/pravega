@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.netty.WireCommandType;
+import com.emc.pravega.shared.protocol.netty.WireCommandType;
 import com.emc.pravega.controller.retryable.RetryableException;
 
 /**

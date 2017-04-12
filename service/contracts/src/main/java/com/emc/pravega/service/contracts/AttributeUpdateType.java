@@ -6,7 +6,7 @@
 
 package com.emc.pravega.service.contracts;
 
-import com.emc.pravega.common.util.EnumHelpers;
+import com.emc.pravega.shared.common.util.EnumHelpers;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

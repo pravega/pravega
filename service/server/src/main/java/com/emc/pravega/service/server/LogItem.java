@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.common.util.SequencedItemList;
+import com.emc.pravega.shared.common.util.SequencedItemList;
 import java.io.IOException;
 import java.io.OutputStream;
 

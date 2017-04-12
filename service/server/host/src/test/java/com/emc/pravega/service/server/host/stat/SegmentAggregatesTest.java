@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.service.server.host.stat;
 
-import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.shared.protocol.netty.WireCommands;
 import org.junit.Test;
 
 import java.time.Duration;

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.common.AbstractTimer;
+import com.emc.pravega.shared.AbstractTimer;
 import lombok.Getter;
 
 /**

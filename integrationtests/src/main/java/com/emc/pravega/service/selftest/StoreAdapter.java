@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
+import com.emc.pravega.shared.common.concurrent.ExecutorServiceHelpers;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;

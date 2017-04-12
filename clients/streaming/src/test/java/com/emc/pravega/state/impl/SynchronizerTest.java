@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.state.impl;
 
-import com.emc.pravega.common.util.ReusableLatch;
+import com.emc.pravega.shared.common.util.ReusableLatch;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;

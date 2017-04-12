@@ -5,15 +5,15 @@
  */
 package com.emc.pravega.service.server.host;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.TimeoutTimer;
-import com.emc.pravega.common.cluster.Cluster;
-import com.emc.pravega.common.cluster.ClusterType;
-import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.TimeoutTimer;
+import com.emc.pravega.shared.common.cluster.Cluster;
+import com.emc.pravega.shared.common.cluster.ClusterType;
+import com.emc.pravega.shared.common.cluster.Host;
+import com.emc.pravega.shared.common.cluster.zkImpl.ClusterZKImpl;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;

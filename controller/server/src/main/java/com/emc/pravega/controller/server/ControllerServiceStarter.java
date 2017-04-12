@@ -3,11 +3,11 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.cluster.Cluster;
-import com.emc.pravega.common.cluster.ClusterType;
-import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.common.cluster.Cluster;
+import com.emc.pravega.shared.common.cluster.ClusterType;
+import com.emc.pravega.shared.common.cluster.Host;
+import com.emc.pravega.shared.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.fault.ControllerClusterListener;
 import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;

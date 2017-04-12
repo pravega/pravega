@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.shared.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.Attributes;

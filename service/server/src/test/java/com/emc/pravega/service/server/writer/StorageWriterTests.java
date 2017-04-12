@@ -3,9 +3,9 @@
  */
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
-import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.shared.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;

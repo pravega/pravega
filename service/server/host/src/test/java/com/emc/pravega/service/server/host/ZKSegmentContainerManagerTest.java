@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server.host;
 
-import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.shared.common.cluster.Host;
+import com.emc.pravega.shared.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerRegistry;

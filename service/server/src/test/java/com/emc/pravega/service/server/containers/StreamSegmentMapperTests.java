@@ -3,10 +3,10 @@
  */
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.common.util.AsyncMap;
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.shared.common.util.AsyncMap;
+import com.emc.pravega.shared.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.SegmentProperties;

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.server.rest.resources;
 
-import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.LoggerHelpers;
 import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.server.rest.ModelHelper;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.ObjectClosedException;
+import com.emc.pravega.shared.ObjectClosedException;
 import com.emc.pravega.shared.testcommon.AssertExtensions;
 import com.emc.pravega.shared.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;

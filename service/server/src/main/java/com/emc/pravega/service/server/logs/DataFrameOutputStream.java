@@ -5,9 +5,9 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.function.ConsumerWithException;
-import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.function.ConsumerWithException;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
 import com.google.common.base.Preconditions;
 
 import java.io.IOException;

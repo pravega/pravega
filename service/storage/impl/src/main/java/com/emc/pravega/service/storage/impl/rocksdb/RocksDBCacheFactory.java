@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.storage.impl.rocksdb;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.google.common.base.Preconditions;

@@ -4,7 +4,7 @@
 
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.util.ConfigBuilder;
+import com.emc.pravega.shared.common.util.ConfigBuilder;
 import com.emc.pravega.shared.testcommon.AssertExtensions;
 import java.io.File;
 import java.io.FileWriter;
@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.val;
 import com.emc.pravega.shared.metrics.MetricsConfig;
-import com.emc.pravega.common.util.Property;
+import com.emc.pravega.shared.common.util.Property;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.writer.WriterConfig;

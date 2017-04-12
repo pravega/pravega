@@ -5,7 +5,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.pravega.common.io.FileHelpers;
+import com.emc.pravega.shared.common.io.FileHelpers;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;

@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream.tables;
 
-import com.emc.pravega.common.util.BitConverter;
+import com.emc.pravega.shared.common.util.BitConverter;
 import com.google.common.base.Preconditions;
 import lombok.Getter;
 

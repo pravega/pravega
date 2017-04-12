@@ -3,10 +3,10 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.emc.pravega.service.storage.SegmentHandle;

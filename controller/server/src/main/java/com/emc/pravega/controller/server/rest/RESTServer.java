@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.server.rest;
 
-import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.LoggerHelpers;
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import com.emc.pravega.controller.server.ControllerService;

@@ -6,7 +6,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.annotations.VisibleForTesting;

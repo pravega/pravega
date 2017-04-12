@@ -3,9 +3,9 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.BitConverter;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.util.BitConverter;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;

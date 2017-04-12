@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.shared.common.util.Retry;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.DurableDataLogFactory;

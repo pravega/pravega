@@ -5,22 +5,22 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.netty.Append;
-import com.emc.pravega.common.netty.ConnectionFailedException;
-import com.emc.pravega.common.netty.FailingReplyProcessor;
-import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.common.netty.WireCommands.AppendSetup;
-import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
-import com.emc.pravega.common.netty.WireCommands.DataAppended;
-import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
-import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
-import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.common.util.Retry.RetryWithBackoff;
-import com.emc.pravega.common.util.ReusableLatch;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.protocol.netty.Append;
+import com.emc.pravega.shared.protocol.netty.ConnectionFailedException;
+import com.emc.pravega.shared.protocol.netty.FailingReplyProcessor;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
+import com.emc.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import com.emc.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
+import com.emc.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import com.emc.pravega.shared.protocol.netty.WireCommands.KeepAlive;
+import com.emc.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import com.emc.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import com.emc.pravega.shared.common.util.Retry;
+import com.emc.pravega.shared.common.util.Retry.RetryWithBackoff;
+import com.emc.pravega.shared.common.util.ReusableLatch;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.PendingEvent;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
@@ -45,8 +45,8 @@ import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.common.Exceptions.handleInterrupted;
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static com.emc.pravega.shared.Exceptions.handleInterrupted;
+import static com.emc.pravega.shared.common.concurrent.FutureHelpers.getAndHandleExceptions;
 import static com.google.common.base.Preconditions.checkState;
 
 /**

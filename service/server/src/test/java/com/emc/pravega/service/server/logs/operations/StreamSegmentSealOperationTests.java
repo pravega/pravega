@@ -9,7 +9,7 @@ import java.util.Random;
 
 import org.junit.Assert;
 
-import com.emc.pravega.common.MathHelpers;
+import com.emc.pravega.shared.MathHelpers;
 
 /**
  * Unit tests for StreamSegmentSealOperation class.

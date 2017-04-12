@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.TaskBase.Context;

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.common.util.CloseableIterator;
+import com.emc.pravega.shared.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;

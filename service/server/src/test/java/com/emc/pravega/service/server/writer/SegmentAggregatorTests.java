@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.io.FixedByteArrayOutputStream;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.io.FixedByteArrayOutputStream;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;

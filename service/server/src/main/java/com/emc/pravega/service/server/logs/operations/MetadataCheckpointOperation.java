@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 import java.io.DataInputStream;

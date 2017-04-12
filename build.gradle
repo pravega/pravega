@@ -118,9 +118,9 @@ allprojects {
     }
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
+def pkgs = ['shared:common', 'clients:streming', 'service:server', 'integrationtests']
 
-project('common') {
+project('shared:common') {
     dependencies {
         testCompile project(':shared:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -139,13 +139,13 @@ project('common') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-common'
+                artifactId 'pravega-shared-common'
                 from components.java
             }
         }
     }
     javadoc {
-        exclude 'com/emc/pravega/common/*'
+        exclude 'com/emc/pravega/shared/*'
     }
 }
 
@@ -170,7 +170,7 @@ project('shared:metrics') {
         // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
         compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile project(':common')
+        compile project(':shared:common')
     }
     publishing {
         publications {
@@ -191,6 +191,26 @@ project('shared:metrics') {
     }
 }
 
+project('shared:protocol') {
+    dependencies {
+        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-shared-protocol'
+                from components.java
+            }
+        }
+    }
+    javadoc {
+        exclude 'com/emc/pravega/shared/*'
+    }
+}
+
 project('clients:streaming') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -199,8 +219,9 @@ project('clients:streaming') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        compile project(':common')
+        compile project(':shared:common')
         compile project(':shared')
+        compile project(':shared:protocol')
         compile project(':shared:metrics')
         compile project(":controller:contract")
         testCompile project(':shared:testcommon')
@@ -239,7 +260,7 @@ project('shared:testcommon') {
 
 project('service:contracts') {
     dependencies {
-        compile project(':common')
+        compile project(':shared:common')
         testCompile project(':shared:testcommon')
     }
     publishing {
@@ -254,7 +275,7 @@ project('service:contracts') {
 
 project('service:storage') {
     dependencies {
-        compile project(':common')
+        compile project(':shared:common')
         compile project(':service:contracts')
         compile project(':shared:metrics')
         testCompile project(':shared:testcommon')
@@ -302,7 +323,7 @@ project('service:storage:impl') {
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
-        compile project(':common')
+        compile project(':shared:common')
         compile project(':service:storage')
         compile project(':shared:metrics')
         testCompile project(':shared:testcommon')
@@ -320,7 +341,7 @@ project('service:storage:impl') {
 
 project('service:server') {
     dependencies {
-        compile project(':common')
+        compile project(':shared:common')
         compile project(':service:contracts')
         compile project(':service:storage')
         compile project(':shared:metrics')
@@ -358,7 +379,8 @@ project('service:server:host') {
         }
     }
     dependencies {
-        compile project(':common')
+        compile project(':shared:common')
+        compile project(':shared:protocol')
         compile project(':service:contracts')
         compile project(':clients:streaming')
         compile project(':service:storage')
@@ -397,7 +419,8 @@ project('service:server:host') {
 
 project('integrationtests') {
     dependencies {
-        compile project(':common')
+        compile project(':shared:common')
+        compile project(':shared:protocol')
         compile project(':clients:streaming')
         compile project(':service:server')
         compile project(':service:server:host')
@@ -411,7 +434,8 @@ project('integrationtests') {
         testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: flinkVersion
         testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: flinkVersion
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
-        testCompile files(project(':common').sourceSets.test.output)
+        testCompile files(project(':shared:common').sourceSets.test.output)
+        testCompile files(project(':shared:protocol').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
@@ -567,10 +591,11 @@ project('controller:server') {
     }
 
     dependencies {
-        compile project(':common')
+        compile project(':shared:common')
         compile project(':shared:metrics')
         compile project(":controller:contract")
         compile project(":clients:streaming")
+
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
@@ -656,7 +681,7 @@ project('connectors:flink') {
             include dependency("com.google.protobuf:protobuf-java")
             include dependency("com.google.code.gson:gson")
             include dependency("com.google.instrumentation:instrumentation-api")
-            include(project(":common"))
+            include(project(":shared:common"))
             include(project(":controller:contract"))
             include(project(":clients:streaming"))
         }
@@ -693,7 +718,7 @@ project('singlenode') {
     applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError", "-Xdebug",
                                  "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
     dependencies {
-        compile project(':common')
+        compile project(':shared:common')
         compile project(':clients:streaming')
         compile project(':service:server')
         compile project(':service:server:host')
@@ -717,7 +742,7 @@ project('singlenode') {
         }
 
         testCompile project(':shared:testcommon')
-        testCompile files(project(':common').sourceSets.test.output)
+        testCompile files(project(':shared:common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
@@ -817,7 +842,7 @@ subprojects {
 
 task publishAllJars() {
     dependsOn ':clients:streaming:publish'
-    dependsOn ':common:publish'
+    dependsOn ':shared:common:publish'
     dependsOn ':service:contracts:publish'
     dependsOn ':service:storage:publish'
     dependsOn ':service:storage:impl:publish'
@@ -829,6 +854,7 @@ task publishAllJars() {
     dependsOn ':connectors:flink:publish'
     dependsOn ':singlenode:publish'
     dependsOn ':systemtests:tests:publish'
+    dependsOn ':shared:protocol:publish'
 }
 
 task sourceCopy(type: Copy) {

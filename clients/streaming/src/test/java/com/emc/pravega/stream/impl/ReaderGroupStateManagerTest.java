@@ -6,7 +6,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;

@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.service.storage.mocks;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.StorageFactory;

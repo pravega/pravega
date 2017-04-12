@@ -5,10 +5,10 @@
  */
 package com.emc.pravega.service.server.mocks;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;

@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import com.emc.pravega.common.netty.WireCommands.SegmentRead;
-import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import com.emc.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.stream.Segment;
 
 import java.util.concurrent.CompletableFuture;

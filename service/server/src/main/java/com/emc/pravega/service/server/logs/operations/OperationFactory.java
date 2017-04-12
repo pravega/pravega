@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.common.util.EnumHelpers;
+import com.emc.pravega.shared.common.util.EnumHelpers;
 import com.emc.pravega.service.server.LogItemFactory;
 import com.emc.pravega.service.server.logs.SerializationException;
 import java.io.DataInputStream;

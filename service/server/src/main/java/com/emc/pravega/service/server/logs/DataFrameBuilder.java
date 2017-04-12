@@ -5,10 +5,10 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.function.CallbackHelpers;
-import com.emc.pravega.common.function.ConsumerWithException;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.function.CallbackHelpers;
+import com.emc.pravega.shared.common.function.ConsumerWithException;
 import com.emc.pravega.service.server.LogItem;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.LogAddress;

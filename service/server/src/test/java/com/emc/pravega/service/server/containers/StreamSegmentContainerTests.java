@@ -3,13 +3,13 @@
  */
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.TimeoutTimer;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.common.util.ConfigurationException;
-import com.emc.pravega.common.util.TypedProperties;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.TimeoutTimer;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.io.StreamHelpers;
+import com.emc.pravega.shared.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.shared.common.util.ConfigurationException;
+import com.emc.pravega.shared.common.util.TypedProperties;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.Attributes;

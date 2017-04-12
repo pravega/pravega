@@ -40,7 +40,7 @@ import java.util.function.Supplier;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static com.emc.pravega.shared.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 public class ClientFactoryImpl implements ClientFactory {
 

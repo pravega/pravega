@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.AbstractTimer;
+import com.emc.pravega.shared.AbstractTimer;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.google.common.base.Preconditions;
 import java.time.Duration;

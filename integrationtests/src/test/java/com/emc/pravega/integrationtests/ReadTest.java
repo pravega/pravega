@@ -5,9 +5,9 @@
  */
 package com.emc.pravega.integrationtests;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.WireCommands.ReadSegment;
-import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.protocol.netty.WireCommands.ReadSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;

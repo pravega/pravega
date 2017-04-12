@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;

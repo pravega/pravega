@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.shared.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;
 import java.util.Random;

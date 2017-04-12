@@ -8,7 +8,7 @@ package com.emc.pravega.integrationtests;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.integrationtests.utils.IntegerSerializer;
 import com.emc.pravega.integrationtests.utils.SetupUtils;
 import com.emc.pravega.service.contracts.StreamSegmentStore;

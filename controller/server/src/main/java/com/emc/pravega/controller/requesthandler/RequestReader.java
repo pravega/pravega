@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.requesthandler;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;

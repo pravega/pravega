@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.io.FixedByteArrayOutputStream;
-import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.shared.common.io.FixedByteArrayOutputStream;
+import com.emc.pravega.shared.common.io.StreamHelpers;
 import com.emc.pravega.service.server.LogItem;
 import com.google.common.base.Preconditions;
 

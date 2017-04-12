@@ -5,17 +5,17 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
-import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static com.emc.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 import java.security.cert.CertificateException;
 
 import javax.net.ssl.SSLException;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.netty.AppendDecoder;
-import com.emc.pravega.common.netty.CommandDecoder;
-import com.emc.pravega.common.netty.CommandEncoder;
-import com.emc.pravega.common.netty.ExceptionLoggingHandler;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.protocol.netty.AppendDecoder;
+import com.emc.pravega.shared.protocol.netty.CommandDecoder;
+import com.emc.pravega.shared.protocol.netty.CommandEncoder;
+import com.emc.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;

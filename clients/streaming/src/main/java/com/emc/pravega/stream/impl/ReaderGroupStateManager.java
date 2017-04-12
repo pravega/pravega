@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.TimeoutTimer;
-import com.emc.pravega.common.hash.HashHelper;
+import com.emc.pravega.shared.TimeoutTimer;
+import com.emc.pravega.shared.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ReinitializationRequiredException;
@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 import lombok.Getter;
 import lombok.val;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static com.emc.pravega.shared.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * Manages the state of the reader group on behalf of a reader.

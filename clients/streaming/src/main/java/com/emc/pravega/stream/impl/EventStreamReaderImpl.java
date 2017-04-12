@@ -5,9 +5,9 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.Timer;
+import com.emc.pravega.shared.protocol.netty.WireCommands;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;

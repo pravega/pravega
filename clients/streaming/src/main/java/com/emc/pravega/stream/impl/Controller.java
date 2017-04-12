@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;

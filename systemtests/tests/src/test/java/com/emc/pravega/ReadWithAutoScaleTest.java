@@ -4,8 +4,8 @@
 
 package com.emc.pravega;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.util.Retry;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.BookkeeperService;

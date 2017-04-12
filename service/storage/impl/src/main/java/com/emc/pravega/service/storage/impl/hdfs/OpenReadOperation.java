@@ -4,7 +4,7 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.LoggerHelpers;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import java.io.IOException;
 import java.util.concurrent.Callable;

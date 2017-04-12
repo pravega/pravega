@@ -5,22 +5,22 @@
  */
 package com.emc.pravega.integrationtests;
 
-import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.Append;
-import com.emc.pravega.common.netty.AppendDecoder;
-import com.emc.pravega.common.netty.CommandDecoder;
-import com.emc.pravega.common.netty.CommandEncoder;
-import com.emc.pravega.common.netty.ExceptionLoggingHandler;
-import com.emc.pravega.common.netty.Reply;
-import com.emc.pravega.common.netty.Request;
-import com.emc.pravega.common.netty.WireCommand;
-import com.emc.pravega.common.netty.WireCommands.AppendSetup;
-import com.emc.pravega.common.netty.WireCommands.CreateSegment;
-import com.emc.pravega.common.netty.WireCommands.DataAppended;
-import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
-import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
-import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.emc.pravega.shared.Timer;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.protocol.netty.Append;
+import com.emc.pravega.shared.protocol.netty.AppendDecoder;
+import com.emc.pravega.shared.protocol.netty.CommandDecoder;
+import com.emc.pravega.shared.protocol.netty.CommandEncoder;
+import com.emc.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import com.emc.pravega.shared.protocol.netty.Reply;
+import com.emc.pravega.shared.protocol.netty.Request;
+import com.emc.pravega.shared.protocol.netty.WireCommand;
+import com.emc.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import com.emc.pravega.shared.protocol.netty.WireCommands.CreateSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import com.emc.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.AppendProcessor;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -67,7 +67,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static com.emc.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;

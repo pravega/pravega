@@ -6,7 +6,7 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.util.AsyncMap;
+import com.emc.pravega.shared.common.util.AsyncMap;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import lombok.val;
 

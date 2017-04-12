@@ -5,21 +5,21 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.ConnectionFailedException;
-import com.emc.pravega.common.netty.FailingReplyProcessor;
-import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
-import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
-import com.emc.pravega.common.netty.WireCommands.ReadSegment;
-import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
-import com.emc.pravega.common.netty.WireCommands.SegmentRead;
-import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
-import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.common.util.Retry.RetryWithBackoff;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.ObjectClosedException;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.protocol.netty.ConnectionFailedException;
+import com.emc.pravega.shared.protocol.netty.FailingReplyProcessor;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
+import com.emc.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.ReadSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import com.emc.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import com.emc.pravega.shared.common.util.Retry;
+import com.emc.pravega.shared.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
@@ -41,7 +41,7 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.common.Exceptions.handleInterrupted;
+import static com.emc.pravega.shared.Exceptions.handleInterrupted;
 
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;

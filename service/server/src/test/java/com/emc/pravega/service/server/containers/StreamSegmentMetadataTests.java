@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.shared.common.util.ImmutableDate;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.shared.testcommon.AssertExtensions;

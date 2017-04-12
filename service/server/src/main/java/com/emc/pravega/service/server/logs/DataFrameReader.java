@@ -5,9 +5,9 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.util.ByteArraySegment;
-import com.emc.pravega.common.util.CloseableIterator;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
+import com.emc.pravega.shared.common.util.CloseableIterator;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.LogItem;
 import com.emc.pravega.service.server.LogItemFactory;

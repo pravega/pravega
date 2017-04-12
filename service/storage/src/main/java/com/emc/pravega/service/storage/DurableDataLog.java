@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.service.storage;
 
-import com.emc.pravega.common.util.CloseableIterator;
+import com.emc.pravega.shared.common.util.CloseableIterator;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;

@@ -5,9 +5,9 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.function.ConsumerWithException;
-import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.function.ConsumerWithException;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.shared.testcommon.AssertExtensions;
 import com.emc.pravega.shared.testcommon.ErrorInjector;

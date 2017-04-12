@@ -3,10 +3,10 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.ObjectClosedException;
+import com.emc.pravega.shared.common.concurrent.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
  * removal.
  * <p/>
  * Entry Management is indirect, and doesn't deal with them directly. Also, the management needs to be done across multiple
- * CacheManager Clients, and a common scheme needs to be used to instruct each such client when it's time to evict unused entries.
+ * CacheManager Clients, and a shared scheme needs to be used to instruct each such client when it's time to evict unused entries.
  * <p/>
  * The CacheManager holds two reference numbers: the current generation and the oldest generation. Every new Cache Entry
  * (in the clients) that is generated or updated gets assigned the current generation. As the CacheManager determines that

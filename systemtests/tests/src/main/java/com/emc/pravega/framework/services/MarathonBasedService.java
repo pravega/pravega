@@ -4,7 +4,7 @@
 
 package com.emc.pravega.framework.services;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.framework.TestFrameworkException;
 import com.emc.pravega.framework.marathon.AuthEnabledMarathonClient;
 import com.google.common.base.Preconditions;

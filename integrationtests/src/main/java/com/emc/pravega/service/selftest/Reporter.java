@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
+import com.emc.pravega.shared.common.concurrent.ExecutorServiceHelpers;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import lombok.val;

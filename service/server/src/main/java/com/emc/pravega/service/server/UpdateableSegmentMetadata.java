@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.shared.common.util.ImmutableDate;
 import java.util.Map;
 import java.util.UUID;
 

@@ -7,7 +7,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 

@@ -28,8 +28,8 @@
     </Match>
     <Match> <!-- This is intended in these and only these classes -->
         <Or>
-            <Class name="com.emc.pravega.common.io.FixedByteArrayOutputStream" />
-            <Class name="com.emc.pravega.common.util.ByteArraySegment" />
+            <Class name="com.emc.pravega.shared.common.io.FixedByteArrayOutputStream" />
+            <Class name="com.emc.pravega.shared.common.util.ByteArraySegment" />
             <Class name="com.emc.pravega.controller.store.stream.tables.Data" />
             <Class name="com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation" />
         </Or>

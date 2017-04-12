@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.Data;
 
 import java.nio.ByteBuffer;

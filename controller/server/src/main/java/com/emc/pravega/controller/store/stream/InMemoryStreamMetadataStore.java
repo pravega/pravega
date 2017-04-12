@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;

@@ -4,7 +4,7 @@
 
 package com.emc.pravega;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.framework.services.PravegaControllerService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.stream.impl.ControllerImpl;
@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Abstract scale tests. This contains all the common methods used for auto scale related tests.
+ * Abstract scale tests. This contains all the shared methods used for auto scale related tests.
  */
 @Slf4j
 abstract class AbstractScaleTests {

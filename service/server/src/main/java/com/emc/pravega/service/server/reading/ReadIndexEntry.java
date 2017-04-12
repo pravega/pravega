@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.util.SortedIndex;
+import com.emc.pravega.shared.common.util.SortedIndex;
 import com.google.common.base.Preconditions;
 import javax.annotation.concurrent.GuardedBy;
 

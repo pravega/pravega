@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.common.hash.HashHelper;
-import com.emc.pravega.common.util.BitConverter;
+import com.emc.pravega.shared.common.hash.HashHelper;
+import com.emc.pravega.shared.common.util.BitConverter;
 import com.emc.pravega.service.storage.Cache;
 import com.google.common.base.Preconditions;
 

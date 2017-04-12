@@ -4,9 +4,9 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.util.CollectionHelpers;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.Timer;
+import com.emc.pravega.shared.common.util.CollectionHelpers;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.concurrent.Callable;

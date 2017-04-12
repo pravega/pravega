@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.Timer;
+import com.emc.pravega.shared.Timer;
 import java.time.Duration;
 
 /**

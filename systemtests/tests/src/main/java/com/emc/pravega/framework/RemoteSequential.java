@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.framework;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
 import com.emc.pravega.framework.metronome.Metronome;
 import com.emc.pravega.framework.metronome.MetronomeException;

@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ReadIndexFactory;

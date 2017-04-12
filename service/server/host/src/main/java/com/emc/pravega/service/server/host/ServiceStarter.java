@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server.host;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.cluster.Host;
 import com.emc.pravega.shared.metrics.MetricsConfig;
 import com.emc.pravega.shared.metrics.MetricsProvider;
 import com.emc.pravega.shared.metrics.StatsProvider;

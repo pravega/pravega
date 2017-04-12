@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.hash.HashHelper;
+import com.emc.pravega.shared.common.hash.HashHelper;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 import lombok.EqualsAndHashCode;

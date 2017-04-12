@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;

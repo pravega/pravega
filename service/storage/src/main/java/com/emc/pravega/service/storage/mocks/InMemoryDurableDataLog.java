@@ -3,11 +3,11 @@
  */
 package com.emc.pravega.service.storage.mocks;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.common.util.CloseableIterator;
-import com.emc.pravega.common.util.SequencedItemList;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.io.StreamHelpers;
+import com.emc.pravega.shared.common.util.CloseableIterator;
+import com.emc.pravega.shared.common.util.SequencedItemList;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;

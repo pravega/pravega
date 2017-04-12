@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.store.client.impl;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.controller.store.client.StoreClientConfig;
 import com.emc.pravega.controller.store.client.StoreType;
 import com.emc.pravega.controller.store.client.ZKClientConfig;

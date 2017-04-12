@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;

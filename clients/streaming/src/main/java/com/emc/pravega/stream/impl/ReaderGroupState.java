@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;

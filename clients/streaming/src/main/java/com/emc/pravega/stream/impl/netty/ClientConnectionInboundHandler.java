@@ -5,15 +5,15 @@
  */
 package com.emc.pravega.stream.impl.netty;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.Append;
-import com.emc.pravega.common.netty.AppendBatchSizeTracker;
-import com.emc.pravega.common.netty.ConnectionFailedException;
-import com.emc.pravega.common.netty.Reply;
-import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.WireCommand;
-import com.emc.pravega.common.netty.WireCommands.DataAppended;
-import com.emc.pravega.common.netty.WireCommands.KeepAlive;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.protocol.netty.Append;
+import com.emc.pravega.shared.protocol.netty.AppendBatchSizeTracker;
+import com.emc.pravega.shared.protocol.netty.ConnectionFailedException;
+import com.emc.pravega.shared.protocol.netty.Reply;
+import com.emc.pravega.shared.protocol.netty.ReplyProcessor;
+import com.emc.pravega.shared.protocol.netty.WireCommand;
+import com.emc.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import com.emc.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;

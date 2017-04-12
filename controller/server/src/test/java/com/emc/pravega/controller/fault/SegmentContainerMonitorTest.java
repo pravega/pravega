@@ -5,10 +5,10 @@
  */
 package com.emc.pravega.controller.fault;
 
-import com.emc.pravega.common.cluster.Cluster;
-import com.emc.pravega.common.cluster.ClusterType;
-import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import com.emc.pravega.shared.common.cluster.Cluster;
+import com.emc.pravega.shared.common.cluster.ClusterType;
+import com.emc.pravega.shared.common.cluster.Host;
+import com.emc.pravega.shared.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;

@@ -6,9 +6,9 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
-import com.emc.pravega.common.util.AsyncMap;
-import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.shared.common.io.EnhancedByteArrayOutputStream;
+import com.emc.pravega.shared.common.util.AsyncMap;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;

@@ -5,20 +5,20 @@
  */
 package com.emc.pravega.stream.mock;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.FailingReplyProcessor;
-import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.WireCommand;
-import com.emc.pravega.common.netty.WireCommands;
-import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
-import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
-import com.emc.pravega.common.netty.WireCommands.CreateSegment;
-import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
-import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
-import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
-import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.protocol.netty.FailingReplyProcessor;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
+import com.emc.pravega.shared.protocol.netty.ReplyProcessor;
+import com.emc.pravega.shared.protocol.netty.WireCommand;
+import com.emc.pravega.shared.protocol.netty.WireCommands;
+import com.emc.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
+import com.emc.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
+import com.emc.pravega.shared.protocol.netty.WireCommands.CreateSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
+import com.emc.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
+import com.emc.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
+import com.emc.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
+import com.emc.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
@@ -51,7 +51,7 @@ import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 import org.apache.commons.lang.NotImplementedException;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static com.emc.pravega.shared.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 @AllArgsConstructor
 public class MockController implements Controller {

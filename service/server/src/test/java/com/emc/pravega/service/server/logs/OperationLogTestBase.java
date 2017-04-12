@@ -3,9 +3,9 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.common.util.SequencedItemList;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.shared.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.ReadResult;

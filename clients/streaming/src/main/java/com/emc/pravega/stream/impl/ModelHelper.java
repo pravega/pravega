@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
@@ -90,9 +90,9 @@ public final class ModelHelper {
      * @param uri Node URI.
      * @return PravegaNodeURI.
      */
-    public static final com.emc.pravega.common.netty.PravegaNodeUri encode(final NodeUri uri) {
+    public static final com.emc.pravega.shared.protocol.netty.PravegaNodeUri encode(final NodeUri uri) {
         Preconditions.checkNotNull(uri, "uri");
-        return new com.emc.pravega.common.netty.PravegaNodeUri(uri.getEndpoint(), uri.getPort());
+        return new com.emc.pravega.shared.protocol.netty.PravegaNodeUri(uri.getEndpoint(), uri.getPort());
     }
 
     /**

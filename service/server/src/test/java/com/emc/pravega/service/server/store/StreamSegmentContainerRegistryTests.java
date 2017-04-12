@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;

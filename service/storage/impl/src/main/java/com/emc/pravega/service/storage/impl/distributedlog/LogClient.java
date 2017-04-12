@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.LoggerHelpers;
 import com.emc.pravega.service.storage.DataLogInitializationException;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLogException;

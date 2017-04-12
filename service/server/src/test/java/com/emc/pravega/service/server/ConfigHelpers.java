@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.common.util.ConfigBuilder;
+import com.emc.pravega.shared.common.util.ConfigBuilder;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 
 /**

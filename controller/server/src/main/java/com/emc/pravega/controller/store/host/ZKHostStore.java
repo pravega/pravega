@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.shared.common.cluster.Host;
+import com.emc.pravega.shared.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;

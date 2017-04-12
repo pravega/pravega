@@ -3,10 +3,10 @@
  */
 package com.emc.pravega.controller.server.v1;
 
-import com.emc.pravega.common.cluster.Cluster;
-import com.emc.pravega.common.cluster.ClusterType;
-import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import com.emc.pravega.shared.common.cluster.Cluster;
+import com.emc.pravega.shared.common.cluster.ClusterType;
+import com.emc.pravega.shared.common.cluster.Host;
+import com.emc.pravega.shared.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;

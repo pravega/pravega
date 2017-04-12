@@ -3,11 +3,11 @@
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.common.util.CloseableIterator;
-import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.ObjectClosedException;
+import com.emc.pravega.shared.common.util.CloseableIterator;
+import com.emc.pravega.shared.common.util.Retry;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;

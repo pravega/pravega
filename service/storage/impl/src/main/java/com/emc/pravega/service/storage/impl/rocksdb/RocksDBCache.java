@@ -5,10 +5,10 @@
  */
 package com.emc.pravega.service.storage.impl.rocksdb;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.function.CallbackHelpers;
-import com.emc.pravega.common.io.FileHelpers;
-import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.function.CallbackHelpers;
+import com.emc.pravega.shared.common.io.FileHelpers;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheException;
 import com.google.common.base.Preconditions;

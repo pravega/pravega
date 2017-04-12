@@ -7,7 +7,7 @@ package com.emc.pravega.stream.impl.segment;
 
 import java.util.concurrent.ExecutionException;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;

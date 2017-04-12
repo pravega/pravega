@@ -6,7 +6,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
@@ -35,8 +35,8 @@ import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.SneakyThrows;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.allOfWithResults;
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static com.emc.pravega.shared.common.concurrent.FutureHelpers.allOfWithResults;
+import static com.emc.pravega.shared.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 @Data
 public class ReaderGroupImpl implements ReaderGroup {

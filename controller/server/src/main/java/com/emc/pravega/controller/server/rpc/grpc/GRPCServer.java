@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.server.rpc.grpc;
 
-import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.LoggerHelpers;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.google.common.util.concurrent.AbstractIdleService;

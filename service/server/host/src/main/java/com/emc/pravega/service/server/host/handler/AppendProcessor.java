@@ -5,23 +5,23 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Timer;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.Timer;
 import com.emc.pravega.shared.metrics.DynamicLogger;
 import com.emc.pravega.shared.metrics.MetricsProvider;
 import com.emc.pravega.shared.metrics.OpStatsLogger;
 import com.emc.pravega.shared.metrics.StatsLogger;
-import com.emc.pravega.common.netty.Append;
-import com.emc.pravega.common.netty.DelegatingRequestProcessor;
-import com.emc.pravega.common.netty.RequestProcessor;
-import com.emc.pravega.common.netty.WireCommands.AppendSetup;
-import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
-import com.emc.pravega.common.netty.WireCommands.DataAppended;
-import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
-import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
-import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
-import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.shared.protocol.netty.Append;
+import com.emc.pravega.shared.protocol.netty.DelegatingRequestProcessor;
+import com.emc.pravega.shared.protocol.netty.RequestProcessor;
+import com.emc.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import com.emc.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
+import com.emc.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import com.emc.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import com.emc.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;

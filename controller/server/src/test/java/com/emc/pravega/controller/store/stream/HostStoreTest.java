@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.shared.common.cluster.Host;
 import com.emc.pravega.shared.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.client.StoreClient;
 import com.emc.pravega.controller.store.client.StoreClientConfig;

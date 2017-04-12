@@ -4,7 +4,7 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.google.common.base.Preconditions;
 import java.util.Collection;

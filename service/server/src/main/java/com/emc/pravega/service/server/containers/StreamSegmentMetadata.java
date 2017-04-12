@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.util.ImmutableDate;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;

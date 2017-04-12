@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.server.SegmentHelper;

@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.util.ConfigBuilder;
+import com.emc.pravega.shared.common.util.ConfigBuilder;
 import com.google.common.base.Preconditions;
 import java.io.FileReader;
 import java.io.IOException;

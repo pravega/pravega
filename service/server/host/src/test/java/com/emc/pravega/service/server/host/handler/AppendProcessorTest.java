@@ -5,14 +5,14 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.Append;
-import com.emc.pravega.common.netty.FailingRequestProcessor;
-import com.emc.pravega.common.netty.WireCommands.AppendSetup;
-import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
-import com.emc.pravega.common.netty.WireCommands.DataAppended;
-import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.protocol.netty.Append;
+import com.emc.pravega.shared.protocol.netty.FailingRequestProcessor;
+import com.emc.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import com.emc.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
+import com.emc.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import com.emc.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import com.emc.pravega.shared.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;

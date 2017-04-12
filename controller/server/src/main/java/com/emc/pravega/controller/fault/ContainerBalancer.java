@@ -8,7 +8,7 @@ package com.emc.pravega.controller.fault;
 import java.util.Map;
 import java.util.Set;
 
-import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.shared.common.cluster.Host;
 
 /**
  * Container Balancers are used to fetch the new owners for the segment containers.

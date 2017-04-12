@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.local;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.io.FileHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.io.FileHelpers;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 

@@ -3,10 +3,10 @@
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.Timer;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;

@@ -5,17 +5,17 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.util.BitConverter;
-import com.emc.pravega.common.util.ByteArraySegment;
-import com.emc.pravega.common.util.CloseableIterator;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.util.BitConverter;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
+import com.emc.pravega.shared.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 
 import java.io.InputStream;
 
-import static com.emc.pravega.common.util.BitConverter.readInt;
-import static com.emc.pravega.common.util.BitConverter.writeInt;
+import static com.emc.pravega.shared.common.util.BitConverter.readInt;
+import static com.emc.pravega.shared.common.util.BitConverter.writeInt;
 
 /**
  * Helps serialize entries into fixed-size batches. Allows writing multiple records per frame, as well as splitting a record

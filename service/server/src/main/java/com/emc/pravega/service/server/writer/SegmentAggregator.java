@@ -3,12 +3,12 @@
  */
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.AbstractTimer;
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.TimeoutTimer;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.AbstractTimer;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.LoggerHelpers;
+import com.emc.pravega.shared.TimeoutTimer;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;

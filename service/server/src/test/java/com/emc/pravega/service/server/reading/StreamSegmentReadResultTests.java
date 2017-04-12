@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.ObjectClosedException;
+import com.emc.pravega.shared.ObjectClosedException;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;

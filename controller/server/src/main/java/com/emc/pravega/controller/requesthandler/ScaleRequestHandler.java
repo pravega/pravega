@@ -3,9 +3,9 @@
  */
 package com.emc.pravega.controller.requesthandler;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.common.util.Retry;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.stream.OperationContext;

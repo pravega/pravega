@@ -5,7 +5,7 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.util.Config;
-import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.shared.common.util.Retry;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.host.stat.AutoScalerConfig;

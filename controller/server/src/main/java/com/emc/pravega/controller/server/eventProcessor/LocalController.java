@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.shared.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.protocol.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;

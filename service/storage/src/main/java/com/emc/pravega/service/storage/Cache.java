@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.storage;
 
-import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
 
 /**
  * Defines a Cache that can be used by the ReadIndex.

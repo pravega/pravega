@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream.tables;
 
-import com.emc.pravega.common.util.BitConverter;
+import com.emc.pravega.shared.common.util.BitConverter;
 import lombok.Data;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;

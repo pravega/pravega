@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -32,7 +32,7 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static com.emc.pravega.shared.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.

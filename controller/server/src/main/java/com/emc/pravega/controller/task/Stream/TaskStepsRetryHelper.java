@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.shared.common.util.Retry;
 import com.emc.pravega.controller.retryable.RetryableException;
 
 import java.time.Duration;

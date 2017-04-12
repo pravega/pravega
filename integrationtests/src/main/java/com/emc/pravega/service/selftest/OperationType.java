@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.shared.Exceptions;
 
 /**
  * Defines the base for an Operation Type.

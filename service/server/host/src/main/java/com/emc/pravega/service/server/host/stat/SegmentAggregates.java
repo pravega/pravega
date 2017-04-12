@@ -3,7 +3,7 @@
  */
 package com.emc.pravega.service.server.host.stat;
 
-import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.shared.protocol.netty.WireCommands;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.Getter;
 import lombok.Setter;

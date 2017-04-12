@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.util.SequencedItemList;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.common.util.SequencedItemList;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;

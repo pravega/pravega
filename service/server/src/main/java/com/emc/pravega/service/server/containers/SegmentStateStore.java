@@ -4,12 +4,12 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.TimeoutTimer;
-import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
-import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.common.util.AsyncMap;
-import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.shared.ExceptionHelpers;
+import com.emc.pravega.shared.TimeoutTimer;
+import com.emc.pravega.shared.common.io.EnhancedByteArrayOutputStream;
+import com.emc.pravega.shared.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.shared.common.util.AsyncMap;
+import com.emc.pravega.shared.common.util.ByteArraySegment;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.storage.Storage;

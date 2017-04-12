@@ -3,10 +3,10 @@
  */
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.util.ConfigBuilder;
-import com.emc.pravega.common.util.ConfigurationException;
-import com.emc.pravega.common.util.Property;
-import com.emc.pravega.common.util.TypedProperties;
+import com.emc.pravega.shared.common.util.ConfigBuilder;
+import com.emc.pravega.shared.common.util.ConfigurationException;
+import com.emc.pravega.shared.common.util.Property;
+import com.emc.pravega.shared.common.util.TypedProperties;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 
@@ -43,7 +43,7 @@ public class ServiceConfig {
     private final int containerCount;
 
     /**
-     * The number of threads in the common thread pool.
+     * The number of threads in the shared thread pool.
      */
     @Getter
     private final int threadPoolSize;

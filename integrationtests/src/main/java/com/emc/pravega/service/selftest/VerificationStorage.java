@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.shared.Exceptions;
+import com.emc.pravega.shared.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;

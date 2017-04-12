@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.util.ArrayView;
-import com.emc.pravega.common.util.BitConverter;
+import com.emc.pravega.shared.common.util.ArrayView;
+import com.emc.pravega.shared.common.util.BitConverter;
 import com.google.common.base.Preconditions;
 
 import java.time.Duration;

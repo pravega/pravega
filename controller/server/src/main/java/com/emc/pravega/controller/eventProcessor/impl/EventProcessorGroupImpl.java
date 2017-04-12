@@ -6,7 +6,7 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ReaderGroupManager;
-import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.shared.LoggerHelpers;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;

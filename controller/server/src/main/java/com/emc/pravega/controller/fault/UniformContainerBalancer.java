@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.fault;
 
-import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.shared.common.cluster.Host;
 import com.emc.pravega.controller.util.Config;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
