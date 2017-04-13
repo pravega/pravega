@@ -109,7 +109,7 @@ public class RequestTest {
 
     @Test(timeout = 10000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
-        ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor);
+        ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, executor);
         ScaleEvent request = new ScaleEvent(scope, stream, 2, ScaleEvent.UP, System.currentTimeMillis(), 2, false);
 
         assertTrue(FutureHelpers.await(requestHandler.process(request)));

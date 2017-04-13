@@ -199,8 +199,10 @@ public final class EventProcessorGroupImpl<T extends Serializable> extends Abstr
             for (Map.Entry<String, Position> entry : map.entrySet()) {
 
                 // 1. Notify reader group about failed readers
-                log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
-                readerGroup.readerOffline(entry.getKey(), entry.getValue());
+                if (readerGroup.getOnlineReaders().contains(entry.getKey())) {
+                    log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
+                    readerGroup.readerOffline(entry.getKey(), entry.getValue());
+                }
 
                 // 2. Clean up reader from checkpoint store
                 log.info("{} removing reader={} from checkpoint store", this.objectId, entry.getKey());

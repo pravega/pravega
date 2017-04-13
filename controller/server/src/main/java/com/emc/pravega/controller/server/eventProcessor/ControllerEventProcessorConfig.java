@@ -88,4 +88,6 @@ public interface ControllerEventProcessorConfig {
      * @return Checkpoint configuration for abort stream event processors.
      */
     CheckpointConfig getAbortCheckpointConfig();
+
+    // TODO: shivesh add scale config
 }

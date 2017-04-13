@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * Request handler for scale requests in scale-request-stream.
  */
 @Slf4j
-public class ScaleRequestHandler {
+public class ScaleRequestHandler implements RequestHandler<ScaleEvent> {
 
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 2;

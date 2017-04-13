@@ -5,6 +5,7 @@ package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -36,44 +38,39 @@ import java.util.stream.Collectors;
  * 2. Change txn state from committing to committed.
  */
 @Slf4j
-public class ScaleEventProcessor
-        extends EventProcessor<ScaleEvent> implements AutoCloseable {
+public class ScaleEventProcessor<R extends ControllerEvent, H extends RequestHandler<R>>
+        extends EventProcessor<R> implements AutoCloseable {
 
     private static final int MAX_CONCURRENT = 10000;
 
     private final ConcurrentSkipListSet<PositionCounter> running;
     private final ConcurrentSkipListSet<PositionCounter> completed;
     private final AtomicReference<PositionCounter> checkpoint;
-    private final EventStreamWriter<ScaleEvent> writer;
-    private final EventStreamReader<ScaleEvent> reader;
+    private final EventStreamWriter<R> writer;
     private final ScheduledExecutorService executor;
     private final AtomicBoolean stop = new AtomicBoolean(false);
-    private final ScaleRequestHandler requestHandler;
+    private final H requestHandler;
     private final AtomicLong counter = new AtomicLong(0);
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
     private final ScheduledFuture<?> scheduledFuture;
     private final Checkpointer checkpointer;
 
-
-    ScaleEventProcessor(final EventStreamWriter<ScaleEvent> writer,
-                        final EventStreamReader<ScaleEvent> reader,
+    ScaleEventProcessor(final EventStreamWriter<R> writer,
                         final Checkpointer checkpointer,
-                        final ScaleRequestHandler scaleRequestHandler,
+                        final H requestHandler,
                         final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(writer);
-        Preconditions.checkNotNull(reader);
         Preconditions.checkNotNull(checkpointer);
-        Preconditions.checkNotNull(scaleRequestHandler);
+        Preconditions.checkNotNull(requestHandler);
         Preconditions.checkNotNull(executor);
 
-        this.requestHandler = scaleRequestHandler;
+        this.requestHandler = requestHandler;
 
         running = new ConcurrentSkipListSet<>(positionCounterComparator);
         completed = new ConcurrentSkipListSet<>(positionCounterComparator);
 
         this.writer = writer;
-        this.reader = reader;
 
         this.checkpoint = new AtomicReference<>();
 
@@ -86,45 +83,29 @@ public class ScaleEventProcessor
     }
 
     @Override
-    protected void process(ScaleEvent event) {
+    protected void process(R event) {
+        process(event, null);
     }
 
-    @FunctionalInterface
-    public interface Checkpointer {
-        void checkpoint(Position position) throws CheckpointStoreException;
-    }
-
-    public void stop() {
-        stop.set(true);
-    }
-
-    /**
-     * One dedicated thread that reads one event at a time and schedules its processing asynchronously.
-     * Once processing is scheduled, it goes back to polling for next event.
-     * Before starting it first acquires a semaphore. This ensures that we do not have more than max allowed
-     * concurrent processing of events. Otherwise we run the risk of out of memory as we will keep posting requests in
-     * our executor queue.
-     * <p>
-     * It also gets the next counter value. A counter is an ever increasing number.
-     */
-    public boolean run(EventRead<ScaleEvent> event) {
+    void process(R event, Position position) {
         // limiting number of concurrent processing. Otherwise we will keep picking messages from the stream
         // and it could lead to memory overload.
 
         PositionCounter pc;
-        ScaleEvent request;
+        R request;
         long next;
         try {
             semaphore.acquire();
         } catch (Exception e) {
             log.warn("exception thrown while acquiring semaphore {}", e);
             semaphore.release();
-            return false;
+            // TODO: throw meaningful exception
+            throw new CompletionException(e);
         }
 
         next = counter.incrementAndGet();
-        request = event.getEvent();
-        pc = new PositionCounter(event.getPosition(), next);
+        request = event;
+        pc = new PositionCounter(position, next);
         running.add(pc);
 
         requestHandler.process(request)
@@ -140,7 +121,15 @@ public class ScaleEventProcessor
                         }
                     }
                 }, executor);
-        return true;
+    }
+
+    @FunctionalInterface
+    public interface Checkpointer {
+        void checkpoint(Position position) throws CheckpointStoreException;
+    }
+
+    public void stop() {
+        stop.set(true);
     }
 
     /**
@@ -163,7 +152,7 @@ public class ScaleEventProcessor
      * @param request request which has to be put back in the request stream.
      */
     @Synchronized
-    private void putBack(String key, ScaleEvent request) {
+    private void putBack(String key, R request) {
         FutureHelpers.getAndHandleExceptions(writer.writeEvent(key, request), RuntimeException::new);
     }
 
