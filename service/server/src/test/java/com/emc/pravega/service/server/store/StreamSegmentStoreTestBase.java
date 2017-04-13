@@ -149,6 +149,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             sealSegments(segmentNames, segmentStore).join();
             checkSegmentStatus(lengths, true, false, segmentStore);
 
+            waitForSegmentsInStorage(segmentNames, segmentStore, storage.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
             // Deletes.
             deleteSegments(segmentNames, segmentStore).join();
             checkSegmentStatus(lengths, true, true, segmentStore);

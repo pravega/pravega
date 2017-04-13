@@ -167,6 +167,10 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * </ul>
      */
     boolean mustFlush() {
+        if (this.metadata.isDeleted()) {
+            return false;
+        }
+
         return exceedsThresholds()
                 || this.hasSealPending.get()
                 || this.mergeTransactionCount.get() > 0
@@ -431,6 +435,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     CompletableFuture<FlushResult> flush(Duration timeout, Executor executor) {
         ensureInitializedAndNotClosed();
+        if (this.metadata.isDeleted()) {
+            // Segment has been deleted; don't do anything else.
+            return CompletableFuture.completedFuture(new FlushResult());
+        }
+
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flush");
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
