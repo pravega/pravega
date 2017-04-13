@@ -341,9 +341,14 @@ public class TaskTest {
         // Ensure that a transaction is created.
         map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
         assertEquals(2, map.size());
-        txId = map.keySet().iterator().next();
+        Optional<UUID> txIdOpt = map.entrySet().stream()
+                .filter(e -> e.getValue().getTxnStatus() == TxnStatus.OPEN)
+                .map(e -> e.getKey())
+                .findAny();
+        Assert.assertTrue(txIdOpt.isPresent());
 
         // Commit the transaction.
+        txId = txIdOpt.get();
         completePartialTask(mockTxnTasks.commitTxn(SCOPE, stream1, txId, null), deadHost, sweeper);
         // Ensure that transaction state is COMMITTING.
         status = streamStore.getTransactionData(SCOPE, stream1, txId, null, executor).join().getStatus();
