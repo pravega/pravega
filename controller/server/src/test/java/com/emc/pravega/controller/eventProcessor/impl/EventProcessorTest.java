@@ -277,7 +277,7 @@ public class EventProcessorTest {
     }
 
     @Test(timeout = 10000)
-    public void testEventProcessorGroup() {
+    public void testEventProcessorGroup() throws CheckpointStoreException, ReinitializationRequiredException {
         int count = 4;
         int initialCount = count / 2;
         String systemName = "testSystem";
@@ -300,30 +300,12 @@ public class EventProcessorTest {
                 .build();
 
         // Create EventProcessorGroup.
-        EventProcessorGroupImpl<TestEvent> group;
-        try {
-            group = (EventProcessorGroupImpl<TestEvent>) system.createEventProcessorGroup(eventProcessorConfig,
+        EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>) system.createEventProcessorGroup(eventProcessorConfig,
                     checkpointStore);
-        } catch (CheckpointStoreException e) {
-            log.error("Error creating event processor group");
-            Assert.fail("Error creating event processor group");
-            return;
-        }
-
-        try {
-            group.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Error awaiting event processor group to get ready");
-            Assert.fail("Error awaiting event processor group to get ready");
-        }
+        group.awaitRunning();
 
         // Add a few event processors to the group.
-        try {
-            group.changeEventProcessorCount(count - initialCount);
-        } catch (CheckpointStoreException e) {
-            log.error("Error increasing event processor count");
-            Assert.fail("Error increasing event processor count");
-        }
+        group.changeEventProcessorCount(count - initialCount);
 
         long actualSum = 0;
         for (EventProcessorCell<TestEvent> cell : group.getEventProcessorMap().values()) {
@@ -335,12 +317,7 @@ public class EventProcessorTest {
 
         // Stop the group, and await its termmination.
         group.stopAsync();
-        try {
-            group.awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Error awaiting termination of event processor group");
-            Assert.fail("Error awaiting termination of event processor group");
-        }
+        group.awaitTerminated();
     }
 
     private EventProcessorGroupConfig createEventProcessorGroupConfig(int count) {
@@ -380,7 +357,7 @@ public class EventProcessorTest {
         return new EventProcessorSystemImpl(name, processId, scope, clientFactory, readerGroupManager);
     }
 
-    private SequenceAnswer<EventStreamReader<TestEvent>> createEventReaders(int count, int[] input) {
+    private SequenceAnswer<EventStreamReader<TestEvent>> createEventReaders(int count, int[] input) throws ReinitializationRequiredException {
         List<EventStreamReader<TestEvent>> list = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             list.add(createMockReader(input));
@@ -389,7 +366,7 @@ public class EventProcessorTest {
     }
 
     @SuppressWarnings("unchecked")
-    private EventStreamReader<TestEvent> createMockReader(int[] input) {
+    private EventStreamReader<TestEvent> createMockReader(int[] input) throws ReinitializationRequiredException {
         List<MockEventRead<TestEvent>> inputEvents = new ArrayList<>(input.length);
         for (int i = 0; i < input.length; i++) {
             inputEvents.add(new MockEventRead<>(i, new TestEvent(input[i])));
@@ -397,12 +374,7 @@ public class EventProcessorTest {
         inputEvents.add(new MockEventRead<>(input.length, new TestEvent(-1)));
 
         EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
-        try {
-            Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
-        } catch (ReinitializationRequiredException e) {
-            log.error("ReinitializationRequiredException  error thrown", e);
-            Assert.fail("ReinitializationRequiredException  error thrown");
-        }
+        Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
         return reader;
     }
 
