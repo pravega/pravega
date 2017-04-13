@@ -6,12 +6,11 @@ package com.emc.pravega.controller.requesthandler;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.controller.retryable.RetryableException;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.impl.JavaSerializer;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
@@ -57,10 +56,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class RequestReader<R extends ControllerRequest, H extends RequestHandler<R>> implements AutoCloseable {
 
+    @FunctionalInterface
+    public interface Checkpointer {
+        void checkpoint(Position position) throws CheckpointStoreException;
+    }
+
     private static final int MAX_CONCURRENT = 10000;
 
-    private final String readerId;
-    private final String readerGroup;
     private final ConcurrentSkipListSet<PositionCounter> running;
     private final ConcurrentSkipListSet<PositionCounter> completed;
     private final AtomicReference<PositionCounter> checkpoint;
@@ -73,29 +75,21 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
     private final ScheduledFuture<?> scheduledFuture;
-    private final JavaSerializer<Position> serializer;
-    private final StreamMetadataStore checkpointStore;
     private final CompletableFuture<Void> promise = new CompletableFuture<>();
+    private final Checkpointer checkpointer;
 
-    RequestReader(final String readerId,
-                  final String readerGroup,
-                  final EventStreamWriter<R> writer,
+    RequestReader(final EventStreamWriter<R> writer,
                   final EventStreamReader<R> reader,
                   final H requestHandler,
-                  final JavaSerializer<Position> serializer,
-                  final StreamMetadataStore checkpointStore,
+                  final Checkpointer checkpointer,
                   final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(writer);
         Preconditions.checkNotNull(reader);
         Preconditions.checkNotNull(requestHandler);
-        Preconditions.checkNotNull(checkpointStore);
-        Preconditions.checkNotNull(serializer);
+        Preconditions.checkNotNull(checkpointer);
 
         this.requestHandler = requestHandler;
-        this.serializer = serializer;
 
-        this.readerId = readerId;
-        this.readerGroup = readerGroup;
         running = new ConcurrentSkipListSet<>(positionCounterComparator);
         completed = new ConcurrentSkipListSet<>(positionCounterComparator);
 
@@ -105,7 +99,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         this.checkpoint = new AtomicReference<>();
 
         this.executor = executor;
-        this.checkpointStore = checkpointStore;
+        this.checkpointer = checkpointer;
 
         // periodic checkpointing - every one minute
         scheduledFuture = this.executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
@@ -249,7 +243,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private void checkpoint() {
         try {
             if (checkpoint.get() != null) {
-                checkpointStore.checkpoint(readerGroup, readerId, serializer.serialize(checkpoint.get().position));
+                checkpointer.checkpoint(checkpoint.get().position);
             }
         } catch (Exception e) {
             // Even if this fails, its ok. Next checkpoint periodic trigger will store the checkpoint.

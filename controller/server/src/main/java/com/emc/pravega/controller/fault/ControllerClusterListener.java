@@ -8,6 +8,7 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.requesthandler.RequestHandlers;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.google.common.base.Preconditions;
@@ -16,7 +17,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -35,16 +38,19 @@ public class ControllerClusterListener extends AbstractIdleService {
     private final Cluster cluster;
     private final ExecutorService executor;
     private final Optional<ControllerEventProcessors> eventProcessorsOpt;
+    private final Optional<RequestHandlers> requestHandlersOpt;
     private final TaskSweeper taskSweeper;
 
     public ControllerClusterListener(final Host host, final Cluster cluster,
                                      final Optional<ControllerEventProcessors> eventProcessorsOpt,
+                                     final Optional<RequestHandlers> requestHandlersOpt,
                                      final TaskSweeper taskSweeper,
                                      final ExecutorService executor) {
         Preconditions.checkNotNull(host, "host");
         Preconditions.checkNotNull(cluster, "cluster");
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkNotNull(eventProcessorsOpt, "eventProcessorsOpt");
+        Preconditions.checkNotNull(requestHandlersOpt, "requestHandlersOpt");
         Preconditions.checkNotNull(taskSweeper, "taskSweeper");
 
         this.objectId = "ControllerClusterListener";
@@ -52,6 +58,7 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.cluster = cluster;
         this.executor = executor;
         this.eventProcessorsOpt = eventProcessorsOpt;
+        this.requestHandlersOpt = requestHandlersOpt;
         this.taskSweeper = taskSweeper;
     }
 
@@ -61,11 +68,6 @@ public class ControllerClusterListener extends AbstractIdleService {
         try {
             log.info("Registering host {} with controller cluster", host);
             cluster.registerHost(host);
-
-            Set<String> activeProcesses = cluster.getClusterMembers()
-                    .stream()
-                    .map(Host::getHostId)
-                    .collect(Collectors.toSet());
 
             // Register cluster listener.
             log.info("Adding controller cluster listener");
@@ -81,6 +83,11 @@ public class ControllerClusterListener extends AbstractIdleService {
                         if (eventProcessorsOpt.isPresent() && eventProcessorsOpt.get().isRunning()) {
                             eventProcessorsOpt.get().notifyProcessFailure(host.getHostId());
                         }
+                        if (requestHandlersOpt.isPresent() && requestHandlersOpt.get().isRunning()) {
+                            // Note: this returns a completable future. We let this run in background and
+                            // do not block listener. This has
+                            requestHandlersOpt.get().notifyProcessFailure(host.getHostId());
+                        }
                         break;
                     case ERROR:
                         // This event should be due to ZK connection errors. If it is session lost error then
@@ -92,7 +99,19 @@ public class ControllerClusterListener extends AbstractIdleService {
             }, executor);
 
             log.info("Sweeping orphaned tasks at startup");
-            taskSweeper.sweepOrphanedTasks(activeProcesses);
+            Supplier<Set<String>> runningProcesses = () -> {
+                try {
+                    return cluster.getClusterMembers()
+                            .stream()
+                            .map(Host::getHostId)
+                            .collect(Collectors.toSet());
+                } catch (Exception e) {
+                    log.error("error fetching cluster members {}", e);
+                    throw new CompletionException(e);
+                }
+            };
+
+            taskSweeper.sweepOrphanedTasks(runningProcesses);
 
             if (eventProcessorsOpt.isPresent()) {
                 // Await initialization of eventProcesorsOpt
@@ -101,7 +120,16 @@ public class ControllerClusterListener extends AbstractIdleService {
 
                 // Sweep orphaned tasks or readers at startup.
                 log.info("Sweeping orphaned readers at startup");
-                eventProcessorsOpt.get().handleOrphanedReaders(activeProcesses);
+                eventProcessorsOpt.get().handleOrphanedReaders(runningProcesses);
+            }
+
+            if (requestHandlersOpt.isPresent()) {
+                requestHandlersOpt.get().awaitRunning();
+
+                // Sweep orphaned tasks or readers at startup.
+                log.info("Sweeping orphaned readers at startup");
+                // Note following returns completable future. We will not wait and let sweep happen in background.
+                requestHandlersOpt.get().sweepOrphanedReaders(runningProcesses);
             }
 
             log.info("Controller cluster listener startUp complete");

@@ -114,19 +114,6 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> checkpoint(String readerGroup, String readerId, ByteBuffer checkpointBlob) {
-        String key = String.format("%s/%s", readerGroup, readerId);
-        checkpoints.put(key, checkpointBlob);
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public CompletableFuture<ByteBuffer> readCheckpoint(String readerGroup, String readerId) {
-        String key = String.format("%s/%s", readerGroup, readerId);
-        return CompletableFuture.completedFuture(checkpoints.get(key));
-    }
-
-    @Override
     @Synchronized
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (!scopes.containsKey(scopeName)) {

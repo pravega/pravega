@@ -35,7 +35,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 
 @Slf4j
 public class ControllerEventProcessors extends AbstractIdleService {
@@ -167,18 +169,17 @@ public class ControllerEventProcessors extends AbstractIdleService {
                 streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config), executor);
     }
 
-    public void handleOrphanedReaders(final Set<String> activeProcesses) {
-        log.info("Handling orphaned readers from processes {}", activeProcesses);
+    public void handleOrphanedReaders(final Supplier<Set<String>> runningProcesses) {
         if (this.commitEventEventProcessors != null) {
-            handleOrphanedReaders(this.commitEventEventProcessors, activeProcesses);
+            handleOrphanedReaders(this.commitEventEventProcessors, runningProcesses);
         }
         if (this.abortEventEventProcessors != null) {
-            handleOrphanedReaders(this.abortEventEventProcessors, activeProcesses);
+            handleOrphanedReaders(this.abortEventEventProcessors, runningProcesses);
         }
     }
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
-                                       final Set<String> activeProcesses) {
+                                       final Supplier<Set<String>> processes) {
         Set<String> registeredProcesses;
         try {
             registeredProcesses = group.getProcesses();
@@ -186,7 +187,12 @@ public class ControllerEventProcessors extends AbstractIdleService {
             log.error(String.format("Error fetching processes registered in event processor group %s", group.toString()), e);
             return;
         }
-        registeredProcesses.removeAll(activeProcesses);
+        try {
+            registeredProcesses.removeAll(processes.get());
+        } catch (Exception e) {
+            log.error(String.format("Error fetching current processes%s", group.toString()), e);
+            throw new CompletionException(e);
+        }
         // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
         for (String process : registeredProcesses) {
             try {

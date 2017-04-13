@@ -12,7 +12,7 @@ import com.emc.pravega.controller.fault.ControllerClusterListener;
 import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
-import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
+import com.emc.pravega.controller.requesthandler.RequestHandlers;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
@@ -45,7 +45,6 @@ import java.net.UnknownHostException;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -86,6 +85,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private LocalController localController;
     private ControllerEventProcessors controllerEventProcessors;
+    private RequestHandlers requestHandlers;
     /**
      * ControllerReadyLatch is released once localController, streamTransactionMetadataTasks and controllerService
      * variables are initialized in the startUp method.
@@ -187,7 +187,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
                 controllerClusterListener = new ControllerClusterListener(host, cluster,
-                        controllerEventProcessors == null ? Optional.empty() : Optional.of(controllerEventProcessors),
+                        Optional.ofNullable(controllerEventProcessors),
+                        Optional.ofNullable(requestHandlers),
                         taskSweeper, clusterListenerExecutor);
 
                 log.info("Starting controller cluster listener");
@@ -214,11 +215,14 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             // Start request handlers
-            CompletableFuture<Void> requestHandlersFuture = CompletableFuture.completedFuture(null);
             if (serviceConfig.isRequestHandlersEnabled()) {
+
                 log.info("Starting request handlers");
-                requestHandlersFuture = RequestHandlersInit.bootstrapRequestHandlers(controllerService,
-                        streamStore, requestExecutor);
+                requestHandlers = new RequestHandlers(controllerService,
+                        checkpointStore, host.getHostId(), requestExecutor);
+                requestHandlers.startAsync();
+                log.info("Awaiting start of request handlers");
+                requestHandlers.awaitRunning();
             }
 
             // Start RPC server.
@@ -241,16 +245,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 log.info("Awaiting start of controller event processors");
                 controllerEventProcessors.awaitRunning();
-            }
-
-            // Wait for request handlers to start.
-            if (serviceConfig.isRequestHandlersEnabled()) {
-                log.info("Awaiting start of request handlers");
-                try {
-                    requestHandlersFuture.join();
-                } catch (CompletionException e) {
-                    throw new IllegalStateException("Request handlers failed to start", e);
-                }
             }
 
             // Wait for controller cluster listeners to start.
@@ -281,7 +275,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
             if (serviceConfig.isRequestHandlersEnabled()) {
                 log.info("Shutting down request handlers");
-                RequestHandlersInit.shutdownRequestHandlers();
+                requestHandlers.stopAsync();
             }
             if (monitor != null) {
                 log.info("Stopping the segment container monitor");

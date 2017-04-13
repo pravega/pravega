@@ -6,7 +6,6 @@ package com.emc.pravega.controller.store.stream;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -53,15 +52,4 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<List<String>> listScopes() {
         return storeHelper.listScopes();
     }
-
-    @Override
-    public CompletableFuture<Void> checkpoint(final String readerGroup, final String readerId, final ByteBuffer checkpointBlob) {
-        return storeHelper.checkPoint(readerGroup, readerId, checkpointBlob.array());
-    }
-
-    @Override
-    public CompletableFuture<ByteBuffer> readCheckpoint(final String readerGroup, final String readerId) {
-        return storeHelper.readCheckPoint(readerGroup, readerId);
-    }
-
 }

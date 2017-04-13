@@ -9,7 +9,6 @@ import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.testcommon.TestingServerStarter;
-import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.TestTasks;
@@ -124,7 +123,8 @@ public class ControllerClusterListenerTest {
                 new TestTasks(taskStore, executor, host.getHostId()));
 
         ControllerClusterListener clusterListener =
-                new ControllerClusterListener(host, clusterZK, Optional.<ControllerEventProcessors>empty(),
+                new ControllerClusterListener(host, clusterZK, Optional.empty(),
+                        Optional.empty(),
                         taskSweeper, executor);
         clusterListener.startAsync();
 
