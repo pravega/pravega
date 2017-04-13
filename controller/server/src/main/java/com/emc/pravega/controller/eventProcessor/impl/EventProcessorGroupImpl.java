@@ -123,7 +123,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                             ReaderConfig.builder().build());
 
             // Create event processor, and add it to the actors list.
-            EventProcessorCell<T> actorCell = new EventProcessorCell<>(eventProcessorConfig, reader,
+            EventProcessorCell<T> actorCell = new EventProcessorCell<>(eventProcessorConfig, reader, writer,
                     actorSystem.getProcess(), readerId, i, checkpointStore);
             log.info("Created event processor {}, id={}", i, actorCell.toString());
 
