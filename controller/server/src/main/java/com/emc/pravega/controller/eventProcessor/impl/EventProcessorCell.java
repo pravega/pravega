@@ -71,7 +71,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
         Delegate(final EventProcessorConfig<T> eventProcessorConfig) {
             this.eventProcessorConfig = eventProcessorConfig;
-            this.state = new CheckpointState(eventProcessorConfig.getConfig().getCheckpointConfig().getCheckpointPeriod());
+            this.state = new CheckpointState(eventProcessorConfig.getConfig().getCheckpointConfig());
         }
 
         @Override
@@ -172,19 +172,29 @@ class EventProcessorCell<T extends ControllerEvent> {
     @NotThreadSafe
     private class CheckpointState {
 
+        private final boolean enableCheckpoint;
         private final CheckpointConfig.CheckpointPeriod checkpointPeriod;
         private int count;
         private int previousCheckpointIndex;
         private long previousCheckpointTimestamp;
 
-        CheckpointState(final CheckpointConfig.CheckpointPeriod checkpointPeriod) {
-            this.checkpointPeriod = checkpointPeriod;
+        CheckpointState(final CheckpointConfig checkpointConfig) {
+            if (checkpointConfig.getType() == CheckpointConfig.Type.Periodic) {
+                this.enableCheckpoint = true;
+                this.checkpointPeriod = checkpointConfig.getCheckpointPeriod();
+            } else {
+                this.enableCheckpoint = false;
+                this.checkpointPeriod = null;
+            }
             count = 0;
             previousCheckpointIndex = 0;
             previousCheckpointTimestamp = System.currentTimeMillis();
         }
 
         void store(Position position) {
+            if (!enableCheckpoint) {
+                return;
+            }
             count++;
             final long timestamp = System.currentTimeMillis();
             final int countInterval = count - previousCheckpointIndex;

@@ -4,6 +4,7 @@
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.stream.Position;
 import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
@@ -62,7 +63,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        protected void process(TestEvent event) {
+        protected void process(TestEvent event, Position position) {
             if (event.getNumber() < 0) {
                 result.complete(sum);
                 throw new RuntimeException();
