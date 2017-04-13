@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -65,6 +66,7 @@ public class RequestHandlers extends AbstractIdleService {
     private final ControllerService controller;
     private final CheckpointStore checkpointStore;
     private final String hostId;
+    private final AtomicBoolean shutdown = new AtomicBoolean(false);
     private final ScheduledExecutorService executor;
 
     public RequestHandlers(ControllerService controller,
@@ -86,17 +88,23 @@ public class RequestHandlers extends AbstractIdleService {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Retry.indefinitelyWithExpBackoff(10, 10, 10000,
                 e -> log.error("Exception while creating request stream {}", e))
-                .runAsync(() -> controller.createScope(NameUtils.INTERNAL_SCOPE_NAME)
-                        .whenComplete((res, ex) -> {
-                            if (ex != null) {
-                                // fail and exit
-                                throw new CompletionException(ex);
-                            }
-                            if (res != null && res.getStatus().equals(Controller.CreateScopeStatus.Status.FAILURE)) {
-                                throw new RuntimeException("Failed to create scope while starting controller");
-                            }
-                            result.complete(null);
-                        }), executor);
+                .runAsync(() -> {
+                    if (shutdown.get()) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+
+                    return controller.createScope(NameUtils.INTERNAL_SCOPE_NAME)
+                            .whenComplete((res, ex) -> {
+                                if (ex != null) {
+                                    // fail and exit
+                                    throw new CompletionException(ex);
+                                }
+                                if (res != null && res.getStatus().equals(Controller.CreateScopeStatus.Status.FAILURE)) {
+                                    throw new RuntimeException("Failed to create scope while starting controller");
+                                }
+                                result.complete(null);
+                            });
+                }, executor);
         return result;
     }
 
@@ -104,17 +112,23 @@ public class RequestHandlers extends AbstractIdleService {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Retry.indefinitelyWithExpBackoff(10, 10, 10000,
                 e -> log.error("Exception while creating request stream {}", e))
-                .runAsync(() -> controller.createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis())
-                        .whenComplete((res, ex) -> {
-                            if (ex != null && !(ex instanceof StreamAlreadyExistsException)) {
-                                // fail and exit
-                                throw new CompletionException(ex);
-                            }
-                            if (res != null && res.getStatus().equals(Controller.CreateStreamStatus.Status.FAILURE)) {
-                                throw new RuntimeException("Failed to create stream while starting controller");
-                            }
-                            result.complete(null);
-                        }), executor);
+                .runAsync(() -> {
+                    if (shutdown.get()) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+
+                    return controller.createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis())
+                            .whenComplete((res, ex) -> {
+                                if (ex != null && !(ex instanceof StreamAlreadyExistsException)) {
+                                    // fail and exit
+                                    throw new CompletionException(ex);
+                                }
+                                if (res != null && res.getStatus().equals(Controller.CreateStreamStatus.Status.FAILURE)) {
+                                    throw new RuntimeException("Failed to create stream while starting controller");
+                                }
+                                result.complete(null);
+                            });
+                }, executor);
         return result;
     }
 
@@ -123,6 +137,10 @@ public class RequestHandlers extends AbstractIdleService {
         Retry.indefinitelyWithExpBackoff(10, 10, 10000,
                 e -> log.error("Exception while starting reader {}", e))
                 .runAsync(() -> {
+                    if (shutdown.get()) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+
                     if (readerGroupConfigRef.get() == null) {
                         readerGroupConfigRef.compareAndSet(null,
                                 ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build());
@@ -138,10 +156,19 @@ public class RequestHandlers extends AbstractIdleService {
                     }
 
                     try {
-                        checkpointStore.setPosition(hostId, Config.SCALE_READER_GROUP, Config.SCALE_READER_ID, null);
+                        checkpointStore.addReaderGroup(hostId, Config.SCALE_READER_GROUP);
                     } catch (CheckpointStoreException e) {
                         if (!e.getType().equals(CheckpointStoreException.Type.NodeExists)) {
-                            log.warn("error creating entry in checkpoint store {}", e);
+                            log.warn("error creating readergroup in checkpoint store {}", e);
+                            throw new CompletionException(e);
+                        }
+                    }
+
+                    try {
+                        checkpointStore.addReader(hostId, Config.SCALE_READER_GROUP, Config.SCALE_READER_ID);
+                    } catch (CheckpointStoreException e) {
+                        if (!e.getType().equals(CheckpointStoreException.Type.NodeExists)) {
+                            log.warn("error creating reader in checkpoint store {}", e);
                             throw new CompletionException(e);
                         }
                     }
@@ -191,21 +218,23 @@ public class RequestHandlers extends AbstractIdleService {
 
         readerGroupManagerRef.set(new ReaderGroupManagerImpl(NameUtils.INTERNAL_SCOPE_NAME, localController, clientFactory));
 
-        createScope(controller, executor)
+        CompletableFuture<Void> future = createScope(controller, executor)
                 .thenCompose(x -> createStreams(controller, executor))
                 .thenCompose(y -> startScaleReader(clientFactory, controller.getStreamMetadataTasks(),
                         controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
-                        executor))
-                .thenComposeAsync(z -> scaleRequestReaderRef.get().run(), executor).get();
+                        executor));
+        future.thenComposeAsync(z -> scaleRequestReaderRef.get().run(), executor);
+        future.get();
     }
 
     @Override
     protected void shutDown() throws Exception {
-
-        final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = scaleRequestReaderRef.getAndSet(null);
+        shutdown.set(true);
+        awaitRunning();
+        final RequestReader<ScaleRequest, ScaleRequestHandler> requestReader = scaleRequestReaderRef.getAndSet(null);
         log.info("Closing scale request handler");
-        if (prevHandler != null) {
-            prevHandler.close();
+        if (requestReader != null) {
+            requestReader.close();
         }
         final EventStreamReader<ScaleRequest> reader = scaleReaderRef.getAndSet(null);
         log.info("Closing scale request stream reader");
@@ -241,14 +270,11 @@ public class RequestHandlers extends AbstractIdleService {
                     Map<String, Position> readers;
                     try {
                         readers = checkpointStore.getPositions(hostId, Config.SCALE_READER_GROUP);
-
                     } catch (CheckpointStoreException e) {
-                        switch (e.getType()) {
-                            case NoNode: {
-                                return CompletableFuture.completedFuture(null);
-                            }
-                            default:
-                                throw new CompletionException(e);
+                        if (!e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                            throw new CompletionException(e);
+                        } else {
+                            return CompletableFuture.completedFuture(null);
                         }
                     }
 

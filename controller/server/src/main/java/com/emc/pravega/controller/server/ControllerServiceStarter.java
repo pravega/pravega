@@ -45,7 +45,6 @@ import java.net.UnknownHostException;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -214,17 +213,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
             }
 
-            // Start request handlers
-            if (serviceConfig.isRequestHandlersEnabled()) {
-
-                log.info("Starting request handlers");
-                requestHandlers = new RequestHandlers(controllerService,
-                        checkpointStore, host.getHostId(), requestExecutor);
-                requestHandlers.startAsync();
-                log.info("Awaiting start of request handlers");
-                requestHandlers.awaitRunning();
-            }
-
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
                 grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get());
@@ -251,6 +239,18 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
                 log.info("Awaiting start of controller cluster listener");
                 controllerClusterListener.awaitRunning();
+            }
+
+            // Start request handlers
+            if (serviceConfig.isRequestHandlersEnabled()) {
+
+                log.info("Starting request handlers");
+                requestHandlers = new RequestHandlers(controllerService,
+                        checkpointStore, host.getHostId(), requestExecutor);
+                requestHandlers.startAsync();
+                log.info("Awaiting start of request handlers");
+                requestHandlers.awaitRunning();
+                log.info("Done starting of request handlers");
             }
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
