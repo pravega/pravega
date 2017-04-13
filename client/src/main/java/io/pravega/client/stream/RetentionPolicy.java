@@ -18,11 +18,13 @@ package io.pravega.client.stream;
 import java.io.Serializable;
 import java.time.Duration;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
 @Data
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
 public class RetentionPolicy implements Serializable {
     public static final RetentionPolicy INFINITE = new RetentionPolicy(Type.TIME, Long.MAX_VALUE);
     private static final long serialVersionUID = 1L;
