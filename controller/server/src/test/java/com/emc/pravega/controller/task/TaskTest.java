@@ -4,11 +4,17 @@
 package com.emc.pravega.controller.task;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.mocks.AckFutureMock;
+import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
+import com.emc.pravega.controller.server.eventProcessor.CommitEvent;
+import com.emc.pravega.controller.store.stream.TxnStatus;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -45,6 +51,7 @@ import org.mockito.Mockito;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -243,6 +250,110 @@ public class TaskTest {
         assertFalse(data.isPresent());
 
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
+        assertFalse(child.isPresent());
+    }
+
+    @Test(timeout = 10000)
+    public void testStreamTaskSweeping() {
+        final String stream = "testPartialCreationStream";
+        final String deadHost = "deadHost";
+        final int initialSegments = 2;
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(initialSegments);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final ArrayList<Integer> sealSegments = new ArrayList<>();
+        sealSegments.add(0);
+        final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry(0.0, 0.25));
+        newRanges.add(new AbstractMap.SimpleEntry(0.25, 0.5));
+        final int newSegments = initialSegments - sealSegments.size() + newRanges.size();
+
+        // Create objects.
+        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class));
+        mockStreamTasks.setCreateIndexOnlyMode();
+        TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
+
+        // Create stream test.
+        completePartialTask(mockStreamTasks.createStream(SCOPE, stream, configuration1, System.currentTimeMillis()),
+                deadHost, sweeper);
+        Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
+
+        // Alter stream test.
+        completePartialTask(mockStreamTasks.alterStream(SCOPE, stream, configuration1, null), deadHost, sweeper);
+
+        // Scale test.
+        completePartialTask(mockStreamTasks.scale(SCOPE, stream, sealSegments, newRanges,
+                System.currentTimeMillis(), null), deadHost, sweeper);
+        Assert.assertEquals(newSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
+
+        // Seal stream test.
+        completePartialTask(mockStreamTasks.sealStream(SCOPE, stream, null), deadHost, sweeper);
+        Assert.assertEquals(0, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
+
+        // Delete stream test.
+        completePartialTask(mockStreamTasks.deleteStream(SCOPE, stream, null), deadHost, sweeper);
+        List<StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
+        Assert.assertTrue(streams.stream().allMatch(x -> !x.getStreamName().equals(stream)));
+    }
+
+    @Test(timeout = 10000)
+    @SuppressWarnings("unchecked")
+    public void testTransactionTaskSweeping() {
+        final String deadHost = "deadHost";
+        final String commitStream = "commitStream";
+        final String abortStream = "abortStream";
+        final AckFuture future = new AckFutureMock(CompletableFuture.completedFuture(true));
+
+        // Create mock writer objects.
+        EventStreamWriter<CommitEvent> mockCommitWriter = Mockito.mock(EventStreamWriter.class);
+        Mockito.when(mockCommitWriter.writeEvent(Mockito.any())).thenReturn(future);
+        EventStreamWriter<AbortEvent> mockAbortWriter = Mockito.mock(EventStreamWriter.class);
+        Mockito.when(mockAbortWriter.writeEvent(Mockito.any())).thenReturn(future);
+
+        // Create task and sweeper objects
+        StreamTransactionMetadataTasks mockTxnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
+                taskMetadataStore, segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class));
+        mockTxnTasks.setCreateIndexOnlyMode();
+        mockTxnTasks.initializeStreamWriters(commitStream, mockCommitWriter, abortStream, mockAbortWriter);
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
+                taskMetadataStore, segmentHelperMock, executor, HOSTNAME, Mockito.mock(ConnectionFactory.class));
+        txnTasks.initializeStreamWriters(commitStream, mockCommitWriter, abortStream, mockAbortWriter);
+        TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, txnTasks);
+
+        // Create transaction.
+        completePartialTask(mockTxnTasks.createTxn(SCOPE, stream1, 10000, 10000, 10000, null), deadHost, sweeper);
+
+        // Ensure that a transaction is created.
+        Map<UUID, ActiveTxnRecord> map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
+        assertEquals(1, map.size());
+        UUID txId = map.keySet().iterator().next();
+
+        // Abort the transaction
+        completePartialTask(mockTxnTasks.abortTxn(SCOPE, stream1, txId, null, null), deadHost, sweeper);
+        // Ensure that transactions state is ABORTING.
+        TxnStatus status = streamStore.getTransactionData(SCOPE, stream1, txId, null, executor).join().getStatus();
+        assertEquals(TxnStatus.ABORTING, status);
+
+        // Create another transaction for committing.
+        completePartialTask(mockTxnTasks.createTxn(SCOPE, stream1, 10000, 10000, 10000, null), deadHost, sweeper);
+
+        // Ensure that a transaction is created.
+        map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
+        assertEquals(2, map.size());
+        txId = map.keySet().iterator().next();
+
+        // Commit the transaction.
+        completePartialTask(mockTxnTasks.commitTxn(SCOPE, stream1, txId, null), deadHost, sweeper);
+        // Ensure that transaction state is COMMITTING.
+        status = streamStore.getTransactionData(SCOPE, stream1, txId, null, executor).join().getStatus();
+        assertEquals(TxnStatus.COMMITTING, status);
+    }
+
+    private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
+        AssertExtensions.assertThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
+        sweeper.sweepOrphanedTasks(hostId).join();
+        Optional<TaggedResource> child = taskMetadataStore.getRandomChild(hostId).join();
         assertFalse(child.isPresent());
     }
 

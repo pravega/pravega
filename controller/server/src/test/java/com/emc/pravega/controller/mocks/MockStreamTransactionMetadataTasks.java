@@ -64,12 +64,12 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
     @Override
     @Synchronized
     public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
-                                                 final Optional<Integer> version,
+                                                 final Integer version,
                                                  final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return this.streamMetadataStore.sealTransaction(scope, stream, txId, false, version, context, executor)
+        return this.streamMetadataStore.sealTransaction(scope, stream, txId, false, Optional.ofNullable(version), context, executor)
                 .thenApply(status -> {
                     log.info("Sealed:abort transaction {} with version {}", txId, version);
                     return status;

@@ -139,7 +139,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
         return execute(
                 new Resource(scope, stream),
-                new Serializable[]{scope, stream},
+                new Serializable[]{scope, stream, lease, maxExecutionTime, scaleGracePeriod, null},
                 () -> createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context));
     }
 
@@ -177,12 +177,12 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      */
     @Task(name = "abortTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
-                                                final Optional<Integer> version, final OperationContext contextOpt) {
+                                                final Integer version, final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return execute(
                 new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId},
+                new Serializable[]{scope, stream, txId, version, null},
                 () -> abortTxnBody(scope, stream, txId, version, context));
     }
 
@@ -202,7 +202,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
         return execute(
                 new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId},
+                new Serializable[]{scope, stream, txId, null},
                 () -> commitTxnBody(scope, stream, txId, context));
     }
 
@@ -232,8 +232,8 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
-                                                      final Optional<Integer> version, final OperationContext context) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid, false, version, context, executor)
+                                                      final Integer version, final OperationContext context) {
+        return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), context, executor)
                 .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
                         writeEvent(abortEventEventStreamWriter, abortStreamName, txid.toString(),
                                 new AbortEvent(scope, stream, txid), txid, status), executor), executor);
