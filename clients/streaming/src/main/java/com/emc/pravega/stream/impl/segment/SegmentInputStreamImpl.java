@@ -101,10 +101,10 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     public ByteBuffer read(long timeout) throws EndOfSegmentException {
         log.trace("Read called at offset {}", offset);
         fillBuffer();
-        if (buffer.dataAvailable() <= 0 && receivedEndOfSegment) {
-            throw new EndOfSegmentException();
-        }
-        if (buffer.dataAvailable() < TYPE_PLUS_LENGTH_SIZE) {
+        while (buffer.dataAvailable() < TYPE_PLUS_LENGTH_SIZE) {
+            if (buffer.dataAvailable() <= 0 && receivedEndOfSegment) {
+                throw new EndOfSegmentException();
+            }
             if (outstandingRequest.await(timeout)) {
                 handleRequest();
             } else {
