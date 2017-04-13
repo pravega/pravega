@@ -6,7 +6,7 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.service.contracts.AttributeUpdate;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import lombok.val;

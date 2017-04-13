@@ -31,7 +31,7 @@ import com.emc.pravega.stream.impl.PendingEvent;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
-import com.emc.pravega.testcommon.Async;
+import com.emc.pravega.shared.testcommon.Async;
 
 import io.netty.buffer.Unpooled;
 import lombok.Cleanup;

@@ -8,7 +8,7 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.emc.pravega.service.storage.TruncateableStorage;
 import com.emc.pravega.service.storage.TruncateableStorageTestBase;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;

@@ -5,8 +5,8 @@
 package com.emc.pravega.service.storage;
 
 import com.emc.pravega.common.util.CloseableIterator;
-import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;

@@ -4,7 +4,7 @@
 
 package com.emc.pravega.common.util;
 
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

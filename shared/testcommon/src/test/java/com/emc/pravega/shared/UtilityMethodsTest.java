@@ -1,9 +1,8 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega;
+package com.emc.pravega.shared;
 
-import com.emc.pravega.testcommon.TestUtils;
 import org.junit.Test;
 
 import java.util.Collections;

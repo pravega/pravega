@@ -6,7 +6,7 @@
 package com.emc.pravega.common.util;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import java.util.Collection;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;

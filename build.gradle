@@ -52,9 +52,9 @@ allprojects {
             html.enabled true
         }
     }
-    compileJava { 
-        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
-    } 
+    compileJava {
+        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror"
+    }
 
     repositories {
         // Use 'jcenter' for resolving your dependencies.
@@ -122,12 +122,43 @@ def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
 
 project('common') {
     dependencies {
-        testCompile project(':testcommon')
+        testCompile project(':shared:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        // for Metrics
-        compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
+        compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        jar {
+            from project.sourceSets.main.output
+            from project(':shared:testcommon').sourceSets.main.output
+        }
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-common'
+                from components.java
+            }
+        }
+    }
+    javadoc {
+        exclude 'com/emc/pravega/common/*'
+    }
+}
+
+project('shared') {
+    dependencies {
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+    }
+}
+
+project('shared:metrics') {
+    dependencies {
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'com.readytalk', name: 'metrics3-statsd', version: metrics3StatsdVersion
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
         compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
@@ -139,44 +170,18 @@ project('common') {
         // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
         compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
-        compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        jar {
-            from project.sourceSets.main.output
-            from project(":testcommon").sourceSets.main.output
-        }
+        compile project(':common')
     }
     publishing {
         publications {
             maven(MavenPublication) {
                 pom.withXml {
-                    asNode().appendNode('repositories', '').appendNode('repository','').
-                            appendNode('id','jcenter').parent().
-                            appendNode('name','JCenter Repository').parent().
-                            appendNode('url','http://jcenter.bintray.com')
+                    asNode().appendNode('repositories', '').appendNode('repository', '').
+                            appendNode('id', 'jcenter').parent().
+                            appendNode('name', 'JCenter Repository').parent().
+                            appendNode('url', 'http://jcenter.bintray.com')
                 }
-                artifactId 'pravega-common'
-                from components.java
-            }
-        }
-    }
-    javadoc {
-        exclude 'com/emc/pravega/common/*'
-    }
-}
-
-project ('shared') {
-   dependencies {
-    compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-    compile project(':common')
-   }
-
-   publishing {
-        publications {
-            maven(MavenPublication) {
-                artifactId 'pravega-shared'
+                artifactId 'pravega-shared-metrics'
                 from components.java
             }
         }
@@ -196,8 +201,9 @@ project('clients:streaming') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
         compile project(':shared')
+        compile project(':shared:metrics')
         compile project(":controller:contract")
-        testCompile project(':testcommon')
+        testCompile project(':shared:testcommon')
     }
     publishing {
         publications {
@@ -218,7 +224,7 @@ project('clients:streaming') {
     }
 }
 
-project('testcommon') {
+project('shared:testcommon') {
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -234,7 +240,7 @@ project('testcommon') {
 project('service:contracts') {
     dependencies {
         compile project(':common')
-        testCompile project(':testcommon')
+        testCompile project(':shared:testcommon')
     }
     publishing {
         publications {
@@ -250,8 +256,8 @@ project('service:storage') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
-        compile project(':shared')
-        testCompile project(':testcommon')
+        compile project(':shared:metrics')
+        testCompile project(':shared:testcommon')
     }
     publishing {
         publications {
@@ -298,8 +304,8 @@ project('service:storage:impl') {
 
         compile project(':common')
         compile project(':service:storage')
-        compile project(':shared')
-        testCompile project(':testcommon')
+        compile project(':shared:metrics')
+        testCompile project(':shared:testcommon')
         testCompile files(project(':service:storage').sourceSets.test.output)
     }
     publishing {
@@ -317,8 +323,8 @@ project('service:server') {
         compile project(':common')
         compile project(':service:contracts')
         compile project(':service:storage')
-        compile project(':shared')
-        testCompile project(':testcommon')
+        compile project(':shared:metrics')
+        testCompile project(':shared:testcommon')
     }
     publishing {
         publications {
@@ -359,7 +365,7 @@ project('service:server:host') {
         compile project(':service:storage:impl')
         compile project(':service:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile project(':testcommon')
+        testCompile project(':shared:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
@@ -397,7 +403,7 @@ project('integrationtests') {
         compile project(':service:server:host')
         compile project(':controller:server')
         compile project(':connectors:flink')
-        compile project(':testcommon')
+        compile project(':shared:testcommon')
         compile group: 'junit', name:'junit', version: junitVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -474,7 +480,7 @@ project('integrationtests') {
 
 project('controller') {
     dependencies {
-        testCompile project(':testcommon')
+        testCompile project(':shared:testcommon')
     }
 }
 
@@ -562,10 +568,9 @@ project('controller:server') {
 
     dependencies {
         compile project(':common')
-        compile project(':shared')
+        compile project(':shared:metrics')
         compile project(":controller:contract")
         compile project(":clients:streaming")
-        compile project(":shared")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
@@ -579,7 +584,7 @@ project('controller:server') {
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
-        testCompile project(':testcommon')
+        testCompile project(':shared:testcommon')
         testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: jerseyVersion
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
@@ -711,7 +716,7 @@ project('singlenode') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
 
-        testCompile project(':testcommon')
+        testCompile project(':shared:testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
@@ -743,7 +748,7 @@ project('systemtests:tests') {
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
         compile project(':controller:server')
         compile project(":clients:streaming")
-        compile project(":testcommon")
+        testCompile project(':shared:testcommon')
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: jerseyVersion
@@ -818,7 +823,7 @@ task publishAllJars() {
     dependsOn ':service:storage:impl:publish'
     dependsOn ':service:server:publish'
     dependsOn ':service:server:host:publish'
-    dependsOn ':shared:publish'
+    dependsOn ':shared:metrics:publish'
     dependsOn ':controller:contract:publish'
     dependsOn ':controller:server:publish'
     dependsOn ':connectors:flink:publish'

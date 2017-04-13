@@ -13,7 +13,7 @@ import java.util.Map;
 
 import org.junit.Test;
 
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 
 import lombok.Data;
 

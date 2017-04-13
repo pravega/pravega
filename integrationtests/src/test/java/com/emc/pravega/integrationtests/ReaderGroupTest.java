@@ -21,7 +21,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockStreamManager;
-import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;

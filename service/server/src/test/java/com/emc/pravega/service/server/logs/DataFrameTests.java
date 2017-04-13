@@ -8,7 +8,7 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.LogAddress;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 

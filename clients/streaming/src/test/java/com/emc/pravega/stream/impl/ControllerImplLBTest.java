@@ -11,7 +11,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
-import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 import io.grpc.Server;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;

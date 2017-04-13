@@ -19,7 +19,7 @@ import com.emc.pravega.state.examples.SetSynchronizer;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
-import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.shared.testcommon.TestUtils;
 
 import java.io.Serializable;
 import java.util.Collections;

@@ -6,4 +6,4 @@
 
 include 'common', 'clients:streaming', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host',
         'controller:contract', 'controller:server', 'connectors:flink',
-        'integrationtests', 'testcommon', 'benchmark', 'singlenode', 'systemtests:tests', 'shared'
+        'integrationtests', 'shared:testcommon', 'benchmark', 'singlenode', 'systemtests:tests', 'shared:metrics'

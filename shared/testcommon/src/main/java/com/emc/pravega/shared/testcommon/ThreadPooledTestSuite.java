@@ -3,7 +3,7 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package com.emc.pravega.testcommon;
+package com.emc.pravega.shared.testcommon;
 
 import org.junit.After;
 import org.junit.Before;

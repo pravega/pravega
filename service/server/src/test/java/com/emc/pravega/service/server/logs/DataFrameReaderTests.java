@@ -12,9 +12,9 @@ import com.emc.pravega.service.server.LogItemFactory;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLog;
-import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.ErrorInjector;
-import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.ErrorInjector;
+import com.emc.pravega.shared.testcommon.ThreadPooledTestSuite;
 import org.junit.Assert;
 import org.junit.Test;
 

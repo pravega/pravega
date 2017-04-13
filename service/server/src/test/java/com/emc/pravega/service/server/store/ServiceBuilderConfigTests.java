@@ -5,7 +5,7 @@
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ConfigBuilder;
-import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.shared.testcommon.AssertExtensions;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.Map;
