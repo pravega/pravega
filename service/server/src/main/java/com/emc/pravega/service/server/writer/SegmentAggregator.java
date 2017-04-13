@@ -234,6 +234,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
                         // It is very important to keep this value up-to-date and correct.
                         this.metadata.setStorageLength(segmentInfo.getLength());
+                        this.dataSource.notifyStorageLengthUpdated(this.metadata.getId());
                     }
 
                     // Check if the Storage segment is sealed, but it's not in metadata (this is 100% indicative of some data corruption happening).
@@ -301,24 +302,56 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         boolean processOp = lastOffset > this.metadata.getStorageLength()
                 || (!this.metadata.isSealedInStorage() && (operation instanceof StreamSegmentSealOperation));
         if (processOp) {
-            if (operation instanceof MergeTransactionOperation) {
-                this.operations.add(operation);
-                this.mergeTransactionCount.incrementAndGet();
-            } else if (operation instanceof StreamSegmentSealOperation) {
-                this.operations.add(operation);
-                this.hasSealPending.set(true);
-            } else if (operation instanceof CachedStreamSegmentAppendOperation) {
-                // Aggregate the Append Operation.
-                final int maxLength = this.config.getMaxFlushSizeBytes();
-                AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(
-                        operation.getStreamSegmentOffset(), operation.getSequenceNumber(), maxLength);
-                aggregateAppendOperation(operation, aggregatedAppend, maxLength);
-            }
+            processNewOperation(operation);
+        } else {
+            acknowledgeAlreadyProcessedOperation(operation);
         }
 
-        // Always record the last added offset, to ensure that operations are processed in the right order.
+        // Always record the last added offset, to ensure that operations are contiguous and processed in the right order.
         this.lastAddedOffset.set(lastOffset);
         log.debug("{}: Add {}; OpCount={}, MergeCount={}, Seal={}.", this.traceObjectId, operation, this.operations.size(), this.mergeTransactionCount, this.hasSealPending);
+    }
+
+    /**
+     * Processes an operation that would result in a change to the underlying Storage.
+     *
+     * @param operation The Operation to process.
+     */
+    private void processNewOperation(StorageOperation operation) {
+        if (operation instanceof MergeTransactionOperation) {
+            this.operations.add(operation);
+            this.mergeTransactionCount.incrementAndGet();
+        } else if (operation instanceof StreamSegmentSealOperation) {
+            this.operations.add(operation);
+            this.hasSealPending.set(true);
+        } else if (operation instanceof CachedStreamSegmentAppendOperation) {
+            // Aggregate the Append Operation.
+            final int maxLength = this.config.getMaxFlushSizeBytes();
+            AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(
+                    operation.getStreamSegmentOffset(), operation.getSequenceNumber(), maxLength);
+            aggregateAppendOperation(operation, aggregatedAppend, maxLength);
+        }
+    }
+
+    /**
+     * Processes (acks) an operation that has already been processed and would otherwise result in no change to the
+     * underlying Storage.
+     *
+     * @param operation The operation to handle.
+     */
+    private void acknowledgeAlreadyProcessedOperation(StorageOperation operation) {
+        try {
+            // Only MergeTransactionOperations need special handling. Others, such as StreamSegmentSealOperation, are not
+            // needed since they're handled in the initialize() method.
+            if (operation instanceof MergeTransactionOperation) {
+                // Ensure that the DataSource is aware of this (since after recovery, it may not know that a merge has
+                // been properly completed).
+                MergeTransactionOperation mergeOp = (MergeTransactionOperation) operation;
+                this.dataSource.completeMerge(mergeOp.getStreamSegmentId(), mergeOp.getTransactionSegmentId());
+            }
+        } catch (Exception ex) {
+            log.warn("Unable to acknowledge already processed operation '{}'.", operation, ex);
+        }
     }
 
     /**

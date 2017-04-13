@@ -17,6 +17,7 @@ public class ReadIndexConfig {
     //region Config Names
     public static final Property<Integer> STORAGE_READ_ALIGNMENT = Property.named("storageReadAlignment", 1024 * 1024);
     public static final Property<Integer> MEMORY_READ_MIN_LENGTH = Property.named("memoryReadMinLength", 4 * 1024);
+    public static final Property<Integer> STORAGE_READ_DEFAULT_TIMEOUT = Property.named("storageReadDefaultTimeoutMillis", 30 * 1000);
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeMillis", 30 * 60 * 1000);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeMillis", 5 * 1000);
@@ -53,6 +54,12 @@ public class ReadIndexConfig {
     @Getter
     private final CachePolicy cachePolicy;
 
+    /**
+     * The Default Timeout (should no other value be provided) for Storage reads.
+     */
+    @Getter
+    private final Duration storageReadDefaultTimeout;
+
     //endregion
 
     //region Constructor
@@ -65,6 +72,7 @@ public class ReadIndexConfig {
     private ReadIndexConfig(TypedProperties properties) throws ConfigurationException {
         this.storageReadAlignment = properties.getInt(STORAGE_READ_ALIGNMENT);
         this.memoryReadMinLength = properties.getInt(MEMORY_READ_MIN_LENGTH);
+        this.storageReadDefaultTimeout = Duration.ofMillis(properties.getInt(STORAGE_READ_DEFAULT_TIMEOUT));
         long cachePolicyMaxSize = properties.getLong(CACHE_POLICY_MAX_SIZE);
         int cachePolicyMaxTime = properties.getInt(CACHE_POLICY_MAX_TIME);
         int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);

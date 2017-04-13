@@ -16,6 +16,7 @@ import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -91,6 +92,12 @@ public class StorageWriterFactory implements WriterFactory {
         public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
             log.debug("{}: CompleteMerge (TargetSegmentId={}, SourceSegmentId={}).", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
             this.readIndex.completeMerge(targetStreamSegmentId, sourceStreamSegmentId);
+        }
+
+        @Override
+        public void notifyStorageLengthUpdated(long streamSegmentId) {
+            log.debug("{}: notifyStorageLengthUpdated (SegmentId={}).", this.traceObjectId, streamSegmentId);
+            this.readIndex.triggerFutureReads(Collections.singleton(streamSegmentId));
         }
 
         @Override

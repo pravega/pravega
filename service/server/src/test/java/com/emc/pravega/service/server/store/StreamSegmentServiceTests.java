@@ -1,3 +1,6 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ */
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.service.storage.Storage;
@@ -6,6 +9,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.val;
 
 /**
  * Unit tests for the StreamSegmentService class.
@@ -26,9 +30,11 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
             this.durableDataLogFactory = new PermanentDurableDataLogFactory(executorService());
         }
 
+        val sf = this.storageFactory;
+        val ddlf = this.durableDataLogFactory;
         return ServiceBuilder.newInMemoryBuilder(builderConfig)
-                             .withStorageFactory(setup -> new ListenableStorageFactory(this.storageFactory, storage::set))
-                             .withDataLogFactory(setup -> this.durableDataLogFactory);
+                             .withStorageFactory(setup -> new ListenableStorageFactory(sf, storage::set))
+                             .withDataLogFactory(setup -> ddlf);
     }
 
     private static class PermanentDurableDataLogFactory extends InMemoryDurableDataLogFactory {

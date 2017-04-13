@@ -536,6 +536,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getDurableLogLength())));
             } else {
+                if (!entry.getContent().isDone()) {
+                    // It's possible that we got a ReadResultEntry that requires data to be fetched from Storage. If that's
+                    // the case, auto-fetch the data and set the result. No need to update the cache; the call to getSingleReadResultEntry
+                    // above takes care of that.
+                    entry.requestContent(this.config.getStorageReadDefaultTimeout());
+                }
+
                 CompletableFuture<ReadResultEntryContents> entryContent = entry.getContent();
                 entryContent.thenAccept(r::complete);
                 FutureHelpers.exceptionListener(entryContent, r::fail);
@@ -825,6 +832,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             return createStorageRead(streamSegmentOffset, (int) actualReadLength);
         } else {
+            // Note that Future Reads are not necessarily tail reads. They mean that we cannot return a result given
+            // the current state of the metadata. An example of when we might return a Future Read that is not a tail read
+            // is when we receive a read request immediately after recovery, but before the StorageWriter has had a chance
+            // to refresh the Storage state (the metadata may be a bit out of date). In that case, we record a Future Read
+            // which will be completed when the StorageWriter invokes triggerFutureReads() upon refreshing the info.
             return createFutureRead(streamSegmentOffset, maxLength);
         }
     }

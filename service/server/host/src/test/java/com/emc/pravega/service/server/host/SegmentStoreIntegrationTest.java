@@ -35,7 +35,7 @@ import org.junit.Before;
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
-public class SegmentStoreTest extends StreamSegmentStoreTestBase {
+public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
     private static final String DLOG_NAMESPACE = "pravegae2e";

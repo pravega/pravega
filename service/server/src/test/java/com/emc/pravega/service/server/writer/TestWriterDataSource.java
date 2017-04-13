@@ -29,9 +29,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.val;
 
 /**
  * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
@@ -69,6 +71,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private ErrorInjector<Exception> ackAsyncErrorInjector;
     @GuardedBy("lock")
     private ErrorInjector<Exception> getAppendDataErrorInjector;
+    @GuardedBy("lock")
+    private Consumer<Long> notifyStorageLengthUpdatedCallback;
+    @GuardedBy("lock")
+    private BiConsumer<Long, Long> completeMergeCallback;
     private final Object lock = new Object();
 
     //endregion
@@ -243,7 +249,18 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
-        // This method intentionally left empty.
+        val callback = getCompleteMergeCallback();
+        if (callback != null) {
+            callback.accept(targetStreamSegmentId, sourceStreamSegmentId);
+        }
+    }
+
+    @Override
+    public void notifyStorageLengthUpdated(long streamSegmentId) {
+        val callback = getNotifyStorageLengthUpdatedCallback();
+        if (callback != null) {
+            callback.accept(streamSegmentId);
+        }
     }
 
     @Override
@@ -330,6 +347,30 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     void setGetAppendDataErrorInjector(ErrorInjector<Exception> injector) {
         synchronized (this.lock) {
             this.getAppendDataErrorInjector = injector;
+        }
+    }
+
+    void setNotifyStorageLengthUpdatedCallback(Consumer<Long> callback) {
+        synchronized (this.lock) {
+            this.notifyStorageLengthUpdatedCallback = callback;
+        }
+    }
+
+    Consumer<Long> getNotifyStorageLengthUpdatedCallback() {
+        synchronized (this.lock) {
+            return this.notifyStorageLengthUpdatedCallback;
+        }
+    }
+
+    void setCompleteMergeCallback(BiConsumer<Long, Long> callback) {
+        synchronized (this.lock) {
+            this.completeMergeCallback = callback;
+        }
+    }
+
+    BiConsumer<Long, Long> getCompleteMergeCallback() {
+        synchronized (this.lock) {
+            return this.completeMergeCallback;
         }
     }
 

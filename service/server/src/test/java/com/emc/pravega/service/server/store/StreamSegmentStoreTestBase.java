@@ -1,3 +1,6 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ */
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.ExceptionHelpers;
@@ -90,6 +93,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * Tests an end-to-end scenario using real adapters for Cache (RocksDB) and Storage (HDFS).
      * Currently this does not use a real adapter for DurableDataLog due to difficulties in getting DistributedLog
      * to run in-process.
+     *
+     * @throws Exception If an exception occurred.
      */
     @Test
     public void testEndToEnd() throws Exception {
@@ -118,6 +123,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         try (val builder = createBuilder(storage)) {
             val segmentStore = builder.createStreamSegmentService();
 
+            checkReads(segmentContents, segmentStore);
+
             // Merge all transactions.
             mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore);
             checkSegmentStatus(lengths, false, false, segmentStore);
@@ -127,12 +134,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         try (val builder = createBuilder(storage)) {
             val segmentStore = builder.createStreamSegmentService();
 
-            // Reads (regular reads, not tail reads).
-            checkReads(segmentContents, lengths, segmentStore);
+            checkReads(segmentContents, segmentStore);
 
-            // Writer moving data to Storage.
+            // Wait for all the data to move to Storage.
             waitForSegmentsInStorage(segmentNames, segmentStore, storage.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            checkStorage(segmentContents, lengths, segmentStore, storage.get());
+            checkStorage(segmentContents, segmentStore, storage.get());
         }
 
         // Phase 4: Force a recovery, seal segments and then delete them..
@@ -309,13 +315,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    private void checkReads(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, StreamSegmentStore store) throws Exception {
-        for (String segmentName : segmentContents.keySet()) {
-            long expectedLength = lengths.get(segmentName);
+    private void checkReads(HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
+        for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
+            String segmentName = e.getKey();
+            byte[] expectedData = e.getValue().toByteArray();
             long segmentLength = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().getLength();
-
-            Assert.assertEquals("Unexpected Read Index length for segment " + segmentName, expectedLength, segmentLength);
-            byte[] expectedData = segmentContents.get(segmentName).toByteArray();
+            Assert.assertEquals("Unexpected Read Index length for segment " + segmentName, expectedData.length, segmentLength);
 
             long expectedCurrentOffset = 0;
             @Cleanup
@@ -344,8 +349,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, StreamSegmentStore store, Storage storage) {
-        for (String segmentName : segmentContents.keySet()) {
+    private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store, Storage storage) {
+        for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
+            String segmentName = e.getKey();
+            byte[] expectedData = e.getValue().toByteArray();
+
             // 1. Deletion status
             SegmentProperties sp = null;
             try {
@@ -370,14 +378,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             Assert.assertEquals("Segment seal status disagree between Store and Storage for segment " + segmentName, sp.isSealed(), storageProps.isSealed());
 
             // 3. Contents.
-            long expectedLength = lengths.get(segmentName);
-            Assert.assertEquals("Unexpected Storage length for segment " + segmentName, expectedLength, storageProps.getLength());
-
-            byte[] expectedData = segmentContents.get(segmentName).toByteArray();
+            Assert.assertEquals("Unexpected Storage length for segment " + segmentName, expectedData.length, storageProps.getLength());
             byte[] actualData = new byte[expectedData.length];
             val readHandle = storage.openRead(segmentName).join();
             int actualLength = storage.read(readHandle, 0, actualData, 0, actualData.length, TIMEOUT).join();
-            Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName, expectedLength, actualLength);
+            Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName, expectedData.length, actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentName, expectedData, actualData);
         }
     }
