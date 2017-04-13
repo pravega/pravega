@@ -164,7 +164,7 @@ public abstract class MarathonBasedService implements Service {
     void deleteApp(final String appID) {
         try {
             Result result = marathonClient.deleteApp(appID);
-            log.debug("App: {} deleted, Deployment id is: {}", appID, result.getDeploymentId());
+            log.info("App: {} deleted, Deployment id is: {}", appID, result.getDeploymentId());
             waitUntilDeploymentPresent(result.getDeploymentId()).get();
         } catch (MarathonException e) {
             if (e.getStatus() == NOT_FOUND.code()) {
@@ -177,12 +177,12 @@ public abstract class MarathonBasedService implements Service {
         }
     }
 
-    private boolean isDeploymentPresent(final String deployementID) {
+    private boolean isDeploymentPresent(final String deploymentID) {
         try {
             return marathonClient.getDeployments().stream()
-                    .anyMatch(deployment -> deployment.getId().equals(deployementID));
+                    .anyMatch(deployment -> deployment.getId().equals(deploymentID));
         } catch (MarathonException e) {
-            throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching deployemtn details of " +
+            throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching deployment details of " +
                     "service", e);
         }
     }
