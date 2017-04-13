@@ -83,11 +83,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         @Override
         public void stop() {
             log.info("Stopping Pravega SegmentStore Service : {}", getID());
-            try {
-                marathonClient.deleteApp(getID());
-            } catch (MarathonException e) {
-                handleMarathonException(e);
-            }
+            deleteApp(getID());
         }
 
     private App createPravegaSegmentStoreApp() {

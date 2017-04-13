@@ -13,6 +13,7 @@ import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.model.v2.Result;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
 
@@ -156,19 +157,39 @@ public abstract class MarathonBasedService implements Service {
         return listString;
     }
 
-    void deleteApp(String appID) {
+    String setSystemProperty(final String propertyName, final String propertyValue) {
+        return new StringBuilder().append(" -D").append(propertyName).append("=").append(propertyValue).toString();
+    }
+
+    void deleteApp(final String appID) {
         try {
-            marathonClient.deleteApp(appID);
+            Result result = marathonClient.deleteApp(appID);
+            log.info("App: {} deleted, Deployment id is: {}", appID, result.getDeploymentId());
+            waitUntilDeploymentPresent(result.getDeploymentId()).get();
         } catch (MarathonException e) {
             if (e.getStatus() == NOT_FOUND.code()) {
                 log.debug("Application does not exist");
             } else {
                 throw new TestFrameworkException(RequestFailed, "Marathon Exception while deleting service", e);
             }
+        } catch (InterruptedException | ExecutionException e) {
+            throw new TestFrameworkException(InternalError, "Exception during deleteApp", e);
         }
     }
 
-    String setSystemProperty(final String propertyName, final String propertyValue) {
-        return new StringBuilder().append(" -D").append(propertyName).append("=").append(propertyValue).toString();
+    private boolean isDeploymentPresent(final String deploymentID) {
+        try {
+            return marathonClient.getDeployments().stream()
+                    .anyMatch(deployment -> deployment.getId().equals(deploymentID));
+        } catch (MarathonException e) {
+            throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching deployment details of " +
+                    "service", e);
+        }
+    }
+
+    private CompletableFuture<Void> waitUntilDeploymentPresent(final String deploymentID) {
+        return FutureHelpers.loop(() -> isDeploymentPresent(deploymentID), //condition
+                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
+                executorService);
     }
 }
