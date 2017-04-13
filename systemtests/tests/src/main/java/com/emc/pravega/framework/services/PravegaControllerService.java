@@ -81,11 +81,7 @@ public class PravegaControllerService extends MarathonBasedService {
     @Override
     public void stop() {
         log.debug("Stopping  pravega controller service: {}", getID());
-        try {
-            marathonClient.deleteApp(getID());
-        } catch (MarathonException e) {
-            handleMarathonException(e);
-        }
+        deleteApp(getID());
     }
 
     /**

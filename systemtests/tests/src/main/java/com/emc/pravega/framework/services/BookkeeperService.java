@@ -12,6 +12,7 @@ import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 import static com.emc.pravega.framework.Utils.isSkipServiceInstallationEnabled;
 
@@ -74,11 +76,7 @@ public class BookkeeperService extends MarathonBasedService {
     @Override
     public void stop() {
         log.info("Stopping Bookkeeper Service : {}", getID());
-        try {
-            marathonClient.deleteApp(getID());
-        } catch (MarathonException e) {
-            handleMarathonException(e);
-        }
+        deleteApp(getID());
     }
 
     private App createBookieApp() {
