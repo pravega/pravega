@@ -4,6 +4,7 @@
 package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.mocks.AckFutureMock;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -29,7 +30,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.testcommon.TestingServerStarter;
-import com.google.common.util.concurrent.AbstractFuture;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -119,23 +119,6 @@ public class StreamTransactionMetadataTasksTest {
             this.abortStreamName = "abortStream";
             this.abortEventEventStreamWriter = mockAbortWriter;
             this.setReady();
-        }
-    }
-
-    private static class AckFutureMock extends AbstractFuture<Void> implements AckFuture {
-        public AckFutureMock(CompletableFuture<Boolean> result) {
-            result.handle((bool, exception) -> {
-                if (exception != null) {
-                    this.setException(exception);
-                } else {
-                    if (bool) {
-                        this.set(null);
-                    } else {
-                        this.setException(new IllegalStateException("Condition failed for non-conditional write!?"));
-                    }
-                }
-                return null;
-            });
         }
     }
 
