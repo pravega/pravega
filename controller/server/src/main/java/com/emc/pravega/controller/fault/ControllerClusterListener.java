@@ -8,7 +8,7 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.controller.requesthandler.RequestHandlers;
+import com.emc.pravega.controller.server.eventProcessor.RequestHandlers;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.google.common.base.Preconditions;

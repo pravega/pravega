@@ -6,7 +6,7 @@ package com.emc.pravega.controller.request;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
-import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
+import com.emc.pravega.controller.server.eventProcessor.ScaleRequestHandler;
 import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;

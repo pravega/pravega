@@ -1,10 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.controller.requesthandler;
+package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.requests.ControllerEvent;
+import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.stream.EventRead;
@@ -18,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -30,65 +30,44 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
- * Common class for reading requests from a pravega stream.
- * It implements a runnable.
- * It keeps polling the supplied stream for events and calls
- * registered request handler for processing these requests.
- * Request handlers are supposed to request events asynchronously.
- * The request reader submits a processing of a request asynchronously
- * and moves on to next request.
- * It handles exceptions that are thrown by processing and if the thrown
- * exception is of type Retryable, then
- * the request is written into the stream.
- * <p>
- * It is expected of requesthandlers to wrap their processing in enough
- * retries locally before throwing a retryable
- * exception to request reader.
- * <p>
- * The request reader also maintains a checkpoint candidate position from
- * among the events for which processing is complete.
- * Everytime a new request completes, it updates the checkpoint candidate.
- * It periodically checkpoints the candidate position object into metadata store.
- *
- * @param <R>
- * @param <H>
+ * This actor processes commit txn events.
+ * It does the following 2 operations in order.
+ * 1. Send commit txn message to active segments of the stream.
+ * 2. Change txn state from committing to committed.
  */
 @Slf4j
-public class RequestReader<R extends ControllerEvent, H extends RequestHandler<R>> implements AutoCloseable {
-
-    @FunctionalInterface
-    public interface Checkpointer {
-        void checkpoint(Position position) throws CheckpointStoreException;
-    }
+public class ScaleEventProcessor
+        extends EventProcessor<ScaleEvent> implements AutoCloseable {
 
     private static final int MAX_CONCURRENT = 10000;
 
     private final ConcurrentSkipListSet<PositionCounter> running;
     private final ConcurrentSkipListSet<PositionCounter> completed;
     private final AtomicReference<PositionCounter> checkpoint;
-    private final EventStreamWriter<R> writer;
-    private final EventStreamReader<R> reader;
+    private final EventStreamWriter<ScaleEvent> writer;
+    private final EventStreamReader<ScaleEvent> reader;
     private final ScheduledExecutorService executor;
     private final AtomicBoolean stop = new AtomicBoolean(false);
-    private final H requestHandler;
+    private final ScaleRequestHandler requestHandler;
     private final AtomicLong counter = new AtomicLong(0);
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
     private final ScheduledFuture<?> scheduledFuture;
-    private final CompletableFuture<Void> promise = new CompletableFuture<>();
     private final Checkpointer checkpointer;
 
-    RequestReader(final EventStreamWriter<R> writer,
-                  final EventStreamReader<R> reader,
-                  final H requestHandler,
-                  final Checkpointer checkpointer,
-                  final ScheduledExecutorService executor) {
+
+    ScaleEventProcessor(final EventStreamWriter<ScaleEvent> writer,
+                        final EventStreamReader<ScaleEvent> reader,
+                        final Checkpointer checkpointer,
+                        final ScaleRequestHandler scaleRequestHandler,
+                        final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(writer);
         Preconditions.checkNotNull(reader);
-        Preconditions.checkNotNull(requestHandler);
         Preconditions.checkNotNull(checkpointer);
+        Preconditions.checkNotNull(scaleRequestHandler);
+        Preconditions.checkNotNull(executor);
 
-        this.requestHandler = requestHandler;
+        this.requestHandler = scaleRequestHandler;
 
         running = new ConcurrentSkipListSet<>(positionCounterComparator);
         completed = new ConcurrentSkipListSet<>(positionCounterComparator);
@@ -106,6 +85,15 @@ public class RequestReader<R extends ControllerEvent, H extends RequestHandler<R
         semaphore = new Semaphore(MAX_CONCURRENT);
     }
 
+    @Override
+    protected void process(ScaleEvent event) {
+    }
+
+    @FunctionalInterface
+    public interface Checkpointer {
+        void checkpoint(Position position) throws CheckpointStoreException;
+    }
+
     public void stop() {
         stop.set(true);
     }
@@ -119,75 +107,40 @@ public class RequestReader<R extends ControllerEvent, H extends RequestHandler<R
      * <p>
      * It also gets the next counter value. A counter is an ever increasing number.
      */
-    public CompletableFuture<Void> run() {
-        CompletableFuture.runAsync(() -> {
-            while (!stop.get()) {
-                try {
-                    // limiting number of concurrent processing. Otherwise we will keep picking messages from the stream
-                    // and it could lead to memory overload.
-                    semaphore.acquire();
+    public boolean run(EventRead<ScaleEvent> event) {
+        // limiting number of concurrent processing. Otherwise we will keep picking messages from the stream
+        // and it could lead to memory overload.
 
-                    EventRead<R> event;
-                    long next;
-                    R request;
-                    PositionCounter pc;
+        PositionCounter pc;
+        ScaleEvent request;
+        long next;
+        try {
+            semaphore.acquire();
+        } catch (Exception e) {
+            log.warn("exception thrown while acquiring semaphore {}", e);
+            semaphore.release();
+            return false;
+        }
 
-                    try {
-                        next = counter.incrementAndGet();
+        next = counter.incrementAndGet();
+        request = event.getEvent();
+        pc = new PositionCounter(event.getPosition(), next);
+        running.add(pc);
 
-                        event = reader.readNextEvent(2000);
-                        if (event == null || event.getEvent() == null) {
-                            log.trace("timeout elapsed but no request received.");
-                            continue;
+        requestHandler.process(request)
+                .whenCompleteAsync((r, e) -> {
+                    complete(pc);
+                    semaphore.release();
+
+                    if (e != null) {
+                        log.error("ScaleEventProcessor Processing failed {}", e);
+
+                        if (RetryableException.isRetryable(e)) {
+                            putBack(request.getKey(), request);
                         }
-
-                        request = event.getEvent();
-                        pc = new PositionCounter(event.getPosition(), next);
-                        running.add(pc);
-                    } catch (Exception e) {
-                        semaphore.release();
-                        log.warn("error reading event {}", e);
-                        throw e;
                     }
-
-                    CompletableFuture<Void> process;
-                    try {
-                        process = requestHandler.process(request);
-                    } catch (Exception e) {
-                        log.error("exception thrown while creating processing future {}", e);
-                        complete(pc);
-                        semaphore.release();
-                        throw e;
-                    }
-
-                    process.whenCompleteAsync((r, e) -> {
-                        complete(pc);
-                        semaphore.release();
-
-                        if (e != null) {
-                            log.error("Processing failed RequestReader {}", e);
-
-                            if (RetryableException.isRetryable(e)) {
-                                putBack(request.getKey(), request);
-                            }
-                        }
-                    }, executor);
-                } catch (Exception | Error e) {
-                    // Catch all exceptions (not throwable) and log and ignore.
-                    // Ideally we should never come here. But this is a safety check to ensure request processing continues even if
-                    // an exception is thrown while doing reads for next events.
-                    // And we should never stop processing of other requests in the queue even if processing a request throws
-                    // an exception.
-                    log.error("Exception thrown while processing event. Logging and continuing. Stack trace {}", e);
-                } catch (Throwable t) {
-                    log.error("Fatal exception while processing event {}", t);
-                    promise.completeExceptionally(t);
-                    throw t;
-                }
-            }
-        });
-
-        return promise;
+                }, executor);
+        return true;
     }
 
     /**
@@ -210,7 +163,7 @@ public class RequestReader<R extends ControllerEvent, H extends RequestHandler<R
      * @param request request which has to be put back in the request stream.
      */
     @Synchronized
-    private void putBack(String key, R request) {
+    private void putBack(String key, ScaleEvent request) {
         FutureHelpers.getAndHandleExceptions(writer.writeEvent(key, request), RuntimeException::new);
     }
 
@@ -250,7 +203,6 @@ public class RequestReader<R extends ControllerEvent, H extends RequestHandler<R
             log.error("Request reader checkpointing failed {}", e);
         } catch (Throwable t) {
             log.error("Checkpointing failed with fatal error {}", t);
-            promise.completeExceptionally(t);
         }
     }
 
@@ -265,4 +217,5 @@ public class RequestReader<R extends ControllerEvent, H extends RequestHandler<R
         private final Position position;
         private final long counter;
     }
+
 }

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.controller.requesthandler;
+package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -35,13 +35,12 @@ import java.util.stream.Collectors;
  * Request handler for scale requests in scale-request-stream.
  */
 @Slf4j
-public class ScaleRequestHandler implements RequestHandler<ScaleEvent> {
+public class ScaleRequestHandler {
 
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 2;
     private static final int RETRY_MAX_ATTEMPTS = 10;
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
-    private static final long BLOCK_VALIDITY_PERIOD = Duration.ofSeconds(5).toMillis();
 
     private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
     private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
@@ -50,23 +49,19 @@ public class ScaleRequestHandler implements RequestHandler<ScaleEvent> {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
-    private final StreamTransactionMetadataTasks streamTxMetadataTasks;
     private final ScheduledExecutorService executor;
 
     public ScaleRequestHandler(final StreamMetadataTasks streamMetadataTasks,
                                final StreamMetadataStore streamMetadataStore,
-                               final StreamTransactionMetadataTasks streamTxMetadataTasks,
                                final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(executor);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
-        this.streamTxMetadataTasks = streamTxMetadataTasks;
         this.executor = executor;
     }
 
-    @Override
     public CompletableFuture<Void> process(final ScaleEvent request) {
         if (!(request.getTimestamp() + REQUEST_VALIDITY_PERIOD > System.currentTimeMillis())) {
             // request no longer valid. Ignore.

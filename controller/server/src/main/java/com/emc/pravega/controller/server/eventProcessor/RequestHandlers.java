@@ -1,16 +1,19 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.controller.requesthandler;
+package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
+import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
+import com.emc.pravega.controller.server.eventProcessor.ScaleRequestHandler;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
@@ -58,10 +61,10 @@ public class RequestHandlers extends AbstractIdleService {
     private final AtomicReference<ScaleRequestHandler> scaleHandlerRef = new AtomicReference<>();
     private final AtomicReference<EventStreamReader<ScaleEvent>> scaleReaderRef = new AtomicReference<>();
     private final AtomicReference<EventStreamWriter<ScaleEvent>> scaleWriterRef = new AtomicReference<>();
-    private final AtomicReference<RequestReader<ScaleEvent, ScaleRequestHandler>> scaleRequestReaderRef = new AtomicReference<>();
     private final AtomicReference<ReaderGroupManager> readerGroupManagerRef = new AtomicReference<>();
     private final AtomicReference<ReaderGroupConfig> readerGroupConfigRef = new AtomicReference<>();
     private final AtomicReference<ReaderGroup> readerGroupRef = new AtomicReference<>();
+    private final AtomicReference<ScaleEventProcessor> scaleEventProcessorRef = new AtomicReference<>();
 
     private final ControllerService controller;
     private final CheckpointStore checkpointStore;
@@ -132,7 +135,10 @@ public class RequestHandlers extends AbstractIdleService {
         return result;
     }
 
-    private CompletableFuture<Void> startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor) {
+    private CompletableFuture<Void> startScaleReader(ClientFactory clientFactory,
+                                                     StreamMetadataTasks streamMetadataTasks,
+                                                     StreamMetadataStore streamStore,
+                                                     ScheduledExecutorService executor) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Retry.indefinitelyWithExpBackoff(10, 10, 10000,
                 e -> log.error("Exception while starting reader {}", e))
@@ -152,7 +158,7 @@ public class RequestHandlers extends AbstractIdleService {
                     }
                     if (scaleHandlerRef.get() == null) {
                         scaleHandlerRef.compareAndSet(null,
-                                new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));
+                                new ScaleRequestHandler(streamMetadataTasks, streamStore, executor));
                     }
 
                     try {
@@ -191,12 +197,12 @@ public class RequestHandlers extends AbstractIdleService {
                                 EventWriterConfig.builder().build()));
                     }
 
-                    if (scaleRequestReaderRef.get() == null) {
-                        scaleRequestReaderRef.compareAndSet(null, new RequestReader<>(
+                    if (scaleEventProcessorRef.get() == null) {
+                        scaleEventProcessorRef.compareAndSet(null, new ScaleEventProcessor(
                                 scaleWriterRef.get(),
                                 scaleReaderRef.get(),
-                                scaleHandlerRef.get(),
                                 (Position position) -> checkpointStore.setPosition(hostId, Config.SCALE_READER_GROUP, Config.SCALE_READER_ID, position),
+                                scaleHandlerRef.get(),
                                 executor));
                     }
 
@@ -221,9 +227,8 @@ public class RequestHandlers extends AbstractIdleService {
         CompletableFuture<Void> future = createScope(controller, executor)
                 .thenCompose(x -> createStreams(controller, executor))
                 .thenCompose(y -> startScaleReader(clientFactory, controller.getStreamMetadataTasks(),
-                        controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
+                        controller.getStreamStore(),
                         executor));
-        future.thenComposeAsync(z -> scaleRequestReaderRef.get().run(), executor);
         future.get();
     }
 
@@ -231,11 +236,6 @@ public class RequestHandlers extends AbstractIdleService {
     protected void shutDown() throws Exception {
         shutdown.set(true);
         awaitRunning();
-        final RequestReader<ScaleEvent, ScaleRequestHandler> requestReader = scaleRequestReaderRef.getAndSet(null);
-        log.info("Closing scale request handler");
-        if (requestReader != null) {
-            requestReader.close();
-        }
         final EventStreamReader<ScaleEvent> reader = scaleReaderRef.getAndSet(null);
         log.info("Closing scale request stream reader");
         if (reader != null) {
