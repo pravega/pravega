@@ -361,6 +361,9 @@ project('service:server:host') {
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile files(project(':service:server').sourceSets.test.output)
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
+        testCompile files(project(':service:storage:impl').sourceSets.test.output)
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
         dependsOn 'distTar','distZip'
@@ -405,13 +408,10 @@ project('integrationtests') {
         testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: flinkVersion
         testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: flinkVersion
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
-        testCompile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion
-        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
-        testCompile files(project(':service:storage:impl').sourceSets.test.output)
     }
 
     task startServer(type: JavaExec) {

@@ -1,7 +1,10 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ *
  */
-package com.emc.pravega.integrationtests;
+package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -14,6 +17,7 @@ import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogStarter;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSClusterHelpers;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
@@ -24,7 +28,6 @@ import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
@@ -71,11 +74,7 @@ public class SegmentStoreTest extends StreamSegmentStoreTestBase {
     @Before
     public void setupHdfs() throws Exception {
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
-        Configuration conf = new Configuration();
-        conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
-        conf.setBoolean("dfs.permissions.enabled", true);
-        MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
-        this.hdfsCluster = builder.build();
+        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
 
         this.configBuilder.include(HDFSStorageConfig
                 .builder()
