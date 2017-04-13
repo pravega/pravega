@@ -5,12 +5,12 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import java.io.Serializable;
 
 /**
  * Event processor interface.
  */
-public abstract class EventProcessor<T extends ControllerEvent> {
+public abstract class EventProcessor<T extends Serializable> {
 
     /**
      * AbstractActor initialization hook that is called before actor starts receiving events.

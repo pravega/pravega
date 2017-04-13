@@ -7,7 +7,7 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
@@ -56,9 +56,9 @@ public class RequestHandlers extends AbstractIdleService {
             .build();
 
     private final AtomicReference<ScaleRequestHandler> scaleHandlerRef = new AtomicReference<>();
-    private final AtomicReference<EventStreamReader<ScaleRequest>> scaleReaderRef = new AtomicReference<>();
-    private final AtomicReference<EventStreamWriter<ScaleRequest>> scaleWriterRef = new AtomicReference<>();
-    private final AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> scaleRequestReaderRef = new AtomicReference<>();
+    private final AtomicReference<EventStreamReader<ScaleEvent>> scaleReaderRef = new AtomicReference<>();
+    private final AtomicReference<EventStreamWriter<ScaleEvent>> scaleWriterRef = new AtomicReference<>();
+    private final AtomicReference<RequestReader<ScaleEvent, ScaleRequestHandler>> scaleRequestReaderRef = new AtomicReference<>();
     private final AtomicReference<ReaderGroupManager> readerGroupManagerRef = new AtomicReference<>();
     private final AtomicReference<ReaderGroupConfig> readerGroupConfigRef = new AtomicReference<>();
     private final AtomicReference<ReaderGroup> readerGroupRef = new AtomicReference<>();
@@ -231,17 +231,17 @@ public class RequestHandlers extends AbstractIdleService {
     protected void shutDown() throws Exception {
         shutdown.set(true);
         awaitRunning();
-        final RequestReader<ScaleRequest, ScaleRequestHandler> requestReader = scaleRequestReaderRef.getAndSet(null);
+        final RequestReader<ScaleEvent, ScaleRequestHandler> requestReader = scaleRequestReaderRef.getAndSet(null);
         log.info("Closing scale request handler");
         if (requestReader != null) {
             requestReader.close();
         }
-        final EventStreamReader<ScaleRequest> reader = scaleReaderRef.getAndSet(null);
+        final EventStreamReader<ScaleEvent> reader = scaleReaderRef.getAndSet(null);
         log.info("Closing scale request stream reader");
         if (reader != null) {
             reader.close();
         }
-        final EventStreamWriter<ScaleRequest> writer = scaleWriterRef.getAndSet(null);
+        final EventStreamWriter<ScaleEvent> writer = scaleWriterRef.getAndSet(null);
         log.info("Closing scale request stream writer");
         if (writer != null) {
             writer.close();

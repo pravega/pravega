@@ -11,7 +11,6 @@ import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -28,6 +27,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -37,7 +37,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-public final class EventProcessorGroupImpl<T extends ControllerEvent> extends AbstractIdleService
+public final class EventProcessorGroupImpl<T extends Serializable> extends AbstractIdleService
         implements EventProcessorGroup<T> {
 
     private final String objectId;

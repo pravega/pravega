@@ -12,8 +12,9 @@ import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import lombok.extern.slf4j.Slf4j;
+
+import java.io.Serializable;
 
 @Slf4j
 public class EventProcessorSystemImpl implements EventProcessorSystem {
@@ -50,7 +51,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         return this.process;
     }
 
-    public <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(
+    public <T extends Serializable> EventProcessorGroup<T> createEventProcessorGroup(
             final EventProcessorConfig<T> eventProcessorConfig,
             final CheckpointStore checkpointStore) throws CheckpointStoreException {
         EventProcessorGroupImpl<T> actorGroup;

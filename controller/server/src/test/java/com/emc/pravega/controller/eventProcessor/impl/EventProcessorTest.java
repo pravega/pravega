@@ -14,7 +14,6 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
@@ -62,7 +61,7 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public static class TestEvent implements ControllerEvent, Serializable {
+    public static class TestEvent implements Serializable {
         int number;
     }
 

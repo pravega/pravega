@@ -10,13 +10,14 @@ import com.emc.pravega.stream.Serializer;
 import com.google.common.base.Preconditions;
 import lombok.Data;
 
+import java.io.Serializable;
 import java.util.function.Supplier;
 
 /**
  * Configuration object for creating EventProcessors via createEventProcessorGroup method of EventProcessorSystem.
  */
 @Data
-public class EventProcessorConfig<T extends ControllerEvent> {
+public class EventProcessorConfig<T extends Serializable> {
 
     private final EventProcessorGroupConfig config;
     private final ExceptionHandler exceptionHandler;
@@ -41,7 +42,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
         this.supplier = supplier;
     }
 
-    public static <T extends ControllerEvent> EventProcessorConfigBuilder<T> builder() {
+    public static <T extends Serializable> EventProcessorConfigBuilder<T> builder() {
         return new EventProcessorConfigBuilder<>();
     }
 
@@ -49,7 +50,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
      * EventProcessorConfigBuilder.
      * @param <T> Type parameter
      */
-    public static class EventProcessorConfigBuilder<T extends ControllerEvent> {
+    public static class EventProcessorConfigBuilder<T extends Serializable> {
         private EventProcessorGroupConfig config;
         private ExceptionHandler exceptionHandler;
         private Serializer<T> serializer;

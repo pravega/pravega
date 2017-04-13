@@ -6,7 +6,7 @@ package com.emc.pravega.controller.requesthandler;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.Segment;
@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * Request handler for scale requests in scale-request-stream.
  */
 @Slf4j
-public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
+public class ScaleRequestHandler implements RequestHandler<ScaleEvent> {
 
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 2;
@@ -67,7 +67,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
     }
 
     @Override
-    public CompletableFuture<Void> process(final ScaleRequest request) {
+    public CompletableFuture<Void> process(final ScaleEvent request) {
         if (!(request.getTimestamp() + REQUEST_VALIDITY_PERIOD > System.currentTimeMillis())) {
             // request no longer valid. Ignore.
             // log, because a request was fetched from the stream after its validity expired.
@@ -86,7 +86,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     .getConfiguration(request.getScope(), request.getStream(), context, executor)
                     .thenApply(StreamConfiguration::getScalingPolicy);
 
-            if (request.getDirection() == ScaleRequest.UP) {
+            if (request.getDirection() == ScaleEvent.UP) {
                 return policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context), executor);
             } else {
                 return policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context), executor);
@@ -94,7 +94,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
         }, executor);
     }
 
-    private CompletableFuture<Void> processScaleUp(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
+    private CompletableFuture<Void> processScaleUp(final ScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         log.debug("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
@@ -114,7 +114,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                 }, executor);
     }
 
-    private CompletableFuture<Void> processScaleDown(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
+    private CompletableFuture<Void> processScaleDown(final ScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         log.debug("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
@@ -193,7 +193,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @param context   operation context
      * @return CompletableFuture
      */
-    private CompletableFuture<Void> executeScaleTask(final ScaleRequest request, final ArrayList<Integer> segments,
+    private CompletableFuture<Void> executeScaleTask(final ScaleEvent request, final ArrayList<Integer> segments,
                                                      final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                      final OperationContext context) {
         CompletableFuture<Void> result = new CompletableFuture<>();

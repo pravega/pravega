@@ -9,7 +9,7 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;

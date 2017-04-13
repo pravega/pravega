@@ -4,7 +4,7 @@
 package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.requests.ControllerRequest;
+import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.stream.EventRead;
@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
  * @param <H>
  */
 @Slf4j
-public class RequestReader<R extends ControllerRequest, H extends RequestHandler<R>> implements AutoCloseable {
+public class RequestReader<R extends ControllerEvent, H extends RequestHandler<R>> implements AutoCloseable {
 
     @FunctionalInterface
     public interface Checkpointer {

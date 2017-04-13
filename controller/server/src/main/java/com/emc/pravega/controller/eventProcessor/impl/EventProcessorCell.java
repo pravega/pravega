@@ -13,7 +13,6 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Position;
@@ -24,6 +23,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.Serializable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
@@ -40,7 +40,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * @param <T> Event type parameter.
  */
 @Slf4j
-class EventProcessorCell<T extends ControllerEvent> {
+class EventProcessorCell<T extends Serializable> {
 
     private final EventStreamReader<T> reader;
     private final String objectId;
