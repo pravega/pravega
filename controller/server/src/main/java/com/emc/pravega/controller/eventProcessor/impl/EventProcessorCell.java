@@ -194,7 +194,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                     timeInterval >= 1000 * checkpointPeriod.getNumSeconds()) {
 
                 try {
-                    actor.checkpointer.store(position);
+                    actor.getCheckpointer().store(position);
                     // update the previous checkpoint stats if successful,
                     // otherwise, we again attempt checkpointing after processing next event
                     previousCheckpointIndex = count;

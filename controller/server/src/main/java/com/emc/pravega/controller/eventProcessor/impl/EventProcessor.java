@@ -20,9 +20,9 @@ public abstract class EventProcessor<T extends ControllerEvent> {
         void store(Position position) throws CheckpointStoreException;
     }
 
-    protected Checkpointer checkpointer;
+    Checkpointer checkpointer;
 
-    protected EventStreamWriter<T> selfWriter;
+    EventStreamWriter<T> selfWriter;
 
     /**
      * AbstractActor initialization hook that is called before actor starts receiving events.
@@ -50,4 +50,19 @@ public abstract class EventProcessor<T extends ControllerEvent> {
      */
     protected void beforeRestart(Throwable t, T event) { }
 
+    /**
+     * Returns a handle to checkpointer which can be used to store reader position.
+     * @return a handle to checkpointer which can be used to store reader position.
+     */
+    protected Checkpointer getCheckpointer() {
+        return this.checkpointer;
+    }
+
+    /**
+     * Returns a stream writer that can be used to write events to the underlying event stream.
+     * @return a stream writer that can be used to write events to the underlying event stream.
+     */
+    protected EventStreamWriter<T> getSelfWriter() {
+        return selfWriter;
+    }
 }
