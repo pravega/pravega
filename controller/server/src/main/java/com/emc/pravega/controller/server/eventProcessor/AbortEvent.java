@@ -19,11 +19,6 @@ public class AbortEvent implements ControllerEvent {
     private final UUID txid;
 
     @Override
-    public RequestType getType() {
-        return RequestType.AbortEvent;
-    }
-
-    @Override
     public String getKey() {
         return String.format("%s/%s", scope, stream);
     }

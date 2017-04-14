@@ -44,7 +44,7 @@ public class EndToEndAutoScaleDownTest {
 
             int port = Config.SERVICE_PORT;
             @Cleanup
-            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, true);
+            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, false);
             Controller controller = controllerWrapper.getController();
 
             controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();

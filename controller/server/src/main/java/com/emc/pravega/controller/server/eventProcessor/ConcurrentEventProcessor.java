@@ -16,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
@@ -32,17 +31,18 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class ConcurrentEventProcessor<R extends ControllerEvent, H extends RequestHandler<R>>
-        extends EventProcessor<R> implements AutoCloseable {
+        extends EventProcessor<R> {
 
     private static final int MAX_CONCURRENT = 10000;
+    private static final PositionCounter MAX = new PositionCounter(null, Long.MAX_VALUE);
 
     private final ConcurrentSkipListSet<PositionCounter> running;
     private final ConcurrentSkipListSet<PositionCounter> completed;
     private final AtomicReference<PositionCounter> checkpoint;
     private final ScheduledExecutorService executor;
-    private final AtomicBoolean stop = new AtomicBoolean(false);
     private final H requestHandler;
     private final AtomicLong counter = new AtomicLong(0);
+    private final AtomicBoolean stop = new AtomicBoolean(false);
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
 
@@ -64,58 +64,36 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     }
 
     @Override
-    protected void process(R event, Position position) {
+    protected void process(R request, Position position) {
         // Limiting number of concurrent processing using semaphores. Otherwise we will keep picking messages from the stream
         // and it could lead to memory overload.
-        PositionCounter pc;
-        R request;
-        long next;
-        try {
-            semaphore.acquire();
-        } catch (Exception e) {
-            log.warn("exception thrown while acquiring semaphore {}", e);
-            semaphore.release();
-            // TODO: throw meaningful exception..
-            // What do we want to do here?
-            // if we fail to acquire lock, we want to reprocess this event as for no fault of it, we are making it
-            throw new CompletionException(e);
-        }
+        semaphore.acquireUninterruptibly();
 
-        next = counter.incrementAndGet();
-        request = event;
-        pc = new PositionCounter(position, next);
-        running.add(pc);
+        if (!stop.get()) {
+            long next = counter.incrementAndGet();
+            PositionCounter pc = new PositionCounter(position, next);
+            running.add(pc);
 
-        requestHandler.process(request)
-                .whenCompleteAsync((r, e) -> {
-                    complete(pc);
-                    semaphore.release();
+            requestHandler.process(request)
+                    .whenCompleteAsync((r, e) -> {
+                        checkpoint(pc);
+                        semaphore.release();
 
-                    if (e != null) {
-                        log.error("ScaleEventProcessor Processing failed {}", e);
+                        if (e != null) {
+                            log.error("ScaleEventProcessor Processing failed {}", e);
 
-                        if (RetryableException.isRetryable(e)) {
-                            putBack(request.getKey(), request);
+                            if (RetryableException.isRetryable(e)) {
+                                FutureHelpers.getAndHandleExceptions(
+                                        getSelfWriter().writeEvent(request.getKey(), request), RuntimeException::new);
+                            }
                         }
-                    }
-                }, executor);
+                    }, executor);
+        }
     }
 
-    public void stop() {
+    @Override
+    protected void afterStop() {
         stop.set(true);
-    }
-
-    /**
-     * This method puts the event back into event processor's stream.
-     * If processing of a request could not be done because of retryable exceptions,
-     * We will put it back into the request stream. This frees up compute cycles and ensures
-     * that checkpointing is not stalled on completion of some task.
-     *
-     * @param request request which has to be put back in the request stream.
-     */
-    @Synchronized
-    private void putBack(String key, R request) {
-        FutureHelpers.getAndHandleExceptions(getSelfWriter().writeEvent(key, request), RuntimeException::new);
     }
 
     /**
@@ -130,43 +108,30 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
      *
      * @param pc position for which processing completed
      */
-    private void complete(PositionCounter pc) {
+    @Synchronized
+    private void checkpoint(PositionCounter pc) {
         running.remove(pc);
         completed.add(pc);
 
-        final PositionCounter smallest = running.first();
-
+        final PositionCounter smallest = running.isEmpty() ? MAX : running.first();
         final List<PositionCounter> checkpointCandidates = completed.stream()
                 .filter(x -> positionCounterComparator.compare(x, smallest) < 0).collect(Collectors.toList());
-        final PositionCounter checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
-        completed.removeAll(checkpointCandidates);
-        checkpoint.set(checkpointPosition);
-        try {
-            getCheckpointer().store(checkpoint.get().position);
-        } catch (CheckpointStoreException e) {
-            // log and ignore
-            log.warn("failed to checkpoint {}", e);
+        if (checkpointCandidates.size() > 0) {
+            final PositionCounter checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
+            completed.removeAll(checkpointCandidates);
+            checkpoint.set(checkpointPosition);
+            try {
+                getCheckpointer().store(checkpoint.get().position);
+            } catch (CheckpointStoreException e) {
+                // log and ignore
+                log.warn("failed to checkpoint {}", e);
+            }
         }
     }
 
-    @Override
-    public void close() throws Exception {
-        // wait for all background processing to complete.
-        stop();
-    }
-
     @AllArgsConstructor
-    private class PositionCounter {
+    private static class PositionCounter {
         private final Position position;
         private final long counter;
     }
-
-    //    static final ExceptionHandler CONCURRENTEP_EXCEPTION_HANDLER = (Throwable t) -> {
-    //        Throwable y = ExceptionHelpers.getRealException(t);
-    //        ExceptionHandler.Directive ret = ExceptionHandler.DEFAULT_EXCEPTION_HANDLER.run(y);
-    //        if (RetryableException.isRetryable(y)) {
-    //
-    //        }
-    //        return ret;
-    //    };
 }

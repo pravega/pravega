@@ -4,6 +4,7 @@
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
@@ -32,7 +33,6 @@ import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.testcommon.TestUtils;
 import com.google.common.base.Preconditions;
-import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
 import lombok.AllArgsConstructor;
 import lombok.Cleanup;
@@ -78,9 +78,14 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public static class TestEvent implements Serializable {
+    public static class TestEvent implements ControllerEvent {
         private static final long serialVersionUID = 1L;
         int number;
+
+        @Override
+        public String getKey() {
+            return null;
+        }
     }
 
     public static void main(String[] args) throws Exception {

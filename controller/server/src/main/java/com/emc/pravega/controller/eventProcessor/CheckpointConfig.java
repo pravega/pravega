@@ -39,8 +39,8 @@ public class CheckpointConfig {
     @Builder
     CheckpointConfig(final Type type, final CheckpointPeriod checkpointPeriod) {
         Preconditions.checkNotNull(type);
-        Preconditions.checkNotNull(checkpointPeriod);
-
+        Preconditions.checkArgument((type.equals(Type.None) && checkpointPeriod == null) ||
+                (type.equals(Type.Periodic) && checkpointPeriod != null));
         this.type = type;
         this.checkpointPeriod = checkpointPeriod;
     }
@@ -48,4 +48,9 @@ public class CheckpointConfig {
     public static CheckpointConfig periodic(final int numEvents, final int numSeconds) {
         return new CheckpointConfig(Type.Periodic, new CheckpointPeriod(numEvents, numSeconds));
     }
+
+    public static CheckpointConfig none() {
+        return new CheckpointConfig(Type.None, null);
+    }
+
 }

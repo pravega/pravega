@@ -22,11 +22,6 @@ public class ScaleEvent implements ControllerEvent {
     private final boolean silent;
 
     @Override
-    public RequestType getType() {
-        return RequestType.ScaleRequest;
-    }
-
-    @Override
     public String getKey() {
         return String.format("%s/%s", scope, stream);
     }

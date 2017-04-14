@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -266,7 +265,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
         EventProcessorGroupConfig abortReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
                         .streamName(config.getAbortStreamName())
-                        .readerGroupName(config.getAbortReaderGrouopName())
+                        .readerGroupName(config.getAbortReaderGroupName())
                         .eventProcessorCount(config.getAbortReaderGroupSize())
                         .checkpointConfig(config.getAbortCheckpointConfig())
                         .build();
@@ -293,10 +292,10 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
         EventProcessorGroupConfig scaleReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .streamName(Config.SCALE_STREAM_NAME)
-                        .readerGroupName(Config.SCALE_READER_GROUP)
+                        .streamName(config.getScaleStreamName())
+                        .readerGroupName(config.getScaleReaderGroupName())
                         .eventProcessorCount(1)
-                        .checkpointConfig(config.getCommitCheckpointConfig())
+                        .checkpointConfig(config.getScaleCheckpointConfig())
                         .build();
 
         EventProcessorConfig<ScaleEvent> scaleConfig =

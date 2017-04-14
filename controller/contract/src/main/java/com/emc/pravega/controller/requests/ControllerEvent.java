@@ -8,13 +8,5 @@ package com.emc.pravega.controller.requests;
 import java.io.Serializable;
 
 public interface ControllerEvent extends Serializable {
-    RequestType getType();
-
     String getKey();
-
-    enum RequestType {
-        ScaleRequest,
-        AbortEvent,
-        CommitEvent
-    }
 }

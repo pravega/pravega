@@ -66,7 +66,7 @@ public interface ControllerEventProcessorConfig {
      *
      * @return Name of the reader group processing events from abort stream.
      */
-    String getAbortReaderGrouopName();
+    String getAbortReaderGroupName();
 
     /**
      * Fetches the number of readers in a single controller instance participating in abort reader group.
@@ -89,5 +89,31 @@ public interface ControllerEventProcessorConfig {
      */
     CheckpointConfig getAbortCheckpointConfig();
 
-    // TODO: shivesh add scale config
+    /**
+     * Fetches name of the scale stream.
+     *
+     * @return Name of the scale stream.
+     */
+    String getScaleStreamName();
+
+    /**
+     * Fetches name of the reader group processing events from scale stream.
+     *
+     * @return Name of the reader group processing events from scale stream.
+     */
+    String getScaleReaderGroupName();
+
+    /**
+     * Fetches scale stream scaling policy.
+     *
+     * @return Scale stream scaling policy.
+     */
+    ScalingPolicy getScaleStreamScalingPolicy();
+
+    /**
+     * Fetches checkpoint configuration for scale stream event processors.
+     *
+     * @return Checkpoint configuration for scale stream event processors.
+     */
+    CheckpointConfig getScaleCheckpointConfig();
 }
