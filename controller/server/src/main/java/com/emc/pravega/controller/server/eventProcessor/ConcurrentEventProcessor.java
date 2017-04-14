@@ -88,6 +88,11 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                             }
                         }
                     }, executor);
+        } else {
+            // note: Since stop was requested we will not do any processing on new event.
+            // Event processor will pick the next event until it is eventually stopped. But we will keep ignoring them.
+            // And since this class does its own checkpointing, so we are not updating our last checkpoint.
+            semaphore.release();
         }
     }
 

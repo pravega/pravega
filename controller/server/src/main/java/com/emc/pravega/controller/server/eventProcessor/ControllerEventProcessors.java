@@ -182,24 +182,22 @@ public class ControllerEventProcessors extends AbstractIdleService {
     public CompletableFuture<Void> bootstrap(final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                              final StreamMetadataTasks streamMetadataTasks) {
         log.info("Bootstrapping controller event processors");
-        CompletableFuture<Void> streams = createStreams();
         scaleRequestHandler = new ScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor);
 
-        return streams.thenAcceptAsync(x ->
+        return createStreams().thenAcceptAsync(x ->
                 streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config));
     }
 
     public void handleOrphanedReaders(final Supplier<Set<String>> processes) {
         if (this.commitEventEventProcessors != null) {
-            handleOrphanedReaders(this.commitEventEventProcessors, processes);
+            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.commitEventEventProcessors, processes), executor);
         }
         if (this.abortEventEventProcessors != null) {
-            handleOrphanedReaders(this.abortEventEventProcessors, processes);
+            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.abortEventEventProcessors, processes), executor);
         }
         if (this.scaleEventEventProcessors != null) {
-            handleOrphanedReaders(this.scaleEventEventProcessors, processes);
+            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.scaleEventEventProcessors, processes), executor);
         }
-
     }
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
@@ -209,16 +207,20 @@ public class ControllerEventProcessors extends AbstractIdleService {
             registeredProcesses = group.getProcesses();
         } catch (CheckpointStoreException e) {
             log.error(String.format("Error fetching processes registered in event processor group %s", group.toString()), e);
-            return;
-        }
-
-        try {
-            registeredProcesses.removeAll(processes.get());
-        } catch (Exception e) {
-            log.error(String.format("Error fetching current processes%s", group.toString()), e);
-            // TODO: shivesh throw meaningful exception
+            if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                return;
+            }
             throw new CompletionException(e);
         }
+
+        Set<String> activeProcesses;
+        try {
+            activeProcesses = processes.get();
+        } catch (Exception e) {
+            log.error(String.format("Error fetching current processes%s", group.toString()), e);
+            throw new CompletionException(e);
+        }
+        registeredProcesses.removeAll(activeProcesses);
         // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
         for (String process : registeredProcesses) {
             try {
@@ -226,6 +228,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
             } catch (CheckpointStoreException | NullPointerException e) {
                 log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
                         group.toString()), e);
+                throw new CompletionException(e);
             }
         }
     }

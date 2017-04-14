@@ -89,7 +89,7 @@ public class ControllerClusterListener extends AbstractIdleService {
             }, executor);
 
             log.info("Sweeping orphaned tasks at startup");
-            Supplier<Set<String>> runningProcesses = () -> {
+            Supplier<Set<String>> process = () -> {
                 try {
                     return cluster.getClusterMembers()
                             .stream()
@@ -101,7 +101,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                 }
             };
 
-            taskSweeper.sweepOrphanedTasks(runningProcesses);
+            taskSweeper.sweepOrphanedTasks(process);
 
             if (eventProcessorsOpt.isPresent()) {
                 // Await initialization of eventProcesorsOpt
@@ -110,7 +110,7 @@ public class ControllerClusterListener extends AbstractIdleService {
 
                 // Sweep orphaned tasks or readers at startup.
                 log.info("Sweeping orphaned readers at startup");
-                eventProcessorsOpt.get().handleOrphanedReaders(runningProcesses);
+                eventProcessorsOpt.get().handleOrphanedReaders(process);
             }
 
             log.info("Controller cluster listener startUp complete");
