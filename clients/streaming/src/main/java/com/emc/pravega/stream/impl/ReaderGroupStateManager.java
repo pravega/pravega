@@ -84,12 +84,12 @@ public class ReaderGroupStateManager {
         releaseTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
-    
+
     static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
-            ReaderGroupConfig config, Map<Segment, Long> segments) {
+                                      ReaderGroupConfig config, Map<Segment, Long> segments) {
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
     }
-    
+
     /**
      * Add this reader to the reader group so that it is able to acquire segments
      */
@@ -133,16 +133,16 @@ public class ReaderGroupStateManager {
                         "When shutting down a reader: Given position does not match the segments it was assigned: \n"
                                 + segments + " \n vs \n " + lastPosition.asImpl().getOwnedSegments());
             }
-            return Collections.singletonList(new RemoveReader(readerId, lastPosition.asImpl()));
+            return Collections.singletonList(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl()));
         });
     }
-    
+
     /**
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
     void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
         val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted),
-                                                RuntimeException::new);
+                RuntimeException::new);
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
             if (!state.isReaderOnline(readerId)) {
