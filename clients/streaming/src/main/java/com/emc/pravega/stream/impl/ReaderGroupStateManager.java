@@ -228,7 +228,7 @@ public class ReaderGroupStateManager {
         });
         ReaderGroupState state = sync.getState();
         releaseTimer.reset(calculateReleaseTime(state));
-        if(!state.isReaderOnline(readerId)) {
+        if (!state.isReaderOnline(readerId)) {
             throw new ReinitializationRequiredException();
         }
         return !state.getSegments(readerId).contains(segment);
