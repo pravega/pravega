@@ -26,13 +26,13 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
     private InMemoryDurableDataLogFactory factory;
 
     @Before
-    public void setUp(){
+    public void setUp() {
         this.factory = new InMemoryDurableDataLogFactory(executorService());
     }
 
     @After
-    public void tearDown(){
-        if(this.factory != null){
+    public void tearDown() {
+        if (this.factory != null) {
             this.factory.close();
             this.factory = null;
         }
