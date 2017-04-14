@@ -11,6 +11,10 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -18,10 +22,25 @@ import org.junit.Test;
  */
 public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
     private static final int WRITE_COUNT = 250;
+    private final Supplier<Integer> nextContainerId = new AtomicInteger()::incrementAndGet;
+    private InMemoryDurableDataLogFactory factory;
+
+    @Before
+    public void setUp(){
+        this.factory = new InMemoryDurableDataLogFactory(executorService());
+    }
+
+    @After
+    public void tearDown(){
+        if(this.factory != null){
+            this.factory.close();
+            this.factory = null;
+        }
+    }
 
     @Override
     protected DurableDataLog createDurableDataLog() {
-        return new InMemoryDurableDataLog(new InMemoryDurableDataLog.EntryCollection(), executorService());
+        return this.factory.createDurableDataLog(this.nextContainerId.get());
     }
 
     @Override
