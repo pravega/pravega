@@ -16,6 +16,7 @@ import com.emc.pravega.stream.impl.ReaderGroupState.CreateCheckpoint;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockSegmentStreamFactory;
+import com.emc.pravega.testcommon.AssertExtensions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -178,6 +179,65 @@ public class ReaderGroupStateManagerTest {
         assertEquals(1, newSegments.size());
         assertTrue(newSegments.containsKey(new Segment(scope, stream, 0)));
         assertEquals(1, newSegments.get(new Segment(scope, stream, 0)).longValue());
+    }
+    
+    @Test
+    public void testRemoveReader() throws ReinitializationRequiredException {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
+
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
+                                                                                                      new JavaSerializer<>(),
+                                                                                                      new JavaSerializer<>(),
+                                                                                                      config);
+        AtomicLong clock = new AtomicLong();
+        Map<Segment, Long> segments = new HashMap<>();
+        segments.put(new Segment(scope, stream, 0), 123L);
+        segments.put(new Segment(scope, stream, 1), 456L);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
+        ReaderGroupStateManager readerState1 = new ReaderGroupStateManager("testReader",
+                stateSynchronizer,
+                controller,
+                clock::get);
+        readerState1.initializeReader();
+        Segment toRelease = readerState1.findSegmentToReleaseIfRequired();
+        assertNull(toRelease);
+        Map<Segment, Long> newSegments = readerState1.acquireNewSegmentsIfNeeded(0);
+        assertFalse(newSegments.isEmpty());
+        assertEquals(2, newSegments.size());
+        
+        ReaderGroupStateManager readerState2 = new ReaderGroupStateManager("testReader2",
+                stateSynchronizer,
+                controller,
+                clock::get);
+        readerState2.initializeReader();
+
+        boolean released = readerState1.releaseSegment(new Segment(scope, stream, 0), 789L, 0L);
+        assertTrue(released);
+        newSegments = readerState2.acquireNewSegmentsIfNeeded(0);
+        assertEquals(1, newSegments.size());
+        assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 0)));
+        
+        readerState2.readerShutdown(null);
+        AssertExtensions.assertThrows(ReinitializationRequiredException.class,
+                () -> readerState2.releaseSegment(new Segment(scope, stream, 0), 711L, 0L));
+
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        newSegments = readerState1.acquireNewSegmentsIfNeeded(0);
+        assertEquals(1, newSegments.size());
+        assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 0)));
+
+        AssertExtensions.assertThrows(ReinitializationRequiredException.class,
+                () -> readerState2.acquireNewSegmentsIfNeeded(0L));
     }
 
     @Test

@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
+import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
@@ -113,7 +114,7 @@ public class ReaderGroupStateManager {
      * Shuts down a reader, releasing all of its segments. The reader should cease all operations.
      * @param lastPosition The last position the reader successfully read from.
      */
-    void readerShutdown(PositionInternal lastPosition) {
+    void readerShutdown(Position lastPosition) {
         readerShutdown(readerId, lastPosition, sync);
     }
     
@@ -121,18 +122,18 @@ public class ReaderGroupStateManager {
      * Shuts down a reader, releasing all of its segments. The reader should cease all operations.
      * @param lastPosition The last position the reader successfully read from.
      */
-    static void readerShutdown(String readerId, PositionInternal lastPosition, StateSynchronizer<ReaderGroupState> sync) {
+    static void readerShutdown(String readerId, Position lastPosition, StateSynchronizer<ReaderGroupState> sync) {
         sync.updateState(state -> {
             Set<Segment> segments = state.getSegments(readerId);
             if (segments == null) {
                 return null;
             }
-            if (!lastPosition.getOwnedSegments().containsAll(segments)) {
+            if (lastPosition != null && !lastPosition.asImpl().getOwnedSegments().containsAll(segments)) {
                 throw new IllegalArgumentException(
                         "When shutting down a reader: Given position does not match the segments it was assigned: \n"
-                                + segments + " \n vs \n " + lastPosition.getOwnedSegments());
+                                + segments + " \n vs \n " + lastPosition.asImpl().getOwnedSegments());
             }
-            return Collections.singletonList(new RemoveReader(readerId, lastPosition));
+            return Collections.singletonList(new RemoveReader(readerId, lastPosition.asImpl()));
         });
     }
     
@@ -212,8 +213,9 @@ public class ReaderGroupStateManager {
      * @param lastOffset The offset from which the new owner should start reading from.
      * @param timeLag How far the reader is from the tail of the stream in time.
      * @return a boolean indicating if the segment was successfully released.
+     * @throws ReinitializationRequiredException If the reader has been declared offline.
      */
-    boolean releaseSegment(Segment segment, long lastOffset, long timeLag) {
+    boolean releaseSegment(Segment segment, long lastOffset, long timeLag) throws ReinitializationRequiredException {
         sync.updateState(state -> {
             Set<Segment> segments = state.getSegments(readerId);
             if (segments == null || !segments.contains(segment) || !doesReaderOwnTooManySegments(state)) {
@@ -226,6 +228,9 @@ public class ReaderGroupStateManager {
         });
         ReaderGroupState state = sync.getState();
         releaseTimer.reset(calculateReleaseTime(state));
+        if(!state.isReaderOnline(readerId)) {
+            throw new ReinitializationRequiredException();
+        }
         return !state.getSegments(readerId).contains(segment);
     }
 
