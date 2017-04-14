@@ -80,7 +80,7 @@ public final class ModelHelper {
      */
     public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
         Preconditions.checkNotNull(policy, "policy");
-        switch(policy.getType()) {
+        switch (policy.getType()) {
             case INFINITE:
                 return RetentionPolicy.INFINITE;
             case LIMITED_SIZE_MB:
