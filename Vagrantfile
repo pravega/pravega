@@ -17,11 +17,7 @@ Vagrant.configure("2") do |config|
   config.hostmanager.manage_host = true
   config.hostmanager.include_offline = false
 
-  # Provider-specific configuration so you can fine-tune various
-  # backing providers for Vagrant. These expose provider-specific options.
-  # Example for VirtualBox:
-  #
- config.vm.provider "virtualbox" do |vb, override|
+  config.vm.provider "virtualbox" do |vb, override|
    # Display the VirtualBox GUI when booting the machine
    #   vb.gui = true
 
@@ -40,55 +36,36 @@ Vagrant.configure("2") do |config|
       override.cache.enable :generic, {
         "java" => { cache_dir: "/tmp/java-cache" },
       }
-    end
- end
-
-
-  #
-  # View the documentation for the provider you are using for more
-  # information on available options.
-
-  # Define a Vagrant Push strategy for pushing to Atlas. Other push strategies
-  # such as FTP and Heroku are also available. See the documentation at
-  # https://docs.vagrantup.com/v2/push/atlas.html for more information.
-  # config.push.define "atlas" do |push|
-  #   push.app = "YOUR_ATLAS_USERNAME/YOUR_APPLICATION_NAME"
-  # end
-
-  # Enable provisioning with a shell script. Additional provisioners such as
-  # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
-  # documentation for more information about their specific syntax and use.
-
-   # If user calls Vagrant up without building, try and build the artifacts
-   #config.vm.provision :host_shell do |host_shell|
-   #               host_shell.inline = 'echo Packaging Pravega for Vagrant && ./gradlew installReleaseDist'
-   #     end
+   end
+  end
 
   config.vm.define "controlnode" do |controlnode|
-	controlnode.vm.hostname = "controlnode"
-	controlnode.vm.provider :virtualbox do |vb,override|
-         override.vm.network :private_network, ip: "192.168.10.10"
-        end
+    controlnode.vm.hostname = "controlnode"
+      controlnode.vm.provider :virtualbox do |vb,override|
+      override.vm.network :private_network, ip: "192.168.10.10"
+    end
 
 # If user calls Vagrant up without building, try and build the artifacts
-   controlnode.vm.provision :host_shell do |host_shell|
-                  host_shell.inline = 'echo Packaging Pravega for Vagrant && ./gradlew installReleaseDist'
-        end
-	controlnode.vm.provision :shell, inline: "sed -i'' '/^127.0.0.1\\t#{controlnode.vm.hostname}\\tcontrolnode$/d' /etc/hosts"
-	controlnode.vm.provision "shell", path:"vagrant/scripts/common.sh"
-	controlnode.vm.provision "shell", path:"vagrant/scripts/start_ZK_namenode_first_machine.sh", run: "always"
-	controlnode.vm.provision "shell", path:"vagrant/scripts/start_other_machine_bk_datanode.sh", run: "always"
-	controlnode.vm.provision "shell", path:"vagrant/scripts/start_pravega_nohup.sh", run: "always"
+    controlnode.vm.provision :host_shell do |host_shell|
+      host_shell.inline = 'echo Packaging Pravega for Vagrant && ./gradlew installReleaseDist'
+    end
+    controlnode.vm.provision :shell, inline: "sed -i'' '/^127.0.0.1\\t#{controlnode.vm.hostname}\\tcontrolnode$/d'
+      /etc/hosts"
+    controlnode.vm.provision "shell", path:"vagrant/scripts/common.sh"
+    controlnode.vm.provision "shell", path:"vagrant/scripts/start_ZK_namenode_first_machine.sh", run: "always"
+    controlnode.vm.provision "shell", path:"vagrant/scripts/start_other_machine_bk_datanode.sh", run: "always"
+    controlnode.vm.provision "shell", path:"vagrant/scripts/start_pravega_nohup.sh", run: "always"
   end
-  config.vm.define "datanode" do |datanode|
-        datanode.vm.hostname = "datanode"
-        datanode.vm.provider :virtualbox do |vb,override|
-         override.vm.network :private_network, ip: "192.168.10.20"
-        end
 
-	datanode.vm.provision :shell, inline: "sed -i'' '/^127.0.0.1\\t#{datanode.vm.hostname}\\tdatanode$/d' /etc/hosts"
-        datanode.vm.provision "shell", path:"vagrant/scripts/common.sh"
-        datanode.vm.provision "shell", path:"vagrant/scripts/start_other_machine_bk_datanode.sh", run: "always"
-	datanode.vm.provision "shell", path:"vagrant/scripts/start_pravega_nohup.sh", run: "always"
+  config.vm.define "datanode" do |datanode|
+    datanode.vm.hostname = "datanode"
+    datanode.vm.provider :virtualbox do |vb,override|
+      override.vm.network :private_network, ip: "192.168.10.20"
+    end
+
+    datanode.vm.provision :shell, inline: "sed -i'' '/^127.0.0.1\\t#{datanode.vm.hostname}\\tdatanode$/d' /etc/hosts"
+      datanode.vm.provision "shell", path:"vagrant/scripts/common.sh"
+      datanode.vm.provision "shell", path:"vagrant/scripts/start_other_machine_bk_datanode.sh", run: "always"
+      datanode.vm.provision "shell", path:"vagrant/scripts/start_pravega_nohup.sh", run: "always"
+    end
   end
-end
