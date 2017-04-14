@@ -146,8 +146,8 @@ message ScalingPolicy {
 
 message RetentionPolicy {
     enum RetentionPolicyType {
-        TIME = 0;
-        SIZE = 1;
+        LIMITED_DAYS = 0;
+        LIMITED_SIZE_MB = 1;
         INFINITE = 2;
     }
     RetentionPolicyType type = 1;
