@@ -14,7 +14,6 @@ import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import lombok.extern.slf4j.Slf4j;
