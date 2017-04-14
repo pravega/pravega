@@ -14,8 +14,8 @@ public class RetryHelper {
 
     public static final Predicate<Throwable> CONNECTIVITY_PREDICATE = e -> {
         Throwable t = ExceptionHelpers.getRealException(e);
-        return (t instanceof CheckpointStoreException &&
-                ((CheckpointStoreException) t).getType().equals(CheckpointStoreException.Type.Connectivity));
+        return t instanceof CheckpointStoreException &&
+                ((CheckpointStoreException) t).getType().equals(CheckpointStoreException.Type.Connectivity);
     };
 
     public static final Retry.RetryWithBackoff RETRY =
