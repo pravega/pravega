@@ -219,13 +219,17 @@ public class ControllerEventProcessors extends AbstractIdleService {
         return result;
     }
 
-    public void handleOrphanedReaders(final Supplier<Set<String>> runningProcesses) {
+    public void handleOrphanedReaders(final Supplier<Set<String>> processes) {
         if (this.commitEventEventProcessors != null) {
-            handleOrphanedReaders(this.commitEventEventProcessors, runningProcesses);
+            handleOrphanedReaders(this.commitEventEventProcessors, processes);
         }
         if (this.abortEventEventProcessors != null) {
-            handleOrphanedReaders(this.abortEventEventProcessors, runningProcesses);
+            handleOrphanedReaders(this.abortEventEventProcessors, processes);
         }
+        if (this.scaleEventEventProcessors != null) {
+            handleOrphanedReaders(this.scaleEventEventProcessors, processes);
+        }
+
     }
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
@@ -242,6 +246,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
             registeredProcesses.removeAll(processes.get());
         } catch (Exception e) {
             log.error(String.format("Error fetching current processes%s", group.toString()), e);
+            // TODO: shivesh throw meaningful exception
             throw new CompletionException(e);
         }
         // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
@@ -328,17 +333,17 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .config(scaleReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(SCALE_EVENT_SERIALIZER)
-                        .supplier(() -> new ScaleEventProcessor<>(
+                        .supplier(() -> new ConcurrentEventProcessor<>(
                                 scaleWriterRef.get(),
                                 // TODO: get correct checkpoint delegate
-                                (Position position) -> checkpointStore.setPosition(null, Config.SCALE_READER_GROUP, Config.SCALE_READER_ID, position),
+                                (Position position) -> checkpointStore.setPosition(process, Config.SCALE_READER_GROUP, Config.SCALE_READER_ID, position),
                                 scaleRequestHandlerRef.get(),
                                 executor))
                         .build();
 
-        log.info("Creating commit event processors");
+        log.info("Creating scale event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating commit event processor group", e))
+                e -> log.warn("Error creating scale event processor group", e))
                 .run(() -> {
                     scaleEventEventProcessors = system.createEventProcessorGroup(scaleConfig, checkpointStore);
                     return null;
@@ -350,7 +355,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
         commitEventEventProcessors.awaitRunning();
         log.info("Awaiting start of abort event processors");
         abortEventEventProcessors.awaitRunning();
-        log.info("Awaiting start of abort event processors");
+        log.info("Awaiting start of scale event processors");
         scaleEventEventProcessors.awaitRunning();
     }
 

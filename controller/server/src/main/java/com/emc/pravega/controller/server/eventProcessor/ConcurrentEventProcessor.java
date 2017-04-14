@@ -3,14 +3,15 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
+import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;
+import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.requests.ControllerEvent;
-import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
-import com.emc.pravega.stream.EventRead;
-import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Position;
 import com.google.common.base.Preconditions;
@@ -32,13 +33,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
- * This actor processes commit txn events.
- * It does the following 2 operations in order.
- * 1. Send commit txn message to active segments of the stream.
- * 2. Change txn state from committing to committed.
  */
 @Slf4j
-public class ScaleEventProcessor<R extends ControllerEvent, H extends RequestHandler<R>>
+public class ConcurrentEventProcessor<R extends ControllerEvent, H extends RequestHandler<R>>
         extends EventProcessor<R> implements AutoCloseable {
 
     private static final int MAX_CONCURRENT = 10000;
@@ -56,10 +53,10 @@ public class ScaleEventProcessor<R extends ControllerEvent, H extends RequestHan
     private final ScheduledFuture<?> scheduledFuture;
     private final Checkpointer checkpointer;
 
-    ScaleEventProcessor(final EventStreamWriter<R> writer,
-                        final Checkpointer checkpointer,
-                        final H requestHandler,
-                        final ScheduledExecutorService executor) {
+    ConcurrentEventProcessor(final EventStreamWriter<R> writer,
+                             final Checkpointer checkpointer,
+                             final H requestHandler,
+                             final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(writer);
         Preconditions.checkNotNull(checkpointer);
         Preconditions.checkNotNull(requestHandler);
@@ -207,4 +204,12 @@ public class ScaleEventProcessor<R extends ControllerEvent, H extends RequestHan
         private final long counter;
     }
 
+    //    static final ExceptionHandler CONCURRENTEP_EXCEPTION_HANDLER = (Throwable t) -> {
+    //        Throwable y = ExceptionHelpers.getRealException(t);
+    //        ExceptionHandler.Directive ret = ExceptionHandler.DEFAULT_EXCEPTION_HANDLER.run(y);
+    //        if (RetryableException.isRetryable(y)) {
+    //
+    //        }
+    //        return ret;
+    //    };
 }
