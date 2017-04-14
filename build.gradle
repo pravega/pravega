@@ -275,6 +275,10 @@ project('service:storage:impl') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
 
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper', version: '4.4.0' {
+            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        }
+
         test {
             // We use Guava 20.0, however DistributedLog use Guava 16.0. We cannot start DistributedLog in process or
             // using our own classpath because it can't find required classes. As such, we get the path to Guava 16.0
