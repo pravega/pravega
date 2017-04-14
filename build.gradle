@@ -627,6 +627,7 @@ project('connectors:flink') {
     shadowJar {
         dependencies {
             // 'include' specific dependencies in the shadow jar
+            // IMPORTANT: transitive dependencies must be manually listed here!
             include dependency("com.google.guava:guava")
             include dependency("commons-lang:commons-lang")
             include dependency("org.apache.commons:commons-lang3")
@@ -652,6 +653,7 @@ project('connectors:flink') {
             include dependency("com.google.code.gson:gson")
             include dependency("com.google.instrumentation:instrumentation-api")
             include(project(":common"))
+            include(project(":shared"))
             include(project(":controller:contract"))
             include(project(":clients:streaming"))
         }
