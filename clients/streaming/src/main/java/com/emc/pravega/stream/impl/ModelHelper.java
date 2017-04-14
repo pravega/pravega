@@ -22,6 +22,8 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.google.common.base.Preconditions;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -78,13 +80,22 @@ public final class ModelHelper {
      */
     public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
         Preconditions.checkNotNull(policy, "policy");
-        if (policy.getType() == Controller.RetentionPolicy.RetentionPolicyType.INFINITE) {
-            return RetentionPolicy.INFINITE;
+        switch(policy.getType()) {
+            case INFINITE:
+                return RetentionPolicy.INFINITE;
+            case LIMITED_SIZE_MB:
+                return RetentionPolicy.builder()
+                        .type(RetentionPolicy.Type.SIZE)
+                        .value(policy.getValue())
+                        .build();
+            case LIMITED_DAYS:
+                return RetentionPolicy.builder()
+                        .type(RetentionPolicy.Type.TIME)
+                        .value(Duration.ofDays(policy.getValue()).toMillis())
+                        .build();
+            default:
+                throw new IllegalArgumentException();
         }
-        return RetentionPolicy.builder()
-                .type(RetentionPolicy.Type.valueOf(policy.getType().name()))
-                .value(policy.getValue())
-                .build();
     }
 
     /**
@@ -220,10 +231,20 @@ public final class ModelHelper {
             return Controller.RetentionPolicy.newBuilder()
                     .setType(Controller.RetentionPolicy.RetentionPolicyType.INFINITE).build();
         }
-        return Controller.RetentionPolicy.newBuilder()
-                .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getType().name()))
-                .setValue(policyModel.getValue())
-                .build();
+        switch (policyModel.getType()) {
+            case SIZE:
+                return Controller.RetentionPolicy.newBuilder()
+                        .setType(Controller.RetentionPolicy.RetentionPolicyType.LIMITED_SIZE_MB)
+                        .setValue(policyModel.getValue())
+                        .build();
+            case TIME:
+                return Controller.RetentionPolicy.newBuilder()
+                        .setType(Controller.RetentionPolicy.RetentionPolicyType.LIMITED_DAYS)
+                        .setValue(Duration.ofMillis(policyModel.getValue()).toDays())
+                        .build();
+            default:
+                throw new IllegalArgumentException();
+        }
     }
 
     /**
