@@ -23,6 +23,7 @@ public class CheckpointStoreException extends ControllerServerException {
         NodeNotEmpty,
         Active,
         Sealed,
+        Connectivity
     }
 
     private final Type type;
@@ -54,6 +55,6 @@ public class CheckpointStoreException extends ControllerServerException {
 
     public CheckpointStoreException(Type type, String message, Throwable t) {
         super(message, t);
-        this.type = Type.Unknown;
+        this.type = type;
     }
 }

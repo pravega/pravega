@@ -3,6 +3,8 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import static com.emc.pravega.controller.eventProcessor.RetryHelper.CONNECTIVITY_PREDICATE;
+import static com.emc.pravega.controller.eventProcessor.RetryHelper.withRetries;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -35,6 +37,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -94,19 +97,32 @@ public class ControllerEventProcessors extends AbstractIdleService {
     }
 
     public void notifyProcessFailure(String process) {
-        try {
-            if (commitEventEventProcessors != null) {
-                commitEventEventProcessors.notifyProcessFailure(process);
-            }
-            if (abortEventEventProcessors != null) {
-                abortEventEventProcessors.notifyProcessFailure(process);
-            }
-            if (scaleEventEventProcessors != null) {
-                scaleEventEventProcessors.notifyProcessFailure(process);
-            }
-
-        } catch (CheckpointStoreException e) {
-            log.error(String.format("Failed handling failure for host %s", process), e);
+        if (commitEventEventProcessors != null) {
+            CompletableFuture.runAsync(() -> {
+                try {
+                    commitEventEventProcessors.notifyProcessFailure(process);
+                } catch (CheckpointStoreException e) {
+                    throw new CompletionException(e);
+                }
+            }, executor);
+        }
+        if (abortEventEventProcessors != null) {
+            CompletableFuture.runAsync(() -> {
+                try {
+                    abortEventEventProcessors.notifyProcessFailure(process);
+                } catch (CheckpointStoreException e) {
+                    throw new CompletionException(e);
+                }
+            }, executor);
+        }
+        if (scaleEventEventProcessors != null) {
+            CompletableFuture.runAsync(() -> {
+                try {
+                    scaleEventEventProcessors.notifyProcessFailure(process);
+                } catch (CheckpointStoreException e) {
+                    throw new CompletionException(e);
+                }
+            }, executor);
         }
     }
 
@@ -202,34 +218,38 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
                                        final Supplier<Set<String>> processes) {
-        Set<String> registeredProcesses;
-        try {
-            registeredProcesses = group.getProcesses();
-        } catch (CheckpointStoreException e) {
-            log.error(String.format("Error fetching processes registered in event processor group %s", group.toString()), e);
-            if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
-                return;
+        Set<String> registeredProcesses = withRetries(() -> {
+            try {
+                return group.getProcesses();
+            } catch (CheckpointStoreException e) {
+                if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                    return Collections.emptySet();
+                }
+                throw new CompletionException(e);
             }
-            throw new CompletionException(e);
-        }
+        }, CONNECTIVITY_PREDICATE);
 
-        Set<String> activeProcesses;
-        try {
-            activeProcesses = processes.get();
-        } catch (Exception e) {
-            log.error(String.format("Error fetching current processes%s", group.toString()), e);
-            throw new CompletionException(e);
-        }
+        Set<String> activeProcesses = withRetries(() -> {
+            try {
+                return processes.get();
+            } catch (Exception e) {
+                log.error(String.format("Error fetching current processes%s", group.toString()), e);
+                throw new CompletionException(e);
+            }
+        }, e -> true);
+
         registeredProcesses.removeAll(activeProcesses);
         // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
         for (String process : registeredProcesses) {
-            try {
-                group.notifyProcessFailure(process);
-            } catch (CheckpointStoreException | NullPointerException e) {
-                log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
-                        group.toString()), e);
-                throw new CompletionException(e);
-            }
+            CompletableFuture.runAsync(() -> {
+                try {
+                    group.notifyProcessFailure(process);
+                } catch (CheckpointStoreException | NullPointerException e) {
+                    log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
+                            group.toString()), e);
+                    throw new CompletionException(e);
+                }
+            }, executor);
         }
     }
 

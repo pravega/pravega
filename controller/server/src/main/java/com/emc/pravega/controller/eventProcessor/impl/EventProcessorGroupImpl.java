@@ -5,6 +5,8 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
+import static com.emc.pravega.controller.eventProcessor.RetryHelper.CONNECTIVITY_PREDICATE;
+import static com.emc.pravega.controller.eventProcessor.RetryHelper.withRetries;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.controller.requests.ControllerEvent;
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -194,24 +197,56 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "notifyProcessFailure", process);
         log.info("Notifying failure of process {} participating in reader group {}", process, this.objectId);
         try {
-            Map<String, Position> map = checkpointStore.sealReaderGroup(process, readerGroup.getGroupName());
+            Map<String, Position> map = withRetries(() -> {
+                try {
+                    return checkpointStore.sealReaderGroup(process, readerGroup.getGroupName());
+                } catch (CheckpointStoreException e) {
+                    if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                        return Collections.emptyMap();
+                    }
+                    throw new CompletionException(e);
+                }
+            }, CONNECTIVITY_PREDICATE);
 
             for (Map.Entry<String, Position> entry : map.entrySet()) {
 
                 // 1. Notify reader group about failed readers
-                if (readerGroup.getOnlineReaders().contains(entry.getKey())) {
-                    log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
-                    readerGroup.readerOffline(entry.getKey(), entry.getValue());
-                }
+                withRetries(() -> {
+                    if (readerGroup.getOnlineReaders().contains(entry.getKey())) {
+                        log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
+                        readerGroup.readerOffline(entry.getKey(), entry.getValue());
+                    }
+                    return null;
+                }, throwable -> true);
 
                 // 2. Clean up reader from checkpoint store
                 log.info("{} removing reader={} from checkpoint store", this.objectId, entry.getKey());
-                checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
-
+                withRetries(() -> {
+                    try {
+                        checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
+                        return null;
+                    } catch (CheckpointStoreException e) {
+                        if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                            return null;
+                        }
+                        throw new CompletionException(e);
+                    }
+                }, CONNECTIVITY_PREDICATE);
             }
             // finally, remove reader group from checkpoint store
             log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
-            checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
+            withRetries(() -> {
+                try {
+                    checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
+                    return null;
+                } catch (CheckpointStoreException e) {
+                    if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                        return null;
+                    }
+                    throw new CompletionException(e);
+                }
+            }, CONNECTIVITY_PREDICATE);
+
         } finally {
             LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, process);
         }
