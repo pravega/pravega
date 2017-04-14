@@ -102,7 +102,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         log.trace("Read called at offset {}", offset);
         fillBuffer();
         while (buffer.dataAvailable() < TYPE_PLUS_LENGTH_SIZE) {
-            if (buffer.dataAvailable() <= 0 && receivedEndOfSegment) {
+            if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
                 throw new EndOfSegmentException();
             }
             if (outstandingRequest.await(timeout)) {
