@@ -35,6 +35,7 @@ public final class Config {
     //RPC Server configuration
     public static final int RPC_SERVER_PORT = CONFIG.getInt("config.controller.server.port");
     public static final int ASYNC_TASK_POOL_SIZE = CONFIG.getInt("config.controller.server.asyncTaskPoolSize");
+    public static final int RPC_PUBLISHED_SERVER_PORT = CONFIG.getInt("config.controller.server.publishedRPCPort");
 
     //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
     public static final String SERVICE_HOST = CONFIG.getString("config.controller.server.serviceHostIp");
@@ -92,19 +93,10 @@ public final class Config {
             // This config is optional so we can ignore this exception.
             log.info("publishedRPCHost is not configured, will use default value");
         }
-
-        Integer publishPort = null;
-        try {
-            publishPort = CONFIG.getInt("config.controller.server.publishedRPCPort");
-        } catch (ConfigException e) {
-            // This config is optional so we can ignore this exception.
-            log.info("publishedRPCPort is not configured, will use default value");
-        }
-
         return GRPCServerConfigImpl.builder()
                 .port(Config.RPC_SERVER_PORT)
                 .publishedRPCHost(publishHost)
-                .publishedRPCPort(publishPort)
+                .publishedRPCPort(Config.RPC_PUBLISHED_SERVER_PORT)
                 .build();
     }
 
