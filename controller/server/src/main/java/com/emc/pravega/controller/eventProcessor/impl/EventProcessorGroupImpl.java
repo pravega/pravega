@@ -99,12 +99,6 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                                           final ReaderGroupConfig groupConfig,
                                           final Set<String> streamNanes) {
         return readerGroupManager.createReaderGroup(groupName, groupConfig, streamNanes);
-        // todo: getReaderGroup currently throws NotImplementedException
-        //ReaderGroup readerGroup = streamManager.getReaderGroup(groupName);
-        //if (readerGroup == null) {
-        //    readerGroup = streamManager.createReaderGroup(groupName, groupConfig, streamNanes);
-        //}
-        //return  readerGroup;
     }
 
     private List<String> createEventProcessors(final int count) throws CheckpointStoreException {
@@ -206,7 +200,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                     }
                     throw new CompletionException(e);
                 }
-            }, CONNECTIVITY_PREDICATE);
+            }, CONNECTIVITY_PREDICATE, 10);
 
             for (Map.Entry<String, Position> entry : map.entrySet()) {
 
@@ -217,7 +211,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                         readerGroup.readerOffline(entry.getKey(), entry.getValue());
                     }
                     return null;
-                }, throwable -> true);
+                }, throwable -> true, 10);
 
                 // 2. Clean up reader from checkpoint store
                 log.info("{} removing reader={} from checkpoint store", this.objectId, entry.getKey());
@@ -231,7 +225,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                         }
                         throw new CompletionException(e);
                     }
-                }, CONNECTIVITY_PREDICATE);
+                }, CONNECTIVITY_PREDICATE, 10);
             }
             // finally, remove reader group from checkpoint store
             log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
@@ -245,7 +239,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                     }
                     throw new CompletionException(e);
                 }
-            }, CONNECTIVITY_PREDICATE);
+            }, CONNECTIVITY_PREDICATE, 10);
 
         } finally {
             LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, process);

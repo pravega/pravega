@@ -4,7 +4,7 @@
 package com.emc.pravega.controller.server.eventProcessor;
 
 import static com.emc.pravega.controller.eventProcessor.RetryHelper.CONNECTIVITY_PREDICATE;
-import static com.emc.pravega.controller.eventProcessor.RetryHelper.withRetries;
+import static com.emc.pravega.controller.eventProcessor.RetryHelper.withRetriesAsync;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -37,7 +37,9 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -98,31 +100,31 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     public void notifyProcessFailure(String process) {
         if (commitEventEventProcessors != null) {
-            CompletableFuture.runAsync(() -> {
+            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     commitEventEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor);
+            }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
         }
         if (abortEventEventProcessors != null) {
-            CompletableFuture.runAsync(() -> {
+            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     abortEventEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor);
+            }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
         }
         if (scaleEventEventProcessors != null) {
-            CompletableFuture.runAsync(() -> {
+            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     scaleEventEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor);
+            }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
         }
     }
 
@@ -218,7 +220,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
                                        final Supplier<Set<String>> processes) {
-        Set<String> registeredProcesses = withRetries(() -> {
+        CompletableFuture<Set<String>> future1 = withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             try {
                 return group.getProcesses();
             } catch (CheckpointStoreException e) {
@@ -227,30 +229,46 @@ public class ControllerEventProcessors extends AbstractIdleService {
                 }
                 throw new CompletionException(e);
             }
-        }, CONNECTIVITY_PREDICATE);
+        }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
 
-        Set<String> activeProcesses = withRetries(() -> {
+        CompletableFuture<Set<String>> future2 = withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             try {
                 return processes.get();
             } catch (Exception e) {
                 log.error(String.format("Error fetching current processes%s", group.toString()), e);
                 throw new CompletionException(e);
             }
-        }, e -> true);
+        }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
 
-        registeredProcesses.removeAll(activeProcesses);
-        // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
-        for (String process : registeredProcesses) {
-            CompletableFuture.runAsync(() -> {
-                try {
-                    group.notifyProcessFailure(process);
-                } catch (CheckpointStoreException | NullPointerException e) {
-                    log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
-                            group.toString()), e);
-                    throw new CompletionException(e);
-                }
-            }, executor);
-        }
+        CompletableFuture.allOf(future1, future2)
+                .thenCompose((Void v) -> {
+                    Set<String> registeredProcesses = FutureHelpers.getAndHandleExceptions(future1, RuntimeException::new);
+                    Set<String> activeProcesses = FutureHelpers.getAndHandleExceptions(future2, RuntimeException::new);
+
+                    if (registeredProcesses == null || registeredProcesses.isEmpty()) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+
+                    if (activeProcesses != null) {
+                        registeredProcesses.removeAll(activeProcesses);
+                    }
+
+                    List<CompletableFuture<Void>> futureList = new ArrayList<>();
+                    for (String process : registeredProcesses) {
+                        futureList.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+                            try {
+                                group.notifyProcessFailure(process);
+                                // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
+                            } catch (CheckpointStoreException | NullPointerException e) {
+                                log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
+                                        group.toString()), e);
+                                throw new CompletionException(e);
+                            }
+                        }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor));
+                    }
+
+                    return FutureHelpers.allOf(futureList);
+                });
     }
 
     private void initialize() throws Exception {
