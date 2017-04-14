@@ -16,7 +16,6 @@
 package io.pravega.client.stream;
 
 import java.io.Serializable;
-import java.time.Duration;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
