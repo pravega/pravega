@@ -5,12 +5,24 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
-import java.io.Serializable;
+import com.emc.pravega.controller.requests.ControllerEvent;
+import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.Position;
 
 /**
  * Event processor interface.
  */
-public abstract class EventProcessor<T extends Serializable> {
+public abstract class EventProcessor<T extends ControllerEvent> {
+
+    @FunctionalInterface
+    public interface Checkpointer {
+        void store(Position position) throws CheckpointStoreException;
+    }
+
+    Checkpointer checkpointer;
+
+    EventStreamWriter<T> selfWriter;
 
     /**
      * AbstractActor initialization hook that is called before actor starts receiving events.
@@ -20,8 +32,9 @@ public abstract class EventProcessor<T extends Serializable> {
     /**
      * User defined event processing logic.
      * @param event Event received from Pravega Stream.
+     * @param position Received event's position.
      */
-    protected abstract void process(T event);
+    protected abstract void process(T event, Position position);
 
     /**
      * AbstractActor shutdown hook that is called on shut down.
@@ -37,4 +50,19 @@ public abstract class EventProcessor<T extends Serializable> {
      */
     protected void beforeRestart(Throwable t, T event) { }
 
+    /**
+     * Returns a handle to checkpointer which can be used to store reader position.
+     * @return a handle to checkpointer which can be used to store reader position.
+     */
+    protected Checkpointer getCheckpointer() {
+        return this.checkpointer;
+    }
+
+    /**
+     * Returns a stream writer that can be used to write events to the underlying event stream.
+     * @return a stream writer that can be used to write events to the underlying event stream.
+     */
+    protected EventStreamWriter<T> getSelfWriter() {
+        return selfWriter;
+    }
 }

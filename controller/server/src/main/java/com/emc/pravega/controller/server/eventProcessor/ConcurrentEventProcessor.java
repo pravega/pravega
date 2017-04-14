@@ -3,16 +3,11 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
-import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
-import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;
-import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
-import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Position;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
@@ -24,15 +19,16 @@ import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
+ * This event processor allows concurrent event processing.
+ * It receives an event, schedules its background processing and returns the control to
+ * Event processor cell to fetch and supply next event.
  */
 @Slf4j
 public class ConcurrentEventProcessor<R extends ControllerEvent, H extends RequestHandler<R>>
@@ -43,22 +39,15 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final ConcurrentSkipListSet<PositionCounter> running;
     private final ConcurrentSkipListSet<PositionCounter> completed;
     private final AtomicReference<PositionCounter> checkpoint;
-    private final EventStreamWriter<R> writer;
     private final ScheduledExecutorService executor;
     private final AtomicBoolean stop = new AtomicBoolean(false);
     private final H requestHandler;
     private final AtomicLong counter = new AtomicLong(0);
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
-    private final ScheduledFuture<?> scheduledFuture;
-    private final Checkpointer checkpointer;
 
-    ConcurrentEventProcessor(final EventStreamWriter<R> writer,
-                             final Checkpointer checkpointer,
-                             final H requestHandler,
+    ConcurrentEventProcessor(final H requestHandler,
                              final ScheduledExecutorService executor) {
-        Preconditions.checkNotNull(writer);
-        Preconditions.checkNotNull(checkpointer);
         Preconditions.checkNotNull(requestHandler);
         Preconditions.checkNotNull(executor);
 
@@ -67,27 +56,17 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         running = new ConcurrentSkipListSet<>(positionCounterComparator);
         completed = new ConcurrentSkipListSet<>(positionCounterComparator);
 
-        this.writer = writer;
-
         this.checkpoint = new AtomicReference<>();
 
         this.executor = executor;
-        this.checkpointer = checkpointer;
 
-        // periodic checkpointing - every one minute
-        scheduledFuture = this.executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
         semaphore = new Semaphore(MAX_CONCURRENT);
     }
 
     @Override
-    protected void process(R event) {
-        process(event, null);
-    }
-
-    void process(R event, Position position) {
-        // limiting number of concurrent processing. Otherwise we will keep picking messages from the stream
+    protected void process(R event, Position position) {
+        // Limiting number of concurrent processing using semaphores. Otherwise we will keep picking messages from the stream
         // and it could lead to memory overload.
-
         PositionCounter pc;
         R request;
         long next;
@@ -96,7 +75,9 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         } catch (Exception e) {
             log.warn("exception thrown while acquiring semaphore {}", e);
             semaphore.release();
-            // TODO: throw meaningful exception
+            // TODO: throw meaningful exception..
+            // What do we want to do here?
+            // if we fail to acquire lock, we want to reprocess this event as for no fault of it, we are making it
             throw new CompletionException(e);
         }
 
@@ -120,37 +101,21 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                 }, executor);
     }
 
-    @FunctionalInterface
-    public interface Checkpointer {
-        void checkpoint(Position position) throws CheckpointStoreException;
-    }
-
     public void stop() {
         stop.set(true);
     }
 
     /**
-     * This method puts the request back into the request stream.
+     * This method puts the event back into event processor's stream.
      * If processing of a request could not be done because of retryable exceptions,
-     * We will put it back into the request stream. This frees up compute cycles and ensures that checkpointing is not stalled
-     * on completion of some task.
-     * <p>
-     * If we fail in trying to write to request stream, should we ignore or retry indefinitely?
-     * Since this class gives a guarantee of at least once processing with retry on retryable failures,
-     * so we may do that. But we have already processed the message at least once. So we should not waste our
-     * cycles here.
-     * <p>
-     * Example: For scale operations: we have a request relayed after a 'mute' delay, so it is not fatal.
-     * In the interest of not stalling checkpointing for long, we should fail fast and put the request back in the queue
-     * for it to be retried asynchronously after a delay as we move our checkpoint ahead.
-     * <p>
-     * For tx.timeout operations: if we fail to put the request back in the stream, the txn will never timeout.
+     * We will put it back into the request stream. This frees up compute cycles and ensures
+     * that checkpointing is not stalled on completion of some task.
      *
      * @param request request which has to be put back in the request stream.
      */
     @Synchronized
     private void putBack(String key, R request) {
-        FutureHelpers.getAndHandleExceptions(writer.writeEvent(key, request), RuntimeException::new);
+        FutureHelpers.getAndHandleExceptions(getSelfWriter().writeEvent(key, request), RuntimeException::new);
     }
 
     /**
@@ -176,25 +141,17 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         final PositionCounter checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
         completed.removeAll(checkpointCandidates);
         checkpoint.set(checkpointPosition);
-    }
-
-    @Synchronized
-    private void checkpoint() {
         try {
-            if (checkpoint.get() != null) {
-                checkpointer.checkpoint(checkpoint.get().position);
-            }
-        } catch (Exception e) {
-            // Even if this fails, its ok. Next checkpoint periodic trigger will store the checkpoint.
-            log.error("Request reader checkpointing failed {}", e);
-        } catch (Throwable t) {
-            log.error("Checkpointing failed with fatal error {}", t);
+            getCheckpointer().store(checkpoint.get().position);
+        } catch (CheckpointStoreException e) {
+            // log and ignore
+            log.warn("failed to checkpoint {}", e);
         }
     }
 
     @Override
     public void close() throws Exception {
-        scheduledFuture.cancel(true);
+        // wait for all background processing to complete.
         stop();
     }
 

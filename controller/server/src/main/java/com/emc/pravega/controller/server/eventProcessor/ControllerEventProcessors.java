@@ -24,9 +24,6 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.Config;
-import com.emc.pravega.stream.EventStreamWriter;
-import com.emc.pravega.stream.EventWriterConfig;
-import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -72,8 +69,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private EventProcessorGroup<CommitEvent> commitEventEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventEventProcessors;
     private EventProcessorGroup<ScaleEvent> scaleEventEventProcessors;
-    private AtomicReference<EventStreamWriter<ScaleEvent>> scaleWriterRef = new AtomicReference<>();
-    private AtomicReference<ScaleRequestHandler> scaleRequestHandlerRef = new AtomicReference<>();
+    private ScaleRequestHandler scaleRequestHandler;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -188,35 +184,10 @@ public class ControllerEventProcessors extends AbstractIdleService {
                                              final StreamMetadataTasks streamMetadataTasks) {
         log.info("Bootstrapping controller event processors");
         CompletableFuture<Void> streams = createStreams();
-        streams.thenCompose(x -> startScaleReader(clientFactory, streamMetadataTasks, streamMetadataStore));
+        scaleRequestHandler = new ScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor);
+
         return streams.thenAcceptAsync(x ->
                 streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config));
-    }
-
-    private CompletableFuture<Void> startScaleReader(ClientFactory clientFactory,
-                                                     StreamMetadataTasks streamMetadataTasks,
-                                                     StreamMetadataStore streamStore) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        Retry.indefinitelyWithExpBackoff(10, 10, 10000,
-                e -> log.error("Exception while starting reader {}", e))
-                .runAsync(() -> {
-
-                    if (scaleWriterRef.get() == null) {
-                        scaleWriterRef.compareAndSet(null, clientFactory.createEventWriter(Config.SCALE_STREAM_NAME,
-                                new JavaSerializer<>(),
-                                EventWriterConfig.builder().build()));
-                    }
-
-                    if (scaleRequestHandlerRef.get() == null) {
-                        scaleRequestHandlerRef.compareAndSet(null,
-                                new ScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor));
-                    }
-
-                    log.info("Bootstrapping request handlers complete");
-                    result.complete(null);
-                    return result;
-                }, executor);
-        return result;
     }
 
     public void handleOrphanedReaders(final Supplier<Set<String>> processes) {
@@ -334,10 +305,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(SCALE_EVENT_SERIALIZER)
                         .supplier(() -> new ConcurrentEventProcessor<>(
-                                scaleWriterRef.get(),
-                                // TODO: get correct checkpoint delegate
-                                (Position position) -> checkpointStore.setPosition(process, Config.SCALE_READER_GROUP, Config.SCALE_READER_ID, position),
-                                scaleRequestHandlerRef.get(),
+                                scaleRequestHandler,
                                 executor))
                         .build();
 

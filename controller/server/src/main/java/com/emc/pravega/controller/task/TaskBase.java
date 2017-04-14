@@ -67,6 +67,7 @@ public abstract class TaskBase implements AutoCloseable {
 
     private volatile boolean ready;
     private final CountDownLatch readyLatch;
+    private boolean createIndexOnlyMode;
 
     public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
                     final String hostId) {
@@ -80,8 +81,9 @@ public abstract class TaskBase implements AutoCloseable {
         this.context = context;
         this.ready = false;
         readyLatch = new CountDownLatch(1);
+        this.createIndexOnlyMode = false;
     }
-    
+
     public abstract TaskBase copyWithContext(Context context);
 
     public Context getContext() {
@@ -107,6 +109,9 @@ public abstract class TaskBase implements AutoCloseable {
         final TaggedResource taggedResource = new TaggedResource(tag, resource);
 
         log.debug("Host={}, Tag={} starting to execute task on resource {}", context.hostId, tag, resource);
+        if (createIndexOnlyMode) {
+            return createIndexes(context.hostId, taggedResource, taskData);
+        }
         // PutChild (HostId, resource)
         // Initially store the fact that I am about the update the resource.
         // Since multiple threads within this process could concurrently attempt to modify same resource,
@@ -131,9 +136,22 @@ public abstract class TaskBase implements AutoCloseable {
         return result;
     }
 
+    private <T> CompletableFuture<T> createIndexes(String hostId, TaggedResource taggedResource, TaskData taskData) {
+        return taskMetadataStore.putChild(context.hostId, taggedResource)
+                .thenComposeAsync(x -> taskMetadataStore.lock(taggedResource.getResource(), taskData, context.hostId,
+                            taggedResource.getTag(), context.oldHostId, context.oldTag), executor)
+                .thenApplyAsync(x -> {
+                    throw new IllegalStateException("Index only mode");
+                }, executor);
+    }
+
     protected void setReady() {
         ready = true;
         readyLatch.countDown();
+    }
+
+    protected void setCreateIndexOnlyMode() {
+        this.createIndexOnlyMode = true;
     }
 
     public boolean isReady() {

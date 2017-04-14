@@ -76,7 +76,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        protected void process(TestEvent event) {
+        protected void process(TestEvent event, Position position) {
             if (event.getNumber() < 0) {
                 throw new RuntimeException();
             } else {
@@ -98,7 +98,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        protected void process(TestEvent event) {
+        protected void process(TestEvent event, Position position) {
             sum += event.getNumber();
         }
     }
@@ -268,8 +268,8 @@ public class EventProcessorTest {
                 .config(config)
                 .build();
         checkpointStore.addReader(PROCESS, READER_GROUP, READER_ID);
-        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(),
-                READER_ID, 0, checkpointStore);
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, null,
+                system.getProcess(), READER_ID, 0, checkpointStore);
         cell.startAsync();
         cell.awaitTerminated();
         Assert.assertTrue(true);
@@ -384,8 +384,8 @@ public class EventProcessorTest {
                                     final CheckpointStore checkpointStore,
                                     final int expectedSum) throws CheckpointStoreException {
         checkpointStore.addReader(PROCESS, READER_GROUP, readerId);
-        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(),
-                readerId, 0, checkpointStore);
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, null,
+                system.getProcess(), readerId, 0, checkpointStore);
 
         cell.startAsync();
 

@@ -7,6 +7,7 @@ package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -27,7 +28,6 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -37,7 +37,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-public final class EventProcessorGroupImpl<T extends Serializable> extends AbstractIdleService
+public final class EventProcessorGroupImpl<T extends ControllerEvent> extends AbstractIdleService
         implements EventProcessorGroup<T> {
 
     private final String objectId;
@@ -123,7 +123,7 @@ public final class EventProcessorGroupImpl<T extends Serializable> extends Abstr
                             ReaderConfig.builder().build());
 
             // Create event processor, and add it to the actors list.
-            EventProcessorCell<T> actorCell = new EventProcessorCell<>(eventProcessorConfig, reader,
+            EventProcessorCell<T> actorCell = new EventProcessorCell<>(eventProcessorConfig, reader, writer,
                     actorSystem.getProcess(), readerId, i, checkpointStore);
             log.info("Created event processor {}, id={}", i, actorCell.toString());
 
