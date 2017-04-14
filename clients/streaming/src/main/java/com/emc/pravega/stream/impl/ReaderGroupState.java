@@ -260,7 +260,7 @@ class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assignedSegments = state.assignedSegments.remove(readerId);
-            Map<Segment, Long> finalPostions = new HashMap<>();
+            Map<Segment, Long> finalPositions = new HashMap<>();
             if (assignedSegments != null) {
                 val iter = assignedSegments.entrySet().iterator();
                 while (iter.hasNext()) {
@@ -274,13 +274,13 @@ class ReaderGroupState implements Revisioned {
                         Preconditions.checkState(offset != null,
                                 "No offset in lastPosition for assigned segment: " + segment);
                     }
-                    finalPostions.put(segment, offset);
+                    finalPositions.put(segment, offset);
                     state.unassignedSegments.put(segment, offset);
                     iter.remove();
                 }
             }
             state.distanceToTail.remove(readerId);
-            state.checkpointState.removeReader(readerId, finalPostions);
+            state.checkpointState.removeReader(readerId, finalPositions);
         }
     }
 

@@ -227,7 +227,7 @@ public class ReaderGroupStateManagerTest {
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 0)));
         
-        readerState2.readerShutdown(null);
+        ReaderGroupStateManager.readerShutdown(stream, null, stateSynchronizer);
         AssertExtensions.assertThrows(ReinitializationRequiredException.class,
                 () -> readerState2.releaseSegment(new Segment(scope, stream, 0), 711L, 0L));
 
