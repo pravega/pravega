@@ -24,8 +24,6 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 
-import java.time.Duration;
-
 /**
  * Provides translation between the Model classes and its REST representation.
  */
@@ -57,16 +55,10 @@ public class ModelHelper {
                     createStreamRequest.getScalingPolicy().getMinSegments()
             );
         }
-
-        RetentionPolicy retentionPolicy;
-        if (createStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.INFINITE) {
-            retentionPolicy = RetentionPolicy.INFINITE;
-        } else if (createStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.LIMITED_DAYS) {
-            retentionPolicy = RetentionPolicy.byTime(Duration.ofDays(createStreamRequest.getRetentionPolicy().getValue()));
-        } else {
-            retentionPolicy = RetentionPolicy.bySizeBytes(createStreamRequest.getRetentionPolicy().getValue());
-        }
-
+        RetentionPolicy retentionPolicy = RetentionPolicy.builder()
+                .type(RetentionPolicy.Type.valueOf(createStreamRequest.getRetentionPolicy().getType().name()))
+                .value(createStreamRequest.getRetentionPolicy().getValue())
+                .build();
         return StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(createStreamRequest.getStreamName())
@@ -102,15 +94,10 @@ public class ModelHelper {
                     updateStreamRequest.getScalingPolicy().getMinSegments()
             );
         }
-        RetentionPolicy retentionPolicy;
-        if (updateStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.INFINITE) {
-            retentionPolicy = RetentionPolicy.INFINITE;
-        } else if (updateStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.LIMITED_DAYS) {
-            retentionPolicy = RetentionPolicy.byTime(Duration.ofDays(updateStreamRequest.getRetentionPolicy().getValue()));
-        } else {
-            retentionPolicy = RetentionPolicy.bySizeBytes(updateStreamRequest.getRetentionPolicy().getValue());
-        }
-
+        RetentionPolicy retentionPolicy = RetentionPolicy.builder()
+                .type(RetentionPolicy.Type.valueOf(updateStreamRequest.getRetentionPolicy().getType().name()))
+                .value(updateStreamRequest.getRetentionPolicy().getValue())
+                .build();
         return StreamConfiguration.builder()
                                   .scope(scope)
                                   .streamName(stream)
@@ -141,15 +128,9 @@ public class ModelHelper {
         }
 
         RetentionConfig retentionConfig = new RetentionConfig();
-        if (streamConfiguration.getRetentionPolicy().getType() == RetentionPolicy.Type.TIME) {
-            if (streamConfiguration.getRetentionPolicy().getValue() == Long.MAX_VALUE) {
-                retentionConfig.setType(RetentionConfig.TypeEnum.INFINITE);
-            } else {
-                retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
-                retentionConfig.setValue(Duration.ofMillis(streamConfiguration.getRetentionPolicy().getValue()).toDays());
-            }
-        } else {
-            retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
+        retentionConfig.setType(
+                RetentionConfig.TypeEnum.valueOf(streamConfiguration.getRetentionPolicy().getType().name()));
+        if (retentionConfig.getType() != RetentionConfig.TypeEnum.INFINITE) {
             retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
         }
 

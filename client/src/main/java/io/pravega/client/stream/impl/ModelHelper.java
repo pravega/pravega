@@ -90,22 +90,10 @@ public final class ModelHelper {
      */
     public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
         Preconditions.checkNotNull(policy, "policy");
-        switch (policy.getType()) {
-            case INFINITE:
-                return RetentionPolicy.INFINITE;
-            case LIMITED_SIZE_MB:
-                return RetentionPolicy.builder()
-                        .type(RetentionPolicy.Type.SIZE)
-                        .value(policy.getValue())
-                        .build();
-            case LIMITED_DAYS:
-                return RetentionPolicy.builder()
-                        .type(RetentionPolicy.Type.TIME)
-                        .value(Duration.ofDays(policy.getValue()).toMillis())
-                        .build();
-            default:
-                throw new IllegalArgumentException();
-        }
+        return RetentionPolicy.builder()
+                .type(RetentionPolicy.Type.valueOf(policy.getType().name()))
+                .value(policy.getValue())
+                .build();
     }
 
     /**
@@ -248,24 +236,10 @@ public final class ModelHelper {
      */
     public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
         Preconditions.checkNotNull(policyModel, "policyModel");
-        if (policyModel.getType() == RetentionPolicy.Type.TIME && policyModel.getValue() == Long.MAX_VALUE) {
-            return Controller.RetentionPolicy.newBuilder()
-                    .setType(Controller.RetentionPolicy.RetentionPolicyType.INFINITE).build();
-        }
-        switch (policyModel.getType()) {
-            case SIZE:
-                return Controller.RetentionPolicy.newBuilder()
-                        .setType(Controller.RetentionPolicy.RetentionPolicyType.LIMITED_SIZE_MB)
-                        .setValue(policyModel.getValue())
-                        .build();
-            case TIME:
-                return Controller.RetentionPolicy.newBuilder()
-                        .setType(Controller.RetentionPolicy.RetentionPolicyType.LIMITED_DAYS)
-                        .setValue(Duration.ofMillis(policyModel.getValue()).toDays())
-                        .build();
-            default:
-                throw new IllegalArgumentException();
-        }
+        return Controller.RetentionPolicy.newBuilder()
+                .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getType().name()))
+                .setValue(policyModel.getValue())
+                .build();
     }
 
     /**

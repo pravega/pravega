@@ -43,7 +43,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -99,7 +98,7 @@ public class StreamMetaDataTests {
             .scope(scope1)
             .streamName(stream1)
             .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-            .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(123L)))
+            .retentionPolicy(RetentionPolicy.byDays(123L))
             .build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
@@ -539,14 +538,14 @@ public class StreamMetaDataTests {
                 .scope(scope1)
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
+                .retentionPolicy(RetentionPolicy.byDays(123L))
                 .build();
 
         final StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(stream2)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
+                .retentionPolicy(RetentionPolicy.byDays(123L))
                 .build();
 
         // Test to list streams.
@@ -582,7 +581,7 @@ public class StreamMetaDataTests {
                 .scope(scope1)
                 .streamName(NameUtils.getInternalNameForStream("stream3"))
                 .scalingPolicy(ScalingPolicy.fixed(1))
-                .retentionPolicy(RetentionPolicy.INFINITE)
+                .retentionPolicy(RetentionPolicy.infinte())
                 .build();
         List<StreamConfiguration> allStreamsList = Arrays.asList(streamConfiguration1, streamConfiguration2,
                 streamConfiguration3);
