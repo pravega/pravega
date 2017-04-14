@@ -7,10 +7,14 @@ package io.pravega.controller.util;
 
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.common.util.Property;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import lombok.extern.slf4j.Slf4j;
@@ -27,13 +31,11 @@ public final class Config {
             .withFallback(ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true)))
             .withFallback(ConfigFactory.systemEnvironment())
             .withFallback(ConfigFactory.defaultReference())
-            .resolve();
+            .resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true));
 
     //RPC Server configuration
     public static final int RPC_SERVER_PORT = CONFIG.getInt("config.controller.server.port");
     public static final int ASYNC_TASK_POOL_SIZE = CONFIG.getInt("config.controller.server.asyncTaskPoolSize");
-    public static final String RPC_PUBLISHED_SERVER_HOST = CONFIG.getString("config.controller.server.publishedRPCHost");
-    public static final int RPC_PUBLISHED_SERVER_PORT = CONFIG.getInt("config.controller.server.publishedRPCPort");
 
     //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
     public static final String SERVICE_HOST = CONFIG.getString("config.controller.server.serviceHostIp");
@@ -82,6 +84,30 @@ public final class Config {
 
     // Metrics
     private static final String METRIC_PATH = "config.controller.metric";
+
+    public static GRPCServerConfig getGRPCServerConfig() {
+        String publishHost = null;
+        try {
+            publishHost = CONFIG.getString("config.controller.server.publishedRPCHost");
+        } catch (ConfigException e) {
+            // This config is optional so we can ignore this exception.
+            log.info("publishedRPCHost is not configured, will use default value");
+        }
+
+        Integer publishPort = null;
+        try {
+            publishPort = CONFIG.getInt("config.controller.server.publishedRPCPort");
+        } catch (ConfigException e) {
+            // This config is optional so we can ignore this exception.
+            log.info("publishedRPCPort is not configured, will use default value");
+        }
+
+        return GRPCServerConfigImpl.builder()
+                .port(Config.RPC_SERVER_PORT)
+                .publishedRPCHost(publishHost)
+                .publishedRPCPort(publishPort)
+                .build();
+    }
 
     public static MetricsConfig getMetricsConfig() {
         val builder = MetricsConfig.builder();
