@@ -114,11 +114,11 @@ public class ModelHelperTest {
     public void encodeRetentionPolicy() {
         RetentionPolicy policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.bySizeMB(1000L)));
         assertEquals(RetentionPolicy.Type.LIMITED_SIZE_MB, policy1.getType());
-        assertEquals(1000L, policy1.getValue());
+        assertEquals(1000L, (long) policy1.getValue());
 
         RetentionPolicy policy2 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byDays(100L)));
         assertEquals(RetentionPolicy.Type.LIMITED_DAYS, policy2.getType());
-        assertEquals(100L, policy2.getValue());
+        assertEquals(100L, (long) policy2.getValue());
 
         RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.infinte()));
         assertEquals(RetentionPolicy.Type.INFINITE, policy3.getType());
@@ -188,7 +188,7 @@ public class ModelHelperTest {
         assertEquals(3, policy.getMinNumSegments());
         RetentionPolicy retentionPolicy = config.getRetentionPolicy();
         assertEquals(RetentionPolicy.Type.LIMITED_SIZE_MB, retentionPolicy.getType());
-        assertEquals(1000L, retentionPolicy.getValue());
+        assertEquals(1000L, (long) retentionPolicy.getValue());
     }
 
     @Test

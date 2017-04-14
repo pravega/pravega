@@ -43,17 +43,17 @@ public class RetentionPolicy implements Serializable {
     }
 
     private final Type type;
-    private final long value;
+    private final Long value;
 
     public static RetentionPolicy byDays(Long days) {
         return new RetentionPolicy(Type.LIMITED_DAYS, days);
     }
 
-    public static RetentionPolicy bySizeMB(long size) {
+    public static RetentionPolicy bySizeMB(Long size) {
         return new RetentionPolicy(Type.LIMITED_SIZE_MB, size);
     }
 
     public static RetentionPolicy infinte() {
-        return new RetentionPolicy(Type.INFINITE, 0);
+        return new RetentionPolicy(Type.INFINITE, 0L);
     }
 }
