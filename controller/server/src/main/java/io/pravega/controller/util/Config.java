@@ -89,7 +89,7 @@ public final class Config {
         String publishHost = null;
         try {
             publishHost = CONFIG.getString("config.controller.server.publishedRPCHost");
-        } catch (ConfigException e) {
+        } catch (ConfigException.NotResolved e) {
             // This config is optional so we can ignore this exception.
             log.info("publishedRPCHost is not configured, will use default value");
         }
