@@ -70,9 +70,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private final ClientFactory clientFactory;
     private final ScheduledExecutorService executor;
 
-    private EventProcessorGroup<CommitEvent> commitEventEventProcessors;
-    private EventProcessorGroup<AbortEvent> abortEventEventProcessors;
-    private EventProcessorGroup<ScaleEvent> scaleEventEventProcessors;
+    private EventProcessorGroup<CommitEvent> commitEventProcessors;
+    private EventProcessorGroup<AbortEvent> abortEventProcessors;
+    private EventProcessorGroup<ScaleEvent> scaleEventProcessors;
     private ScaleRequestHandler scaleRequestHandler;
 
     public ControllerEventProcessors(final String host,
@@ -83,6 +83,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                                      final HostControllerStore hostControllerStore,
                                      final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
+                                     final StreamMetadataTasks streamMetadataTasks,
                                      final ScheduledExecutorService executor) {
         this.objectId = "ControllerEventProcessors";
         this.config = config;
@@ -95,32 +96,34 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
         this.system = new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
                 new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory));
+        this.scaleRequestHandler = new ScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor);
+
         this.executor = executor;
     }
 
     public void notifyProcessFailure(String process) {
-        if (commitEventEventProcessors != null) {
+        if (commitEventProcessors != null) {
             withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
-                    commitEventEventProcessors.notifyProcessFailure(process);
+                    commitEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
             }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
         }
-        if (abortEventEventProcessors != null) {
+        if (abortEventProcessors != null) {
             withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
-                    abortEventEventProcessors.notifyProcessFailure(process);
+                    abortEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
             }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
         }
-        if (scaleEventEventProcessors != null) {
+        if (scaleEventProcessors != null) {
             withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
-                    scaleEventEventProcessors.notifyProcessFailure(process);
+                    scaleEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
@@ -197,24 +200,21 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         executor));
     }
 
-    public CompletableFuture<Void> bootstrap(final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                             final StreamMetadataTasks streamMetadataTasks) {
+    public CompletableFuture<Void> bootstrap(final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
         log.info("Bootstrapping controller event processors");
-        scaleRequestHandler = new ScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor);
-
         return createStreams().thenAcceptAsync(x ->
-                streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config));
+                streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config), executor);
     }
 
     public void handleOrphanedReaders(final Supplier<Set<String>> processes) {
-        if (this.commitEventEventProcessors != null) {
-            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.commitEventEventProcessors, processes), executor);
+        if (this.commitEventProcessors != null) {
+            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.commitEventProcessors, processes), executor);
         }
-        if (this.abortEventEventProcessors != null) {
-            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.abortEventEventProcessors, processes), executor);
+        if (this.abortEventProcessors != null) {
+            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.abortEventProcessors, processes), executor);
         }
-        if (this.scaleEventEventProcessors != null) {
-            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.scaleEventEventProcessors, processes), executor);
+        if (this.scaleEventProcessors != null) {
+            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.scaleEventProcessors, processes), executor);
         }
     }
 
@@ -295,7 +295,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    commitEventEventProcessors = system.createEventProcessorGroup(commitConfig, checkpointStore);
+                    commitEventProcessors = system.createEventProcessorGroup(commitConfig, checkpointStore);
                     return null;
                 });
 
@@ -323,7 +323,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    abortEventEventProcessors = system.createEventProcessorGroup(abortConfig, checkpointStore);
+                    abortEventProcessors = system.createEventProcessorGroup(abortConfig, checkpointStore);
                     return null;
                 });
 
@@ -353,36 +353,44 @@ public class ControllerEventProcessors extends AbstractIdleService {
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating scale event processor group", e))
                 .run(() -> {
-                    scaleEventEventProcessors = system.createEventProcessorGroup(scaleConfig, checkpointStore);
+                    scaleEventProcessors = system.createEventProcessorGroup(scaleConfig, checkpointStore);
                     return null;
                 });
 
         // endregion
 
         log.info("Awaiting start of commit event processors");
-        commitEventEventProcessors.awaitRunning();
+        commitEventProcessors.awaitRunning();
         log.info("Awaiting start of abort event processors");
-        abortEventEventProcessors.awaitRunning();
+        abortEventProcessors.awaitRunning();
         log.info("Awaiting start of scale event processors");
-        scaleEventEventProcessors.awaitRunning();
+        scaleEventProcessors.awaitRunning();
     }
 
     private void stopEventProcessors() {
-        if (commitEventEventProcessors != null) {
+        if (commitEventProcessors != null) {
             log.info("Stopping commit event processors");
-            commitEventEventProcessors.stopAsync();
+            commitEventProcessors.stopAsync();
         }
-        if (abortEventEventProcessors != null) {
+        if (abortEventProcessors != null) {
             log.info("Stopping abort event processors");
-            abortEventEventProcessors.stopAsync();
+            abortEventProcessors.stopAsync();
         }
-        if (commitEventEventProcessors != null) {
+        if (scaleEventProcessors != null) {
+            log.info("Stopping scale event processors");
+            scaleEventProcessors.stopAsync();
+        }
+        if (commitEventProcessors != null) {
             log.info("Awaiting termination of commit event processors");
-            commitEventEventProcessors.awaitTerminated();
+            commitEventProcessors.awaitTerminated();
         }
-        if (abortEventEventProcessors != null) {
+        if (abortEventProcessors != null) {
             log.info("Awaiting termination of abort event processors");
-            abortEventEventProcessors.awaitTerminated();
+            abortEventProcessors.awaitTerminated();
+        }
+        if (scaleEventProcessors != null) {
+            log.info("Awaiting termination of scale event processors");
+            scaleEventProcessors.awaitTerminated();
         }
     }
 }

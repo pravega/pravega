@@ -201,11 +201,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        hostStore, segmentHelper, connectionFactory, eventProcExecutor);
+                        hostStore, segmentHelper, connectionFactory, streamMetadataTasks, eventProcExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
-                controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks)
+                controllerEventProcessors.bootstrap(streamTransactionMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
             }
 
@@ -236,7 +236,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting start of controller cluster listener");
                 controllerClusterListener.awaitRunning();
             }
-
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }

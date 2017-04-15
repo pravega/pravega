@@ -17,7 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,7 +39,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final ConcurrentSkipListSet<PositionCounter> running;
     private final ConcurrentSkipListSet<PositionCounter> completed;
     private final AtomicReference<PositionCounter> checkpoint;
-    private final ScheduledExecutorService executor;
+    private final ExecutorService executor;
     private final H requestHandler;
     private final AtomicLong counter = new AtomicLong(0);
     private final AtomicBoolean stop = new AtomicBoolean(false);
@@ -47,7 +47,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final Semaphore semaphore;
 
     ConcurrentEventProcessor(final H requestHandler,
-                             final ScheduledExecutorService executor) {
+                             final ExecutorService executor) {
         Preconditions.checkNotNull(requestHandler);
         Preconditions.checkNotNull(executor);
 
