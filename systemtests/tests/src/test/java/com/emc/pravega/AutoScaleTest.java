@@ -4,6 +4,7 @@
 
 package com.emc.pravega;
 
+import static org.junit.Assert.assertTrue;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.framework.Environment;
@@ -21,6 +22,15 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamImpl;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.utils.MarathonException;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -35,17 +45,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -309,7 +308,7 @@ public class AutoScaleTest extends AbstractScaleTests {
                 } catch (Throwable e) {
                     if (!(e instanceof RuntimeException && e.getCause() != null &&
                             e.getCause() instanceof io.grpc.StatusRuntimeException &&
-                            ((io.grpc.StatusRuntimeException)e.getCause()).getStatus().getCode().equals(Status.Code.INTERNAL) &&
+                            ((io.grpc.StatusRuntimeException) e.getCause()).getStatus().getCode().equals(Status.Code.INTERNAL) &&
                             Objects.equals(((StatusRuntimeException) e.getCause()).getStatus().getDescription(),
                                     "com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks not yet ready"))) {
                         log.warn("test exception writing events in a transaction : {}", e);
