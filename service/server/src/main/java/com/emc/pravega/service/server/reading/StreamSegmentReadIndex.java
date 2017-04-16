@@ -537,9 +537,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getDurableLogLength())));
             } else {
                 if (!entry.getContent().isDone()) {
-                    // It's possible that we got a ReadResultEntry that requires data to be fetched from Storage. If that's
-                    // the case, auto-fetch the data and set the result. No need to update the cache; the call to getSingleReadResultEntry
-                    // above takes care of that.
+                    // Normally, all Future Reads are served from Cache, since they reflect data that has just been appended.
+                    // However, it's possible that after recovery, we get a read for some data that we do not have in the
+                    // cache (but it's not a tail read) - this data exists in Storage but our StorageLength has not yet been
+                    // updated. As such, the only solution we have is to return a FutureRead which will be satisfied when
+                    // the Writer updates the StorageLength (and trigger future reads). In that scenario, entry we get
+                    // will likely not be auto-fetched, so we need to request the content.
                     entry.requestContent(this.config.getStorageReadDefaultTimeout());
                 }
 
