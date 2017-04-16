@@ -259,6 +259,21 @@ class EventProcessorCell<T extends ControllerEvent> {
         delegate.awaitRunning();
     }
 
+    final void awaitStartupComplete() {
+        try {
+            // Wait for delegate to reach running state.
+            delegate.awaitRunning();
+        } catch (IllegalStateException e) {
+            // If service state is NEW or RUNNING or STARTING, control wouldn't reach this point.
+            Service.State state = delegate.state();
+            // If service state is Stopping or Terminated, then startup has completed.
+            if (state != Service.State.STOPPING && state != Service.State.TERMINATED) {
+                // If service state is FAILED, throw error.
+                throw e;
+            }
+        }
+    }
+
     final void awaitTerminated() {
         delegate.awaitTerminated();
     }
