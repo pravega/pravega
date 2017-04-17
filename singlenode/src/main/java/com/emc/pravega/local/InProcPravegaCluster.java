@@ -55,7 +55,6 @@ import static org.apache.bookkeeper.util.LocalBookKeeper.runZookeeper;
 public class InProcPravegaCluster implements AutoCloseable {
 
     private static final int THREADPOOL_SIZE = 20;
-    private final boolean isInMemStorage;
 
     /* Cluster name */
     private final String clusterName = "singlenode-" + UUID.randomUUID();
@@ -76,6 +75,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private boolean isInProcDL;
     private int bookieCount;
     private final int initialBookiePort;
+    private final boolean isInMemTier1;
 
 
     /*ZK related variables*/
@@ -86,6 +86,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     /*HDFS related variables*/
     private boolean isInProcHDFS;
     private String hdfsUrl;
+    private final boolean isInMemTier2;
 
 
     /* SegmentStore configuration*/
@@ -101,9 +102,9 @@ public class InProcPravegaCluster implements AutoCloseable {
     private boolean startRestServer = false;
 
     @Builder
-    public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
-                                boolean isInProcHDFS, boolean isInProcBK, int initialBookiePort,
-                                boolean isInProcController, int controllerCount, String controllerURI,
+    public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemTier1,
+                                boolean isInMemTier2, boolean isInProcHDFS, boolean isInProcBK, int initialBookiePort,
+                                boolean isInProcController, int controllerCount, String controllerURI, String hdfsUrl,
                                 boolean isInProcSegmentStore, int segmentStoreCount, int containerCount, boolean startRestServer) {
 
         //Check for valid combinations of flags
@@ -116,17 +117,27 @@ public class InProcPravegaCluster implements AutoCloseable {
         Preconditions.checkState(isInProcController || this.controllerPorts != null,
                 "Controller ports not present");
 
+        Preconditions.checkState(isInMemTier2 || isInProcHDFS || this.hdfsUrl != null,
+                 "Tier2 either should run in mem/in Proc or should have an external HDFS URL specified");
+
         //For SegmentStore
         Preconditions.checkState(  isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
 
-        this.isInMemStorage = isInMemStorage;
-        if ( isInMemStorage ) {
-            this.isInProcHDFS = false;
+        this.isInMemTier1 = isInMemTier1;
+        this.isInMemTier2 = isInMemTier2;
+
+        if ( isInMemTier1 ) {
             this.isInProcDL = false;
         } else {
-            this.isInProcHDFS = isInProcHDFS;
             this.isInProcDL = isInProcBK;
         }
+
+        if ( isInMemTier2 ) {
+            this.isInProcHDFS = false;
+        } else {
+            this.isInProcHDFS = isInProcHDFS;
+        }
+
         this.isInProcZK = isInProcZK;
         this.zkUrl = zkUrl;
         this.zkPort = zkPort;
@@ -287,11 +298,12 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
                     .include(AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]));
 
-            if ( !isInMemStorage ) {
-                    configBuilder = configBuilder.include(HDFSStorageConfig.builder()
-                        .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/",
-                                localHdfs.getNameNodePort())))
-                            .include(DistributedLogConfig.builder()
+            if ( !isInMemTier2 ) {
+                configBuilder = configBuilder.include(HDFSStorageConfig.builder().with(HDFSStorageConfig.URL, this.hdfsUrl));
+            }
+
+            if ( !isInMemTier1) {
+                configBuilder = configBuilder.include(DistributedLogConfig.builder()
                                     .with(DistributedLogConfig.HOSTNAME, "localhost")
                                     .with(DistributedLogConfig.PORT, zkPort)
                                     .with(DistributedLogConfig.NAMESPACE, "/pravega/"
@@ -302,8 +314,8 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
                     .zkSegmentManager(true);
 
-            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs(!isInMemStorage)
-                    .distributedLog(!isInMemStorage).build());
+            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs
+                    (!isInMemTier2).distributedLog(!isInMemTier1).build());
         } catch (Exception e) {
             throw e;
         }
