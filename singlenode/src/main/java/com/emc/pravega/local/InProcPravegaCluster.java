@@ -117,7 +117,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         Preconditions.checkState(isInProcController || this.controllerPorts != null,
                 "Controller ports not present");
 
-        Preconditions.checkState(isInMemTier2 || isInProcHDFS || this.hdfsUrl != null,
+        Preconditions.checkState(isInMemTier2 || isInProcHDFS || hdfsUrl != null,
                  "Tier2 either should run in mem/in Proc or should have an external HDFS URL specified");
 
         //For SegmentStore
@@ -138,6 +138,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             this.isInProcHDFS = isInProcHDFS;
         }
 
+        this.hdfsUrl = hdfsUrl;
         this.isInProcZK = isInProcZK;
         this.zkUrl = zkUrl;
         this.zkPort = zkPort;
@@ -314,8 +315,8 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
                     .zkSegmentManager(true);
 
-            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs
-                    (!isInMemTier2).distributedLog(!isInMemTier1).build());
+            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(),
+                    optBuilder.hdfs(!isInMemTier2).distributedLog(!isInMemTier1).build());
         } catch (Exception e) {
             throw e;
         }
