@@ -134,6 +134,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
         final AtomicLong eventData = new AtomicLong(); //data used by each of the writers.
+        final AtomicLong eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
         @Cleanup
         ClientFactory clientFactory = getClientFactory(SCOPE);
@@ -152,9 +153,9 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //2.2 Create readers.
         CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega, eventData, stopReadFlag );
+                eventsReadFromPravega, eventData, eventReadCount, stopReadFlag );
         CompletableFuture<Void> reader2 = startReader("reader2", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega, eventData, stopReadFlag);
+                eventsReadFromPravega, eventData, eventReadCount, stopReadFlag);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
@@ -209,8 +210,8 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     }
 
     private CompletableFuture<Void> startReader(final String id, final ClientFactory clientFactory, final String
-            readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final AtomicBoolean
-            exitFlag) {
+            readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
+    AtomicLong readCount , final AtomicBoolean exitFlag) {
 
         return CompletableFuture.runAsync(() -> {
             @Cleanup
@@ -218,13 +219,14 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
-            while (!(exitFlag.get() && readResult.size() == writeCount.get())) {
+            while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
                     final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
                     if (longEvent != null) {
                         //update if event read is not null.
                         readResult.add(longEvent);
+                        readCount.incrementAndGet();
                     }
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
