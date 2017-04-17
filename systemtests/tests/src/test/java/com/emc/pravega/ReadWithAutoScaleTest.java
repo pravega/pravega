@@ -211,7 +211,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
     private CompletableFuture<Void> startReader(final String id, final ClientFactory clientFactory, final String
             readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
-    AtomicLong readCount , final AtomicBoolean exitFlag) {
+    AtomicLong readCount, final AtomicBoolean exitFlag) {
 
         return CompletableFuture.runAsync(() -> {
             @Cleanup
