@@ -678,7 +678,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(indexTable -> {
                     final Optional<IndexRecord> lastRecord = IndexRecord.readLatestRecord(indexTable.getData());
                     // check idempotent
-                    if (lastRecord.isPresent()) {
+                    if (lastRecord.isPresent() && lastRecord.get().getHistoryOffset() == historyRecord.getOffset()) {
                         return CompletableFuture.completedFuture(null);
                     }
 
