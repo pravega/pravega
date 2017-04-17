@@ -255,10 +255,6 @@ class EventProcessorCell<T extends ControllerEvent> {
         }
     }
 
-    final void awaitRunning() {
-        delegate.awaitRunning();
-    }
-
     final void awaitStartupComplete() {
         try {
             // Wait for delegate to reach running state.

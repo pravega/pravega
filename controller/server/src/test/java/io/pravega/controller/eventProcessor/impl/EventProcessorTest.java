@@ -343,7 +343,7 @@ public class EventProcessorTest {
     }
 
     @Test(timeout = 10000)
-    public void testEventProcessorGroupFailure() throws ReinitializationRequiredException, CheckpointStoreException {
+    public void testFailingEventProcessorInGroup() throws ReinitializationRequiredException, CheckpointStoreException {
         String systemName = "testSystem";
         String readerGroupName = "testReaderGroup";
         int[] input = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
