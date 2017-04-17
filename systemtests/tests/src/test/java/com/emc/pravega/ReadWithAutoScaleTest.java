@@ -154,7 +154,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,
                 eventsReadFromPravega, eventData, stopReadFlag );
         CompletableFuture<Void> reader2 = startReader("reader2", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega, eventData, stopWriteFlag);
+                eventsReadFromPravega, eventData, stopReadFlag);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
