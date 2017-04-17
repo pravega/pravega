@@ -6,9 +6,11 @@ package com.emc.pravega.service.storage.impl.bookkeeper;
 
 import com.emc.pravega.common.util.ConfigBuilder;
 import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.InvalidPropertyValueException;
 import com.emc.pravega.common.util.Property;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.TypedProperties;
+import java.nio.charset.Charset;
 import java.time.Duration;
 import lombok.Getter;
 
@@ -23,6 +25,10 @@ public class BookKeeperConfig {
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
     public static final Property<String> ZK_NAMESPACE = Property.named("zkNamespace", "/pravega/containers");
     public static final Property<Retry.RetryWithBackoff> RETRY_POLICY = Property.named("retryPolicy", Retry.withExpBackoff(100, 4, 5, 30000));
+    public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
+    public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 3);
+    public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
+    public static final Property<String> BK_PASSWORD = Property.named("bkPassword", "");
     private static final String COMPONENT_CODE = "bookkeeper";
 
     //endregion
@@ -57,7 +63,31 @@ public class BookKeeperConfig {
      * The Retry Policy base to use for all BookKeeper parameters.
      */
     @Getter
-    private Retry.RetryWithBackoff retryPolicy;
+    private final Retry.RetryWithBackoff retryPolicy;
+
+    /**
+     * The Ensemble Size for each Ledger created in BookKeeper.
+     */
+    @Getter
+    private final int bkEnsembleSize;
+
+    /**
+     * The Ack Quorum Size for each Ledger created in BookKeeper.
+     */
+    @Getter
+    private final int bkAckQuorumSize;
+
+    /**
+     * The Write Quorum Size for each Ledger created in BookKeeper.
+     */
+    @Getter
+    private final int bkWriteQuorumSize;
+
+    /**
+     * The Password to use for the creation and access of each BK Ledger.
+     */
+    @Getter
+    private final byte[] bkPassword;
 
     //endregion
 
@@ -74,6 +104,15 @@ public class BookKeeperConfig {
         this.zkConnectionTimeout = Duration.ofMillis(properties.getInt(ZK_CONNECTION_TIMEOUT));
         this.namespace = properties.get(ZK_NAMESPACE);
         this.retryPolicy = properties.getRetryWithBackoff(RETRY_POLICY);
+        this.bkEnsembleSize = properties.getInt(BK_ENSEMBLE_SIZE);
+        this.bkAckQuorumSize = properties.getInt(BK_ACK_QUORUM_SIZE);
+        this.bkWriteQuorumSize = properties.getInt(BK_WRITE_QUORUM_SIZE);
+        if (this.bkWriteQuorumSize < this.bkAckQuorumSize) {
+            throw new InvalidPropertyValueException(String.format("Property %s (%d) must be greater than or equal to %s (%d).",
+                    BK_WRITE_QUORUM_SIZE, this.bkWriteQuorumSize, BK_ACK_QUORUM_SIZE, this.bkAckQuorumSize));
+        }
+
+        this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
     }
 
     /**
