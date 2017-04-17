@@ -173,8 +173,8 @@ public class TableHelper {
         final Optional<IndexRecord> recordOpt = search.getValue();
         final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
-        final Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset,
-                segment.getStart(), historyTable, false);
+        final Optional<HistoryRecord> historyRecordOpt = findSegmentCreatedEvent(startingOffset,
+                segment, historyTable);
 
         // segment information not in history table
         if (!historyRecordOpt.isPresent()) {
@@ -501,6 +501,7 @@ public class TableHelper {
     private static Optional<HistoryRecord> findSegmentCreatedEvent(final int startingOffset,
                                                                    final Segment segment,
                                                                    final byte[] historyTable) {
+
         Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset,
                 segment.getStart(), historyTable, false);
 

@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import static org.junit.Assert.assertEquals;
 import com.emc.pravega.controller.store.stream.tables.HistoryRecord;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
@@ -16,8 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static org.junit.Assert.assertEquals;
 
 public class TableHelperTest {
     @Test
@@ -84,6 +83,78 @@ public class TableHelperTest {
 
     private Segment getSegment(int number, List<Segment> segments) {
         return segments.stream().filter(x -> x.getNumber() == number).findAny().get();
+    }
+
+    @Test
+    public void testNoValuePresentError() {
+        // no value present error comes because:
+        // - Index is not yet updated.
+        // - And segment creation time is before history record's time.
+        // While trying to find successor we look for record in history table with
+        // segment creation and get an old record. We search for segment sealed event
+        // between history record and last indexed entry both of which preceed segment creation entry.
+        List<Segment> segments = new ArrayList<>();
+        List<Integer> newSegments = Lists.newArrayList(0, 1, 2, 3, 4);
+        long timestamp = System.currentTimeMillis();
+        Segment zero = new Segment(0, timestamp, 0, 0.2);
+        segments.add(zero);
+        Segment one = new Segment(1, timestamp, 0.2, 0.4);
+        segments.add(one);
+        Segment two = new Segment(2, timestamp, 0.4, 0.6);
+        segments.add(two);
+        Segment three = new Segment(3, timestamp, 0.6, 0.8);
+        segments.add(three);
+        Segment four = new Segment(4, timestamp, 0.8, 1);
+        segments.add(four);
+
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, newSegments);
+        byte[] indexTable = TableHelper.createIndexTable(timestamp, 0);
+
+        timestamp = timestamp + 10000;
+        // scale down
+        Segment five = new Segment(5, timestamp, 0.4, 1);
+        segments.add(five);
+        newSegments = Lists.newArrayList(0, 1, 5);
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 5
+        timestamp = timestamp + 10000;
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
+
+        timestamp = timestamp + 10000;
+        Segment six = new Segment(6, timestamp, 0.0, 1);
+        segments.add(six);
+        newSegments = Lists.newArrayList(6);
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+
+        partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 5
+        timestamp = timestamp + 10000;
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
+
+        List<Integer> predecessors, successors;
+
+        // find predecessors and successors when update to history and index table hasnt happened
+        predecessors = TableHelper.getOverlaps(five,
+                TableHelper
+                        .findSegmentPredecessorCandidates(five,
+                                indexTable,
+                                historyTable)
+                        .stream()
+                        .map(x -> getSegment(x, segments))
+                        .collect(Collectors.toList()));
+        successors = TableHelper.getOverlaps(five,
+                TableHelper.findSegmentSuccessorCandidates(five,
+                        indexTable,
+                        historyTable)
+                        .stream()
+                        .map(x -> getSegment(x, segments))
+                        .collect(Collectors.toList()));
+        assertEquals(predecessors, Lists.newArrayList(2, 3, 4));
+        assertEquals(successors, Lists.newArrayList(6));
     }
 
     @Test
