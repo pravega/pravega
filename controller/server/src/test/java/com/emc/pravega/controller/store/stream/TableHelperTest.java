@@ -119,7 +119,7 @@ public class TableHelperTest {
         historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
 
         HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
-        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 5
+        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 10000
         timestamp = timestamp + 10000;
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
 
@@ -131,13 +131,13 @@ public class TableHelperTest {
         historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
 
         partial = HistoryRecord.readLatestRecord(historyTable, false).get();
-        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 5
+        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 10000
         timestamp = timestamp + 10000;
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
 
         List<Integer> predecessors, successors;
 
-        // find predecessors and successors when update to history and index table hasnt happened
+        // find predecessors and successors when update to index table hasn't happened
         predecessors = TableHelper.getOverlaps(five,
                 TableHelper
                         .findSegmentPredecessorCandidates(five,
