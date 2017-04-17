@@ -8,6 +8,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DataLogInitializationException;
+import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
@@ -45,6 +46,7 @@ class BookKeeperLog implements DurableDataLog {
      * How many ledgers to fence out (from the end of the list) when acquiring lock.
      */
     private static final int MAX_FENCE_LEDGER_COUNT = 2;
+    private static final BookKeeper.DigestType LEDGER_DIGEST_TYPE = BookKeeper.DigestType.MAC;
     private final String logNodePath;
     private final CuratorFramework curatorClient;
     private final BookKeeper bookKeeper;
@@ -152,6 +154,14 @@ class BookKeeperLog implements DurableDataLog {
 
     //endregion
 
+    /**
+     * Creates a new Ledger in BookKeeper.
+     *
+     * @return A LedgerHandle for the new ledger.
+     * @throws DataLogNotAvailableException If BookKeeper is unavailable or the ledger could not be created because an
+     *                                      insufficient number of Bookies are available.
+     * @throws DurableDataLogException      If another exception occurred.
+     */
     private LedgerHandle createNewLedger() throws DurableDataLogException {
         try {
             return Exceptions.handleInterrupted(() ->
@@ -159,10 +169,13 @@ class BookKeeperLog implements DurableDataLog {
                             this.config.getBkEnsembleSize(),
                             this.config.getBkWriteQuorumSize(),
                             this.config.getBkAckQuorumSize(),
-                            BookKeeper.DigestType.MAC,
+                            LEDGER_DIGEST_TYPE,
                             this.config.getBkPassword()));
+        } catch (BKException.BKNotEnoughBookiesException bkEx) {
+            throw new DataLogNotAvailableException(
+                    String.format("Unable to create new BookKeeper Ledger (Path = '%s').", this.logNodePath), bkEx);
         } catch (BKException bkEx) {
-            throw new DataLogInitializationException(
+            throw new DurableDataLogException(
                     String.format("Unable to create new BookKeeper Ledger (Path = '%s').", this.logNodePath), bkEx);
         }
     }
@@ -180,7 +193,7 @@ class BookKeeperLog implements DurableDataLog {
         for (int i = ledgerIds.size() - fenceCount - 1; i < ledgerIds.size(); i++) {
             long ledgerId = ledgerIds.get(i);
             try {
-                Exceptions.handleInterrupted(() -> this.bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.MAC, this.config.getBkPassword()));
+                Exceptions.handleInterrupted(() -> this.bookKeeper.openLedger(ledgerId, LEDGER_DIGEST_TYPE, this.config.getBkPassword()));
                 log.info("{}: Fenced out Ledger %d.", this.traceObjectId, ledgerId);
             } catch (BKException bkEx) {
                 throw new DurableDataLogException(String.format("Unable to open-fence ledger %d.", ledgerId), bkEx);
@@ -226,6 +239,13 @@ class BookKeeperLog implements DurableDataLog {
         throw exceptionConverter.apply(ex);
     }
 
+    /**
+     * Gets the metadata for the current log, as stored in ZooKeeper.
+     *
+     * @param storingStatIn A Stat object to store the ZNode's statistics in.
+     * @return A new LogMetadata object with the desired information, or null if no such node exists.
+     * @throws DurableDataLogException If an Exception (other than NoNodeException) occurred.
+     */
     private LogMetadata getMetadata(Stat storingStatIn) throws DurableDataLogException {
         try {
             byte[] serializedMetadata = this.curatorClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);
