@@ -95,7 +95,7 @@ class ZKCheckpointStore implements CheckpointStore {
 
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
-        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
@@ -150,7 +150,7 @@ class ZKCheckpointStore implements CheckpointStore {
 
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
-        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (CheckpointStoreException e) {
             throw e;
@@ -178,7 +178,7 @@ class ZKCheckpointStore implements CheckpointStore {
 
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
-        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (CheckpointStoreException e) {
             throw e;
