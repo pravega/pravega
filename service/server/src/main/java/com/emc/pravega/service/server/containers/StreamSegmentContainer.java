@@ -118,7 +118,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public void close() {
         if (!this.closed) {
-            stopAsync().awaitTerminated();
+            stopAsync();
+            ServiceShutdownListener.awaitShutdown(this, false);
 
             this.metadataCleaner.close();
             this.writer.close();
