@@ -34,6 +34,7 @@ import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -218,30 +219,25 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
                                        final Supplier<Set<String>> processes) {
-        CompletableFuture<Set<String>> future1 = CompletableFuture.supplyAsync(() -> {
+        CompletableFuture.supplyAsync(() -> {
             try {
                 return group.getProcesses();
             } catch (CheckpointStoreException e) {
                 if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
-                    return Collections.emptySet();
+                    return Collections.<String>emptySet();
                 }
                 throw new CompletionException(e);
             }
-        }, executor);
-
-        CompletableFuture<Set<String>> future2 = CompletableFuture.supplyAsync(() -> {
+        }, executor).thenApplyAsync(groupProcesses -> {
             try {
-                return processes.get();
+                return new ImmutablePair<>(processes.get(), groupProcesses);
             } catch (Exception e) {
                 log.error(String.format("Error fetching current processes%s", group.toString()), e);
                 throw new CompletionException(e);
             }
-        }, executor);
-
-        CompletableFuture.allOf(future1, future2)
-                .thenCompose((Void v) -> {
-                    Set<String> registeredProcesses = FutureHelpers.getAndHandleExceptions(future1, RuntimeException::new);
-                    Set<String> activeProcesses = FutureHelpers.getAndHandleExceptions(future2, RuntimeException::new);
+        }, executor).thenComposeAsync(pair -> {
+                    Set<String> registeredProcesses = pair.getLeft();
+                    Set<String> activeProcesses = pair.getRight();
 
                     if (registeredProcesses == null || registeredProcesses.isEmpty()) {
                         return CompletableFuture.completedFuture(null);
