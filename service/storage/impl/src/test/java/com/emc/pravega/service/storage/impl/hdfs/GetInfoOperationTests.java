@@ -25,7 +25,7 @@ public class GetInfoOperationTests extends FileSystemOperationTestBase {
     private static final String SEGMENT_NAME = "segment";
     private static final int FILE_COUNT = 10;
 
-    @Test
+    @Test(timeout = 10000)
     public void testGetInfo() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

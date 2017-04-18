@@ -96,7 +96,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If an exception occurred.
      */
-    @Test
+    @Test(timeout = 120000)
     public void testEndToEnd() throws Exception {
         AtomicReference<Storage> storage = new AtomicReference<>();
 
