@@ -1,8 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.host;
 
@@ -45,11 +42,11 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     private Process dlogProcess;
 
     /**
-     * Start DistributedLog once for the duration of this class. This is pretty strenuous, and it actually starts a
-     * new process, so in the interest of running time we only do it once.
+     * Starts DistributedLog and HDFS MiniCluster.
      */
     @Before
-    public void setUpDistributedLog() throws Exception {
+    public void setUp() throws Exception {
+        // DistributedLog
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         int dlogPort = TestUtils.getAvailableListenPort();
         this.dlogProcess = DistributedLogStarter.startOutOfProcess(dlogPort);
@@ -60,19 +57,8 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
                 .with(DistributedLogConfig.HOSTNAME, DistributedLogStarter.DLOG_HOST)
                 .with(DistributedLogConfig.PORT, dlogPort)
                 .with(DistributedLogConfig.NAMESPACE, DLOG_NAMESPACE));
-    }
 
-    @After
-    public void tearDownDistributedLog() throws Exception {
-        val process = this.dlogProcess;
-        if (process != null) {
-            process.destroy();
-            this.dlogProcess = null;
-        }
-    }
-
-    @Before
-    public void setupHdfs() throws Exception {
+        // HDFS
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
         this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
 
@@ -82,10 +68,22 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
                 .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort())));
     }
 
+    /**
+     * Shuts down DistributedLog and HDFS MiniCluster.
+     */
     @After
-    public void tearDownHdfs() {
-        if (this.hdfsCluster != null) {
-            this.hdfsCluster.shutdown();
+    public void tearDown() throws Exception {
+        // DistributedLog
+        val process = this.dlogProcess;
+        if (process != null) {
+            process.destroy();
+            this.dlogProcess = null;
+        }
+
+        // HDFS
+        val hdfs = this.hdfsCluster;
+        if (hdfs != null) {
+            hdfs.shutdown();
             this.hdfsCluster = null;
             FileHelpers.deleteFileOrDirectory(this.baseDir);
             this.baseDir = null;
