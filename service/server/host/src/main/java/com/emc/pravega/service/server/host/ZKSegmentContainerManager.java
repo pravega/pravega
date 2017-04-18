@@ -12,6 +12,7 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.CollectionHelpers;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
@@ -28,6 +29,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -39,8 +42,9 @@ import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.utils.ZKPaths;
 
 /**
- * ZK based implementation for SegmentContainerManager. The controller updates the segmentContainer ownership in zk.
- * The SegmentContainerManager watches the zk entry and starts or stop appropriate segment containers.
+ * ZK based implementation for SegmentContainerManager.
+ * The SegmentContainerManager watches the shared zk entry that contains the segment container ownership information
+ * and starts or stops appropriate segment containers locally.
  * <p>
  * The SegmentName -> ContainerId mapping is done by taking the hash of the StreamSegment name and then modulo the
  * number of containers (result is in hex).
@@ -61,6 +65,7 @@ class ZKSegmentContainerManager implements SegmentContainerManager {
     private final String clusterPath;
     private final Cluster cluster;
     private final ScheduledExecutorService executor;
+    private final ExecutorService curatorListenerExecutor;
 
     /**
      * Creates a new instance of the ZKSegmentContainerManager class.
@@ -85,6 +90,9 @@ class ZKSegmentContainerManager implements SegmentContainerManager {
         this.cluster = new ClusterZKImpl(zkClient, ClusterType.HOST);
         this.host = pravegaServiceEndpoint;
         this.executor = executor;
+
+        // We will use a single threaded listener to serialize start/stop events.
+        this.curatorListenerExecutor = Executors.newSingleThreadExecutor();
     }
 
     @Override
@@ -168,7 +176,8 @@ class ZKSegmentContainerManager implements SegmentContainerManager {
         }
 
         hostContainerMapNode.getListenable().addListener(
-                () -> FutureHelpers.await(initializeFromZK(), INIT_TIMEOUT_PER_CONTAINER.toMillis()), this.executor);
+                () -> FutureHelpers.await(initializeFromZK(), INIT_TIMEOUT_PER_CONTAINER.toMillis()),
+                this.curatorListenerExecutor);
     }
 
     /**
@@ -194,21 +203,29 @@ class ZKSegmentContainerManager implements SegmentContainerManager {
         Collection<Integer> containersToBeStarted = CollectionHelpers.filterOut(desiredContainerList, runningContainers);
         Collection<Integer> containersToBeStopped = CollectionHelpers.filterOut(runningContainers, desiredContainerList);
 
-        log.debug("Container Changes: Desired = {}, Current = {}, ToStart = {}, ToStop = {}.",
+        log.info("Container Changes: Desired = {}, Current = {}, ToStart = {}, ToStop = {}.",
                 desiredContainerList, runningContainers, containersToBeStarted, containersToBeStopped);
 
         List<CompletableFuture<Void>> futures = containersToBeStarted
                 .stream()
                 .map(containerId -> {
                     log.info("Starting Container {}.", containerId);
-                    CompletableFuture<ContainerHandle> startFuture = this.registry
-                            .startContainer(containerId, timer.getRemaining())
+
+                    // We will retry a few times before giving up.
+                    CompletableFuture<ContainerHandle> startFuture = Retry.withExpBackoff(1000, 2, 20, 5000)
+                            .retryingOn(Exception.class)
+                            .throwingOn(IllegalAccessException.class)
+                            .runAsync(() -> this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER),
+                                    this.executor)
                             .thenApply(this::registerHandle);
 
                     // This doesn't really handle the case of attempting to start an already started container, but
                     // that would be caught up by the call to startContainer() above.
                     this.pendingStartups.put(containerId, startFuture);
-                    FutureHelpers.exceptionListener(startFuture, v -> this.pendingStartups.remove(containerId));
+                    FutureHelpers.exceptionListener(startFuture, v -> {
+                        log.warn("Start container failed: {}", v);
+                        this.pendingStartups.remove(containerId);
+                    });
                     return FutureHelpers.toVoid(startFuture);
                 })
                 .collect(Collectors.toList());
