@@ -4,10 +4,15 @@
 
 package com.emc.pravega.service.storage.impl.bookkeeper;
 
+import com.emc.pravega.common.Timer;
+import com.emc.pravega.service.storage.DurableDataLog;
+import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.Executors;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException;
@@ -25,6 +30,42 @@ import org.apache.zookeeper.data.Stat;
  */
 public class Playground {
     public static void main(String[] args) throws Exception {
+        testLog();
+    }
+
+    private static void testLog() throws Exception {
+        final Duration TIMEOUT = Duration.ZERO;
+        val config = BookKeeperConfig.builder()
+                                     .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, 17)
+                                     .build();
+
+        @Cleanup("shutdown")
+        val executor = Executors.newScheduledThreadPool(10);
+        @Cleanup
+        BookKeeperLogFactory factory = new BookKeeperLogFactory(config, executor);
+        factory.initialize();
+        @Cleanup
+        val log = factory.createDurableDataLog(1);
+        log.initialize(TIMEOUT);
+        System.out.println("Opened Log; LastSeqNo = " + log.getLastAppendSequence() + " Epoch = " + log.getEpoch());
+
+        for (int i = 0; i < 10; i++) {
+            byte[] data = ("append_" + i).getBytes();
+            val t = new Timer();
+            val address = log.append(new ByteArrayInputStream(data), TIMEOUT).join();
+            System.out.println(String.format("Wrote %d bytes at address '%s' (%d ms): %s", data.length, address, t.getElapsedMillis(), new String(data)));
+        }
+
+        // Now read everything
+        @Cleanup
+        val reader = log.getReader(-1);
+        DurableDataLog.ReadItem current;
+        while ((current = reader.getNext()) != null) {
+            System.out.println(String.format("Read %d bytes from address %s: '%s'", current.getPayload().length, current.getAddress(), new String(current.getPayload())));
+        }
+    }
+
+    private static void testRaw() throws Exception {
         final String ZK_SERVER = "127.0.0.1:2181";
         final String CONTAINER_PATH = "/0";
         final byte[] PASSWORD = "pwd".getBytes();
@@ -102,7 +143,7 @@ public class Playground {
 
         byte[] writeData = String.format("Append: LH.Id=%s, LH.Length=%s.", lh.getId(), lh.getLength()).getBytes();
         //long entryId = lh.addEntry(writeData);
-        long entryId = lh.addEntry(new byte[1024*1024-100]);
+        long entryId = lh.addEntry(new byte[1024 * 1024 - 100]);
         System.out.println(String.format("WRITE: LedgerId=%s, EntryId=%s, Data=%s", lh.getId(), entryId, new String(writeData)));
         lh.close();
     }

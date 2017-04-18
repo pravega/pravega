@@ -27,7 +27,6 @@ class LedgerAddress extends LogAddress {
     LedgerAddress(long sequence, long ledgerId, long entryId) {
         super(sequence);
         Preconditions.checkArgument(ledgerId >= 0, "ledgerId must be a non-negative number.");
-        Preconditions.checkArgument(entryId >= 0, "entryId must be a non-negative number.");
         this.ledgerId = ledgerId;
         this.entryId = entryId;
     }

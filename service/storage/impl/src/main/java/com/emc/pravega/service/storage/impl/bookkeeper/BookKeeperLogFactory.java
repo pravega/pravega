@@ -27,7 +27,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Created by andrei on 4/14/17.
  */
 @Slf4j
-public class BookKeeperLogFactory implements DurableDataLogFactory {
+class BookKeeperLogFactory implements DurableDataLogFactory {
     private static final RetryPolicy CURATOR_RETRY_POLICY = new ExponentialBackoffRetry(1000, 3);
     private final AtomicReference<CuratorFramework> curator;
     private final AtomicReference<BookKeeper> bookKeeper;
@@ -36,7 +36,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
 
     //region Constructor
 
-    public BookKeeperLogFactory(BookKeeperConfig config, ScheduledExecutorService executor) {
+    BookKeeperLogFactory(BookKeeperConfig config, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
@@ -71,6 +71,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     //region Initialization
 
     public void initialize() throws DurableDataLogException {
+        Preconditions.checkState(this.curator.get() == null, "BookKeeperLogFactory is already initialized.");
+        assert this.bookKeeper.get() == null : "curator == null but bookKeeper != null";
         try {
             this.curator.set(startCuratorClient());
             this.bookKeeper.set(startBookKeeperClient());
@@ -124,6 +126,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
 
     @Override
     public DurableDataLog createDurableDataLog(int containerId) {
-        return null;
+        Preconditions.checkState(this.curator.get() != null, "BookKeeperLogFactory is not initialized.");
+        assert this.bookKeeper.get() != null : "curator != null but bookKeeper == null";
+        return new BookKeeperLog(containerId, this.curator.get(), this.bookKeeper.get(), this.config, this.executor);
     }
 }
