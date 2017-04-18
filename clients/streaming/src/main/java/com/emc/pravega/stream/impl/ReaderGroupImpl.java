@@ -76,7 +76,7 @@ public class ReaderGroupImpl implements ReaderGroup {
     @Override
     public void readerOffline(String readerId, Position lastPosition) {
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
-        ReaderGroupStateManager.readerShutdown(readerId, lastPosition.asImpl(), synchronizer);
+        ReaderGroupStateManager.readerShutdown(readerId, lastPosition, synchronizer);
     }
 
     private StateSynchronizer<ReaderGroupState> createSynchronizer() {
