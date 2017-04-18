@@ -1,16 +1,26 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.segment.SegmentToContainerMapper;
-import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
+import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestUtils;
+import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import java.io.IOException;
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import lombok.Cleanup;
+import lombok.SneakyThrows;
+import lombok.val;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -22,17 +32,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import org.mockito.Mock;
-
-import java.io.IOException;
-import java.net.Inet4Address;
-import java.net.UnknownHostException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import lombok.Cleanup;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -40,12 +39,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.timeout;
 
-@SuppressWarnings("unchecked")
-public class ZKSegmentContainerManagerTest {
+public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
 
     private final static int TEST_TIMEOUT = 30000;
     private final static int RETRY_SLEEP_MS = 100;
@@ -60,9 +58,10 @@ public class ZKSegmentContainerManagerTest {
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT); // timeout per method tested
 
-
-    @Mock
-    private SegmentToContainerMapper segmentToContainerMapper;
+    @Override
+    protected int getThreadPoolSize() {
+        return 3;
+    }
 
     @Before
     public void startZookeeper() throws Exception {
@@ -75,66 +74,112 @@ public class ZKSegmentContainerManagerTest {
         zkTestServer.close();
     }
 
-    //Test if no mapping is present is present in zk.
+    /**
+     * Test if no mapping is present in zk.
+     *
+     * @throws Exception if an error occurred.
+     */
     @Test
-    public void initializeErrorTest() throws Exception {
-
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
-        zkClient.start();
-
-        segmentToContainerMapper = new SegmentToContainerMapper(8);
+    public void testInitializeNoMapping() throws Exception {
         @Cleanup
-        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(createMockContainerRegistry(),
-                segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT);
-
-        CompletableFuture<Void> result = segManager.initialize();
-
-        assertEquals(false, result.isCompletedExceptionally());
-
-        zkClient.close();
+        CuratorFramework zkClient = startClient();
+        @Cleanup
+        ZKSegmentContainerManager segManager = createContainerManager(createMockContainerRegistry(), zkClient);
+        segManager.initialize().get();
+        assertEquals("Unexpected number of handles.", 0, segManager.getRegisteredContainers().size());
     }
 
+    /**
+     * Tests if we cannot connect to ZooKeeper (the exception must be propagated to the caller).
+     *
+     * @throws Exception if an error occurred.
+     */
+    @Test
+    public void testInitializeError() throws Exception {
+        @Cleanup
+        CuratorFramework zkClient = startClient();
+        @Cleanup
+        ZKSegmentContainerManager segManager = createContainerManager(createMockContainerRegistry(), zkClient);
+        zkClient.close();
+
+        AssertExtensions.assertThrows(
+                "initialize() did not throw an exception when ZooKeeper could not be accessed.",
+                segManager::initialize,
+                ex -> true); // Any exception will do, as long as it is propagated.
+    }
 
     @Test
-    public void listenerTest() throws Exception {
+    public void testListener() throws Exception {
         @Cleanup
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
-        zkClient.start();
-        initializeSegmentMapping(zkClient);
+        CuratorFramework zkClient = startClient();
+        initializeHostContainerMapping(zkClient);
 
         SegmentContainerRegistry containerRegistry = createMockContainerRegistry();
-
-        segmentToContainerMapper = new SegmentToContainerMapper(8);
         @Cleanup
-        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry,
-                segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT);
-
+        ZKSegmentContainerManager segManager = createContainerManager(containerRegistry, zkClient);
         segManager.initialize().get();
 
-        ContainerHandle containerHandle2 = mock(ContainerHandle.class);
-        when(containerHandle2.getContainerId()).thenReturn(2);
+        // Simulate a container that takes a while to start.
+        CompletableFuture<ContainerHandle> startupFuture = new CompletableFuture<>();
+        ContainerHandle containerHandle = mock(ContainerHandle.class);
+        when(containerHandle.getContainerId()).thenReturn(2);
         when(containerRegistry.startContainer(eq(2), any()))
-                .thenReturn(CompletableFuture.completedFuture(containerHandle2));
+                .thenReturn(startupFuture);
 
         //now modify the ZK entry
-        HashMap<Host, Set<Integer>> currentData =
-                (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(PATH));
-        currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet<>(Arrays.asList(2)));
+        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
+        // Container finished starting.
+        startupFuture.complete(containerHandle);
         verify(containerRegistry, timeout(10000).atLeastOnce()).startContainer(eq(2), any());
-        assertTrue(segManager.getHandles().containsKey(2));
+        assertTrue(segManager.getRegisteredContainers().contains(2));
     }
 
     @Test
-    public void closeMethodTest() throws Exception {
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
-        zkClient.start();
+    public void testShutdownNotYetStartedContainer() throws Exception {
+        @Cleanup
+        CuratorFramework zkClient = startClient();
+        initializeHostContainerMapping(zkClient);
+
+        SegmentContainerRegistry containerRegistry = createMockContainerRegistry();
+        @Cleanup
+        ZKSegmentContainerManager segManager = createContainerManager(containerRegistry, zkClient);
+        segManager.initialize().get();
+
+        // Simulate a container that takes a long time to start.
+        CompletableFuture<ContainerHandle> startupFuture = new CompletableFuture<>();
+        ContainerHandle containerHandle = mock(ContainerHandle.class);
+        when(containerHandle.getContainerId()).thenReturn(2);
+        when(containerRegistry.startContainer(eq(2), any()))
+                .thenReturn(startupFuture);
+
+        // Use ZK to send that information to the Container Manager.
+        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
+        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+
+        // Verify it's not yet started.
+        verify(containerRegistry, timeout(60000).atLeastOnce()).startContainer(eq(2), any());
+        assertEquals(0, segManager.getRegisteredContainers().size());
+
+        // Now simulate shutting it down.
+        when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+
+        currentData.clear();
+        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+
+        startupFuture.complete(containerHandle);
+        verify(containerRegistry, timeout(60000).atLeastOnce()).stopContainer(any(), any());
+
+        assertEquals(0, segManager.getRegisteredContainers().size());
+    }
+
+    @Test
+    public void testClose() throws Exception {
+        @Cleanup
+        CuratorFramework zkClient = startClient();
 
         SegmentContainerRegistry containerRegistry = mock(SegmentContainerRegistry.class);
         ContainerHandle containerHandle1 = mock(ContainerHandle.class);
@@ -142,29 +187,32 @@ public class ZKSegmentContainerManagerTest {
         when(containerRegistry.startContainer(eq(1), any()))
                 .thenReturn(CompletableFuture.completedFuture(containerHandle1));
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
-        segmentToContainerMapper = new SegmentToContainerMapper(8);
 
-        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry,
-                segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT);
+        ZKSegmentContainerManager segManager = createContainerManager(containerRegistry, zkClient);
 
-        CompletableFuture<Void> result = segManager.initialize();
+        FutureHelpers.await(segManager.initialize());
 
         segManager.close();
-        assertEquals(0, segManager.getHandles().size());
+        assertEquals(0, segManager.getRegisteredContainers().size());
     }
 
+    @SneakyThrows(UnknownHostException.class)
     private static String getHostAddress() {
-        try {
-            return Inet4Address.getLocalHost().getHostAddress();
-        } catch (UnknownHostException e) {
-            throw new RuntimeException("Unable to get the Host Address", e);
-        }
+        return Inet4Address.getLocalHost().getHostAddress();
     }
 
-    private void initializeSegmentMapping(CuratorFramework zkClient) throws Exception {
+    private CuratorFramework startClient() {
+        val client = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(RETRY_SLEEP_MS, MAX_RETRY));
+        client.start();
+        return client;
+    }
+
+    private ZKSegmentContainerManager createContainerManager(SegmentContainerRegistry registry, CuratorFramework zkClient) {
+        return new ZKSegmentContainerManager(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, executorService());
+    }
+
+    private void initializeHostContainerMapping(CuratorFramework zkClient) throws Exception {
         HashMap<Host, Set<Integer>> mapping = new HashMap<>();
-        mapping.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet<>(Arrays.asList(1)));
         zkClient.create().creatingParentsIfNeeded().forPath(PATH, SerializationUtils.serialize(mapping));
     }
 
@@ -176,5 +224,10 @@ public class ZKSegmentContainerManagerTest {
                 .thenReturn(CompletableFuture.completedFuture(containerHandle1));
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
         return containerRegistry;
+    }
+
+    @SuppressWarnings("unchecked")
+    private HashMap<Host, Set<Integer>> deserialize(CuratorFramework zkClient, String path) throws Exception {
+        return (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(path));
     }
 }

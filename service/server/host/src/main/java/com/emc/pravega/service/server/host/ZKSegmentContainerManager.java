@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.host;
 
@@ -13,37 +11,32 @@ import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
-import javax.annotation.concurrent.GuardedBy;
-
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
-import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 import org.apache.curator.utils.ZKPaths;
-
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * ZK based implementation for SegmentContainerManager. The controller updates the segmentContainer ownership in zk.
@@ -53,87 +46,75 @@ import lombok.extern.slf4j.Slf4j;
  * number of containers (result is in hex).
  */
 @Slf4j
-public class ZKSegmentContainerManager implements SegmentContainerManager {
+class ZKSegmentContainerManager implements SegmentContainerManager {
 
     private static final Duration INIT_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
     private static final Duration CLOSE_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
     private final SegmentContainerRegistry registry;
-    private final SegmentToContainerMapper segmentToContainerMapper;
+    private final Map<Integer, ContainerHandle> handles;
+    private final Map<Integer, CompletableFuture<ContainerHandle>> pendingStartups;
 
-    @GuardedBy("handles")
-    private final HashMap<Integer, ContainerHandle> handles;
     private final Host host;
-
     private final AtomicBoolean closed = new AtomicBoolean(false);
-
-    private final NodeCache segContainerHostMapping;
+    private final NodeCache hostContainerMapNode;
     private final CuratorFramework client;
     private final String clusterPath;
     private final Cluster cluster;
+    private final ScheduledExecutorService executor;
 
     /**
      * Creates a new instance of the ZKSegmentContainerManager class.
      *
-     * @param containerRegistry        The SegmentContainerRegistry to manage.
-     * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the
-     *                                 cluster (i.e., number of containers).
-     * @param zkClient                 ZooKeeper client.
-     * @param pravegaServiceEndpoint   Pravega service endpoint details.
-     * @throws NullPointerException If containerRegistry is null.
-     * @throws NullPointerException If segmentToContainerMapper is null.
-     * @throws NullPointerException If logger is null.
+     * @param containerRegistry      The SegmentContainerRegistry to manage.
+     * @param zkClient               ZooKeeper client.
+     * @param pravegaServiceEndpoint Pravega service endpoint details.
      */
-    public ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry,
-                                     SegmentToContainerMapper segmentToContainerMapper,
-                                     CuratorFramework zkClient, Host pravegaServiceEndpoint) {
+    ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry, CuratorFramework zkClient,
+                              Host pravegaServiceEndpoint, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
-        Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
         Preconditions.checkNotNull(zkClient, "zkClient");
         Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
+        Preconditions.checkNotNull(executor, "executor");
 
         this.registry = containerRegistry;
-        this.segmentToContainerMapper = segmentToContainerMapper;
-        this.handles = new HashMap<>();
-
+        this.handles = new ConcurrentHashMap<>();
+        this.pendingStartups = new ConcurrentHashMap<>();
         this.client = zkClient;
         this.clusterPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
-        this.segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
+        this.hostContainerMapNode = new NodeCache(zkClient, this.clusterPath);
         this.cluster = new ClusterZKImpl(zkClient, ClusterType.HOST);
-
         this.host = pravegaServiceEndpoint;
+        this.executor = executor;
     }
 
     @Override
     public CompletableFuture<Void> initialize() {
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
-        CompletableFuture<Void> initResult = CompletableFuture.runAsync(() -> {
-            // Add the node cache listener which watches ZK for changes in segment container mapping.
-            addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
-            cluster.registerHost(host);
-            log.info("Initialization of ZK based segment container manager completed.");
-        }).exceptionally(ex -> {
-            log.error("Error during initialization of ZK based segment container manager", ex);
-            return null;
-        }).thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
-        return initResult;
+        return CompletableFuture
+                .runAsync(() -> {
+                    // Add the node cache listener which watches ZK for changes in segment container mapping.
+                    registerMappingChangeListener();
+                    cluster.registerHost(host);
+                    log.info("Initialized.");
+                }, this.executor)
+                .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
     }
 
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
             // Close all containers that are still open.
+            close(hostContainerMapNode); // Close Node cache and its listeners.
+            ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
             ArrayList<CompletableFuture<Void>> results = new ArrayList<>();
-            synchronized (this.handles) {
-                close(segContainerHostMapping); // Close Node cache and its listeners.
-                ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
-                for (ContainerHandle handle : toClose) {
-                    results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER)
-                            .thenAccept(v -> unregisterHandle(handle.getContainerId())));
-                }
+            for (ContainerHandle handle : toClose) {
+                results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER)
+                                         .thenAccept(v -> unregisterHandle(handle.getContainerId(), false)));
             }
+
             // Wait for all the containers to be closed.
-            FutureHelpers.allOf(results).join();
+            FutureHelpers.await(FutureHelpers.allOf(results), CLOSE_TIMEOUT_PER_CONTAINER.toMillis());
         }
     }
 
@@ -149,54 +130,45 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     }
 
     @VisibleForTesting
-    Map<Integer, ContainerHandle> getHandles() {
-        return Collections.unmodifiableMap(this.handles);
+    Collection<Integer> getRegisteredContainers() {
+        return this.handles.keySet();
     }
 
-    private void unregisterHandle(int containerId) {
-        synchronized (this.handles) {
-            Preconditions.checkState(handles.containsKey(containerId), "found unregistered handle %s", containerId);
-            this.handles.remove(containerId);
+    private void unregisterHandle(int containerId, boolean enforceExistence) {
+        if (this.handles.remove(containerId) == null && enforceExistence) {
+            throw new IllegalStateException("found unregistered handle " + containerId);
         }
+
         log.info("Container {} has been unregistered.", containerId);
     }
 
-    private void registerHandle(ContainerHandle handle) {
+    private ContainerHandle registerHandle(ContainerHandle handle) {
         Preconditions.checkNotNull(handle, "handle");
-        synchronized (this.handles) {
-            Preconditions.checkState(!this.handles.containsKey(handle.getContainerId()),
-                    "handle is already registered %s", handle);
-            this.handles.put(handle.getContainerId(), handle);
+        Preconditions.checkState(this.handles.putIfAbsent(handle.getContainerId(), handle) == null, "handle is already registered %s", handle);
+        this.pendingStartups.remove(handle.getContainerId());
 
-            handle.setContainerStoppedListener(id -> {
-                unregisterHandle(handle.getContainerId());
-                //TODO: Handle container failures. https://github.com/emccode/pravega/issues/154
-            });
-        }
+        handle.setContainerStoppedListener(id -> {
+            unregisterHandle(handle.getContainerId(), false);
+            //TODO: Handle container failures. https://github.com/emccode/pravega/issues/154
+        });
         log.info("Container {} has been registered.", handle.getContainerId());
+        return handle;
     }
 
     private void ensureNotClosed() {
         Exceptions.checkNotClosed(closed.get(), this);
     }
 
-    private void addListenerSegContainerMapping(Duration timeout, Host host) {
+    private void registerMappingChangeListener() {
         try {
-            segContainerHostMapping.start(); //NodeCache recipe is used listen to events on the mapping data.
-            segContainerHostMapping.getListenable().addListener(getSegmentContainerListener(timeout, host));
+            hostContainerMapNode.start(); //NodeCache recipe is used listen to events on the mapping data.
         } catch (Exception e) {
             throw new RuntimeException(
                     "Unable to start zk based cache which has the segContainer to Host mapping", e);
         }
-    }
 
-    private NodeCacheListener getSegmentContainerListener(final Duration timeout, final Host host) {
-        return () -> {
-            long traceId = LoggerHelpers.traceEnter(log, "segmentContainerListener");
-            List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
-            FutureHelpers.allOf(futures).get(timeout.toNanos(), TimeUnit.NANOSECONDS);
-            LoggerHelpers.traceLeave(log, "segmentContainerListener", traceId);
-        };
+        hostContainerMapNode.getListenable().addListener(
+                () -> FutureHelpers.await(initializeFromZK(), INIT_TIMEOUT_PER_CONTAINER.toMillis()), this.executor);
     }
 
     /**
@@ -205,70 +177,89 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      * b. Get a list of segment containers that are currently running.
      * c. Start and stop the appropriate containers.
      *
-     * @param hostId  Identifier of host
-     * @param timeout timeout value to be passed to SegmentContainerRegistry.
-     * @return List of CompletableFuture for the start and stop operations performed.
+     * @return A CompletableFuture that will complete when the operation completes.
      */
-    private List<CompletableFuture<Void>> initializeFromZK(Host hostId, Duration timeout) throws Exception {
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        Map<Host, Set<Integer>> controlMapping = getSegmentContainerMapping();
+    private CompletableFuture<Void> initializeFromZK() throws Exception {
+        long traceId = LoggerHelpers.traceEnter(log, "initializeFromZK");
+        TimeoutTimer timer = new TimeoutTimer(INIT_TIMEOUT_PER_CONTAINER);
+        Map<Host, Set<Integer>> controlMapping = getHostContainerMapping();
 
         Set<Integer> desiredContainerList = controlMapping.entrySet().stream()
-                .filter(ep -> ep.getKey().equals(hostId))
-                .map(Map.Entry::getValue)
-                .findFirst().orElse(Collections.<Integer>emptySet());
-        log.debug("Desired list of running containers {}.", desiredContainerList);
+                                                          .filter(ep -> ep.getKey().equals(this.host))
+                                                          .map(Map.Entry::getValue)
+                                                          .findFirst().orElse(Collections.emptySet());
 
-        Collection<Integer> runningContainers = this.registry.getRegisteredContainerIds();
-        log.debug("Current list of running containers {}.", runningContainers);
+        Collection<Integer> runningContainers = new HashSet<>(this.handles.keySet());
+        runningContainers.addAll(this.pendingStartups.keySet());
+        Collection<Integer> containersToBeStarted = CollectionHelpers.filterOut(desiredContainerList, runningContainers);
+        Collection<Integer> containersToBeStopped = CollectionHelpers.filterOut(runningContainers, desiredContainerList);
 
-        Collection<Integer> containersToBeStarted = getComplement(desiredContainerList, runningContainers);
-        log.debug("Containers that need to be started {}.", containersToBeStarted);
+        log.debug("Container Changes: Desired = {}, Current = {}, ToStart = {}, ToStop = {}.",
+                desiredContainerList, runningContainers, containersToBeStarted, containersToBeStopped);
 
-        Collection<Integer> containersToBeStopped = getComplement(runningContainers, desiredContainerList);
-        log.debug("Containers that need to be stopped {}.", containersToBeStopped);
+        List<CompletableFuture<Void>> futures = containersToBeStarted
+                .stream()
+                .map(containerId -> {
+                    log.info("Starting Container {}.", containerId);
+                    CompletableFuture<ContainerHandle> startFuture = this.registry
+                            .startContainer(containerId, timer.getRemaining())
+                            .thenApply(this::registerHandle);
 
-        List<CompletableFuture<Void>> futures = containersToBeStarted.stream()
-                .peek(containerId -> log.info("Container to be started is {}", containerId))
-                .map(containerId ->
-                        this.registry.startContainer(containerId, timer.getRemaining())
-                                .thenAccept(this::registerHandle))
+                    // This doesn't really handle the case of attempting to start an already started container, but
+                    // that would be caught up by the call to startContainer() above.
+                    this.pendingStartups.put(containerId, startFuture);
+                    FutureHelpers.exceptionListener(startFuture, v -> this.pendingStartups.remove(containerId));
+                    return FutureHelpers.toVoid(startFuture);
+                })
                 .collect(Collectors.toList());
 
-        futures.addAll(containersToBeStopped.stream()
-                .peek(containerId -> log.info("Container to be stopped is {}", containerId))
-                .map(handles::get)
-                .peek(handle -> {
+        containersToBeStopped
+                .stream()
+                .map(containerId -> {
+                    log.info("Stopping Container {}.", containerId);
+                    ContainerHandle handle = handles.get(containerId);
                     if (handle == null) {
-                        log.error("Container handle is null, container has been already unregistered");
+                        // Container is not registered. Check to see if it's still starting.
+                        CompletableFuture<ContainerHandle> pendingStartup = this.pendingStartups.get(containerId);
+                        if (pendingStartup == null) {
+                            log.warn("Container %d handle is null and no pending startup; container has been already unregistered.", containerId);
+                            return null;
+                        } else {
+                            // Container is still starting. We cannot interrupt that, so we need to wait for a successful
+                            // startup until we shut it down (if it fails to start, then we don't need to shut it down).
+                            log.warn("Container %d is still starting; queuing shutdown after successful startup.", containerId);
+                            return pendingStartup.thenComposeAsync(pendingHandle -> stopContainer(pendingHandle, timer.getRemaining()), this.executor);
+                        }
+                    } else {
+                        // Plain old container shutdown.
+                        return stopContainer(handle, timer.getRemaining());
                     }
                 })
                 .filter(Objects::nonNull)
-                .map(containerHandle -> registry.stopContainer(containerHandle, timer.getRemaining())
-                        .thenRun(() -> unregisterHandle(containerHandle.getContainerId())))
-                .collect(Collectors.toList()));
-        return futures;
+                .forEach(futures::add);
+
+        val result = FutureHelpers.allOf(futures);
+
+        // Attach an exception listener, as this will be our only way of recording that an exception occurred.
+        FutureHelpers.exceptionListener(result,
+                ex -> log.error("Unable to update containers in local Segment Store.", ex));
+        return result.thenRun(() -> LoggerHelpers.traceLeave(log, "initializeFromZK", traceId));
     }
 
-    // This method will get the complement of a given parentSet form a parent parentSet.
-    private <T> Collection<T> getComplement(Collection<T> parentSet, Collection<T> complementOf) {
-        Collection<T> complement = new ArrayList<T>();
-        complement.addAll(parentSet);
-        complement.removeAll(complementOf);
-        return complement;
+    private CompletableFuture<Void> stopContainer(ContainerHandle handle, Duration timeout) {
+        return registry.stopContainer(handle, timeout)
+                       .thenRun(() -> unregisterHandle(handle.getContainerId(), true));
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Host, Set<Integer>> getSegmentContainerMapping() throws Exception {
-        Map<Host, Set<Integer>> segContainerMapping = Collections.<Host, Set<Integer>>emptyMap();
+    private Map<Host, Set<Integer>> getHostContainerMapping() throws Exception {
         if (client.checkExists().forPath(clusterPath) != null) { //Check if path exists.
             //read data from zk.
-            Optional<byte[]> containerToHostMapSer = Optional.ofNullable(client.getData().forPath(clusterPath));
-            if (containerToHostMapSer.isPresent()) {
-                segContainerMapping = (Map<Host, Set<Integer>>)
-                        SerializationUtils.deserialize(containerToHostMapSer.get());
+            byte[] containerToHostMapSer = client.getData().forPath(clusterPath);
+            if (containerToHostMapSer != null) {
+                return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer);
             }
         }
-        return segContainerMapping;
+        return Collections.emptyMap();
     }
 }

@@ -4,8 +4,13 @@
 
 package com.emc.pravega.common.util;
 
+import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -31,5 +36,36 @@ public class CollectionHelpersTests {
             // Add an element.
             list.add(maxSearchElement);
         }
+    }
+
+    /**
+     * Tests the filterOut method.
+     */
+    @Test
+    public void testFilterOut() {
+        int size = 100;
+        val collection = createCollection(0, size);
+
+        val emptyRemoveResult = CollectionHelpers.filterOut(collection, Collections.emptySet());
+        AssertExtensions.assertContainsSameElements("Unexpected result with empty toExclude.", collection, emptyRemoveResult);
+
+        val noMatchResult = CollectionHelpers.filterOut(collection, Collections.singleton(size + 1));
+        AssertExtensions.assertContainsSameElements("Unexpected result with no-match toExclude.", collection, noMatchResult);
+
+        for (int i = 0; i < size; i++) {
+            val toExclude = createCollection(0, i);
+            val expectedResult = createCollection(i, size);
+            val filterResult = CollectionHelpers.filterOut(collection, toExclude);
+            AssertExtensions.assertContainsSameElements("Unexpected result from filterOut for i = " + i, expectedResult, filterResult);
+        }
+    }
+
+    private Collection<Integer> createCollection(int from, int upTo) {
+        Collection<Integer> collection = new HashSet<>(upTo - from);
+        for (int i = from; i < upTo; i++) {
+            collection.add(i);
+        }
+
+        return collection;
     }
 }
