@@ -3,8 +3,6 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
-import static com.emc.pravega.controller.eventProcessor.RetryHelper.CONNECTIVITY_PREDICATE;
-import static com.emc.pravega.controller.eventProcessor.RetryHelper.withRetriesAsync;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -103,31 +101,31 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     public void notifyProcessFailure(String process) {
         if (commitEventProcessors != null) {
-            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+            CompletableFuture.runAsync(() -> {
                 try {
                     commitEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
+            }, executor);
         }
         if (abortEventProcessors != null) {
-            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+            CompletableFuture.runAsync(() -> {
                 try {
                     abortEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
+            }, executor);
         }
         if (scaleEventProcessors != null) {
-            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+            CompletableFuture.runAsync(() -> {
                 try {
                     scaleEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
+            }, executor);
         }
     }
 
@@ -220,7 +218,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
                                        final Supplier<Set<String>> processes) {
-        CompletableFuture<Set<String>> future1 = withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
+        CompletableFuture<Set<String>> future1 = CompletableFuture.supplyAsync(() -> {
             try {
                 return group.getProcesses();
             } catch (CheckpointStoreException e) {
@@ -229,16 +227,16 @@ public class ControllerEventProcessors extends AbstractIdleService {
                 }
                 throw new CompletionException(e);
             }
-        }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
+        }, executor);
 
-        CompletableFuture<Set<String>> future2 = withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
+        CompletableFuture<Set<String>> future2 = CompletableFuture.supplyAsync(() -> {
             try {
                 return processes.get();
             } catch (Exception e) {
                 log.error(String.format("Error fetching current processes%s", group.toString()), e);
                 throw new CompletionException(e);
             }
-        }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
+        }, executor);
 
         CompletableFuture.allOf(future1, future2)
                 .thenCompose((Void v) -> {
@@ -255,7 +253,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
                     List<CompletableFuture<Void>> futureList = new ArrayList<>();
                     for (String process : registeredProcesses) {
-                        futureList.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+                        futureList.add(CompletableFuture.runAsync(() -> {
                             try {
                                 group.notifyProcessFailure(process);
                                 // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
@@ -264,7 +262,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                                         group.toString()), e);
                                 throw new CompletionException(e);
                             }
-                        }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor));
+                        }, executor));
                     }
 
                     return FutureHelpers.allOf(futureList);
