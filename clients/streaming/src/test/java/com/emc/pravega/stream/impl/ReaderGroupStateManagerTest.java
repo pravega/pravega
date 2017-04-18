@@ -47,7 +47,7 @@ import static org.junit.Assert.assertTrue;
 public class ReaderGroupStateManagerTest {
     private static final int SERVICE_PORT = 12345;
 
-    @Test
+    @Test(timeout = 20000)
     public void testSegmentSplit() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
@@ -92,7 +92,7 @@ public class ReaderGroupStateManagerTest {
         assertTrue(newSegments.isEmpty());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void testSegmentMerge() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
@@ -146,7 +146,7 @@ public class ReaderGroupStateManagerTest {
         assertTrue(newSegments.isEmpty());
     }
     
-    @Test
+    @Test(timeout = 10000)
     public void testAddReader() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
@@ -181,7 +181,7 @@ public class ReaderGroupStateManagerTest {
         assertEquals(1, newSegments.get(new Segment(scope, stream, 0)).longValue());
     }
     
-    @Test
+    @Test(timeout = 10000)
     public void testRemoveReader() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
@@ -240,7 +240,7 @@ public class ReaderGroupStateManagerTest {
                 () -> readerState2.acquireNewSegmentsIfNeeded(0L));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testSegmentsAssigned() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
@@ -321,7 +321,7 @@ public class ReaderGroupStateManagerTest {
         assertEquals(segments2, segments1);
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void testReleaseWhenReadersAdded() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
@@ -419,7 +419,7 @@ public class ReaderGroupStateManagerTest {
         assertNull(reader3.findSegmentToReleaseIfRequired());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testCheckpoint() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
