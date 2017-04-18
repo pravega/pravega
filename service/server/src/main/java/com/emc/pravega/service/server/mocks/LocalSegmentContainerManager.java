@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.mocks;
 
@@ -17,6 +15,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
@@ -33,12 +32,12 @@ import lombok.extern.slf4j.Slf4j;
 public class LocalSegmentContainerManager implements SegmentContainerManager {
     //region Members
     private static final Duration INIT_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
-    private static final Duration CLOSE_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L); //TODO: config?
+    private static final Duration CLOSE_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
     @GuardedBy("handles")
     private final HashMap<Integer, ContainerHandle> handles;
-    private boolean closed;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -63,6 +62,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
         this.handles = new HashMap<>();
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -71,19 +71,19 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
 
     @Override
     public void close() {
-        this.closed = true;
-
-        // Close all containers that are still open.
-        ArrayList<CompletableFuture<Void>> results = new ArrayList<>();
-        synchronized (this.handles) {
-            ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
-            for (ContainerHandle handle : toClose) {
-                results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER));
+        if (!this.closed.getAndSet(true)) {
+            // Close all containers that are still open.
+            ArrayList<CompletableFuture<Void>> results = new ArrayList<>();
+            synchronized (this.handles) {
+                ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
+                for (ContainerHandle handle : toClose) {
+                    results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER));
+                }
             }
-        }
 
-        // Wait for all the containers to be closed.
-        FutureHelpers.allOf(results).join();
+            // Wait for all the containers to be closed.
+            FutureHelpers.await(FutureHelpers.allOf(results), CLOSE_TIMEOUT_PER_CONTAINER.toMillis());
+        }
     }
 
     //endregion
@@ -92,9 +92,9 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
 
     @Override
     public CompletableFuture<Void> initialize() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         long containerCount = this.segmentToContainerMapper.getTotalContainerCount();
-        ensureNotClosed();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int containerId = 0; containerId < containerCount; containerId++) {
             futures.add(this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
@@ -124,18 +124,10 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
             assert !this.handles.containsKey(handle.getContainerId()) : "handle is already registered " + handle.getContainerId();
             this.handles.put(handle.getContainerId(), handle);
 
-            handle.setContainerStoppedListener(id -> {
-                unregisterHandle(handle);
-                //TODO: need to restart container. BUT ONLY IF WE HAVE A FLAG SET. In benchmark mode,
-                // we rely on not auto-restarting containers.
-            });
+            handle.setContainerStoppedListener(id -> unregisterHandle(handle));
         }
 
         log.info("Container {} has been registered.", handle.getContainerId());
-    }
-
-    private void ensureNotClosed() {
-        Exceptions.checkNotClosed(this.closed, this);
     }
 
     //endregion
