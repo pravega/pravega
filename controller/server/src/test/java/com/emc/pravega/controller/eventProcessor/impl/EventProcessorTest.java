@@ -305,7 +305,16 @@ public class EventProcessorTest {
 
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
 
-        EventProcessorGroupConfig config = createEventProcessorGroupConfig(initialCount);
+        CheckpointConfig checkpointConfig = CheckpointConfig.builder().type(CheckpointConfig.Type.None).build();
+
+        EventProcessorGroupConfig config = EventProcessorGroupConfigImpl.builder()
+                .eventProcessorCount(1)
+                .readerGroupName(READER_GROUP)
+                .streamName(STREAM_NAME)
+                .checkpointConfig(checkpointConfig)
+                .build();
+
+        createEventProcessorGroupConfig(initialCount);
 
         EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(1, input),
                 writer, readerGroupName);

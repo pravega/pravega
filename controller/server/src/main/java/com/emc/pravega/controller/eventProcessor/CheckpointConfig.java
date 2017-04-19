@@ -39,7 +39,9 @@ public class CheckpointConfig {
     @Builder
     CheckpointConfig(final Type type, final CheckpointPeriod checkpointPeriod) {
         Preconditions.checkNotNull(type);
-        Preconditions.checkNotNull(checkpointPeriod);
+        Preconditions.checkArgument(
+                (type == Type.None && checkpointPeriod == null) || (type == Type.Periodic && checkpointPeriod != null),
+                "CheckpointPeriod should be non-null if Type is not None");
 
         this.type = type;
         this.checkpointPeriod = checkpointPeriod;
