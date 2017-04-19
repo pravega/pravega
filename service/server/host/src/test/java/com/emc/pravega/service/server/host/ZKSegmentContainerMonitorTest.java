@@ -143,6 +143,9 @@ public class ZKSegmentContainerMonitorTest {
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
         verify(containerRegistry, timeout(10000).atLeastOnce()).stopContainer(any(), any());
 
+        // Using wait here to ensure the private data structure is updated.
+        // TODO: Removing dependency on sleep here and other places in this class
+        // - https://github.com/pravega/pravega/issues/1079
         Thread.sleep(2000);
         assertEquals(1, segMonitor.getRegisteredContainers().size());
         assertTrue(segMonitor.getRegisteredContainers().contains(1));
@@ -183,7 +186,7 @@ public class ZKSegmentContainerMonitorTest {
 
         // Wait for sometime and verify that stop is called after start and that its completely shutdown.
         // The wait here should be greater than the monitor loop interval (set to 1 second above) to guarantee
-        // that the monitor will find the start to be still pending.
+        // that the monitor will find the start to be pending in at least one of its runs.
         Thread.sleep(2000);
         startupFuture.complete(containerHandle);
 
