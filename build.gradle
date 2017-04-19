@@ -117,8 +117,12 @@ allprojects {
         maxHeapSize = "512m"
     }
 }
-
-def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
+def clientPkgs = ['clients:streaming']
+def servicePkgs = ['service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host']
+def controllerPkgs = ['controller:contract', 'controller:server']
+def testPkgs = ['integrationtests', 'systemtests:tests']
+def connectorPkgs = ['connectors:flink']
+def pkgs = ['common', 'testcommon', 'benchmark','singlenode', 'shared'] + clientPkgs + servicePkgs + controllerPkgs + testPkgs + connectorPkgs
 
 project('common') {
     dependencies {
