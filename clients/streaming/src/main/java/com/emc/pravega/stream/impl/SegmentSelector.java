@@ -12,6 +12,7 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -77,18 +78,43 @@ public class SegmentSelector {
     }
 
     /**
-     * Refresh the latest list of segments in the given stream.
-     * 
+     * Refresh the list of segments in the given stream.
+     *
      * @return A list of events that were sent to old segments and never acked. These should be
      *         re-sent.
      */
     @Synchronized
     public List<PendingEvent> refreshSegmentEventWriters() {
-        List<PendingEvent> toResend = new ArrayList<>();
         currentSegments = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
                                                                                              stream.getStreamName()),
                                                                RuntimeException::new);
-        for (Segment segment : currentSegments.getSegments()) {
+
+        return getPendingEvents(currentSegments.getSegments());
+    }
+
+    /**
+     * Refresh the latest list of segments in the given stream upon encountering a sealed segment. In such
+     * cases, we need to use {@link Controller#getSuccessors(Segment)} rather than
+     * {@link Controller#getCurrentSegments(String, String)}.
+     *
+     * @return A list of events that were sent to old segments and never acked. These should be
+     *         re-sent.
+     */
+    @Synchronized
+    public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment) {
+        // *Problem*: I need to update currentSegments in the line below, but getSuccessors does
+        // not return a StreamSegments object. The Map that getSuccessors returns is sufficient
+        // for the call to get pending events, but not to update currentSegments, which we need
+        // to do here.
+        currentSegments = FutureHelpers.getAndHandleExceptions(controller.getSuccessors(sealedSegment),
+                                                                                    RuntimeException::new);
+
+        return getPendingEvents(currentSegments.getSegments());
+    }
+
+    private List<PendingEvent> getPendingEvents(Collection<Segment> currentSegments) {
+          List<PendingEvent> toResend = new ArrayList<>();
+        for (Segment segment : currentSegments) {
             if (!writers.containsKey(segment)) {
                 SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
                 writers.put(segment, out);
@@ -97,7 +123,7 @@ public class SegmentSelector {
         Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
         while (iter.hasNext()) {
             Entry<Segment, SegmentOutputStream> entry = iter.next();
-            if (!currentSegments.getSegments().contains(entry.getKey())) {
+            if (!currentSegments.contains(entry.getKey())) {
                 SegmentOutputStream writer = entry.getValue();
                 iter.remove();
                 try {

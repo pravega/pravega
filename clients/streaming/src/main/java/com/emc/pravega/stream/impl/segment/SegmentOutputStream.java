@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.PendingEvent;
 import java.util.Collection;
 
@@ -47,4 +48,11 @@ public interface SegmentOutputStream extends AutoCloseable {
      * acknowledged as written. The iteration order in the collection is from oldest to newest.
      */
     public abstract Collection<PendingEvent> getUnackedEvents();
+
+    /**
+     * Returns the name of the segment associated to this output stream.
+     *
+     * @return The name of the segment associated to this output stream.
+     */
+    public abstract String getSegmentName();
 }
