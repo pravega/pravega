@@ -79,10 +79,10 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
             return isLockAcquired(type, seqNumber, lockNodes.keySet());
         }
 
-        public Optional<Pair<TaskData, Integer>> getTask(String owner, String tag) {
+        public Optional<Pair<TaskData, Integer>> getTask(LockOwner lockOwner) {
             for (Map.Entry<String, LockData> entry : lockNodes.entrySet()) {
                 LockData lockData = entry.getValue();
-                if (lockData.isOwnedBy(owner, tag)) {
+                if (lockData.isOwnedBy(lockOwner)) {
                     TaskData taskData = TaskData.deserialize(lockData.getTaskData());
                     return Optional.of(new ImmutablePair<>(taskData, getSeqNumber(entry.getKey())));
                 }
@@ -104,9 +104,9 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     @Override
-    CompletableFuture<Integer> createLockNode(Resource resource, LockType type, String owner, String tagId, TaskData taskData) {
+    CompletableFuture<Integer> createLockNode(Resource resource, LockType type, LockOwner lockOwner, TaskData taskData) {
         synchronized (lockTable) {
-            LockData lockData = new LockData(owner, tagId, taskData.serialize());
+            LockData lockData = new LockData(lockOwner, taskData);
             Directory directory;
             if (lockTable.containsKey(resource)) {
                 directory = lockTable.get(resource);
@@ -120,7 +120,8 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     @Override
-    CompletableFuture<Void> transferLockNode(Resource resource, LockType type, int seqNumber, String owner, String tagId, String oldOwner, String oldTagId) {
+    CompletableFuture<Void> transferLockNode(Resource resource, LockType type, int seqNumber, LockOwner lockOwner,
+                                             LockOwner oldLockOwner) {
         synchronized (lockTable) {
             if (!lockTable.containsKey(resource)) {
                 return FutureHelpers.failedFuture(new LockFailedException(resource.getString()));
@@ -129,11 +130,11 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
             String lockNodeName = getLockNodeName(type, seqNumber);
             LockData lockData = lockTable.get(resource).get(lockNodeName);
 
-            if (lockData == null || !lockData.isOwnedBy(oldOwner, oldTagId)) {
+            if (lockData == null || !lockData.isOwnedBy(oldLockOwner)) {
                 return FutureHelpers.failedFuture(new LockFailedException(resource.getString()));
             }
 
-            LockData newLockData = new LockData(owner, tagId, lockData.getTaskData());
+            LockData newLockData = new LockData(lockOwner, lockData.getTaskData());
             lockTable.get(resource).put(lockNodeName, newLockData);
             return CompletableFuture.completedFuture(null);
         }
@@ -151,7 +152,7 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     @Override
-    Void removeLock(Resource resource, LockType type, int seqNumber, String owner, String tag) {
+    Void removeLock(Resource resource, LockType type, int seqNumber, LockOwner lockOwner) {
         synchronized (lockTable) {
             Directory directory = lockTable.get(resource);
             if (!directory.isLockHeld(type, seqNumber)) {
@@ -164,11 +165,11 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
             String lockNodeName = getLockNodeName(type, seqNumber);
             LockData lockData = lockTable.get(resource).get(lockNodeName);
 
-            if (lockData != null && lockData.isOwnedBy(owner, tag)) {
+            if (lockData != null && lockData.isOwnedBy(lockOwner)) {
                 directory.remove(lockNodeName);
             } else {
                 String errorMsg = String.format("Lock %s on resource %s not owned by owner %s: tag %s",
-                        getLockNodeName(type, seqNumber), resource.getString(), owner, tag);
+                        getLockNodeName(type, seqNumber), resource.getString(), lockOwner.getHost(), lockOwner.getTag());
                 log.warn(errorMsg);
                 throw new UnlockFailedException(errorMsg);
             }
@@ -177,19 +178,17 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     public synchronized CompletableFuture<Optional<Pair<TaskData, Integer>>> getTask(final Resource resource,
-                                                         final String owner,
-                                                         final String tag) {
+                                                                                     final LockOwner lockOwner) {
         synchronized (lockTable) {
             Preconditions.checkNotNull(resource);
-            Preconditions.checkNotNull(owner);
-            Preconditions.checkNotNull(tag);
+            Preconditions.checkNotNull(lockOwner);
 
             Directory directory = lockTable.get(resource);
 
             if (directory == null) {
                 return CompletableFuture.completedFuture(Optional.empty());
             } else {
-                return CompletableFuture.completedFuture(directory.getTask(owner, tag));
+                return CompletableFuture.completedFuture(directory.getTask(lockOwner));
             }
         }
     }

@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.task;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.store.task.LockOwner;
 import com.emc.pravega.controller.store.task.LockType;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
@@ -22,6 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,6 +59,9 @@ public abstract class TaskBase implements AutoCloseable {
 
         public Context(final String hostId, final String oldHost, final String oldTag, final Resource oldResource,
                        final int seqNumber) {
+            Preconditions.checkNotNull(oldHost, "oldHost");
+            Preconditions.checkNotNull(oldTag, "oldTag");
+            Preconditions.checkNotNull(oldResource, "oldResource");
             this.hostId = hostId;
             this.oldHostId = oldHost;
             this.oldTag = oldTag;
@@ -70,6 +75,18 @@ public abstract class TaskBase implements AutoCloseable {
             } else {
                 return Optional.of(this.seqNumber);
             }
+        }
+
+        public Optional<LockOwner> getOldLockOwnerOpt() {
+            if (oldHostId != null) {
+                return Optional.of(new LockOwner(oldHostId, oldTag));
+            } else {
+                return Optional.empty();
+            }
+        }
+
+        public LockOwner getLockOwner(String tag) {
+            return new LockOwner(this.hostId, tag);
         }
     }
 
@@ -167,8 +184,8 @@ public abstract class TaskBase implements AutoCloseable {
         final CompletableFuture<Integer> lockResult = new CompletableFuture<>();
 
         taskMetadataStore
-                .lock(resource, type, taskData, context.hostId, tag, context.getSeqNumberOpt(),
-                        context.oldHostId, context.oldTag)
+                .lock(resource, type, taskData, new LockOwner(context.hostId, tag), context.getSeqNumberOpt(),
+                        context.getOldLockOwnerOpt())
 
                 // On acquiring lock, the following invariants hold
                 // Invariant 1. No other thread within any controller process is running an update task on the resource
@@ -204,7 +221,7 @@ public abstract class TaskBase implements AutoCloseable {
                         // If lock was obtained, irrespective of result of operation execution,
                         // release lock before completing operation.
                         log.debug("Host={}, Tag={} completed executing task on resource {}", context.hostId, tag, resource);
-                        taskMetadataStore.unlock(resource, type, lockResult.join(), context.hostId, tag)
+                        taskMetadataStore.unlock(resource, type, lockResult.join(), context.getLockOwner(tag))
                                 .whenComplete((innerValue, innerE) -> {
                                     log.debug("Host={}, Tag={} unlock attempt completed on resource {}", context.hostId, tag, resource);
                                     // If lock was acquired above, unlock operation retries until it is released.

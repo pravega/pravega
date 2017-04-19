@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.task;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.store.task.LockOwner;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.TaskBase.Context;
@@ -102,7 +103,7 @@ public class TaskSweeper {
         // Else
         //     It is safe to delete the taggedResource child under oldHostId, since there is no pending task on
         //     resource taggedResource.resource and owned by (oldHostId, taggedResource.threadId).
-        taskMetadataStore.getTask(taggedResource.getResource(), oldHostId, taggedResource.getTag())
+        taskMetadataStore.getTask(taggedResource.getResource(), new LockOwner(oldHostId, taggedResource.getTag()))
                 .whenComplete((pair, ex) -> {
                     if (pair != null && pair.isPresent()) {
 

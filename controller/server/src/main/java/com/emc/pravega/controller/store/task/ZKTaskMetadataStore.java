@@ -45,11 +45,10 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
     @Override
     public CompletableFuture<Integer> createLockNode(final Resource resource,
                                final LockType type,
-                               final String owner,
-                               final String tagId,
+                               final LockOwner lockOwner,
                                final TaskData taskData) {
         return CompletableFuture.supplyAsync(() -> {
-            LockData lockData = new LockData(owner, tagId, taskData.serialize());
+            LockData lockData = new LockData(lockOwner, taskData);
             try {
                 String path = client.create()
                         .creatingParentContainersIfNeeded()
@@ -66,10 +65,8 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
     public CompletableFuture<Void> transferLockNode(final Resource resource,
                                   final LockType type,
                                   final int seqNumber,
-                                  final String owner,
-                                  final String tagId,
-                                  final String oldOwner,
-                                  final String oldTagId) {
+                                  final LockOwner lockOwner,
+                                  final LockOwner oldLockOwner) {
         return CompletableFuture.supplyAsync(() -> {
             String lockPath = getLockPath(resource, type, seqNumber);
 
@@ -82,15 +79,15 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                 Stat stat = new Stat();
                 byte[] data = client.getData().storingStatIn(stat).forPath(lockPath);
                 LockData lockData = LockData.deserialize(data);
-                if (lockData.isOwnedBy(oldOwner, oldTagId)) {
-                    lockData = new LockData(owner, tagId, lockData.getTaskData());
+                if (lockData.isOwnedBy(oldLockOwner)) {
+                    lockData = new LockData(lockOwner, lockData.getTaskData());
                     client.setData().withVersion(stat.getVersion())
                             .forPath(lockPath, lockData.serialize());
                     return null;
                 } else {
                     throw new LockFailedException(
                             String.format("Failed transferring lock on resource %s, as it is not owned by (%s,%s)",
-                                    resource.getString(), oldOwner, oldTagId));
+                                    resource.getString(), oldLockOwner.getHost(), oldLockOwner.getTag()));
                 }
             } catch (Exception e) {
                 throw new LockFailedException(resource.getString(), e);
@@ -122,7 +119,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     @Override
-    Void removeLock(final Resource resource, final LockType type, final int seqNumber, final String owner, final String tag) {
+    Void removeLock(final Resource resource, final LockType type, final int seqNumber, final LockOwner lockOwner) {
 
         try {
             // Ensure that the lock (type, seqNumber) is held before attempting to unlock.
@@ -139,7 +136,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             byte[] data = client.getData().storingStatIn(stat).forPath(lockPath);
             if (data != null && data.length > 0) {
                 LockData lockData = LockData.deserialize(data);
-                if (lockData.isOwnedBy(owner, tag)) {
+                if (lockData.isOwnedBy(lockOwner)) {
                     //Guaranteed Delete
                     //Solves this edge case: deleting a node can fail due to connection issues. Further, if the node was
                     //ephemeral, the node will not get auto-deleted as the session is still valid. This can wreak havoc
@@ -154,7 +151,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                             .forPath(lockPath);
                 } else {
                     String errorMsg = String.format("Lock %s on resource %s not owned by owner %s: tag %s",
-                            getLockNodeName(type, seqNumber), resource.getString(), owner, tag);
+                            getLockNodeName(type, seqNumber), resource.getString(), lockOwner.getHost(), lockOwner.getTag());
                     log.warn(errorMsg);
                     throw new UnlockFailedException(errorMsg);
                 }
@@ -197,12 +194,10 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
 
     @Override
     public CompletableFuture<Optional<Pair<TaskData, Integer>>> getTask(final Resource resource,
-                                                         final String owner,
-                                                         final String tag) {
+                                                         final LockOwner lockOwner) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(resource);
-            Preconditions.checkNotNull(owner);
-            Preconditions.checkNotNull(tag);
+            Preconditions.checkNotNull(lockOwner);
 
             try {
                 List<String> children = client.getChildren().forPath(getTaskPath(resource));
@@ -212,14 +207,14 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
 
                     if (data != null && data.length > 0) {
                         LockData lockData = LockData.deserialize(data);
-                        if (lockData.isOwnedBy(owner, tag)) {
+                        if (lockData.isOwnedBy(lockOwner)) {
                             return Optional.of(new ImmutablePair<>(TaskData.deserialize(lockData.getTaskData()),
                                     getSeqNumber(child)));
                         }
                     }
                 }
 
-                log.debug("Resource {} not owned by pair ({}, {})", resource.getString(), owner, tag);
+                log.debug("Resource {} not owned by pair ({}, {})", resource.getString(), lockOwner.getHost(), lockOwner.getTag());
                 return Optional.empty();
             } catch (KeeperException.NoNodeException e) {
                 log.debug("Node {} does not exist.", getTaskPath(resource));

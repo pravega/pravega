@@ -11,7 +11,7 @@ import com.emc.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.controller.store.task.LockFailedException;
+import com.emc.pravega.controller.store.task.LockOwner;
 import com.emc.pravega.controller.store.task.LockType;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
@@ -19,7 +19,6 @@ import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.TestTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -159,12 +158,14 @@ public class TaskTest {
         final TaggedResource taggedResource = new TaggedResource(deadThreadId, resource);
         taskMetadataStore.putChild(deadHost, taggedResource).join();
 
-        taskMetadataStore.lock(resource, LockType.WRITE, taskData, deadHost, deadThreadId, Optional.<Integer>empty(), null, null).join();
+        taskMetadataStore.lock(resource, LockType.WRITE, taskData, new LockOwner(deadHost, deadThreadId),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, streamMetadataTasks);
         taskSweeper.sweepOrphanedTasks(deadHost).get();
 
-        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource,
+                new LockOwner(deadHost, deadThreadId)).get();
         assertFalse(data.isPresent());
 
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
@@ -208,8 +209,10 @@ public class TaskTest {
         final TaggedResource taggedResource2 = new TaggedResource(deadThreadId2, resource2);
         taskMetadataStore.putChild(deadHost, taggedResource2).join();
 
-        taskMetadataStore.lock(resource1, LockType.WRITE, taskData1, deadHost, deadThreadId1, Optional.<Integer>empty(), null, null).join();
-        taskMetadataStore.lock(resource2, LockType.WRITE, taskData2, deadHost, deadThreadId2, Optional.<Integer>empty(), null, null).join();
+        taskMetadataStore.lock(resource1, LockType.WRITE, taskData1, new LockOwner(deadHost, deadThreadId1),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
+        taskMetadataStore.lock(resource2, LockType.WRITE, taskData2, new LockOwner(deadHost, deadThreadId2),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
 
         final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks,
                 deadHost);
@@ -222,10 +225,11 @@ public class TaskTest {
         sweeperThread1.getResult().join();
         sweeperThread2.getResult().join();
 
-        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource1, deadHost, deadThreadId1).get();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource1,
+                new LockOwner(deadHost, deadThreadId1)).get();
         assertFalse(data.isPresent());
 
-        data = taskMetadataStore.getTask(resource2, deadHost, deadThreadId2).get();
+        data = taskMetadataStore.getTask(resource2, new LockOwner(deadHost, deadThreadId2)).get();
         assertFalse(data.isPresent());
 
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
@@ -237,20 +241,6 @@ public class TaskTest {
 
         config = streamStore.getConfiguration(SCOPE, stream2, null, executor).get();
         assertTrue(config.getStreamName().equals(stream2));
-    }
-
-    @Test
-    public void testLocking() {
-        TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
-
-        CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);
-        CompletableFuture<Void> second = testTasks.testStreamLock(SCOPE, stream1);
-        try {
-            first.getNow(null);
-            second.getNow(null);
-        } catch (CompletionException ce) {
-            assertTrue(ce.getCause() instanceof LockFailedException);
-        }
     }
 
     @Data

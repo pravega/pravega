@@ -31,28 +31,21 @@ public abstract class AbstractTaskMetadataStore implements TaskMetadataStore {
     public CompletableFuture<Integer> lock(final Resource resource,
                                            final LockType type,
                                            final TaskData taskData,
-                                           final String owner,
-                                           final String tag,
+                                           final LockOwner lockOwner,
                                            final Optional<Integer> seqNumber,
-                                           final String oldOwner,
-                                           final String oldTag) {
+                                           final Optional<LockOwner> oldLockOwner) {
         Preconditions.checkNotNull(resource);
         Preconditions.checkNotNull(taskData);
-        Preconditions.checkNotNull(owner);
-        Preconditions.checkArgument(!owner.isEmpty());
-        Preconditions.checkNotNull(tag);
-        Preconditions.checkArgument(!tag.isEmpty());
-        Preconditions.checkArgument((oldOwner == null && oldTag == null) || (oldOwner != null && oldTag != null));
-        Preconditions.checkArgument(oldOwner == null || !oldOwner.isEmpty());
-        Preconditions.checkArgument(oldTag == null || !oldTag.isEmpty());
-        // oldOwner != null ==> seqNumber.isPresent
-        Preconditions.checkArgument(oldOwner == null || seqNumber.isPresent(),
-                "seqNumber should be present if oldOwner is not null");
+        Preconditions.checkNotNull(lockOwner);
+        // oldLockOwner.isPresent <==> seqNumber.isPresent
+        Preconditions.checkArgument((oldLockOwner.isPresent() && seqNumber.isPresent()) ||
+                        (!seqNumber.isPresent() && !oldLockOwner.isPresent()),
+                "seqNumber should be present iff oldOwner is present");
 
-        if (oldOwner == null) {
-            return acquireLock(resource, type, taskData, owner, tag);
+        if (!oldLockOwner.isPresent()) {
+            return acquireLock(resource, type, taskData, lockOwner);
         } else {
-            return transferLock(resource, type, owner, tag, seqNumber.get(), oldOwner, oldTag)
+            return transferLock(resource, type, lockOwner, seqNumber.get(), oldLockOwner.get())
                     .thenApply(ignore -> seqNumber.get());
         }
     }
@@ -61,38 +54,31 @@ public abstract class AbstractTaskMetadataStore implements TaskMetadataStore {
     public CompletableFuture<Void> unlock(final Resource resource,
                                           final LockType type,
                                           final int seqNumber,
-                                          final String owner,
-                                          final String tag) {
+                                          final LockOwner lockOwner) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(resource);
-            Preconditions.checkNotNull(owner);
-            Preconditions.checkNotNull(tag);
-
-            return removeLock(resource, type, seqNumber, owner, tag);
-
+            Preconditions.checkNotNull(lockOwner);
+            return removeLock(resource, type, seqNumber, lockOwner);
         }, executor);
     }
 
     private CompletableFuture<Integer> acquireLock(final Resource resource,
-                                           final LockType type,
-                                           final TaskData taskData,
-                                           final String owner,
-                                           final String tagId) {
+                                                   final LockType type,
+                                                   final TaskData taskData,
+                                                   final LockOwner lockOwner) {
         // Create a sequential persistent node with LockData(owner, tagId, taskData) as data
-        return createLockNode(resource, type, owner, tagId, taskData).thenComposeAsync(seqNumber ->
+        return createLockNode(resource, type, lockOwner, taskData).thenComposeAsync(seqNumber ->
                 // Wait until seqNumber is the smallest numbered node among children of resource node
                 waitUntilLockAcquired(resource, type, seqNumber).thenApply(ignore -> seqNumber), this.executor);
     }
 
     private CompletableFuture<Void> transferLock(final Resource resource,
-                                         final LockType type,
-                                         final String owner,
-                                         final String tagId,
-                                         final int seqNumber,
-                                         final String oldOwner,
-                                         final String oldTagId) {
+                                                 final LockType type,
+                                                 final LockOwner lockOwner,
+                                                 final int seqNumber,
+                                                 final LockOwner oldLockOwner) {
         // Transfer the lock first.
-        return transferLockNode(resource, type, seqNumber, owner, tagId, oldOwner, oldTagId).thenComposeAsync(x ->
+        return transferLockNode(resource, type, seqNumber, lockOwner, oldLockOwner).thenComposeAsync(x ->
                 // Wait until seqNumber is the smallest numbered node among children of resource node
                 waitUntilLockAcquired(resource, type, seqNumber), this.executor);
     }
@@ -117,17 +103,14 @@ public abstract class AbstractTaskMetadataStore implements TaskMetadataStore {
 
     abstract CompletableFuture<Integer> createLockNode(final Resource resource,
                                                        final LockType type,
-                                                       final String owner,
-                                                       final String tagId,
+                                                       final LockOwner lockOwner,
                                                        final TaskData taskData);
 
     abstract CompletableFuture<Void> transferLockNode(final Resource resource,
                                                       final LockType type,
                                                       final int seqNumber,
-                                                      final String owner,
-                                                      final String tagId,
-                                                      final String oldOwner,
-                                                      final String oldTagId);
+                                                      final LockOwner lockOwner,
+                                                      final LockOwner oldLockOwner);
 
     /**
      * Fetch the children of resourcePath and check whether the lock of given type and
@@ -139,19 +122,18 @@ public abstract class AbstractTaskMetadataStore implements TaskMetadataStore {
      * @param type         lock type.
      * @param seqNumber    sequence number.
      * @param lockAcquired atomic reference set to true when lock is acquired.
-     * @return             if lock is acquired, returns a completed future, otherwise returns a
-     *                     future that completes when node resourcePath changes.
+     * @return if lock is acquired, returns a completed future, otherwise returns a
+     * future that completes when node resourcePath changes.
      */
     abstract CompletableFuture<Void> checkIfLockAcquired(final Resource resource,
-                                                        final LockType type,
-                                                        final int seqNumber,
-                                                        final AtomicReference<Boolean> lockAcquired);
+                                                         final LockType type,
+                                                         final int seqNumber,
+                                                         final AtomicReference<Boolean> lockAcquired);
 
     abstract Void removeLock(final Resource resource,
                              final LockType type,
                              final int seqNumber,
-                             final String owner,
-                             final String tag);
+                             final LockOwner lockOwner);
 
     /**
      * For write lock:

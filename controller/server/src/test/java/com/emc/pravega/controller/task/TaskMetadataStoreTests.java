@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.task;
 
 import com.emc.pravega.controller.store.task.LockFailedException;
+import com.emc.pravega.controller.store.task.LockOwner;
 import com.emc.pravega.controller.store.task.LockType;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
@@ -90,12 +91,12 @@ public abstract class TaskMetadataStoreTests {
 
     @Test(timeout = 10000)
     public void readLockUnlockTest() {
-        int seqNumber = taskMetadataStore.lock(resource, LockType.READ, taskData, host1, threadId1,
-                Optional.<Integer>empty(), null, null).join();
-        int seqNumber2 = taskMetadataStore.lock(resource, LockType.READ, taskData, host2, threadId2,
-                Optional.<Integer>empty(), null, null).join();
-        taskMetadataStore.unlock(resource, LockType.READ, seqNumber, host1, threadId1).join();
-        taskMetadataStore.unlock(resource, LockType.READ, seqNumber2, host2, threadId2).join();
+        int seqNumber = taskMetadataStore.lock(resource, LockType.READ, taskData, new LockOwner(host1, threadId1),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
+        int seqNumber2 = taskMetadataStore.lock(resource, LockType.READ, taskData, new LockOwner(host2, threadId2),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
+        taskMetadataStore.unlock(resource, LockType.READ, seqNumber, new LockOwner(host1, threadId1)).join();
+        taskMetadataStore.unlock(resource, LockType.READ, seqNumber2, new LockOwner(host2, threadId2)).join();
     }
 
     @Test(timeout = 10000)
@@ -107,13 +108,13 @@ public abstract class TaskMetadataStoreTests {
     }
 
     private void testSequentialLockBlock(LockType type1, LockType type2) {
-        int seqNumber = taskMetadataStore.lock(resource, type1, taskData, host1, threadId1,
-                Optional.<Integer>empty(), null, null).join();
+        int seqNumber = taskMetadataStore.lock(resource, type1, taskData, new LockOwner(host1, threadId1),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
 
-        CompletableFuture<Integer> future = taskMetadataStore.lock(resource, type2, taskData, host2, threadId2,
-                Optional.<Integer>empty(), null, null);
+        CompletableFuture<Integer> future = taskMetadataStore.lock(resource, type2, taskData,
+                new LockOwner(host2, threadId2), Optional.<Integer>empty(), Optional.<LockOwner>empty());
 
-        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource, host1, threadId1).join();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource, new LockOwner(host1, threadId1)).join();
         assertTrue(data.isPresent());
         assertEquals(seqNumber, data.get().getRight().intValue());
         assertArrayEquals(taskData.serialize(), data.get().getLeft().serialize());
@@ -131,88 +132,88 @@ public abstract class TaskMetadataStoreTests {
             Assert.assertTrue(true);
         }
 
-        taskMetadataStore.unlock(resource, type1, seqNumber, host1, threadId1).join();
+        taskMetadataStore.unlock(resource, type1, seqNumber, new LockOwner(host1, threadId1)).join();
 
         int seqNumber2 = future.join();
-        taskMetadataStore.unlock(resource, type2, seqNumber2, host2, threadId2).join();
+        taskMetadataStore.unlock(resource, type2, seqNumber2, new LockOwner(host2, threadId2)).join();
     }
 
     @Test(timeout = 10000)
     public void writeLockUnlockTests() throws ExecutionException, InterruptedException {
 
-        int seqNumber = taskMetadataStore.lock(resource, LockType.WRITE, taskData, host1, threadId1,
-                Optional.empty(), null, null).get();
+        int seqNumber = taskMetadataStore.lock(resource, LockType.WRITE, taskData, new LockOwner(host1, threadId1),
+                Optional.empty(), Optional.empty()).get();
 
-        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource, host1, threadId1).get();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource, new LockOwner(host1, threadId1)).get();
         assertTrue(data.isPresent());
         assertEquals(seqNumber, data.get().getRight().intValue());
         assertArrayEquals(taskData.serialize(), data.get().getLeft().serialize());
 
-        taskMetadataStore.lock(resource, LockType.WRITE, taskData, host2, threadId2,
-                Optional.of(seqNumber), host1, threadId1).get();
+        taskMetadataStore.lock(resource, LockType.WRITE, taskData, new LockOwner(host2, threadId2),
+                Optional.of(seqNumber), Optional.of(new LockOwner(host1, threadId1))).get();
 
-        data = taskMetadataStore.getTask(resource, host2, threadId2).get();
+        data = taskMetadataStore.getTask(resource, new LockOwner(host2, threadId2)).get();
         assertTrue(data.isPresent());
         assertEquals(seqNumber, data.get().getRight().intValue());
         assertArrayEquals(taskData.serialize(), data.get().getLeft().serialize());
 
-        taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, host2, threadId2).get();
+        taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, new LockOwner(host2, threadId2)).get();
 
-        data = taskMetadataStore.getTask(resource, host2, threadId2).join();
+        data = taskMetadataStore.getTask(resource, new LockOwner(host2, threadId2)).join();
         assertFalse(data.isPresent());
 
-        seqNumber = taskMetadataStore.lock(resource, LockType.WRITE, taskData, host1, threadId1,
-                Optional.empty(), null, null).get();
+        seqNumber = taskMetadataStore.lock(resource, LockType.WRITE, taskData, new LockOwner(host1, threadId1),
+                Optional.empty(), Optional.empty()).get();
 
-        data = taskMetadataStore.getTask(resource, host1, threadId1).get();
+        data = taskMetadataStore.getTask(resource, new LockOwner(host1, threadId1)).get();
         assertTrue(data.isPresent());
         assertEquals(seqNumber, data.get().getRight().intValue());
         assertArrayEquals(taskData.serialize(), data.get().getLeft().serialize());
 
-        taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, host1, threadId1).get();
+        taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, new LockOwner(host1, threadId1)).get();
 
-        data = taskMetadataStore.getTask(resource, host1, threadId1).join();
+        data = taskMetadataStore.getTask(resource, new LockOwner(host1, threadId1)).join();
         assertFalse(data.isPresent());
     }
 
     @Test(timeout = 10000)
     public void lockFailureTest() {
 
-        int seqNumber = taskMetadataStore.lock(resource, LockType.WRITE, taskData, host1, threadId1,
-                Optional.<Integer>empty(), null, null).join();
+        int seqNumber = taskMetadataStore.lock(resource, LockType.WRITE, taskData, new LockOwner(host1, threadId1),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
 
-        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource, host1, threadId1).join();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource, new LockOwner(host1, threadId1)).join();
         assertTrue(data.isPresent());
         assertEquals(seqNumber, data.get().getRight().intValue());
         assertArrayEquals(taskData.serialize(), data.get().getLeft().serialize());
 
-        CompletableFuture<Integer> lockFuture = taskMetadataStore.lock(resource, LockType.WRITE, taskData, host2,
-                threadId2, Optional.<Integer>empty(), null, null);
+        CompletableFuture<Integer> lockFuture = taskMetadataStore.lock(resource, LockType.WRITE, taskData,
+                new LockOwner(host2, threadId2), Optional.<Integer>empty(), Optional.<LockOwner>empty());
         assertTrue(!lockFuture.isDone());
 
         AssertExtensions.assertThrows("LockFailedException expected",
-                taskMetadataStore.lock(resource, LockType.WRITE, taskData, host2, threadId2,
-                        Optional.of(10), "junk", "junk"),
+                taskMetadataStore.lock(resource, LockType.WRITE, taskData, new LockOwner(host2, threadId2),
+                        Optional.of(10), Optional.of(new LockOwner("junk", "junk"))),
                 e -> e instanceof LockFailedException);
 
         AssertExtensions.assertThrows("Unlock fails if lock is not owned by the owner",
-                taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, host2, threadId2),
+                taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, new LockOwner(host2, threadId2)),
                 e -> e instanceof UnlockFailedException);
 
         AssertExtensions.assertThrows("Lock cannot be released before acquiring it",
-                taskMetadataStore.unlock(resource, LockType.WRITE, 1, host2, threadId2),
+                taskMetadataStore.unlock(resource, LockType.WRITE, 1, new LockOwner(host2, threadId2)),
                 e -> e instanceof UnlockFailedException);
 
         AssertExtensions.assertThrows("Non-existent lock cannot be released",
-                taskMetadataStore.unlock(resource, LockType.WRITE, 10, host2, threadId2),
+                taskMetadataStore.unlock(resource, LockType.WRITE, 10, new LockOwner(host2, threadId2)),
                 e -> e instanceof UnlockFailedException);
 
-        taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, host1, threadId1).join();
+        taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, new LockOwner(host1, threadId1)).join();
 
-        data = taskMetadataStore.getTask(resource, host1, threadId1).join();
+        data = taskMetadataStore.getTask(resource, new LockOwner(host1, threadId1)).join();
         assertFalse(data.isPresent());
 
         seqNumber = lockFuture.join();
-        taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, host2, threadId2).join();
+        taskMetadataStore.unlock(resource, LockType.WRITE, seqNumber, new LockOwner(host2, threadId2)).join();
     }
 }

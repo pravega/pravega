@@ -35,26 +35,22 @@ public interface TaskMetadataStore {
      *
      * Then, it waits until the conditions mentioned above are satisfied.
      *
-     * @param resource  resource identifier.
-     * @param type      lock type.
-     * @param taskData  details of update task on the resource.
-     * @param owner     owner of the task.
-     * @param tag       tag.
-     * @param seqNumber optional sequence number in case the lock was previously
-     *                  held by some other host.
-     * @param oldOwner  host that had previously locked the resource.
-     * @param oldTag    tag that took the lock
-     * @return          sequence number of the lock node when lock is acquired,
-     *                  throws LockFailedException on error.
+     * @param resource     resource identifier.
+     * @param type         lock type.
+     * @param taskData     details of update task on the resource.
+     * @param lockOwner    owner of the task.
+     * @param seqNumber    optional sequence number in case the lock was previously
+     *                     held by some other host.
+     * @param oldLockOwner previous owner of the lock.
+     * @return             sequence number of the lock node when lock is acquired,
+     *                     throws LockFailedException on error.
      */
     CompletableFuture<Integer> lock(final Resource resource,
                                     final LockType type,
                                     final TaskData taskData,
-                                    final String owner,
-                                    final String tag,
+                                    final LockOwner lockOwner,
                                     final Optional<Integer> seqNumber,
-                                    final String oldOwner,
-                                    final String oldTag);
+                                    final Optional<LockOwner> oldLockOwner);
 
     /**
      * Unlocks a resource if it is owned by the specified owner (owner, tag)
@@ -66,28 +62,25 @@ public interface TaskMetadataStore {
      * @param resource  resource identifier.
      * @param type      lock type.
      * @param seqNumber sequence number returned by the lock method.
-     * @param owner     owner of the lock.
-     * @param tag       tag.
+     * @param lockOwner owner of the lock.
      * @return          void if successful, otherwise throws UnlockFailedException.
      */
     CompletableFuture<Void> unlock(final Resource resource,
                                    final LockType type,
                                    final int seqNumber,
-                                   final String owner,
-                                   final String tag);
+                                   final LockOwner lockOwner);
 
 
     /**
      * Fetch details of task associated with the specified resource and locked/owned by specified owner and tag, along
      * with the sequence number of the lock node.
      *
-     * @param resource resource.
-     * @param owner    owner.
-     * @param tag      tag.
+     * @param resource  resource.
+     * @param lockOwner lock owner.
      * @return TaskData and lock node's sequence number, if owner and tag have made a lock attempt on the specified
      *         resource otherwise Optional.empty().
      */
-    CompletableFuture<Optional<Pair<TaskData, Integer>>> getTask(final Resource resource, final String owner, final String tag);
+    CompletableFuture<Optional<Pair<TaskData, Integer>>> getTask(final Resource resource, final LockOwner lockOwner);
 
     /**
      * Adds specified resource as a child of current host's hostId node.
