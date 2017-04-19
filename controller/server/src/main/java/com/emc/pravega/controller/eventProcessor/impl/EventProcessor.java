@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Position;

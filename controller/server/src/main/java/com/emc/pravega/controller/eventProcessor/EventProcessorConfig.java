@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.stream.Serializer;
 import com.google.common.base.Preconditions;
 import lombok.Data;

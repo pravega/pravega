@@ -7,13 +7,13 @@ package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
+import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;

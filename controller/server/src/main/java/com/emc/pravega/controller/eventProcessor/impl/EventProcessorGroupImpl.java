@@ -7,11 +7,11 @@ package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStore;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
-import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -199,8 +199,10 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             for (Map.Entry<String, Position> entry : map.entrySet()) {
 
                 // 1. Notify reader group about failed readers
-                log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
-                readerGroup.readerOffline(entry.getKey(), entry.getValue());
+                if (readerGroup.getOnlineReaders().contains(entry.getKey())) {
+                    log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
+                    readerGroup.readerOffline(entry.getKey(), entry.getValue());
+                }
 
                 // 2. Clean up reader from checkpoint store
                 log.info("{} removing reader={} from checkpoint store", this.objectId, entry.getKey());

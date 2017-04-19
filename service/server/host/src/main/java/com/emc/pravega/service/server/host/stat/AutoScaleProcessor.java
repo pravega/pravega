@@ -6,7 +6,7 @@ package com.emc.pravega.service.server.host.stat;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -50,8 +50,8 @@ public class AutoScaleProcessor {
     private final AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final Cache<String, Pair<Long, Long>> cache;
-    private final Serializer<ScaleRequest> serializer;
-    private final AtomicReference<EventStreamWriter<ScaleRequest>> writer;
+    private final Serializer<ScaleEvent> serializer;
+    private final AtomicReference<EventStreamWriter<ScaleEvent>> writer;
     private final EventWriterConfig writerConfig;
     private final AutoScalerConfig configuration;
     private final Executor executor;
@@ -83,7 +83,7 @@ public class AutoScaleProcessor {
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(EventStreamWriter<ScaleRequest> writer, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
+    AutoScaleProcessor(EventStreamWriter<ScaleEvent> writer, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
         this(configuration, executor, maintenanceExecutor);
         this.writer.set(writer);
         this.initialized.set(true);
@@ -141,7 +141,7 @@ public class AutoScaleProcessor {
                 log.debug("sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.UP, timestamp, numOfSplits, false);
+                ScaleEvent event = new ScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleEvent.UP, timestamp, numOfSplits, false);
                 // Mute scale for timestamp for both scale up and down
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
             }
@@ -162,8 +162,8 @@ public class AutoScaleProcessor {
                 log.debug("sending request for scale down for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(),
-                        segment.getSegmentNumber(), ScaleRequest.DOWN, timestamp, 0, silent);
+                ScaleEvent event = new ScaleEvent(segment.getScope(), segment.getStreamName(),
+                        segment.getSegmentNumber(), ScaleEvent.DOWN, timestamp, 0, silent);
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName,
                         new ImmutablePair<>(0L, timestamp)));
                 // mute only scale downs
@@ -171,7 +171,7 @@ public class AutoScaleProcessor {
         }
     }
 
-    private CompletableFuture<Void> writeRequest(ScaleRequest event) {
+    private CompletableFuture<Void> writeRequest(ScaleEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             CompletableFuture.runAsync(() -> {

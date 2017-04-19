@@ -88,13 +88,6 @@ public interface ControllerServiceConfig {
     Optional<ControllerEventProcessorConfig> getEventProcessorConfig();
 
     /**
-     * Fetches whether the request handlers are enabled.
-     *
-     * @return Whether the request handlers are enabled.
-     */
-    boolean isRequestHandlersEnabled();
-
-    /**
      * Fetches whether gRPC server is enabled, and its configuration if it is enabled.
      *
      * @return Whether gRPC server is enabled, and its configuration if it is enabled.

@@ -77,7 +77,6 @@ public final class Config {
 
     // Request Stream readerGroup
     public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.internal.scale.readerGroup.name");
-    public static final String SCALE_READER_ID = CONFIG.getString("config.controller.server.internal.scale.readerGroup.readerId");
 
     // Metrics
     private static final String METRIC_PATH = "config.controller.metric";

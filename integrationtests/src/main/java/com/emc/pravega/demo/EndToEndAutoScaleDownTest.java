@@ -44,8 +44,7 @@ public class EndToEndAutoScaleDownTest {
 
             int port = Config.SERVICE_PORT;
             @Cleanup
-            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, true);
-            controllerWrapper.awaitRunning();
+            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, false);
             Controller controller = controllerWrapper.getController();
 
             controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
@@ -67,6 +66,7 @@ public class EndToEndAutoScaleDownTest {
             PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
                     statsRecorder);
             server.startListening();
+            controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();
 
             controller.createStream(CONFIG).get();

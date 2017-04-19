@@ -7,12 +7,6 @@ package com.emc.pravega.controller.requests;
 
 import java.io.Serializable;
 
-public interface ControllerRequest extends Serializable {
-    RequestType getType();
-
+public interface ControllerEvent extends Serializable {
     String getKey();
-
-    enum RequestType {
-        ScaleRequest
-    }
 }

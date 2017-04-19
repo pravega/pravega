@@ -4,6 +4,7 @@
 package com.emc.pravega.controller.server.eventProcessor.impl;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -23,14 +24,19 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
     private final ScalingPolicy commitStreamScalingPolicy;
     private final String abortStreamName;
     private final ScalingPolicy abortStreamScalingPolicy;
+    private final String scaleStreamName;
+    private final ScalingPolicy scaleStreamScalingPolicy;
 
     private final String commitReaderGroupName;
     private final int commitReaderGroupSize;
-    private final String abortReaderGrouopName;
+    private final String abortReaderGroupName;
     private final int abortReaderGroupSize;
+    private final String scaleReaderGroupName;
+    private final int scaleReaderGroupSize;
 
     private final CheckpointConfig commitCheckpointConfig;
     private final CheckpointConfig abortCheckpointConfig;
+    private final CheckpointConfig scaleCheckpointConfig;
 
     @Builder
     ControllerEventProcessorConfigImpl(final String scopeName,
@@ -40,20 +46,22 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
                                        final ScalingPolicy abortStreamScalingPolicy,
                                        final String commitReaderGroupName,
                                        final int commitReaderGroupSize,
-                                       final String abortReaderGrouopName,
+                                       final String abortReaderGroupName,
                                        final int abortReaderGroupSize,
                                        final CheckpointConfig commitCheckpointConfig,
-                                       final CheckpointConfig abortCheckpointConfig) {
+                                       final CheckpointConfig abortCheckpointConfig,
+                                       final ScalingPolicy scaleStreamScalingPolicy) {
 
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(commitStreamName, "commitStreamName");
         Exceptions.checkNotNullOrEmpty(abortStreamName, "abortStreamName");
         Exceptions.checkNotNullOrEmpty(commitReaderGroupName, "commitReaderGroupName");
-        Exceptions.checkNotNullOrEmpty(abortReaderGrouopName, "abortReaderGrouopName");
+        Exceptions.checkNotNullOrEmpty(abortReaderGroupName, "abortReaderGroupName");
         Preconditions.checkArgument(commitReaderGroupSize > 0, "commitReaderGroupSize should be a positive integer");
         Preconditions.checkArgument(abortReaderGroupSize > 0, "abortReaderGroupSize should be a positive integer");
         Preconditions.checkNotNull(commitStreamScalingPolicy, "commitStreamScalingPolicy");
         Preconditions.checkNotNull(abortStreamScalingPolicy, "abortStreamScalingPolicy");
+        Preconditions.checkNotNull(scaleStreamScalingPolicy, "scaleStreamScalingPolicy");
         Preconditions.checkNotNull(commitCheckpointConfig, "commitCheckpointConfig");
         Preconditions.checkNotNull(abortCheckpointConfig, "abortCheckpointConfig");
 
@@ -64,10 +72,15 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
         this.abortStreamScalingPolicy = abortStreamScalingPolicy;
         this.commitReaderGroupName = commitReaderGroupName;
         this.commitReaderGroupSize = commitReaderGroupSize;
-        this.abortReaderGrouopName = abortReaderGrouopName;
+        this.abortReaderGroupName = abortReaderGroupName;
         this.abortReaderGroupSize = abortReaderGroupSize;
         this.commitCheckpointConfig = commitCheckpointConfig;
         this.abortCheckpointConfig = abortCheckpointConfig;
+        this.scaleStreamName = Config.SCALE_STREAM_NAME;
+        this.scaleStreamScalingPolicy = scaleStreamScalingPolicy;
+        this.scaleReaderGroupName = Config.SCALE_READER_GROUP;
+        this.scaleReaderGroupSize = 1;
+        this.scaleCheckpointConfig = CheckpointConfig.none();
     }
 
     public static ControllerEventProcessorConfig withDefault() {
@@ -79,10 +92,30 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
                 .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
                 .commitReaderGroupName("commitStreamReaders")
                 .commitReaderGroupSize(1)
-                .abortReaderGrouopName("abortStreamReaders")
+                .abortReaderGroupName("abortStreamReaders")
                 .abortReaderGroupSize(1)
                 .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
                 .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
                 .build();
+    }
+
+    @Override
+    public String getScaleStreamName() {
+        return scaleStreamName;
+    }
+
+    @Override
+    public String getScaleReaderGroupName() {
+        return scaleReaderGroupName;
+    }
+
+    @Override
+    public ScalingPolicy getScaleStreamScalingPolicy() {
+        return scaleStreamScalingPolicy;
+    }
+
+    @Override
+    public CheckpointConfig getScaleCheckpointConfig() {
+        return scaleCheckpointConfig;
     }
 }

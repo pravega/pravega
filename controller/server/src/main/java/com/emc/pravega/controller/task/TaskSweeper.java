@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.task;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.TaskBase.Context;
@@ -20,7 +21,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -55,15 +58,21 @@ public class TaskSweeper {
         initializeMappingTable();
     }
 
-    public CompletableFuture<Void> sweepOrphanedTasks(final Set<String> activeHosts) {
-        return taskMetadataStore.getHosts()
+    public CompletableFuture<Void> sweepOrphanedTasks(final Supplier<Set<String>> runningProcesses) {
+        return Retry.indefinitelyWithExpBackoff(100, 2, 10000,
+                e -> log.warn("Sweeping failed, retry {}", e))
+                .runAsync(() -> taskMetadataStore.getHosts()
                 .thenComposeAsync(registeredHosts -> {
                     log.info("Hosts {} have ongoing tasks", registeredHosts);
-                    registeredHosts.removeAll(activeHosts);
+                    try {
+                        registeredHosts.removeAll(runningProcesses.get());
+                    } catch (Exception e) {
+                        throw new CompletionException(e);
+                    }
                     log.info("Failed hosts {} have orphaned tasks", registeredHosts);
                     return FutureHelpers.allOf(registeredHosts.stream()
                             .map(this::sweepOrphanedTasks).collect(Collectors.toList()));
-                }, executor);
+                }, executor), executor);
     }
 
     /**

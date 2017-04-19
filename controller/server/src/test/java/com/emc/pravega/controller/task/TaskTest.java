@@ -457,7 +457,7 @@ public class TaskTest {
 
         @Override
         public void run() {
-            taskSweeper.sweepOrphanedTasks(Collections.singleton(hostId))
+            taskSweeper.sweepOrphanedTasks(() -> Collections.singleton(hostId))
                     .whenComplete((value, e) -> {
                         if (e != null) {
                             result.completeExceptionally(e);

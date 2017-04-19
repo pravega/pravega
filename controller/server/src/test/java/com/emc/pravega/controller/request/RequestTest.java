@@ -6,8 +6,8 @@ package com.emc.pravega.controller.request;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
-import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
-import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.server.eventProcessor.ScaleRequestHandler;
+import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -109,8 +109,8 @@ public class RequestTest {
 
     @Test(timeout = 10000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
-        ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor);
-        ScaleRequest request = new ScaleRequest(scope, stream, 2, ScaleRequest.UP, System.currentTimeMillis(), 2, false);
+        ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, executor);
+        ScaleEvent request = new ScaleEvent(scope, stream, 2, ScaleEvent.UP, System.currentTimeMillis(), 2, false);
 
         assertTrue(FutureHelpers.await(requestHandler.process(request)));
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
@@ -120,7 +120,7 @@ public class RequestTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);
 
-        request = new ScaleRequest(scope, stream, 4, ScaleRequest.DOWN, System.currentTimeMillis(), 0, false);
+        request = new ScaleEvent(scope, stream, 4, ScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
         assertTrue(FutureHelpers.await(requestHandler.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
@@ -128,7 +128,7 @@ public class RequestTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);
 
-        request = new ScaleRequest(scope, stream, 3, ScaleRequest.DOWN, System.currentTimeMillis(), 0, false);
+        request = new ScaleEvent(scope, stream, 3, ScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
         assertTrue(FutureHelpers.await(requestHandler.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
