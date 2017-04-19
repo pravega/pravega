@@ -5,14 +5,16 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -33,6 +35,7 @@ import org.junit.rules.Timeout;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -59,6 +62,15 @@ public abstract class ControllerServiceImplTest {
 
     @After
     public abstract void tearDown() throws Exception;
+
+    @Test
+    public void getControllerServersTest() {
+        ResultObserver<ServerResponse> result = new ResultObserver<>();
+        this.controllerService.getControllerServerList(ServerRequest.getDefaultInstance(), result);
+        assertEquals(1, result.get().getNodeURICount());
+        assertEquals("localhost", result.get().getNodeURI(0).getEndpoint());
+        assertEquals(9090, result.get().getNodeURI(0).getPort());
+    }
 
     @Test
     public void createScopeTests() {
@@ -157,7 +169,7 @@ public abstract class ControllerServiceImplTest {
 
         // region checkStream
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
-        this.controllerService.createScope(Controller.ScopeInfo.newBuilder().setScope(SCOPE1).build(), result);
+        this.controllerService.createScope(ScopeInfo.newBuilder().setScope(SCOPE1).build(), result);
         Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
 
         ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
@@ -191,6 +203,15 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.createStream(ModelHelper.decode(configuration4), result5);
         status = result5.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.INVALID_STREAM_NAME);
+
+        // Create stream with an internal stream name.
+        ResultObserver<CreateStreamStatus> result6 = new ResultObserver<>();
+        final StreamConfiguration configuration6 =
+                StreamConfiguration.builder().scope(SCOPE1).streamName(
+                        NameUtils.getInternalNameForStream("abcdef")).scalingPolicy(policy2).build();
+        this.controllerService.createStream(ModelHelper.decode(configuration6), result6);
+        status = result6.get();
+        assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
     }
 
     @Test

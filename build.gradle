@@ -172,17 +172,28 @@ project ('shared') {
     compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
     compile project(':common')
    }
+
+   publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-shared'
+                from components.java
+            }
+        }
+    }
+    javadoc {
+        exclude 'com/emc/pravega/shared/*'
+    }
 }
 
 project('clients:streaming') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
+        compile project(':shared')
         compile project(":controller:contract")
         testCompile project(':testcommon')
     }
@@ -214,6 +225,7 @@ project('testcommon') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
 }
 
@@ -347,6 +359,9 @@ project('service:server:host') {
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile files(project(':service:server').sourceSets.test.output)
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
+        testCompile files(project(':service:storage:impl').sourceSets.test.output)
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
         dependsOn 'distTar','distZip'
@@ -548,6 +563,7 @@ project('controller:server') {
 
     dependencies {
         compile project(':common')
+        compile project(':shared')
         compile project(":controller:contract")
         compile project(":clients:streaming")
         compile project(":shared")
@@ -612,6 +628,7 @@ project('connectors:flink') {
     shadowJar {
         dependencies {
             // 'include' specific dependencies in the shadow jar
+            // IMPORTANT: transitive dependencies must be manually listed here!
             include dependency("com.google.guava:guava")
             include dependency("commons-lang:commons-lang")
             include dependency("org.apache.commons:commons-lang3")
@@ -637,6 +654,7 @@ project('connectors:flink') {
             include dependency("com.google.code.gson:gson")
             include dependency("com.google.instrumentation:instrumentation-api")
             include(project(":common"))
+            include(project(":shared"))
             include(project(":controller:contract"))
             include(project(":clients:streaming"))
         }
@@ -728,6 +746,7 @@ project('systemtests:tests') {
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
         compile project(':controller:server')
         compile project(":clients:streaming")
+        compile project(":testcommon")
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: jerseyVersion
@@ -802,6 +821,7 @@ task publishAllJars() {
     dependsOn ':service:storage:impl:publish'
     dependsOn ':service:server:publish'
     dependsOn ':service:server:host:publish'
+    dependsOn ':shared:publish'
     dependsOn ':controller:contract:publish'
     dependsOn ':controller:server:publish'
     dependsOn ':connectors:flink:publish'

@@ -118,7 +118,7 @@ public class PravegaTest {
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
-        ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+        ControllerImpl controller = new ControllerImpl(controllerUri);
 
         assertTrue(controller.createScope(STREAM_SCOPE).get());
         assertTrue(controller.createStream(config).get());

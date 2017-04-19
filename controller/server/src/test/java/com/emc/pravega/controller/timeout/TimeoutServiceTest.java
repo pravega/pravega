@@ -5,6 +5,8 @@
  */
 package com.emc.pravega.controller.timeout;
 
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.server.SegmentHelper;
@@ -32,6 +34,7 @@ import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
@@ -75,7 +78,7 @@ public class TimeoutServiceTest {
         final String hostId = "host";
 
         // Instantiate test ZK service.
-        zkTestServer = new TestingServer();
+        zkTestServer = new TestingServerStarter().start();
         String connectionString = zkTestServer.getConnectString();
 
         // Initialize the executor service.
@@ -103,7 +106,7 @@ public class TimeoutServiceTest {
                 TimeoutServiceConfig.defaultConfig(), new LinkedBlockingQueue<>(5));
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executor);
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executor, null);
 
         // Create scope and stream
         streamStore.createScope(SCOPE).join();
@@ -439,6 +442,26 @@ public class TimeoutServiceTest {
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
+    }
+
+    @Test(timeout = 5000)
+    public void testCloseUnknownTxn() {
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
+                SCALE_GRACE_PERIOD, null, executor).join();
+        TxnId txnId = convert(txData.getId());
+
+        Controller.TxnState state = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
+        Assert.assertEquals(TxnState.State.OPEN, state.getState());
+
+        Controller.TxnStatus.Status status = controllerService.abortTransaction(SCOPE, STREAM, txnId).join().getStatus();
+        Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status);
+    }
+
+    private TxnId convert(UUID uuid) {
+        return TxnId.newBuilder()
+                .setHighBits(uuid.getMostSignificantBits())
+                .setLowBits(uuid.getLeastSignificantBits())
+                .build();
     }
 
     private <T> void checkError(CompletableFuture<T> future, Class<? extends Throwable> expectedException) {

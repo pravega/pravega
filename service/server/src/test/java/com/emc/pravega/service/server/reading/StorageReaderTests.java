@@ -10,11 +10,13 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
@@ -57,10 +59,10 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
 
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executorService());
+        storage.initialize(1);
+        byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
-
-        byte[] segmentData = populateSegment(storage);
         HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
         int readOffset = 0;
         while (readOffset < segmentData.length) {
@@ -94,10 +96,10 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
     public void testInvalidRequests() {
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executorService());
+        storage.initialize(1);
+        byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
-
-        byte[] segmentData = populateSegment(storage);
 
         // Segment does not exist.
         AssertExtensions.assertThrows(
@@ -113,13 +115,13 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         // Invalid read offset.
         AssertExtensions.assertThrows(
                 "Request was not failed when bad offset was provided.",
-                sendRequest(reader, segmentData.length + 1, 1)::join,
+                () -> sendRequest(reader, segmentData.length + 1, 1),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
 
         // Invalid read length.
         AssertExtensions.assertThrows(
                 "Request was not failed when bad offset + length was provided.",
-                sendRequest(reader, segmentData.length - 1, 2)::join,
+                () -> sendRequest(reader, segmentData.length - 1, 2),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 
@@ -135,6 +137,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testDependents() {
+        final Duration waitTimeout = Duration.ofSeconds(5);
         TestStorage storage = new TestStorage();
         CompletableFuture<Integer> signal = new CompletableFuture<>();
         AtomicBoolean wasReadInvoked = new AtomicBoolean();
@@ -157,16 +160,14 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         Assert.assertFalse("One or more of the reads has completed prematurely.", c1.isDone() || c2.isDone());
 
         signal.completeExceptionally(new IntentionalException());
-        Assert.assertTrue("The first read did not fail.", c1.isCompletedExceptionally());
-        Assert.assertTrue("The second read did not fail.", c2.isCompletedExceptionally());
         AssertExtensions.assertThrows(
                 "The first read was not failed with the correct exception.",
-                c1::join,
+                () -> c1.get(waitTimeout.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ex instanceof IntentionalException);
 
         AssertExtensions.assertThrows(
                 "The second read was not failed with the correct exception.",
-                c2::join,
+                () -> c2.get(waitTimeout.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ex instanceof IntentionalException);
     }
 
@@ -213,7 +214,8 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         byte[] segmentData = new byte[length];
         random.nextBytes(segmentData);
         storage.create(SEGMENT_METADATA.getName(), TIMEOUT).join();
-        storage.write(SEGMENT_METADATA.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
+        val writeHandle = storage.openWrite(SEGMENT_METADATA.getName()).join();
+        storage.write(writeHandle, 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
         return segmentData;
     }
 
@@ -221,13 +223,17 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         Supplier<CompletableFuture<Integer>> readImplementation;
 
         @Override
-        public CompletableFuture<Void> open(String streamSegmentName) {
-            // This method is not needed.
-            throw new NotImplementedException();
+        public void initialize(long epoch) {
+            // Nothing to do.
         }
 
         @Override
-        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
+            return CompletableFuture.completedFuture(InMemoryStorage.newHandle(streamSegmentName, true));
+        }
+
+        @Override
+        public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
             return this.readImplementation.get();
         }
 

@@ -6,8 +6,10 @@
 package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.ClusterType;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.client.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostMonitorConfig;
@@ -47,12 +49,12 @@ public class SegmentContainerMonitorTest {
 
     @Before
     public void startZookeeper() throws Exception {
-        zkTestServer = new TestingServer();
+        zkTestServer = new TestingServerStarter().start();
         String zkUrl = zkTestServer.getConnectString();
 
         zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
-        cluster = new ClusterZKImpl(zkClient);
+        cluster = new ClusterZKImpl(zkClient, ClusterType.HOST);
     }
 
     @After
@@ -128,20 +130,20 @@ public class SegmentContainerMonitorTest {
         assertEquals(0, hostStore.getHostContainersMap().size());
 
         //New host added.
-        cluster.registerHost(new Host("localhost1", 1));
+        cluster.registerHost(new Host("localhost1", 1, null));
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(1, hostStore.getHostContainersMap().size());
 
         //Multiple hosts added and removed.
-        cluster.registerHost(new Host("localhost2", 2));
-        cluster.registerHost(new Host("localhost3", 3));
-        cluster.registerHost(new Host("localhost4", 4));
-        cluster.deregisterHost(new Host("localhost1", 1));
+        cluster.registerHost(new Host("localhost2", 2, null));
+        cluster.registerHost(new Host("localhost3", 3, null));
+        cluster.registerHost(new Host("localhost4", 4, null));
+        cluster.deregisterHost(new Host("localhost1", 1, null));
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(3, hostStore.getHostContainersMap().size());
 
         //Add a host.
-        cluster.registerHost(new Host("localhost1", 1));
+        cluster.registerHost(new Host("localhost1", 1, null));
 
         //Rebalance should not have been triggered since the min rebalance interval is not yet elapsed.
         assertEquals(3, hostStore.getHostContainersMap().size());

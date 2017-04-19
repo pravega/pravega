@@ -32,9 +32,9 @@ abstract class AbstractScaleTests {
 
     ControllerImpl getController(final URI controllerUri) {
         if (controllerRef.get() == null) {
-            log.debug("Controller uri:" + controllerUri.getHost() + ":" + controllerUri.getPort());
+            log.debug("Controller uri: {}", controllerUri);
 
-            controllerRef.set(new ControllerImpl(controllerUri.getHost(), controllerUri.getPort()));
+            controllerRef.set(new ControllerImpl(controllerUri));
         }
         return controllerRef.get();
     }

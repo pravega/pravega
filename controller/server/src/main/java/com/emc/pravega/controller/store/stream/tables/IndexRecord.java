@@ -5,12 +5,9 @@ package com.emc.pravega.controller.store.stream.tables;
 
 import com.emc.pravega.common.util.BitConverter;
 import lombok.Data;
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.Optional;
 
 @Data
@@ -29,7 +26,7 @@ public class IndexRecord {
         if (offset >= indexTable.length) {
             return Optional.empty();
         } else {
-            return Optional.of(parse(ArrayUtils.subarray(indexTable, offset, offset + INDEX_RECORD_SIZE)));
+            return Optional.of(parse(indexTable, offset));
         }
     }
 
@@ -61,10 +58,10 @@ public class IndexRecord {
         return binarySearchIndex(lower, upper, timestamp, indexTable);
     }
 
-    private static IndexRecord parse(final byte[] bytes) {
-        final long eventTime = BitConverter.readLong(bytes, 0);
-        final int offset = BitConverter.readInt(bytes, Long.BYTES);
-        return new IndexRecord(eventTime, offset);
+    private static IndexRecord parse(final byte[] bytes, int offset) {
+        final long eventTime = BitConverter.readLong(bytes, offset);
+        final int historyOffset = BitConverter.readInt(bytes, offset + Long.BYTES);
+        return new IndexRecord(eventTime, historyOffset);
     }
 
     private static Pair<Integer, Optional<IndexRecord>> binarySearchIndex(final int lower,
@@ -93,15 +90,10 @@ public class IndexRecord {
     }
 
     public byte[] toByteArray() {
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] b = new byte[INDEX_RECORD_SIZE];
+        BitConverter.writeLong(b, 0, eventTime);
+        BitConverter.writeInt(b, Long.BYTES, historyOffset);
 
-        try {
-            outputStream.write(Utilities.toByteArray(eventTime));
-            outputStream.write(Utilities.toByteArray(historyOffset));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        return outputStream.toByteArray();
+        return b;
     }
 }

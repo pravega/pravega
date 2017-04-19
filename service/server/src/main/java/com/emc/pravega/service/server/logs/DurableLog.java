@@ -117,7 +117,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             ServiceShutdownListener.awaitShutdown(this, false);
 
             this.operationProcessor.close();
-            this.durableDataLog.close();
+            this.durableDataLog.close(); // Call this again just in case we were not able to do it in doStop().
             log.info("{}: Closed.", this.traceObjectId);
             this.closed.set(true);
         }
@@ -168,6 +168,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             cancelTailReads();
 
+            this.durableDataLog.close();
             Throwable cause = this.stopException.get();
             if (cause == null && this.operationProcessor.state() == State.FAILED) {
                 cause = this.operationProcessor.failureCause();
@@ -312,7 +313,8 @@ public class DurableLog extends AbstractService implements OperationLog {
         try {
             this.durableDataLog.initialize(timer.getRemaining());
             anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
-            log.info("{} Recovery completed. Items Recovered = {}.", this.traceObjectId, anyItemsRecovered);
+            this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
+            log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), anyItemsRecovered);
             successfulRecovery = true;
         } catch (Exception ex) {
             log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);

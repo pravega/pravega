@@ -18,6 +18,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -43,7 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class RequestHandlersInit {
     private static final StreamConfiguration REQUEST_STREAM_CONFIG = StreamConfiguration.builder()
-                                                                                        .scope(Config.INTERNAL_SCOPE)
+                                                                                        .scope(NameUtils.INTERNAL_SCOPE_NAME)
                                                                                         .streamName(Config.SCALE_STREAM_NAME)
                                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                                                         .build();
@@ -63,41 +64,46 @@ public class RequestHandlersInit {
         Preconditions.checkNotNull(executor);
 
         final LocalController localController = new LocalController(controller);
-        ClientFactory clientFactory = ClientFactory.withScope(Config.INTERNAL_SCOPE, localController);
+        ClientFactory clientFactory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, localController);
 
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, localController, clientFactory);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(NameUtils.INTERNAL_SCOPE_NAME, localController, clientFactory);
 
         CHECKPOINT_STORE_REF.set(checkpointStore);
         SERIALIZER_REF.set(new JavaSerializer<>());
 
-        return createScope(controller, executor)
+        CompletableFuture<Void> initFuture = createScope(controller, executor)
                 .thenCompose(x -> createStreams(controller, executor))
                 .thenCompose(y -> startScaleReader(clientFactory, readerGroupManager, controller.getStreamMetadataTasks(),
                         controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
-                        executor))
-                .thenCompose(z -> SCALE_REQUEST_READER_REF.get().run());
+                        executor));
+        initFuture.thenComposeAsync(z -> SCALE_REQUEST_READER_REF.get().run(), executor);
+        return initFuture;
     }
 
     public static void shutdownRequestHandlers() throws Exception {
+        final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = SCALE_REQUEST_READER_REF.getAndSet(null);
+        log.info("Closing scale request handler");
+        if (prevHandler != null) {
+            prevHandler.close();
+        }
         final EventStreamReader<ScaleRequest> reader = SCALE_READER_REF.getAndSet(null);
+        log.info("Closing scale request stream reader");
         if (reader != null) {
             reader.close();
         }
         final EventStreamWriter<ScaleRequest> writer = SCALE_WRITER_REF.getAndSet(null);
+        log.info("Closing scale request stream writer");
         if (writer != null) {
             writer.close();
         }
-        final RequestReader<ScaleRequest, ScaleRequestHandler> prevHandler = SCALE_REQUEST_READER_REF.getAndSet(null);
-        if (prevHandler != null) {
-            prevHandler.close();
-        }
+        log.info("Request handlers shutdown complete");
     }
 
     private static CompletableFuture<Void> createScope(ControllerService controller, ScheduledExecutorService executor) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Retry.indefinitelyWithExpBackoff(10, 10, 10000,
                 e -> log.error("Exception while creating request stream {}", e))
-                .runAsync(() -> controller.createScope(Config.INTERNAL_SCOPE)
+                .runAsync(() -> controller.createScope(NameUtils.INTERNAL_SCOPE_NAME)
                         .whenComplete((res, ex) -> {
                             if (ex != null) {
                                 // fail and exit
@@ -186,7 +192,7 @@ public class RequestHandlersInit {
                                 executor));
                     }
 
-                    log.debug("bootstrapping request handlers done");
+                    log.info("Bootstrapping request handlers complete");
                     result.complete(null);
                     return result;
                 }, executor);

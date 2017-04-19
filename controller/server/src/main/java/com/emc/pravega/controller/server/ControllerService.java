@@ -6,7 +6,9 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -34,13 +36,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.Lombok;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -49,6 +52,7 @@ import org.apache.commons.lang3.tuple.Pair;
  */
 @Getter
 @AllArgsConstructor
+@Slf4j
 public class ControllerService {
 
     private final StreamMetadataStore streamStore;
@@ -58,11 +62,36 @@ public class ControllerService {
     private final TimeoutService timeoutService;
     private final SegmentHelper segmentHelper;
     private final Executor executor;
+    private final Cluster cluster;
+
+    public CompletableFuture<List<NodeUri>> getControllerServerList() {
+        if (cluster == null) {
+            return FutureHelpers.failedFuture(new IllegalStateException("Controller cluster not initialized"));
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return cluster.getClusterMembers().stream()
+                        .map(host -> NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build())
+                        .collect(Collectors.toList());
+            } catch (Exception e) {
+                // cluster implementation throws checked exceptions which cannot be thrown inside completable futures.
+                throw Lombok.sneakyThrow(e);
+            }
+        }, executor);
+    }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
             final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
+        try {
+            NameUtils.validateStreamName(streamConfig.getStreamName());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create stream failed due to invalid stream name {}", streamConfig.getStreamName());
+            return CompletableFuture.completedFuture(
+                    CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
+        }
         return streamMetadataTasks.createStream(streamConfig.getScope(),
                                                 streamConfig.getStreamName(),
                                                 streamConfig,
@@ -118,7 +147,7 @@ public class ControllerService {
         });
     }
 
-    public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
+    public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatelyFollowing(SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
         return streamStore.getSuccessors(segment.getStreamInfo().getScope(),
                                          segment.getStreamInfo().getStream(),
@@ -251,7 +280,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
         UUID txId = ModelHelper.encode(txnId);
-        return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, Optional.<Integer>empty(), null)
+        return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, null, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user.
@@ -333,6 +362,13 @@ public class ControllerService {
      */
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
+        try {
+            NameUtils.validateScopeName(scope);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create scope failed due to invalid scope name {}", scope);
+            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
+                    CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
+        }
         return streamStore.createScope(scope);
     }
 

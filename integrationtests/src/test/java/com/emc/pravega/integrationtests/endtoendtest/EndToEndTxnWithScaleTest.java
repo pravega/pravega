@@ -5,6 +5,7 @@ package com.emc.pravega.integrationtests.endtoendtest;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -37,6 +38,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndTxnWithScaleTest {
@@ -52,7 +54,7 @@ public class EndToEndTxnWithScaleTest {
 
     @Before
     public void setUp() throws Exception {
-        zkTestServer = new TestingServer();
+        zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -104,7 +106,9 @@ public class EndToEndTxnWithScaleTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        controller.scaleStream(stream, Collections.singletonList(0), map).get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map).get();
+
+        assertTrue(result);
 
         transaction = test.beginTxn(5000, 3600000, 29000);
         transaction.writeEvent("0", "txntest2");

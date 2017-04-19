@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -20,6 +21,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -48,7 +50,7 @@ public class ZkStreamTest {
 
     @Before
     public void startZookeeper() throws Exception {
-        zkTestServer = new TestingServer();
+        zkTestServer = new TestingServerStarter().start();
         cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
 
@@ -166,7 +168,7 @@ public class ZkStreamTest {
 
         CompletableFuture<DeleteScopeStatus> deleteScopeStatus3 = store.deleteScope("Scope3");
         assertEquals("Delete non-empty Scope", DeleteScopeStatus.Status.SCOPE_NOT_EMPTY,
-                     deleteScopeStatus3.get().getStatus());
+                deleteScopeStatus3.get().getStatus());
     }
 
     @Test
@@ -241,8 +243,11 @@ public class ZkStreamTest {
         newRanges = Collections.singletonList(
                 new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
-        long scale1 = start + 10;
-        store.scale(SCOPE, streamName, Lists.newArrayList(3, 4), newRanges, scale1, context, executor).get();
+        long scale1 = start + 10000;
+        ArrayList<Integer> sealedSegments = Lists.newArrayList(3, 4);
+        List<Segment> newSegments = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, context, executor).get();
+        store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments, newSegments, scale1, context, executor).get();
+        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments, newSegments, scale1, context, executor).get();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
@@ -255,8 +260,11 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(0.3, 0.4),
                 new AbstractMap.SimpleEntry<>(0.4, 1.0));
 
-        long scale2 = scale1 + 10;
-        store.scale(SCOPE, streamName, Lists.newArrayList(1, 2, 5), newRanges, scale2, context, executor).get();
+        long scale2 = scale1 + 10000;
+        ArrayList<Integer> sealedSegments1 = Lists.newArrayList(1, 2, 5);
+        List<Segment> segmentsCreated = store.startScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, context, executor).get();
+        store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments1, segmentsCreated, scale2, context, executor).get();
+        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments1, segmentsCreated, scale2, context, executor).get();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
@@ -269,8 +277,11 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(0.35, 0.6),
                 new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
-        long scale3 = scale2 + 10;
-        store.scale(SCOPE, streamName, Lists.newArrayList(7, 8), newRanges, scale3, context, executor).get();
+        long scale3 = scale2 + 10000;
+        ArrayList<Integer> sealedSegments2 = Lists.newArrayList(7, 8);
+        segmentsCreated = store.startScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, context, executor).get();
+        store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments2, segmentsCreated, scale3, context, executor).get();
+        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments2, segmentsCreated, scale3, context, executor).get();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);
@@ -287,22 +298,22 @@ public class ZkStreamTest {
         assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         // scale1 + 1
-        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale1 + 1, context, executor).get();
+        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale1 + 1000, context, executor).get();
         assertEquals(historicalSegments.size(), 4);
         assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 1, 2, 5)));
 
         // scale2 + 1
-        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale2 + 1, context, executor).get();
+        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale2 + 1000, context, executor).get();
         assertEquals(historicalSegments.size(), 4);
         assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 6, 7, 8)));
 
         // scale3 + 1
-        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 1, context, executor).get();
+        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 1000, context, executor).get();
         assertEquals(historicalSegments.size(), 5);
         assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 6, 9, 10, 11)));
 
-        // scale 3 + 100
-        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 100, context, executor).get();
+        // scale 3 + 10000
+        historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 10000, context, executor).get();
         assertEquals(historicalSegments.size(), 5);
         assertTrue(historicalSegments.containsAll(Lists.newArrayList(0, 6, 9, 10, 11)));
 
@@ -379,7 +390,7 @@ public class ZkStreamTest {
             try {
 
                 List<Integer> list = IntStream.range(x * 6, (x + 1) * 6).boxed().collect(Collectors.toList());
-                store.scale(SCOPE, streamName, list, newRanges, scaleTs, context, executor).get();
+                store.startScale(SCOPE, streamName, list, newRanges, scaleTs, context, executor).get();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

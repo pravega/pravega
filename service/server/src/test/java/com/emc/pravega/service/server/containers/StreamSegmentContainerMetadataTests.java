@@ -67,6 +67,34 @@ public class StreamSegmentContainerMetadataTests {
     }
 
     /**
+     * Tests Epoch-related operations.
+     */
+    @Test
+    public void testEpoch() {
+        final int epoch = 10;
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
+
+        AssertExtensions.assertThrows(
+                "setContainerEpoch allowed updating the sequence number in non-recovery mode.",
+                () -> m.setContainerEpoch(Integer.MAX_VALUE),
+                ex -> ex instanceof IllegalStateException);
+
+        // In recovery mode: setContainerEpoch should work.
+        m.enterRecoveryMode();
+        m.setContainerEpoch(epoch);
+        Assert.assertEquals("Unexpected value from getContainerEpoch.", epoch, m.getContainerEpoch());
+        AssertExtensions.assertThrows(
+                "setContainerEpoch allowed updating the epoch after the initial set.",
+                () -> m.setContainerEpoch(11),
+                ex -> ex instanceof IllegalStateException);
+
+        Assert.assertEquals("Unexpected value from getContainerEpoch after rejected update.", epoch, m.getContainerEpoch());
+
+        m.exitRecoveryMode();
+        Assert.assertEquals("Unexpected value from getContainerEpoch after exit from recovery mode.", epoch, m.getContainerEpoch());
+    }
+
+    /**
      * Tests the ability to map new StreamSegments (as well as Transactions).
      */
     @Test
@@ -266,6 +294,7 @@ public class StreamSegmentContainerMetadataTests {
         // Set a high Sequence Number
         m.enterRecoveryMode();
         m.setOperationSequenceNumber(Integer.MAX_VALUE);
+        m.setContainerEpoch(Integer.MAX_VALUE + 1L);
         m.exitRecoveryMode();
 
         // Populate some StreamSegments.
@@ -298,6 +327,7 @@ public class StreamSegmentContainerMetadataTests {
 
         // Verify everything was reset.
         Assert.assertEquals("Sequence Number was not reset.", ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER, m.getOperationSequenceNumber());
+        AssertExtensions.assertLessThan("Epoch was not reset.", 0, m.getContainerEpoch());
         for (long segmentId : segmentIds) {
             Assert.assertEquals("SegmentMetadata was not reset (getStreamSegmentId).", ContainerMetadata.NO_STREAM_SEGMENT_ID, m.getStreamSegmentId(getName(segmentId), false));
             Assert.assertNull("SegmentMetadata was not reset (getStreamSegmentMetadata).", m.getStreamSegmentMetadata(segmentId));

@@ -13,6 +13,7 @@ import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -23,6 +24,7 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -40,16 +42,15 @@ public class EndToEndAutoScaleUpWithTxnTest {
     public static void main(String[] args) throws Exception {
         try {
             @Cleanup
-            TestingServer zkTestServer = new TestingServer();
+            TestingServer zkTestServer = new TestingServerStarter().start();
             int port = Config.SERVICE_PORT;
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
-            controllerWrapper.awaitRunning();
             Controller controller = controllerWrapper.getController();
-            controllerWrapper.getControllerService().createScope("pravega").get();
+            controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
             @Cleanup
-            ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
+            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(false));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
@@ -113,7 +114,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
         CompletableFuture.runAsync(() -> {
             while (!done.get()) {
                 try {
-                    Transaction<String> transaction = test.beginTxn(5000, 3600000, 60000);
+                    Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
 
                     for (int i = 0; i < 1000; i++) {
                         transaction.writeEvent("0", "txntest");

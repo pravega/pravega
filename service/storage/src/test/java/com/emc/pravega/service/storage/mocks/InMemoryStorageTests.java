@@ -1,26 +1,40 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.mocks;
 
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageNotPrimaryException;
 import com.emc.pravega.service.storage.TruncateableStorage;
 import com.emc.pravega.service.storage.TruncateableStorageTestBase;
 import com.emc.pravega.testcommon.AssertExtensions;
-import lombok.Cleanup;
-import lombok.val;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.TimeUnit;
+import lombok.Cleanup;
+import lombok.val;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Unit tests for InMemoryStorage
  */
 public class InMemoryStorageTests extends TruncateableStorageTestBase {
+    private InMemoryStorageFactory factory;
+
+    @Before
+    public void setUp() {
+        this.factory = new InMemoryStorageFactory(executorService());
+    }
+
+    @After
+    public void tearDown() {
+        if (this.factory != null) {
+            this.factory.close();
+            this.factory = null;
+        }
+    }
 
     @Test
     @Override
@@ -30,72 +44,71 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
 
         @Cleanup
         val storage = new InMemoryStorage();
+        storage.initialize(DEFAULT_EPOCH);
 
         // Part 1: Create a segment and verify all operations are allowed.
         storage.create(segment1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        verifyOperationsSucceed(segment1, storage);
+        SegmentHandle handle1 = storage.openWrite(segment1).join();
+        verifyAllOperationsSucceed(handle1, storage);
 
         // Part 2: Change owner, verify segment operations are not allowed until a call to open() is made.
         storage.changeOwner();
-        verifyAllOperationsFail(segment1, storage);
+        verifyWriteOperationsFail(handle1, storage);
 
-        storage.open(segment1);
-        verifyOperationsSucceed(segment1, storage);
+        handle1 = storage.openWrite(segment1).join();
+        verifyAllOperationsSucceed(handle1, storage);
 
         // Part 3: Create new segment and verify all operations are allowed.
         storage.create(segment2, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        verifyOperationsSucceed(segment2, storage);
+        SegmentHandle handle2 = storage.openWrite(segment2).join();
+        verifyAllOperationsSucceed(handle2, storage);
 
         // Cleanup.
-        storage.delete(segment1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        storage.delete(segment2, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        storage.delete(handle1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        storage.delete(handle2, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private void verifyAllOperationsFail(String segmentName, Storage storage) {
+    private void verifyWriteOperationsFail(SegmentHandle handle, Storage storage) {
         final byte[] writeData = "hello".getBytes();
-
-        // GetInfo
-        AssertExtensions.assertThrows(
-                "getStreamSegmentInfo did not throw for non-owned Segment",
-                () -> storage.getStreamSegmentInfo(segmentName, TIMEOUT),
-                ex -> ex instanceof StorageNotPrimaryException);
 
         // Write
         AssertExtensions.assertThrows(
                 "write did not throw for non-owned Segment",
-                () -> storage.write(segmentName, 0, new ByteArrayInputStream(writeData), writeData.length, TIMEOUT),
+                () -> storage.write(handle, 0, new ByteArrayInputStream(writeData), writeData.length, TIMEOUT),
                 ex -> ex instanceof StorageNotPrimaryException);
 
         // Seal
         AssertExtensions.assertThrows(
                 "seal did not throw for non-owned Segment",
-                () -> storage.seal(segmentName, TIMEOUT),
+                () -> storage.seal(handle, TIMEOUT),
                 ex -> ex instanceof StorageNotPrimaryException);
 
-        // Read
-        byte[] readBuffer = new byte[1];
-        AssertExtensions.assertThrows(
-                "read() did not throw for non-owned Segment",
-                () -> storage.read(segmentName, 0, readBuffer, 0, readBuffer.length, TIMEOUT),
-                ex -> ex instanceof StorageNotPrimaryException);
+        // Read-only operations should succeed.
+        storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
+        storage.read(handle, 0, new byte[1], 0, 1, TIMEOUT);
     }
 
-    private void verifyOperationsSucceed(String segmentName, Storage storage) throws Exception {
+    private void verifyAllOperationsSucceed(SegmentHandle handle, Storage storage) throws Exception {
         final byte[] writeData = "hello".getBytes();
 
         // GetInfo
-        val si = storage.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Write
-        storage.write(segmentName, si.getLength(), new ByteArrayInputStream(writeData), writeData.length, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        storage.write(handle, si.getLength(), new ByteArrayInputStream(writeData), writeData.length, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Read
         byte[] readBuffer = new byte[(int) si.getLength()];
-        storage.read(segmentName, 0, readBuffer, 0, readBuffer.length, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        storage.read(handle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
     protected TruncateableStorage createStorage() {
-        return new InMemoryStorage();
+        return this.factory.createStorageAdapter();
+    }
+
+    @Override
+    protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
+        return InMemoryStorage.newHandle(segmentName, readOnly);
     }
 }

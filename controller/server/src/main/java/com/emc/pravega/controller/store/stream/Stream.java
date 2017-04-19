@@ -3,9 +3,10 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
+
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -124,17 +125,39 @@ interface Stream {
     CompletableFuture<List<Integer>> getActiveSegments(final long timestamp);
 
     /**
-     * Scale the stream by sealing few segments and creating few segments
+     * Called to start metadata updates to stream store wrt new scale event.
      *
-     * @param sealedSegments segments to be sealed
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
      * @return sequence of newly created segments
      */
-    CompletableFuture<List<Segment>> scale(final List<Integer> sealedSegments,
-                                           final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                           final long scaleTimestamp);
+    CompletableFuture<List<Segment>> startScale(final List<Integer> sealedSegments,
+                                                final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                final long scaleTimestamp);
 
+    /**
+     * Called after new segment creation is complete.
+     *
+     * @param sealedSegments segments to be sealed
+     * @param newSegments    segments created
+     * @param scaleTimestamp scaling timestamp
+     * @return future
+     */
+    CompletableFuture<Void> scaleNewSegmentsCreated(final List<Integer> sealedSegments,
+                                                    final List<Integer> newSegments,
+                                                    final long scaleTimestamp);
+
+    /**
+     * Called after sealing old segments is complete.
+     *
+     * @param sealedSegments segments to be sealed
+     * @param newSegments    segments created
+     * @param scaleTimestamp scaling timestamp
+     * @return future
+     */
+    CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
+                                                   final List<Integer> newSegments,
+                                                   final long scaleTimestamp);
 
     /**
      * Sets cold marker which is valid till the specified time stamp.
@@ -174,7 +197,7 @@ interface Stream {
     /**
      * Heartbeat method to keep transaction open for at least lease amount of time.
      *
-     * @param txId Transaction identifier.
+     * @param txId  Transaction identifier.
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.
      */
@@ -232,7 +255,7 @@ interface Stream {
      */
     CompletableFuture<Integer> getNumberOfOngoingTransactions();
 
-    CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns();
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

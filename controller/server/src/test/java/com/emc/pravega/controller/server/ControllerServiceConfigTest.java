@@ -3,6 +3,8 @@
  */
 package com.emc.pravega.controller.server;
 
+import com.emc.pravega.controller.fault.ControllerClusterListenerConfig;
+import com.emc.pravega.controller.fault.impl.ControllerClusterListenerConfigImpl;
 import com.emc.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import com.emc.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
@@ -16,6 +18,7 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import org.junit.Test;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for ControllerServiceConfig.
@@ -28,9 +31,23 @@ public class ControllerServiceConfigTest {
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> GRPCServerConfigImpl.builder().build());
 
+        AssertExtensions.assertThrows(NullPointerException.class,
+                () -> GRPCServerConfigImpl.builder().publishedRPCHost(null).port(10).build());
+
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> GRPCServerConfigImpl.builder().publishedRPCHost("").port(10).build());
+
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> GRPCServerConfigImpl.builder().publishedRPCHost("localhost").port(10).build());
+
         // Port should be positive integer
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> GRPCServerConfigImpl.builder().port(-10).build());
+
+        // Port should be positive integer
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> GRPCServerConfigImpl.builder().port(10).publishedRPCHost("localhost")
+                        .publishedRPCPort(-10).build());
 
         // Config parameters should be initialized, default values of the type are not allowed.
         AssertExtensions.assertThrows(NullPointerException.class,
@@ -167,6 +184,28 @@ public class ControllerServiceConfigTest {
                         .requestHandlersEnabled(false)
                         .grpcServerConfig(Optional.empty())
                         .restServerConfig(Optional.of(null))
+                        .build());
+
+        // If ControllerClusterListener is present, storeClient should be ZK.
+        ControllerClusterListenerConfig clusterListenerConfig =
+                ControllerClusterListenerConfigImpl.builder()
+                        .minThreads(1).maxThreads(1).idleTime(10).idleTimeUnit(TimeUnit.SECONDS).maxQueueSize(8).build();
+
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> ControllerServiceConfigImpl.builder()
+                        .serviceThreadPoolSize(3)
+                        .taskThreadPoolSize(3)
+                        .storeThreadPoolSize(3)
+                        .eventProcThreadPoolSize(3)
+                        .requestHandlerThreadPoolSize(3)
+                        .storeClientConfig(storeClientConfig)
+                        .hostMonitorConfig(hostMonitorConfig)
+                        .controllerClusterListenerConfig(Optional.of(clusterListenerConfig))
+                        .timeoutServiceConfig(timeoutServiceConfig)
+                        .eventProcessorConfig(Optional.empty())
+                        .requestHandlersEnabled(false)
+                        .grpcServerConfig(Optional.empty())
+                        .restServerConfig(Optional.empty())
                         .build());
     }
 }

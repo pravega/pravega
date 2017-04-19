@@ -4,14 +4,13 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import org.apache.commons.lang.NotImplementedException;
 
-import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -134,9 +134,17 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<List<Segment>> scale(final List<Integer> sealedSegments,
-                                                      final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                      final long scaleTimestamp) {
+        public CompletableFuture<List<Segment>> startScale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Void> scaleNewSegmentsCreated(List<Integer> sealedSegments, List<Integer> newSegments, long scaleTimestamp) {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<Void> scaleOldSegmentsSealed(List<Integer> sealedSegments, List<Integer> newSegments, long ts) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -201,7 +209,7 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+        public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -332,23 +340,46 @@ class InMemoryStream implements Stream {
         return CompletableFuture.completedFuture(currentSegments);
     }
 
-    /**
-     * Seals a set of segments, and adds a new set of segments as current segments.
-     * It sets appropriate endtime and successors of sealed segment.
-     *
-     * @param sealedSegments segments to be sealed
-     * @param keyRanges      new segments to be added as active segments
-     * @param scaleTimestamp scaling timestamp. This will be the end time of sealed segments and start time of new segments.
-     * @return the list of new segments.
-     */
     @Override
-    public synchronized CompletableFuture<List<Segment>> scale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> keyRanges, long scaleTimestamp) {
-        Preconditions.checkNotNull(sealedSegments);
+    public CompletableFuture<List<Segment>> startScale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> keyRanges, long scaleTimestamp) {
         Preconditions.checkNotNull(keyRanges);
-        Preconditions.checkArgument(sealedSegments.size() > 0);
         Preconditions.checkArgument(keyRanges.size() > 0);
 
         List<List<Integer>> predecessors = new ArrayList<>();
+        for (int i = 0; i < keyRanges.size(); i++) {
+            predecessors.add(new ArrayList<>());
+        }
+
+        int start = segments.size();
+
+        List<Segment> newSegments = new ArrayList<>();
+        // assign start times, numbers to new segments. Add them to segments list and current list.
+        for (int i = 0; i < keyRanges.size(); i++) {
+            int number = start + i;
+            InMemorySegment segment = new InMemorySegment(number, scaleTimestamp, Long.MAX_VALUE, keyRanges.get(i).getKey(), keyRanges.get(i).getValue(), InMemorySegment.Status.Active, new ArrayList<>(), predecessors.get(i));
+            newSegments.add(segment);
+            segments.add(segment);
+            currentSegments.add(number);
+        }
+
+        return CompletableFuture.completedFuture(newSegments);
+    }
+
+    @Override
+    public CompletableFuture<Void> scaleNewSegmentsCreated(List<Integer> sealedSegments, List<Integer> newSegments, long timestamp) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> scaleOldSegmentsSealed(List<Integer> sealedSegments, List<Integer> newSegments, long timestamp) {
+        Preconditions.checkNotNull(sealedSegments);
+        Preconditions.checkArgument(sealedSegments.size() > 0);
+
+        List<List<Integer>> predecessors = new ArrayList<>();
+        List<SimpleEntry<Double, Double>> keyRanges = newSegments.stream().map(x -> {
+            Segment segment = FutureHelpers.getAndHandleExceptions(getSegment(x), RuntimeException::new);
+            return new SimpleEntry<>(segment.getKeyStart(), segment.getKeyEnd());
+        }).collect(Collectors.toList());
         for (int i = 0; i < keyRanges.size(); i++) {
             predecessors.add(new ArrayList<>());
         }
@@ -366,22 +397,15 @@ class InMemoryStream implements Stream {
                     predecessors.get(i).add(sealed);
                 }
             }
-            InMemorySegment sealedSegment = new InMemorySegment(sealed, segment.getStart(), scaleTimestamp, segment.getKeyStart(), segment.getKeyEnd(), InMemorySegment.Status.Sealed, successors, segment.getPredecessors());
+            InMemorySegment sealedSegment = new InMemorySegment(sealed, segment.getStart(),
+                    timestamp,
+                    segment.getKeyStart(), segment.getKeyEnd(),
+                    InMemorySegment.Status.Sealed, successors, segment.getPredecessors());
             segments.set(sealed, sealedSegment);
             currentSegments.remove(sealed);
         }
 
-        List<Segment> newSegments = new ArrayList<>();
-        // assign start times, numbers to new segments. Add them to segments list and current list.
-        for (int i = 0; i < keyRanges.size(); i++) {
-            int number = start + i;
-            InMemorySegment segment = new InMemorySegment(number, scaleTimestamp, Long.MAX_VALUE, keyRanges.get(i).getKey(), keyRanges.get(i).getValue(), InMemorySegment.Status.Active, new ArrayList<>(), predecessors.get(i));
-            newSegments.add(segment);
-            segments.add(segment);
-            currentSegments.add(number);
-        }
-
-        return CompletableFuture.completedFuture(newSegments);
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -441,7 +465,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         return null;
     }
 

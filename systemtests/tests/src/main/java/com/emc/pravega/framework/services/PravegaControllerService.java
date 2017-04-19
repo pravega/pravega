@@ -81,11 +81,7 @@ public class PravegaControllerService extends MarathonBasedService {
     @Override
     public void stop() {
         log.debug("Stopping  pravega controller service: {}", getID());
-        try {
-            marathonClient.deleteApp(getID());
-        } catch (MarathonException e) {
-            handleMarathonException(e);
-        }
+        deleteApp(getID());
     }
 
     /**
@@ -121,10 +117,8 @@ public class PravegaControllerService extends MarathonBasedService {
         //set docker container parameters
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<Parameter> parameterList = new ArrayList<>();
-        Parameter element1 = new Parameter("env", "SERVER_OPTS=\"-DZK_URL=" + zk + "\"");
-        Parameter element2 = new Parameter("env", "JAVA_OPTS=-Xmx512m");
+        Parameter element1 = new Parameter("env", "JAVA_OPTS=-Xmx512m");
         parameterList.add(element1);
-        parameterList.add(element2);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
         app.setPorts(Arrays.asList(CONTROLLER_PORT, REST_PORT));
@@ -133,11 +127,14 @@ public class PravegaControllerService extends MarathonBasedService {
         healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
         app.setHealthChecks(healthCheckList);
         //set env
+        String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
+                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", this.id + ".marathon.mesos") +
+                setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
+                setSystemProperty("log.level", "DEBUG");
         Map<String, String> map = new HashMap<>();
-        map.put("ZK_URL", zk);
-        map.put("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT));
-        map.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
-        map.put("SERVER_OPTS", setSystemProperty("log.level", "DEBUG"));
+        map.put("SERVER_OPTS", controllerSystemProperties);
         app.setEnv(map);
 
         return app;

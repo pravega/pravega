@@ -1,16 +1,13 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.reading;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Random;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for the ReadIndexSummary class.
@@ -58,14 +55,19 @@ public class ReadIndexSummaryTests {
     public void testAddExplicitGeneration() {
         ReadIndexSummary s = new ReadIndexSummary();
         long totalSize = 0;
-        Random random = new Random();
+        Random random = new Random(0);
         Queue<Integer> addedSizes = new LinkedList<>();
         s.setCurrentGeneration(GENERATION_COUNT + 1);
 
         // Add a few.
         for (int generation = 0; generation < GENERATION_COUNT; generation++) {
             for (int i = 0; i < ITEMS_PER_GENERATION; i++) {
-                int size = random.nextInt(MAX_ITEM_SIZE);
+                // All sizes are chosen at random, except for the last one. We want to make sure this works with a zero value for size.
+                int size = 0;
+                if (i < ITEMS_PER_GENERATION - 1) {
+                    size = random.nextInt(MAX_ITEM_SIZE);
+                }
+
                 addedSizes.add(size);
                 totalSize += size;
                 s.add(size, generation);
@@ -95,7 +97,7 @@ public class ReadIndexSummaryTests {
                     Assert.assertNotEquals("Expected a change in oldest generation when all elements in that generation were removed.", generation, currentStatus.getOldestGeneration());
                 }
 
-                if (totalSize != 0) {
+                if (addedSizes.size() > 0) {
                     Assert.assertEquals("Unexpected newest generation.", maxGeneration, currentStatus.getNewestGeneration());
                 } else {
                     // We are done; newest generation doesn't make any sense, so expect 0.

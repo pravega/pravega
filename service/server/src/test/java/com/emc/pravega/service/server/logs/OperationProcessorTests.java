@@ -508,6 +508,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestContext() {
             this.cacheFactory = new InMemoryCacheFactory();
             this.storage = new InMemoryStorage(executorService());
+            this.storage.initialize(1);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             ReadIndexConfig readIndexConfig = ConfigHelpers
                     .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))

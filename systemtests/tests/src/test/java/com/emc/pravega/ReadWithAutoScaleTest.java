@@ -18,6 +18,7 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
@@ -123,7 +124,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
-    @Test
+    @Test(timeout = 6 * 60 * 1000) //timeout of 6 mins.
     public void scaleTestsWithReader() throws URISyntaxException, InterruptedException {
 
         URI controllerUri = getControllerURI();
@@ -132,13 +133,14 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
-        final AtomicLong data = new AtomicLong(); //data used by each of the writers.
+        final AtomicLong eventData = new AtomicLong(); //data used by each of the writers.
+        final AtomicLong eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
         @Cleanup
         ClientFactory clientFactory = getClientFactory(SCOPE);
 
         //1. Start writing events to the Stream.
-        CompletableFuture<Void> writer1 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer1 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
 
         //2. Start a reader group with 2 readers (The stream is configured with 2 segments.)
 
@@ -151,17 +153,17 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //2.2 Create readers.
         CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega, stopReadFlag );
+                eventsReadFromPravega, eventData, eventReadCount, stopReadFlag );
         CompletableFuture<Void> reader2 = startReader("reader2", clientFactory, READER_GROUP_NAME,
-                eventsReadFromPravega, stopWriteFlag);
+                eventsReadFromPravega, eventData, eventReadCount, stopReadFlag);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
-        CompletableFuture<Void> writer2 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        CompletableFuture<Void> writer3 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        CompletableFuture<Void> writer4 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        CompletableFuture<Void> writer5 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
-        CompletableFuture<Void> writer6 = startNewTxnWriter(data, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer2 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer3 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer4 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer5 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
+        CompletableFuture<Void> writer6 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
 
         //4 Wait until the scale operation is triggered (else time out)
         //    validate the data read by the readers ensuring all the events are read and there are no duplicates.
@@ -186,9 +188,11 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                 .thenCompose(v -> CompletableFuture.allOf(writer1, writer2, writer3, writer4, writer5, writer6))
                 .thenCompose(v -> {
                     stopReadFlag.set(true);
+                    log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
+                            "Count: {}", eventData.get(), eventsReadFromPravega.size());
                     return CompletableFuture.allOf(reader1, reader2);
                 })
-                .thenRun(() -> validateResults(data.get(), eventsReadFromPravega));
+                .thenRun(() -> validateResults(eventData.get(), eventsReadFromPravega));
 
         FutureHelpers.getAndHandleExceptions(testResult
                 .whenComplete((r, e) -> {
@@ -200,13 +204,14 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     private void validateResults(final long lastEventCount, final Collection<Long> readEvents) {
         log.info("Last Event Count is {}", lastEventCount);
         assertTrue("Overflow in the number of events published ", lastEventCount > 0);
-        assertEquals(lastEventCount, readEvents.size()); // Number of event read should be equal to number of events
-        // published.
+        // Number of event read should be equal to number of events published.
+        assertEquals(lastEventCount, readEvents.size());
         assertEquals(lastEventCount, new TreeSet<>(readEvents).size()); //check unique events.
     }
 
     private CompletableFuture<Void> startReader(final String id, final ClientFactory clientFactory, final String
-            readerGroupName, ConcurrentLinkedQueue<Long> result, final AtomicBoolean exitFlag) {
+            readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
+    AtomicLong readCount, final AtomicBoolean exitFlag) {
 
         return CompletableFuture.runAsync(() -> {
             @Cleanup
@@ -214,18 +219,16 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
-            boolean isLastEventNull = false;
-            while (!(exitFlag.get() && isLastEventNull)) { // exit only if exitFlag and isLastEventNull are true
-                final Long longEvent;
+            while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
+                // exit only if exitFlag is true  and read Count equals write count.
                 try {
-                    longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
+                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
                     if (longEvent != null) {
                         //update if event read is not null.
-                        result.add(longEvent);
-                    } else {
-                        isLastEventNull = true;
+                        readResult.add(longEvent);
+                        readCount.incrementAndGet();
                     }
-                } catch (Throwable e) { //TODO: Remove throwable once issue #862 is resolved.
+                } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
                     break;
                 }
@@ -267,13 +270,13 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         try {
             //Default max scale grace period is 30000
             txn = writer.beginTxn(5000, 3600000, 29000);
-            log.debug("Transaction created with id:{} ", txn.getTxnId());
+            log.info("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
             final Class<? extends Throwable> exceptionClass = ex.getCause().getClass();
             if (exceptionClass.equals(io.grpc.StatusRuntimeException.class) && !exitFlag.get())  {
                 //Exit flag is true no need to retry.
-                log.debug("Cause for failure is {} and we need to retry", exceptionClass.getName());
+                log.warn("Cause for failure is {} and we need to retry", exceptionClass.getName());
                 throw new TxnCreationFailedException(); // we can retry on this exception.
             } else {
                 throw ex;

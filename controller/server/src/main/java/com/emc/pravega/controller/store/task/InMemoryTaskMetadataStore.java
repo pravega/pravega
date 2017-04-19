@@ -15,6 +15,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -264,5 +265,10 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
 
             }, executor);
         }
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> getHosts() {
+        return CompletableFuture.completedFuture(Collections.unmodifiableSet(hostTable.keySet()));
     }
 }

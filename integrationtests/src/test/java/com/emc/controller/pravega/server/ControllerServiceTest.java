@@ -6,6 +6,7 @@
 package com.emc.controller.pravega.server;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.demo.ControllerWrapper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -24,6 +25,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -32,6 +35,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+@Slf4j
 public class ControllerServiceTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
@@ -45,7 +49,7 @@ public class ControllerServiceTest {
     
     @Before
     public void setUp() throws Exception {
-        zkTestServer = new TestingServer();
+        zkTestServer = new TestingServerStarter().start();
         
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

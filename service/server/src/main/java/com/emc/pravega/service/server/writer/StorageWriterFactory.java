@@ -13,10 +13,10 @@ import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.Storage;
-import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -27,30 +27,24 @@ import lombok.extern.slf4j.Slf4j;
  */
 public class StorageWriterFactory implements WriterFactory {
     private final WriterConfig config;
-    private final StorageFactory storageFactory;
     private final ScheduledExecutorService executor;
 
     /**
      * Creates a new instance of the StorageWriterFactory class.
      *
      * @param config         The Configuration to use for every Writer that is created.
-     * @param storageFactory The StorageFactory to use for every Writer creation.
      * @param executor       The Executor to use.
      */
-    public StorageWriterFactory(WriterConfig config, StorageFactory storageFactory, ScheduledExecutorService executor) {
+    public StorageWriterFactory(WriterConfig config, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(executor, "executor");
-
         this.config = config;
-        this.storageFactory = storageFactory;
         this.executor = executor;
     }
 
     @Override
-    public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex) {
+    public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Storage storage) {
         Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(), "Given containerMetadata and operationLog have different Container Ids.");
-        Storage storage = this.storageFactory.getStorageAdapter();
         WriterDataSource dataSource = new StorageWriterDataSource(containerMetadata, operationLog, readIndex);
         return new StorageWriter(this.config, dataSource, storage, this.executor);
     }
@@ -98,6 +92,12 @@ public class StorageWriterFactory implements WriterFactory {
         public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
             log.debug("{}: CompleteMerge (TargetSegmentId={}, SourceSegmentId={}).", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
             this.readIndex.completeMerge(targetStreamSegmentId, sourceStreamSegmentId);
+        }
+
+        @Override
+        public void notifyStorageLengthUpdated(long streamSegmentId) {
+            log.debug("{}: notifyStorageLengthUpdated (SegmentId={}).", this.traceObjectId, streamSegmentId);
+            this.readIndex.triggerFutureReads(Collections.singleton(streamSegmentId));
         }
 
         @Override

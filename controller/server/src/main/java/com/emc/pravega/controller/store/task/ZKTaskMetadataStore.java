@@ -18,12 +18,15 @@ import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.data.Stat;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Zookeeper based task store.
@@ -322,6 +325,20 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             } catch (KeeperException.NoNodeException e) {
                 log.debug("Node {} does not exist.", getHostPath(parent));
                 return Optional.empty();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> getHosts() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                List<String> children = client.getChildren().forPath(HOST_ROOT);
+                return children.stream().collect(Collectors.toSet());
+            } catch (KeeperException.NoNodeException e) {
+                return Collections.emptySet();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

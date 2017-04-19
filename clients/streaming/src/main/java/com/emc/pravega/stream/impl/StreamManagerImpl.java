@@ -7,7 +7,7 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.NameVerifier;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.annotations.VisibleForTesting;
 
@@ -21,7 +21,7 @@ public class StreamManagerImpl implements StreamManager {
     private final Controller controller;
 
     public StreamManagerImpl(URI controllerUri) {
-        this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+        this.controller = new ControllerImpl(controllerUri);
     }
 
     @VisibleForTesting
@@ -31,7 +31,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
-        NameVerifier.validateName(streamName);
+        NameUtils.validateUserStreamName(streamName);
         return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
                                                                                                .scope(scopeName)
                                                                                                .streamName(streamName)
@@ -62,6 +62,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean createScope(String scopeName) {
+        NameUtils.validateUserScopeName(scopeName);
         return FutureHelpers.getAndHandleExceptions(controller.createScope(scopeName),
                 RuntimeException::new);
         

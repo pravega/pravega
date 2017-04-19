@@ -3,6 +3,11 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.ClusterType;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.ControllerService;
@@ -31,8 +36,10 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
+import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -54,10 +61,11 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
     private TimeoutService timeoutService;
+    private Cluster cluster;
 
     @Override
     public void setup() throws Exception {
-        zkServer = new TestingServer();
+        zkServer = new TestingServerStarter().start();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
@@ -80,8 +88,14 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 
+        cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
+        final CountDownLatch latch = new CountDownLatch(1);
+        cluster.addListener((type, host) -> latch.countDown());
+        cluster.registerHost(new Host("localhost", 9090, null));
+        latch.await();
+
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executorService);
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executorService, cluster);
         controllerService = new ControllerServiceImpl(controller);
     }
 
@@ -100,6 +114,9 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
         }
+        if (cluster != null) {
+            cluster.close();
+        }
         zkClient.close();
         zkServer.close();
     }
@@ -108,18 +125,58 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
     public void createTransactionSuccessTest() {
         int segmentsCount = 4;
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(segmentsCount));
+        Controller.CreateTxnResponse response = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000);
+        assertEquals(segmentsCount, response.getActiveSegmentsCount());
+    }
 
+    @Test
+    public void transactionTests() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
         Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, STREAM1);
+        Controller.TxnId txnId1 = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000).getTxnId();
+        Controller.TxnId txnId2 = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000).getTxnId();
 
+        // Abort first txn.
+        Controller.TxnStatus status = closeTransaction(SCOPE1, STREAM1, txnId1, true);
+        Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status.getStatus());
+
+        // Commit second txn.
+        status = closeTransaction(SCOPE1, STREAM1, txnId2, false);
+        Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status.getStatus());
+    }
+
+    private Controller.TxnStatus closeTransaction(final String scope,
+                                                  final String stream,
+                                                  final Controller.TxnId txnId,
+                                                  final boolean abort) {
+        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(scope, stream);
+        Controller.TxnRequest request = Controller.TxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setTxnId(txnId)
+                .build();
+        ResultObserver<Controller.TxnStatus> resultObserver = new ResultObserver<>();
+        if (abort) {
+            this.controllerService.abortTransaction(request, resultObserver);
+        } else {
+            this.controllerService.commitTransaction(request, resultObserver);
+        }
+        Controller.TxnStatus status = resultObserver.get();
+        Assert.assertNotNull(status);
+        return resultObserver.get();
+    }
+
+    private Controller.CreateTxnResponse createTransaction(final String scope, final String stream, final long lease,
+                                                           final long maxExecutionTime, final long scaleGracePeriod) {
+        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(scope, stream);
         Controller.CreateTxnRequest request = Controller.CreateTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
                 .setLease(10000)
                 .setMaxExecutionTime(10000)
                 .setScaleGracePeriod(10000).build();
         ResultObserver<Controller.CreateTxnResponse> resultObserver = new ResultObserver<>();
-
         this.controllerService.createTransaction(request, resultObserver);
         Controller.CreateTxnResponse response = resultObserver.get();
-        assertEquals(segmentsCount, response.getActiveSegmentsCount());
+        Assert.assertTrue(response != null);
+        return response;
     }
 }

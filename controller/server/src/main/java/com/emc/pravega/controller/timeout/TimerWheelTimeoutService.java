@@ -5,8 +5,8 @@
  */
 package com.emc.pravega.controller.timeout;
 
-import com.emc.pravega.metrics.DynamicLogger;
-import com.emc.pravega.metrics.MetricsProvider;
+import com.emc.pravega.shared.metrics.DynamicLogger;
+import com.emc.pravega.shared.metrics.MetricsProvider;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.OperationOnTxNotAllowedException;
 import com.emc.pravega.controller.store.stream.TransactionNotFoundException;
@@ -35,8 +35,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
-import static com.emc.pravega.MetricsNames.TIMEDOUT_TRANSACTIONS;
-import static com.emc.pravega.MetricsNames.nameFromStream;
+import static com.emc.pravega.shared.MetricsNames.TIMEDOUT_TRANSACTIONS;
+import static com.emc.pravega.shared.MetricsNames.nameFromStream;
 
 /**
  * Transaction ping manager. It maintains a local hashed timer wheel to manage txn timeouts.
@@ -83,7 +83,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
             TxnData txnData = map.get(key);
 
             log.debug("Executing timeout task for txn {}", key);
-            streamTransactionMetadataTasks.abortTxn(scope, stream, txnId, Optional.of(txnData.getVersion()), null)
+            streamTransactionMetadataTasks.abortTxn(scope, stream, txnId, txnData.getVersion(), null)
                     .handle((ok, ex) -> {
                         // If abort attempt fails because of (1) version mismatch, or (2) node not found,
                         // ignore the timeout task.
@@ -192,7 +192,9 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     public void removeTxn(String scope, String stream, UUID txnId) {
         String key = getKey(scope, stream, txnId);
         final TxnData txnData = map.get(key);
-        txnData.getTimeout().cancel();
+        if (txnData != null) {
+            txnData.getTimeout().cancel();
+        }
         map.remove(key);
     }
 

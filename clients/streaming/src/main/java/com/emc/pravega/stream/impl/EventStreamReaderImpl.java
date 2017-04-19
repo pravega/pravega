@@ -150,7 +150,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
 
-    private void releaseSegmentsIfNeeded() {
+    private void releaseSegmentsIfNeeded() throws ReinitializationRequiredException {
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
             log.info("{} releasing segment {}", this, segment);
@@ -164,8 +164,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private void acquireSegmentsIfNeeded() throws ReinitializationRequiredException {
         Map<Segment, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag());
-        if (newSegments != null) {
-            log.info("{} aquiring segments {}", this, newSegments);
+        if (!newSegments.isEmpty()) {
+            log.info("{} acquiring segments {}", this, newSegments);
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
                 SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey());
                 in.setOffset(newSegment.getValue());

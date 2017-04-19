@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.util;
 
-import com.emc.pravega.metrics.MetricsConfig;
+import com.emc.pravega.shared.metrics.MetricsConfig;
 import com.emc.pravega.common.util.Property;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
@@ -31,6 +31,8 @@ public final class Config {
     //RPC Server configuration
     public static final int RPC_SERVER_PORT = CONFIG.getInt("config.controller.server.port");
     public static final int ASYNC_TASK_POOL_SIZE = CONFIG.getInt("config.controller.server.asyncTaskPoolSize");
+    public static final String RPC_PUBLISHED_SERVER_HOST = CONFIG.getString("config.controller.server.publishedRPCHost");
+    public static final int RPC_PUBLISHED_SERVER_PORT = CONFIG.getInt("config.controller.server.publishedRPCPort");
 
     //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
     public static final String SERVICE_HOST = CONFIG.getString("config.controller.server.serviceHostIp");
@@ -69,8 +71,6 @@ public final class Config {
     //Transaction configuration
     public static final long MAX_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.maxLeaseValue");
     public static final long MAX_SCALE_GRACE_PERIOD = CONFIG.getLong("config.controller.server.transaction.maxScaleGracePeriod");
-
-    public static final String INTERNAL_SCOPE = CONFIG.getString("config.controller.server.internal.scope");
 
     // Request Stream Configuration
     public static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.server.internal.scale.streamName");

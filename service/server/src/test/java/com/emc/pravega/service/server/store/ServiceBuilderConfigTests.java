@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.val;
-import com.emc.pravega.metrics.MetricsConfig;
+import com.emc.pravega.shared.metrics.MetricsConfig;
 import com.emc.pravega.common.util.Property;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
@@ -188,7 +188,6 @@ public class ServiceBuilderConfigTests {
                     int valueCompare = ((String) e1.getValue()).compareTo((String) e2.getValue());
                     return keyCompare * valueCompare + keyCompare + valueCompare;
                 });
-        System.out.println();
     }
 
     private Properties buildProperties(int startId, int count, int base) {

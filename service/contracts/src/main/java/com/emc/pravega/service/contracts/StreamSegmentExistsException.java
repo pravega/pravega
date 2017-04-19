@@ -30,6 +30,6 @@ public class StreamSegmentExistsException extends StreamSegmentException {
      * @param cause             Actual cause of the exception.
      */
     public StreamSegmentExistsException(String streamSegmentName, Throwable cause) {
-        super(streamSegmentName, "The StreamSegment exists already.", cause);
+        super(streamSegmentName, "The StreamSegment exists already", cause);
     }
 }

@@ -18,6 +18,8 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import java.util.concurrent.CompletableFuture;
+
+import com.emc.pravega.testcommon.TestingServerStarter;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -35,7 +37,7 @@ public class EndToEndTransactionTest {
     @Test
     public static void main(String[] args) throws Exception {
         @Cleanup
-        TestingServer zkTestServer = new TestingServer();
+        TestingServer zkTestServer = new TestingServerStarter().start();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -48,7 +50,6 @@ public class EndToEndTransactionTest {
         Thread.sleep(1000);
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
-        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String testScope = "testScope";

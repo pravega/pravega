@@ -7,6 +7,7 @@ package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.emc.pravega.testcommon.TestUtils;
@@ -50,7 +51,7 @@ public class ZKSegmentContainerManagerTest {
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
     private static final int PORT = TestUtils.getAvailableListenPort();
-    private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT);
+    private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT, null);
     private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
     private String zkUrl;
 
@@ -65,7 +66,7 @@ public class ZKSegmentContainerManagerTest {
 
     @Before
     public void startZookeeper() throws Exception {
-        zkTestServer = new TestingServer();
+        zkTestServer = new TestingServerStarter().start();
         zkUrl = zkTestServer.getConnectString();
     }
 

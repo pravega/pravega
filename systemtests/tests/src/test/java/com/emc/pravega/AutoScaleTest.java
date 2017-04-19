@@ -4,6 +4,7 @@
 
 package com.emc.pravega;
 
+import static org.junit.Assert.assertTrue;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.framework.Environment;
@@ -21,19 +22,8 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamImpl;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
@@ -41,13 +31,26 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static org.junit.Assert.assertTrue;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class AutoScaleTest extends AbstractScaleTests {
 
-    private final static String SCOPE = "testAutoScale" + new Random().nextInt();
+    private final static String SCOPE = "testAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
     private final static String SCALE_UP_STREAM_NAME = "testScaleUp";
     private final static String SCALE_UP_TXN_STREAM_NAME = "testTxnScaleUp";
     private final static String SCALE_DOWN_STREAM_NAME = "testScaleDown";
@@ -252,11 +255,6 @@ public class AutoScaleTest extends AbstractScaleTests {
 
         ClientFactory clientFactory = getClientFactory(SCOPE);
         startNewTxnWriter(clientFactory, exit);
-        startNewTxnWriter(clientFactory, exit);
-        startNewTxnWriter(clientFactory, exit);
-        startNewTxnWriter(clientFactory, exit);
-        startNewTxnWriter(clientFactory, exit);
-        startNewTxnWriter(clientFactory, exit);
 
         // overall wait for test to complete in 260 seconds (4.2 minutes) or scale up, whichever happens first.
         return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
@@ -302,14 +300,20 @@ public class AutoScaleTest extends AbstractScaleTests {
                 try {
                     Transaction<String> transaction = writer.beginTxn(5000, 3600000, 29000);
 
-                    for (int i = 0; i < 10; i++) {
+                    for (int i = 0; i < 100; i++) {
                         transaction.writeEvent("0", "txntest");
                     }
 
                     transaction.commit();
                 } catch (Throwable e) {
-                    log.warn("test exception writing events in a transaction : {}", e);
-                    break;
+                    if (!(e instanceof RuntimeException && e.getCause() != null &&
+                            e.getCause() instanceof io.grpc.StatusRuntimeException &&
+                            ((io.grpc.StatusRuntimeException) e.getCause()).getStatus().getCode().equals(Status.Code.INTERNAL) &&
+                            Objects.equals(((StatusRuntimeException) e.getCause()).getStatus().getDescription(),
+                                    "com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks not yet ready"))) {
+                        log.warn("test exception writing events in a transaction : {}", e);
+                        break;
+                    }
                 }
             }
         });

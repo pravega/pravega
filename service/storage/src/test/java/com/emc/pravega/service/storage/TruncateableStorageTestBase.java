@@ -1,8 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage;
 
@@ -13,6 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -36,6 +34,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
     @Test
     public void testTruncate() throws Exception {
         try (TruncateableStorage s = createStorage()) {
+            s.initialize(1);
             s.create(SEGMENT_NAME, TIMEOUT).join();
 
             // Invalid segment name.
@@ -48,38 +47,39 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
             AtomicLong offset = new AtomicLong();
             ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
             final byte[] writeBuffer = new byte[WRITE_LENGTH];
+            val writeHandle = s.openWrite(SEGMENT_NAME).join();
             for (int j = 0; j < APPEND_COUNT; j++) {
                 DATA_GENERATOR.nextBytes(writeBuffer); // Generate new write data every time.
-                s.write(SEGMENT_NAME, offset.get(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT).join();
+                s.write(writeHandle, offset.get(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT).join();
                 writeStream.write(writeBuffer);
                 offset.addAndGet(writeBuffer.length);
             }
 
             // Truncate only from the first buffer (and make sure we try to truncate at 0).
             AtomicInteger truncatedLength = new AtomicInteger();
-            verifySmallTruncate(s, truncatedLength);
+            verifySmallTruncate(writeHandle, s, truncatedLength);
 
             // Truncate many internal buffers at once.
-            verifyLargeTruncate(s, truncatedLength);
+            verifyLargeTruncate(writeHandle, s, truncatedLength);
 
             // Verify that writes reads still work well without corrupting data.
-            verifyWriteReadsAfterTruncate(s, offset, writeStream, truncatedLength);
+            verifyWriteReadsAfterTruncate(writeHandle, s, offset, writeStream, truncatedLength);
 
             // Verify concat from a truncated segment does not work.
-            verifyConcat(s);
+            verifyConcat(writeHandle, s);
 
             // Check post-delete truncate.
-            verifyDelete(s);
+            verifyDelete(writeHandle, s);
         }
     }
 
-    private void verifySmallTruncate(TruncateableStorage s, AtomicInteger truncatedLength) {
+    private void verifySmallTruncate(SegmentHandle handle, TruncateableStorage s, AtomicInteger truncatedLength) {
         while (truncatedLength.get() < 2 * WRITE_LENGTH) {
-            s.truncate(SEGMENT_NAME, truncatedLength.get(), TIMEOUT).join();
+            s.truncate(handle.getSegmentName(), truncatedLength.get(), TIMEOUT).join();
             if (truncatedLength.get() > 0) {
                 assertThrows(
                         "read() did not throw when attempting to read before truncation point (small truncate).",
-                        () -> s.read(SEGMENT_NAME, truncatedLength.get() - 1, new byte[1], 0, 1, TIMEOUT),
+                        () -> s.read(handle, truncatedLength.get() - 1, new byte[1], 0, 1, TIMEOUT),
                         ex -> ex instanceof IllegalArgumentException);
             }
 
@@ -87,42 +87,43 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
         }
     }
 
-    private void verifyLargeTruncate(TruncateableStorage s, AtomicInteger truncatedLength) {
+    private void verifyLargeTruncate(SegmentHandle handle, TruncateableStorage s, AtomicInteger truncatedLength) {
         truncatedLength.addAndGet(4 * WRITE_LENGTH);
-        s.truncate(SEGMENT_NAME, truncatedLength.get(), TIMEOUT).join();
+        s.truncate(handle.getSegmentName(), truncatedLength.get(), TIMEOUT).join();
         assertThrows(
                 "read() did not throw when attempting to read before truncation point (large truncate).",
-                () -> s.read(SEGMENT_NAME, truncatedLength.get() - 1, new byte[1], 0, 1, TIMEOUT),
+                () -> s.read(handle, truncatedLength.get() - 1, new byte[1], 0, 1, TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
-    private void verifyWriteReadsAfterTruncate(TruncateableStorage s, AtomicLong offset, ByteArrayOutputStream writeStream, AtomicInteger truncatedLength) throws Exception {
+    private void verifyWriteReadsAfterTruncate(SegmentHandle handle, TruncateableStorage s, AtomicLong offset, ByteArrayOutputStream writeStream, AtomicInteger truncatedLength) throws Exception {
         final byte[] writeBuffer = new byte[WRITE_LENGTH];
         DATA_GENERATOR.nextBytes(writeBuffer);
-        s.write(SEGMENT_NAME, offset.get(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT).join();
+        s.write(handle, offset.get(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT).join();
         writeStream.write(writeBuffer);
         offset.addAndGet(writeBuffer.length);
 
         byte[] readBuffer = new byte[(int) offset.get() - truncatedLength.get()];
-        int readBytes = s.read(SEGMENT_NAME, truncatedLength.get(), readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        int readBytes = s.read(handle, truncatedLength.get(), readBuffer, 0, readBuffer.length, TIMEOUT).join();
         Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, readBytes);
 
         byte[] writtenData = writeStream.toByteArray();
         AssertExtensions.assertArrayEquals("Unexpected data read back after truncation.", writtenData, truncatedLength.get(), readBuffer, 0, readBytes);
     }
 
-    private void verifyConcat(TruncateableStorage s) {
+    private void verifyConcat(SegmentHandle handle, TruncateableStorage s) {
         final String newSegmentName = "newFoo";
         s.create(newSegmentName, TIMEOUT).join();
+        val targetHandle = s.openWrite(newSegmentName).join();
         assertThrows("concat() allowed concatenation of truncated segment.",
-                () -> s.concat(newSegmentName, 0, SEGMENT_NAME, TIMEOUT),
+                () -> s.concat(targetHandle, 0, handle.getSegmentName(), TIMEOUT),
                 ex -> ex instanceof IllegalStateException);
     }
 
-    private void verifyDelete(TruncateableStorage s) {
-        s.delete(SEGMENT_NAME, TIMEOUT).join();
+    private void verifyDelete(SegmentHandle handle, TruncateableStorage s) {
+        s.delete(handle, TIMEOUT).join();
         assertThrows("truncate() did not throw for a deleted StreamSegment.",
-                () -> s.truncate(SEGMENT_NAME, 0, TIMEOUT),
+                () -> s.truncate(handle.getSegmentName(), 0, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
     }
 

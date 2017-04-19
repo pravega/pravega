@@ -83,11 +83,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         @Override
         public void stop() {
             log.info("Stopping Pravega SegmentStore Service : {}", getID());
-            try {
-                marathonClient.deleteApp(getID());
-            } catch (MarathonException e) {
-                handleMarathonException(e);
-            }
+            deleteApp(getID());
         }
 
     private App createPravegaSegmentStoreApp() {
@@ -138,7 +134,6 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
         Map<String, String> map = new HashMap<>();
         map.put("HOST_OPTS", hostSystemProperties);
-        map.put("ZK_URL", zk);
         app.setEnv(map);
 
         return app;

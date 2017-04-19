@@ -24,7 +24,9 @@ import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
@@ -649,8 +651,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> open(String streamSegmentName) {
-            return CompletableFuture.completedFuture(null);
+        public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
+            return CompletableFuture.completedFuture(InMemoryStorage.newHandle(streamSegmentName, true));
+        }
+
+        @Override
+        public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
+            return CompletableFuture.completedFuture(InMemoryStorage.newHandle(streamSegmentName, false));
         }
 
         @Override
@@ -661,32 +668,37 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         //region Unimplemented methods
 
         @Override
+        public void initialize(long epoch) {
+            throw new NotImplementedException();
+        }
+
+        @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
             throw new NotImplementedException();
         }
 
         @Override
-        public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+        public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
             throw new NotImplementedException();
         }
 
         @Override
-        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
             throw new NotImplementedException();
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
+        public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
             throw new NotImplementedException();
         }
 
         @Override
-        public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+        public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
             throw new NotImplementedException();
         }
 
         @Override
-        public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
+        public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
             throw new NotImplementedException();
         }
 

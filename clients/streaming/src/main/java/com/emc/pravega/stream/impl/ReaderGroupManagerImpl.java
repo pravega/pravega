@@ -8,7 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.NameVerifier;
+import com.emc.pravega.shared.NameUtils;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
@@ -31,8 +31,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     public ReaderGroupManagerImpl(String scope, URI controllerUri) {
         this.scope = scope;
-        this.clientFactory = ClientFactory.withScope(scope, controllerUri);
-        this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+        this.controller = new ControllerImpl(controllerUri);
+        this.clientFactory = ClientFactory.withScope(scope, this.controller);
     }
 
     public ReaderGroupManagerImpl(String scope, Controller controller, ClientFactory clientFactory) {
@@ -42,7 +42,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        NameVerifier.validateName(streamName);
         FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
                                                                                         .scope(scope)
                                                                                         .streamName(streamName)
@@ -54,10 +53,11 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streams) {
-        createStreamHelper(groupName,
+        NameUtils.validateReaderGroupName(groupName);
+        createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                            StreamConfiguration.builder()
                                               .scope(scope)
-                                              .streamName(groupName)
+                                              .streamName(NameUtils.getStreamForReaderGroup(groupName))
                                               .scalingPolicy(ScalingPolicy.fixed(1))
                                               .build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
