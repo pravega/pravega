@@ -26,17 +26,18 @@ import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
-import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
+import com.emc.pravega.service.storage.mocks.SinglenodeInMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 /**
  * Helps create StreamSegmentStore Instances.
@@ -334,7 +335,7 @@ public final class ServiceBuilder implements AutoCloseable {
         return serviceBuilder.withCacheFactory(setup -> new InMemoryCacheFactory())
                              .withContainerManager(setup -> new LocalSegmentContainerManager(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
-                             .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
+                             .withStorageFactory(setup -> new SinglenodeInMemoryStorageFactory(setup.getExecutor()))
                              .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()))
                              .withStreamSegmentStore(setup -> new StreamSegmentService(setup.getContainerRegistry(),
                                      setup.getSegmentToContainerMapper()));
