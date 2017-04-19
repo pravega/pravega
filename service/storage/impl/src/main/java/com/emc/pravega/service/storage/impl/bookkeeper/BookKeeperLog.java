@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -62,7 +63,7 @@ class BookKeeperLog implements DurableDataLog {
     /**
      * How many ledgers to fence out (from the end of the list) when acquiring lock.
      */
-    private static final int MAX_FENCE_LEDGER_COUNT = 2;
+    private static final int MIN_FENCE_LEDGER_COUNT = 2;
     private static final BookKeeper.DigestType LEDGER_DIGEST_TYPE = BookKeeper.DigestType.MAC;
     private final String logNodePath;
     private final CuratorFramework curatorClient;
@@ -73,8 +74,9 @@ class BookKeeperLog implements DurableDataLog {
     private final Object ledgerLock = new Object();
     private final String traceObjectId;
     private final Retry.RetryAndThrowBase<Exception> retryPolicy;
+    private final AtomicReference<LedgerAddress> lastAppendAddress;
     @GuardedBy("ledgerLock")
-    private LedgerHandle writeLedger;
+    private WriteLedger writeLedger;
     @GuardedBy("ledgerLock")
     private LogMetadata logMetadata;
     @GuardedBy("ledgerLock")
@@ -95,6 +97,7 @@ class BookKeeperLog implements DurableDataLog {
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
         this.logNodePath = getLogNodePath(this.config.getNamespace(), logId);
+        this.lastAppendAddress = new AtomicReference<>(new LedgerAddress(0, 0));
         this.traceObjectId = String.format("Log[%d]", logId);
         this.retryPolicy = config.getRetryPolicy()
                                  .retryWhen(BookKeeperLog::isRetryable)
@@ -109,7 +112,7 @@ class BookKeeperLog implements DurableDataLog {
     public void close() {
         if (!this.closed.getAndSet(true)) {
             // Close active ledger.
-            LedgerHandle writeLedger;
+            WriteLedger writeLedger;
             synchronized (this.ledgerLock) {
                 writeLedger = this.writeLedger;
                 this.writeLedger = null;
@@ -118,9 +121,9 @@ class BookKeeperLog implements DurableDataLog {
 
             if (writeLedger != null) {
                 try {
-                    closeLedger(writeLedger);
+                    closeLedger(writeLedger.ledger);
                 } catch (DurableDataLogException bkEx) {
-                    log.error("{}: Unable to close LedgerHandle for Ledger {}.", this.traceObjectId, writeLedger.getId(), bkEx);
+                    log.error("{}: Unable to close LedgerHandle for Ledger {}.", this.traceObjectId, writeLedger.ledger.getId(), bkEx);
                 }
             }
         }
@@ -141,9 +144,7 @@ class BookKeeperLog implements DurableDataLog {
 
             // Fence out ledgers.
             if (metadata != null) {
-                long currentLogLength = fenceOut(metadata.getLedgers());
-                assert currentLogLength >= 0 : "currentLogLength must be non-negative " + currentLogLength;
-                metadata.setLastAppendSequence(currentLogLength);
+                fenceOut(metadata.getLedgers());
             }
 
             // Create new ledger.
@@ -151,7 +152,9 @@ class BookKeeperLog implements DurableDataLog {
 
             // Update node with new ledger.
             metadata = updateMetadata(metadata, newLedger);
-            this.writeLedger = newLedger;
+            LedgerMetadata ledgerMetadata = metadata.getLedgerMetadata(newLedger.getId());
+            assert ledgerMetadata != null : "cannot find newly added ledger metadata";
+            this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
             this.logMetadata = metadata;
         }
     }
@@ -221,7 +224,7 @@ class BookKeeperLog implements DurableDataLog {
     @Override
     public long getLastAppendSequence() {
         ensurePreconditions();
-        return getLogMetadata().getLastAppendSequence();
+        return this.lastAppendAddress.get().getSequence();
     }
 
     @Override
@@ -236,21 +239,27 @@ class BookKeeperLog implements DurableDataLog {
 
     private CompletableFuture<LogAddress> appendInternal(byte[] buffer) {
         CompletableFuture<LogAddress> result = new CompletableFuture<>();
+        val writeLedger = getWriteLedger();
         AsyncCallback.AddCallback callback = (rc, handle, entryId, ctx) -> {
             @SuppressWarnings("unchecked")
             CompletableFuture<LogAddress> completionFuture = (CompletableFuture<LogAddress>) ctx;
-            if (rc != 0) {
-                handleWriteException(rc, completionFuture);
-                return;
-            }
+            try {
+                assert handle.getId() == writeLedger.ledger.getId() : "LedgerHandle.Id mismatch. Expected " + writeLedger.ledger.getId() + ", actual " + handle.getId();
+                if (rc != 0) {
+                    handleWriteException(rc, completionFuture);
+                    return;
+                }
 
-            // Successful write. Complete the callback future and update metrics.
-            long seqNo = getLogMetadata().recordWrite(buffer.length);
-            LedgerAddress address = new LedgerAddress(seqNo, handle.getId(), entryId);
-            completionFuture.complete(address);
+                // Successful write. Complete the callback future and update metrics.
+                LedgerAddress address = new LedgerAddress(writeLedger.metadata.getSequence(), writeLedger.ledger.getId(), entryId);
+                this.lastAppendAddress.set(address);
+                completionFuture.complete(address);
+            } catch (Throwable ex) {
+                completionFuture.completeExceptionally(ex);
+            }
         };
 
-        getWriteLedger().asyncAddEntry(buffer, callback, result);
+        writeLedger.ledger.asyncAddEntry(buffer, callback, result);
         return result;
     }
 
@@ -339,8 +348,7 @@ class BookKeeperLog implements DurableDataLog {
                                   .forPath(this.logNodePath, serializedMetadata);
                 currentMetadata.setUpdateVersion(0); // Initial ZNode creation sets the version to 0.
             } else {
-                val lm = new LogMetadata.LedgerMetadata(newLedger.getId(), currentMetadata.getLastAppendSequence());
-                currentMetadata = currentMetadata.addLedger(lm, true);
+                currentMetadata = currentMetadata.addLedger(newLedger.getId(), true);
                 byte[] serializedMetadata = currentMetadata.serialize();
                 this.curatorClient.setData()
                                   .withVersion(currentMetadata.getUpdateVersion())
@@ -414,18 +422,28 @@ class BookKeeperLog implements DurableDataLog {
         }
     }
 
-    private long fenceOut(List<LogMetadata.LedgerMetadata> ledgerIds) throws DurableDataLogException {
-        int fenceCount = Math.min(ledgerIds.size(), Math.max(1, MAX_FENCE_LEDGER_COUNT));
-        long lastOffset = Long.MIN_VALUE;
-        for (int i = ledgerIds.size() - fenceCount; i < ledgerIds.size(); i++) {
-            LogMetadata.LedgerMetadata lm = ledgerIds.get(i);
-            LedgerHandle lh = openLedger(lm.getLedgerId(), this.bookKeeper, this.config);
-            lastOffset = lm.getStartOffset() + lh.getLength();
-            closeLedger(lh);
-            log.info("{}: Fenced out Ledger {}.", this.traceObjectId, lm);
+    private void fenceOut(List<LedgerMetadata> ledgerIds) throws DurableDataLogException {
+        // Fence out the last few ledgers, in descending order. We need to fence out at least MIN_FENCE_LEDGER_COUNT,
+        // but we also need to find the LedgerId & EntryID of the last written entry (it's possible that the last few
+        // ledgers are empty, so we need to look until we find one).
+        int count = 0;
+        val iterator = ledgerIds.listIterator(ledgerIds.size());
+        LedgerAddress lastAddress = null;
+        while (iterator.hasPrevious() && (count < MIN_FENCE_LEDGER_COUNT || lastAddress == null)) {
+            LedgerMetadata ledgerMetadata = iterator.previous();
+            LedgerHandle handle = openLedger(ledgerMetadata.getLedgerId(), this.bookKeeper, this.config);
+            if (lastAddress == null && handle.getLastAddConfirmed() >= 0) {
+                lastAddress = new LedgerAddress(ledgerMetadata.getSequence(), handle.getId(), handle.getLastAddConfirmed());
+            }
+
+            closeLedger(handle);
+            log.info("{}: Fenced out Ledger {}.", this.traceObjectId, ledgerMetadata);
+            count++;
         }
 
-        return lastOffset;
+        if (lastAddress != null) {
+            this.lastAppendAddress.set(lastAddress);
+        }
     }
 
     private static LedgerHandle openLedger(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
@@ -467,7 +485,7 @@ class BookKeeperLog implements DurableDataLog {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "triggerRolloverIfNecessary");
         CompletableFuture<Void> rolloverCompletion;
         synchronized (this.ledgerLock) {
-            if (this.ledgerRollover != null || this.writeLedger.getLength() < this.config.getBkLedgerMaxSize()) {
+            if (this.ledgerRollover != null || this.writeLedger.ledger.getLength() < this.config.getBkLedgerMaxSize()) {
                 // Rollover already in progress or no need for rollover yet.
                 LoggerHelpers.traceLeave(log, this.traceObjectId, "triggerRolloverIfNecessary", traceId, false);
                 return;
@@ -494,10 +512,6 @@ class BookKeeperLog implements DurableDataLog {
 
         // 1. Get latest version of the metadata (and compare against current metadata).
         LogMetadata metadata = getLogMetadata();
-        //        if (metadata == null || !metadata.compareVersions(getMetadata())) {
-        //            throw new DataLogWriterNotPrimaryException(
-        //                    String.format("Metadata missing or version mismatch. Existing = '%s', Actual = '%s'.", getMetadata(), metadata));
-        //        }
 
         log.debug("{}: Rollover: got metadata '{}'.", this.traceObjectId, metadata);
 
@@ -507,12 +521,14 @@ class BookKeeperLog implements DurableDataLog {
 
         // 3. Update the metadata.
         metadata = updateMetadata(metadata, newLedger);
+        LedgerMetadata ledgerMetadata = metadata.getLedgerMetadata(newLedger.getId());
+        assert ledgerMetadata != null : "cannot find newly added ledger metadata";
         log.debug("{}: Rollover: updated metadata '{}.", this.traceObjectId, metadata, metadata);
 
         // 4. Close the current ledger and update pointers to the new ledger and metadata.
         synchronized (this.ledgerLock) {
-            closeLedger(this.writeLedger);
-            this.writeLedger = newLedger;
+            closeLedger(this.writeLedger.ledger);
+            this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
             this.logMetadata = metadata;
         }
 
@@ -533,7 +549,7 @@ class BookKeeperLog implements DurableDataLog {
         }
     }
 
-    private LedgerHandle getWriteLedger() {
+    private WriteLedger getWriteLedger() {
         synchronized (this.ledgerLock) {
             return this.writeLedger;
         }
@@ -547,6 +563,17 @@ class BookKeeperLog implements DurableDataLog {
         }
     }
 
+    @RequiredArgsConstructor
+    private static class WriteLedger {
+        final LedgerHandle ledger;
+        final LedgerMetadata metadata;
+
+        @Override
+        public String toString() {
+            return String.format("%s, Length = %d, Closed = %s", this.metadata, this.ledger.getLength(), this.ledger.isClosed());
+        }
+    }
+
     //region LogReader
 
     @Slf4j
@@ -556,7 +583,7 @@ class BookKeeperLog implements DurableDataLog {
         private final LogMetadata metadata;
         private final AtomicBoolean closed;
         private final BookKeeperConfig config;
-        private LogMetadata.LedgerMetadata currentLedgerMetadata;
+        private LedgerMetadata currentLedgerMetadata;
         private LedgerHandle currentLedger;
         private Iterator<LedgerEntry> currentLedgerReader;
 
@@ -591,13 +618,14 @@ class BookKeeperLog implements DurableDataLog {
 
             if (this.currentLedgerReader == null) {
                 // First time we call this. Locate the first ledger based on the metadata truncation address.
-                openNextLedger(this.metadata.getTruncationAddress());
+                openNextLedger(this.metadata.nextAddress(this.metadata.getTruncationAddress(), 0));
             }
 
             while (this.currentLedgerReader != null && !this.currentLedgerReader.hasNext()) {
                 // We have reached the end of the current ledger. Find next one (the loop accounts for empty ledgers).
+                val lastAddress = new LedgerAddress(this.currentLedgerMetadata.getSequence(), this.currentLedger.getId(), this.currentLedger.getLastAddConfirmed());
                 closeLedger(this.currentLedger);
-                openNextLedger(new LedgerAddress(0, this.currentLedger.getId() + 1, -1));
+                openNextLedger(this.metadata.nextAddress(lastAddress, this.currentLedger.getLastAddConfirmed()));
             }
 
             // Try to read from the current reader.
@@ -607,51 +635,37 @@ class BookKeeperLog implements DurableDataLog {
 
             val nextEntry = this.currentLedgerReader.next();
 
-            // Sequence has to be exactly the same as the one we returned for append() for this entry. The value is the
-            // offset of the last byte of this entry, which is conveniently calculated using the start offset for the
-            // current ledger and the LedgerEntry.getLength() method, which returns the length of the ledger up to and
-            // including this entry.
-            val sequence = this.currentLedgerMetadata.getStartOffset() + nextEntry.getLength();
             byte[] payload = nextEntry.getEntry();// TODO: this also exposes an InputStream, which may be more efficient.
-            return new ReadItem(payload, new LedgerAddress(sequence, nextEntry.getLedgerId(), nextEntry.getEntryId()));
+            val address = new LedgerAddress(this.currentLedgerMetadata.getSequence(), this.currentLedger.getId(), nextEntry.getEntryId());
+            return new ReadItem(payload, address);
         }
 
-        private void openNextLedger(LedgerAddress afterAddress) throws DurableDataLogException {
-            LogMetadata.LedgerMetadata metadata = findNextLedgerMetadata(afterAddress);
-            if (metadata == null) {
-                // None of the ledgers are after the truncation address, so we have nothing to read.
+        private void openNextLedger(LedgerAddress address) throws DurableDataLogException {
+            if (address == null) {
+                // We have reached the end.
                 close();
                 return;
             }
+            LedgerMetadata metadata = this.metadata.getLedgerMetadata(address.getLedgerId());
+            assert metadata != null : "no LedgerMetadata could be found with valid LedgerAddress " + address;
 
-            // Open the first ledger.
+            // Open the ledger.
             this.currentLedgerMetadata = metadata;
             this.currentLedger = openLedger(metadata.getLedgerId(), this.bookKeeper, this.config);
-            long firstEntryId = afterAddress.getEntryId() + 1;
+
             long lastEntryId = this.currentLedger.getLastAddConfirmed();
-            if (lastEntryId < firstEntryId) {
+            if (lastEntryId < address.getEntryId()) {
                 // This ledger is empty.
                 closeLedger(this.currentLedger);
                 return;
             }
 
             try {
-                this.currentLedgerReader = Exceptions.handleInterrupted(() -> Iterators.forEnumeration(this.currentLedger.readEntries(firstEntryId, lastEntryId)));
+                this.currentLedgerReader = Exceptions.handleInterrupted(() -> Iterators.forEnumeration(this.currentLedger.readEntries(address.getEntryId(), lastEntryId)));
             } catch (Exception ex) {
                 close();
                 throw new DurableDataLogException("Error while reading from BookKeeper.", ex);
             }
-        }
-
-        private LogMetadata.LedgerMetadata findNextLedgerMetadata(LedgerAddress afterAddress) {
-            for (LogMetadata.LedgerMetadata lm : this.metadata.getLedgers()) {
-                if (lm.getLedgerId() >= afterAddress.getLedgerId()) {
-                    return lm;
-                }
-            }
-
-            // If we get here, it means all ledgers have been truncated out. Nothing more we can do.
-            return null;
         }
 
         @RequiredArgsConstructor

@@ -86,7 +86,8 @@ public class BookKeeperConfig {
 
     /**
      * The Maximum size of a ledger, in bytes. On or around this value the current ledger is closed and a new one
-     * is created.
+     * is created. By design, this property cannot be larger than Int.MAX_VALUE, since we want Ledger Entry Ids to be
+     * representable with an Int.
      */
     @Getter
     private final int bkLedgerMaxSize;
