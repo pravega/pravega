@@ -33,7 +33,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -46,6 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -108,10 +111,13 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Check the ability to update Metadata.StorageOffset if it is different.
         final int writeLength = 10;
+        AtomicLong lengthNotifyCallback = new AtomicLong(-1234);
+        context.dataSource.setNotifyStorageLengthUpdatedCallback(lengthNotifyCallback::set);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.storage.write(writeHandle(context.segmentAggregator.getMetadata().getName()), 0, new ByteArrayInputStream(new byte[writeLength]), writeLength, TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
         Assert.assertEquals("SegmentMetadata.StorageLength was not updated after call to initialize().", writeLength, context.segmentAggregator.getMetadata().getStorageLength());
+        Assert.assertEquals("notifyStorageLengthUpdated was not invoked.", context.segmentAggregator.getMetadata().getId(), lengthNotifyCallback.get());
     }
 
     /**
@@ -771,6 +777,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Store written data by segment - so we can check it later.
         HashMap<Long, ByteArrayOutputStream> dataBySegment = new HashMap<>();
+        val actualMergeOpAck = new ArrayList<Map.Entry<Long, Long>>();
+        context.dataSource.setCompleteMergeCallback((target, source) -> actualMergeOpAck.add(new AbstractMap.SimpleImmutableEntry<Long, Long>(target, source)));
 
         // Add a few appends to each Transaction aggregator and to the parent aggregator.
         // Seal the first half of the Transaction aggregators (thus, those Transactions will be fully flushed).
@@ -858,6 +866,15 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Verify that in the end, the contents of the parents is as expected.
         verifyParentSegmentData(parentData, context);
+
+        // Verify calls to completeMerge.
+        val expectedMergeOpSources = Arrays.stream(context.transactionAggregators).map(a -> a.getMetadata().getId()).collect(Collectors.toSet());
+        Assert.assertEquals("Unexpected number of calls to completeMerge.", expectedMergeOpSources.size(), actualMergeOpAck.size());
+        val actualMergeOpSources = actualMergeOpAck.stream().map(Map.Entry::getValue).collect(Collectors.toSet());
+        AssertExtensions.assertContainsSameElements("Unexpected sources for invocation to completeMerge.", expectedMergeOpSources, actualMergeOpSources);
+        for (Map.Entry<Long, Long> e : actualMergeOpAck) {
+            Assert.assertEquals("Unexpected target for invocation to completeMerge.", context.segmentAggregator.getMetadata().getId(), (long) e.getKey());
+        }
     }
 
     /**
@@ -1238,6 +1255,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         // Store written data by segment - so we can check it later.
         HashMap<Long, ByteArrayOutputStream> dataBySegment = new HashMap<>();
         ArrayList<StorageOperation> operations = new ArrayList<>();
+        val expectedMergeOpAck = new ArrayList<Map.Entry<Long, Long>>();
 
         // Create a segment and all its Transactions (do not initialize yet).
         ByteArrayOutputStream parentData = new ByteArrayOutputStream();
@@ -1270,6 +1288,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 parentData.write(transactionData.toByteArray());
                 transactionData.close();
                 dataBySegment.remove(transactionId);
+                expectedMergeOpAck.add(new AbstractMap.SimpleImmutableEntry<>(context.segmentAggregator.getMetadata().getId(), transactionId));
             }
         }
 
@@ -1300,11 +1319,14 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         }
 
         // Add all operations we had so far.
+        val actualMergeOpAck = new ArrayList<Map.Entry<Long, Long>>();
+        context.dataSource.setCompleteMergeCallback((target, source) -> actualMergeOpAck.add(new AbstractMap.SimpleImmutableEntry<Long, Long>(target, source)));
         for (StorageOperation o : operations) {
             int transactionIndex = (int) (o.getStreamSegmentId() - TRANSACTION_ID_START);
             SegmentAggregator a = transactionIndex < 0 ? context.segmentAggregator : context.transactionAggregators[transactionIndex];
             a.add(o);
         }
+        context.dataSource.setCompleteMergeCallback(null);
 
         // And now finish up the operations (merge all Transactions).
         for (SegmentAggregator a : context.transactionAggregators) {
@@ -1325,6 +1347,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Verify that in the end, the contents of the parents is as expected.
         verifyParentSegmentData(parentData, context);
+        AssertExtensions.assertListEquals("Unexpected callback calls to completeMerge for already processed operations.",
+                expectedMergeOpAck, actualMergeOpAck, Map.Entry::equals);
     }
 
     //endregion

@@ -43,10 +43,10 @@ class DeleteOperation extends FileSystemOperation<HDFSSegmentHandle> implements 
             try {
                 if (!makeReadOnly(lastFile)) {
                     // Last file was already readonly.
-                    checkForFenceOut(handle.getSegmentName(), files.size(), lastFile);
+                    checkForFenceOut(handle.getSegmentName(), -1, lastFile);
                 }
             } catch (FileNotFoundException ex) {
-                checkForFenceOut(handle.getSegmentName(), files.size(), lastFile);
+                checkForFenceOut(handle.getSegmentName(), -1, lastFile);
                 throw ex;
             }
 
