@@ -1,0 +1,77 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ */
+
+package com.emc.pravega.common.concurrent;
+
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
+
+/**
+ * Unit tests for the ExecutorServiceHelpers class.
+ * NOTE: this class inherits from ThreadPooledTestSuite but does not set a custom ThreadPoolSize. The Default (0) indicates
+ * we are using an InlineThreadPool, which is what all these tests rely on.
+ */
+public class ExecutorServiceHelpersTests extends ThreadPooledTestSuite {
+
+    /**
+     * Tests the execute() method.
+     */
+    @Test(timeout = 5000)
+    public void testExecute() {
+        AtomicInteger runCount = new AtomicInteger();
+        AtomicReference<Throwable> exceptionHolder = new AtomicReference<>();
+        AtomicInteger finallyCount = new AtomicInteger();
+
+        // Normal execution
+        ExecutorServiceHelpers.execute(
+                runCount::incrementAndGet,
+                exceptionHolder::set,
+                finallyCount::incrementAndGet,
+                executorService());
+
+        Assert.assertEquals("Unexpected number of runs (normal execution)", 1, runCount.get());
+        Assert.assertNull("Unexpected exception set (normal execution)", exceptionHolder.get());
+        Assert.assertEquals("Unexpected number of finally runs (normal execution)", 1, finallyCount.get());
+
+        // Run with failure.
+        runCount.set(0);
+        exceptionHolder.set(null);
+        finallyCount.set(0);
+        ExecutorServiceHelpers.execute(
+                () -> {
+                    throw new IntentionalException();
+                },
+                exceptionHolder::set,
+                finallyCount::incrementAndGet,
+                executorService());
+        Assert.assertTrue("Unexpected exception set (failed task)", exceptionHolder.get() instanceof IntentionalException);
+        Assert.assertEquals("Unexpected number of finally runs (failed task)", 1, finallyCount.get());
+
+        // Scheduling exception
+        val closedExecutor = Executors.newSingleThreadExecutor();
+        closedExecutor.shutdown();
+        runCount.set(0);
+        exceptionHolder.set(null);
+        finallyCount.set(0);
+        AssertExtensions.assertThrows(
+                "execute did not throw appropriate exception when executor was closed",
+                () -> ExecutorServiceHelpers.execute(
+                        runCount::incrementAndGet,
+                        exceptionHolder::set,
+                        finallyCount::incrementAndGet,
+                        closedExecutor),
+                ex -> ex instanceof RejectedExecutionException);
+        Assert.assertEquals("Unexpected number of runs (rejected execution)", 0, runCount.get());
+        Assert.assertNull("Unexpected exception set (rejected execution)", exceptionHolder.get());
+        Assert.assertEquals("Unexpected number of finally runs (rejected execution)", 1, finallyCount.get());
+    }
+}

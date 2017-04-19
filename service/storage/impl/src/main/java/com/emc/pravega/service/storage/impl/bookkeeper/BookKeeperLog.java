@@ -9,6 +9,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.Timer;
+import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.CloseableIterator;
@@ -61,16 +62,15 @@ class BookKeeperLog implements DurableDataLog {
     private final BookKeeperConfig config;
     private final ScheduledExecutorService executorService;
     private final AtomicBoolean closed;
-    private final Object ledgerLock = new Object();
+    private final Object lock = new Object();
     private final String traceObjectId;
     private final Retry.RetryAndThrowBase<Exception> retryPolicy;
     private final AtomicReference<LedgerAddress> lastAppendAddress;
-    @GuardedBy("ledgerLock")
+    private final AtomicBoolean rolloverInProgress;
+    @GuardedBy("lock")
     private WriteLedger writeLedger;
-    @GuardedBy("ledgerLock")
+    @GuardedBy("lock")
     private LogMetadata logMetadata;
-    @GuardedBy("ledgerLock")
-    private CompletableFuture<Void> ledgerRollover;
 
     //region Constructor
 
@@ -89,6 +89,7 @@ class BookKeeperLog implements DurableDataLog {
         this.logNodePath = getLogNodePath(this.config.getNamespace(), logId);
         this.lastAppendAddress = new AtomicReference<>(new LedgerAddress(0, 0));
         this.traceObjectId = String.format("Log[%d]", logId);
+        this.rolloverInProgress = new AtomicBoolean();
         this.retryPolicy = config.getRetryPolicy()
                                  .retryWhen(BookKeeperLog::isRetryable)
                                  .throwingOn(Exception.class);
@@ -103,7 +104,7 @@ class BookKeeperLog implements DurableDataLog {
         if (!this.closed.getAndSet(true)) {
             // Close active ledger.
             WriteLedger writeLedger;
-            synchronized (this.ledgerLock) {
+            synchronized (this.lock) {
                 writeLedger = this.writeLedger;
                 this.writeLedger = null;
                 this.logMetadata = null;
@@ -125,7 +126,7 @@ class BookKeeperLog implements DurableDataLog {
 
     @Override
     public void initialize(Duration timeout) throws DurableDataLogException {
-        synchronized (this.ledgerLock) {
+        synchronized (this.lock) {
             Preconditions.checkState(this.writeLedger == null, "BookKeeperLog is already initialized.");
             assert this.logMetadata == null : "writeLedger == null but logMetadata != null";
 
@@ -175,19 +176,17 @@ class BookKeeperLog implements DurableDataLog {
         }
 
         // Use a retry loop to handle retryable exceptions.
-        CompletableFuture<LogAddress> result = waitForRolloverIfNecessary().thenComposeAsync(
-                v -> this.retryPolicy.runAsync(() -> appendInternal(buffer).exceptionally(this::handleWriteException), this.executorService),
-                this.executorService);
+        val result = this.retryPolicy.runAsync(() -> tryAppend(buffer).exceptionally(this::handleWriteException), this.executorService);
 
         // Post append tasks. We do not need to wait for these to happen before returning the call.
         result.thenAcceptAsync(address -> {
-            // After every append, check if we need to trigger a rollover.
-            triggerRolloverIfNecessary();
-
             // Update metrics and take care of other logging tasks.
             Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
             Metrics.WRITE_BYTES.add(buffer.length);
             LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, address, buffer.length);
+
+            // After every append, check if we need to trigger a rollover.
+            triggerRolloverIfNecessary();
         }, this.executorService);
         return result;
     }
@@ -202,12 +201,7 @@ class BookKeeperLog implements DurableDataLog {
     @Override
     public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
         ensurePreconditions();
-        val metadata = getLogMetadata();
-        val truncatedAddress = metadata.getTruncationAddress();
-        final long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "getReader", truncatedAddress);
-        val result = new LogReader(metadata, this.bookKeeper, this.config);
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "getReader", traceId);
-        return result;
+        return new LogReader(getLogMetadata(), this.bookKeeper, this.config);
     }
 
     @Override
@@ -231,15 +225,30 @@ class BookKeeperLog implements DurableDataLog {
 
     //region Appends
 
-    private CompletableFuture<LogAddress> appendInternal(byte[] buffer) {
-        CompletableFuture<LogAddress> result = new CompletableFuture<>();
-        val writeLedger = getWriteLedger();
+    private CompletableFuture<LogAddress> tryAppend(byte[] buffer) {
+        val result = new CompletableFuture<LogAddress>();
+        tryAppend(buffer, getWriteLedger(), result);
+        return result;
+    }
+
+    private void tryAppend(byte[] buffer, WriteLedger writeLedger, CompletableFuture<LogAddress> result) {
         AsyncCallback.AddCallback callback = (rc, handle, entryId, ctx) -> {
             @SuppressWarnings("unchecked")
             CompletableFuture<LogAddress> completionFuture = (CompletableFuture<LogAddress>) ctx;
             try {
                 assert handle.getId() == writeLedger.ledger.getId() : "LedgerHandle.Id mismatch. Expected " + writeLedger.ledger.getId() + ", actual " + handle.getId();
                 if (rc != 0) {
+                    if (rc == BKException.Code.LedgerClosedException) {
+                        // LedgerClosed can happen because we just rolled over the ledgers. The way to detect this is to
+                        // check if the ledger we were trying to write to is closed and whether we have a new ledger.
+                        // If that's the case, retry the write with the new ledger.
+                        WriteLedger currentLedger = getWriteLedger();
+                        if (!currentLedger.ledger.isClosed() && currentLedger.ledger.getId() != writeLedger.ledger.getId()) {
+                            tryAppend(buffer, currentLedger, result);
+                            return;
+                        }
+                    }
+
                     handleWriteException(rc, completionFuture);
                     return;
                 }
@@ -254,7 +263,6 @@ class BookKeeperLog implements DurableDataLog {
         };
 
         writeLedger.ledger.asyncAddEntry(buffer, callback, result);
-        return result;
     }
 
     @SneakyThrows(Throwable.class)
@@ -380,53 +388,25 @@ class BookKeeperLog implements DurableDataLog {
 
     //region Ledger Rollover
 
-    private CompletableFuture<Void> waitForRolloverIfNecessary() {
-        CompletableFuture<Void> rolloverCompletion;
-        synchronized (this.ledgerLock) {
-            rolloverCompletion = this.ledgerRollover;
-        }
-
-        if (rolloverCompletion == null) {
-            rolloverCompletion = CompletableFuture.completedFuture(null);
-        } else {
-            log.debug("{}: Waiting for Ledger Rollover to complete.", this.traceObjectId);
-        }
-
-        return rolloverCompletion;
-    }
-
     private void triggerRolloverIfNecessary() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "triggerRolloverIfNecessary");
-        CompletableFuture<Void> rolloverCompletion;
-        synchronized (this.ledgerLock) {
-            if (this.ledgerRollover != null || this.writeLedger.ledger.getLength() < this.config.getBkLedgerMaxSize()) {
-                // Rollover already in progress or no need for rollover yet.
-                LoggerHelpers.traceLeave(log, this.traceObjectId, "triggerRolloverIfNecessary", traceId, false);
-                return;
-            }
-
-            this.ledgerRollover = new CompletableFuture<>();
-            this.ledgerRollover.thenRun(() -> {
-                // Cleanup after successful execution only. A failed execution means we left the log in a weird state and
-                // we cannot recover from that.
-                synchronized (this.ledgerLock) {
-                    this.ledgerRollover = null;
-                }
-            });
-            rolloverCompletion = this.ledgerRollover;
+        boolean trigger = getWriteLedger().ledger.getLength() >= this.config.getBkLedgerMaxSize()
+                && this.rolloverInProgress.compareAndSet(false, true);
+        if (trigger) {
+            ExecutorServiceHelpers.execute(this::rollover,
+                    ex -> log.error("{}: Rollover failure; log may be unusable.", ex),
+                    () -> this.rolloverInProgress.set(false),
+                    this.executorService);
         }
 
-        FutureHelpers.completeAfter(() -> CompletableFuture.runAsync(this::rollover, this.executorService), rolloverCompletion);
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "triggerRolloverIfNecessary", traceId, true);
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "triggerRolloverIfNecessary", traceId, trigger);
     }
 
-    @SneakyThrows(DurableDataLogException.class)
-    private void rollover() {
+    private void rollover() throws DurableDataLogException {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "rollover");
 
-        // 1. Get latest version of the metadata (and compare against current metadata).
+        // 1. Get latest version of the metadata.
         LogMetadata metadata = getLogMetadata();
-
         log.debug("{}: Rollover: got metadata '{}'.", this.traceObjectId, metadata);
 
         // 2.Create new ledger.
@@ -439,14 +419,18 @@ class BookKeeperLog implements DurableDataLog {
         assert ledgerMetadata != null : "cannot find newly added ledger metadata";
         log.debug("{}: Rollover: updated metadata '{}.", this.traceObjectId, metadata, metadata);
 
-        // 4. Close the current ledger and update pointers to the new ledger and metadata.
-        synchronized (this.ledgerLock) {
-            Ledgers.close(this.writeLedger.ledger);
+        // 4. Update pointers to the new ledger and metadata.
+        LedgerHandle oldLedger;
+        synchronized (this.lock) {
+            oldLedger = this.writeLedger.ledger;
             this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
             this.logMetadata = metadata;
         }
 
-        log.debug("{}: Rollover: swapped ledger and metadata pointers.", this.traceObjectId, metadata, metadata);
+        // 5. Close the old ledger. This must be done outside of the lock, otherwise the pending writes (and their callbacks
+        // will be invoked within the lock, thus likely candidates for deadlocks).
+        Ledgers.close(oldLedger);
+        log.debug("{}: Rollover: swapped ledger and metadata pointers (Old = {}, New = {}) and closed old ledger.", this.traceObjectId, oldLedger.getId(), newLedger.getId());
         LoggerHelpers.traceLeave(log, this.traceObjectId, "rollover", traceId);
     }
 
@@ -458,20 +442,20 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     private LogMetadata getLogMetadata() {
-        synchronized (this.ledgerLock) {
+        synchronized (this.lock) {
             return this.logMetadata;
         }
     }
 
     private WriteLedger getWriteLedger() {
-        synchronized (this.ledgerLock) {
+        synchronized (this.lock) {
             return this.writeLedger;
         }
     }
 
     private void ensurePreconditions() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        synchronized (this.ledgerLock) {
+        synchronized (this.lock) {
             Preconditions.checkState(this.writeLedger != null, "BookKeeperLog is not initialized.");
             assert this.logMetadata != null : "writeLedger != null but logMetadata == null";
         }
