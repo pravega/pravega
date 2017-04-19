@@ -128,7 +128,7 @@ public class ZKSegmentContainerMonitorTest {
 
         // Container finished starting.
         startupFuture.complete(containerHandle);
-        verify(containerRegistry, timeout(100000).atLeastOnce()).startContainer(eq(2), any());
+        verify(containerRegistry, timeout(10000).atLeastOnce()).startContainer(eq(2), any());
 
         Thread.sleep(2000);
         assertEquals(1, segMonitor.getRegisteredContainers().size());
@@ -141,7 +141,7 @@ public class ZKSegmentContainerMonitorTest {
 
         // Verify that stop is called and only the newly added container is in running state.
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
-        verify(containerRegistry, timeout(100000).atLeastOnce()).stopContainer(any(), any());
+        verify(containerRegistry, timeout(10000).atLeastOnce()).stopContainer(any(), any());
 
         Thread.sleep(2000);
         assertEquals(1, segMonitor.getRegisteredContainers().size());
@@ -181,11 +181,14 @@ public class ZKSegmentContainerMonitorTest {
         currentData.clear();
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
-        // Wait and verify that stop is called after start and that its completely shutdown.
+        // Wait for sometime and verify that stop is called after start and that its completely shutdown.
+        // The wait here should be greater than the monitor loop interval (set to 1 second above) to guarantee
+        // that the monitor will find the start to be still pending.
         Thread.sleep(2000);
         startupFuture.complete(containerHandle);
-        verify(containerRegistry, timeout(10000).atLeastOnce()).stopContainer(any(), any());
 
+        verify(containerRegistry, timeout(10000).atLeastOnce()).stopContainer(any(), any());
+        Thread.sleep(2000);
         assertEquals(0, segMonitor.getRegisteredContainers().size());
     }
 
@@ -211,7 +214,7 @@ public class ZKSegmentContainerMonitorTest {
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
         // Verify that it does not start.
-        verify(containerRegistry, timeout(100000).atLeastOnce()).startContainer(eq(2), any());
+        verify(containerRegistry, timeout(10000).atLeastOnce()).startContainer(eq(2), any());
         assertEquals(0, segMonitor.getRegisteredContainers().size());
 
         // Now simulate success for the same container.
@@ -221,7 +224,7 @@ public class ZKSegmentContainerMonitorTest {
                 .thenReturn(CompletableFuture.completedFuture(containerHandle));
 
         // Verify that it retries and starts the same container again.
-        verify(containerRegistry, timeout(100000).atLeastOnce()).startContainer(eq(2), any());
+        verify(containerRegistry, timeout(10000).atLeastOnce()).startContainer(eq(2), any());
         Thread.sleep(2000);
         assertEquals(1, segMonitor.getRegisteredContainers().size());
     }
