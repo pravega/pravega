@@ -48,12 +48,7 @@ public class HDFSStorageTest extends StorageTestBase {
         context.getLoggerList().get(0).setLevel(Level.OFF);
 
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
-        Configuration conf = new Configuration();
-        conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
-        conf.setBoolean("dfs.permissions.enabled", true);
-        MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
-        this.hdfsCluster = builder.build();
-
+        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
         this.adapterConfig = HDFSStorageConfig
                 .builder()
                 .with(HDFSStorageConfig.REPLICATION, 1)

@@ -536,6 +536,16 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getDurableLogLength())));
             } else {
+                if (!entry.getContent().isDone()) {
+                    // Normally, all Future Reads are served from Cache, since they reflect data that has just been appended.
+                    // However, it's possible that after recovery, we get a read for some data that we do not have in the
+                    // cache (but it's not a tail read) - this data exists in Storage but our StorageLength has not yet been
+                    // updated. As such, the only solution we have is to return a FutureRead which will be satisfied when
+                    // the Writer updates the StorageLength (and trigger future reads). In that scenario, entry we get
+                    // will likely not be auto-fetched, so we need to request the content.
+                    entry.requestContent(this.config.getStorageReadDefaultTimeout());
+                }
+
                 CompletableFuture<ReadResultEntryContents> entryContent = entry.getContent();
                 entryContent.thenAccept(r::complete);
                 FutureHelpers.exceptionListener(entryContent, r::fail);
@@ -825,6 +835,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             return createStorageRead(streamSegmentOffset, (int) actualReadLength);
         } else {
+            // Note that Future Reads are not necessarily tail reads. They mean that we cannot return a result given
+            // the current state of the metadata. An example of when we might return a Future Read that is not a tail read
+            // is when we receive a read request immediately after recovery, but before the StorageWriter has had a chance
+            // to refresh the Storage state (the metadata may be a bit out of date). In that case, we record a Future Read
+            // which will be completed when the StorageWriter invokes triggerFutureReads() upon refreshing the info.
             return createFutureRead(streamSegmentOffset, maxLength);
         }
     }
