@@ -155,7 +155,7 @@ class BookKeeperLog implements DurableDataLog {
 
             // Update node with new ledger.
             metadata = updateMetadata(metadata, newLedger);
-            LedgerMetadata ledgerMetadata = metadata.getLedgerMetadata(newLedger.getId());
+            LedgerMetadata ledgerMetadata = metadata.getLedger(newLedger.getId());
             assert ledgerMetadata != null : "cannot find newly added ledger metadata";
             this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
             this.logMetadata = metadata;
@@ -533,7 +533,7 @@ class BookKeeperLog implements DurableDataLog {
 
         // Update the metadata.
         metadata = updateMetadata(metadata, newLedger);
-        LedgerMetadata ledgerMetadata = metadata.getLedgerMetadata(newLedger.getId());
+        LedgerMetadata ledgerMetadata = metadata.getLedger(newLedger.getId());
         assert ledgerMetadata != null : "cannot find newly added ledger metadata";
         log.debug("{}: Rollover: updated metadata '{}.", this.traceObjectId, metadata, metadata);
 

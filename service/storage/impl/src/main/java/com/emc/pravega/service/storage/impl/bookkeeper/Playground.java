@@ -31,13 +31,6 @@ import org.apache.zookeeper.data.Stat;
  */
 public class Playground {
     public static void main(String[] args) throws Exception {
-        System.out.println(HierarchyUtils.getPath("/root/",1234,0));
-        System.out.println(HierarchyUtils.getPath("/root",1234,1));
-        System.out.println(HierarchyUtils.getPath("/root",1234,2));
-        System.out.println(HierarchyUtils.getPath("/root",1234,3));
-        System.out.println(HierarchyUtils.getPath("/root",1234,4));
-        System.out.println(HierarchyUtils.getPath("/root",1234,5));
-        System.out.println(HierarchyUtils.getPath("/root",1234,6));
         //testLog();
     }
 

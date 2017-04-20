@@ -88,14 +88,14 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         if (this.currentLedgerReader == null) {
             // First time we call this. Locate the first ledger based on the metadata truncation address. We don't know
             // how many entries are in that first ledger, so open it anyway so we can figure out.
-            openNextLedger(this.metadata.nextAddress(this.metadata.getTruncationAddress(), Long.MAX_VALUE));
+            openNextLedger(this.metadata.getNextAddress(this.metadata.getTruncationAddress(), Long.MAX_VALUE));
         }
 
         while (this.currentLedgerMetadata != null && (this.currentLedgerReader == null || !this.currentLedgerReader.hasNext())) {
             // We have reached the end of the current ledger. Find next one, and skip over empty ledgers).
             val lastAddress = new LedgerAddress(this.currentLedgerMetadata.getSequence(), this.currentLedger.getId(), this.currentLedger.getLastAddConfirmed());
             Ledgers.close(this.currentLedger);
-            openNextLedger(this.metadata.nextAddress(lastAddress, this.currentLedger.getLastAddConfirmed()));
+            openNextLedger(this.metadata.getNextAddress(lastAddress, this.currentLedger.getLastAddConfirmed()));
         }
 
         // Try to read from the current reader.
@@ -117,7 +117,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             return;
         }
 
-        LedgerMetadata metadata = this.metadata.getLedgerMetadata(address.getLedgerId());
+        LedgerMetadata metadata = this.metadata.getLedger(address.getLedgerId());
         assert metadata != null : "no LedgerMetadata could be found with valid LedgerAddress " + address;
 
         // Open the ledger.

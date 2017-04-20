@@ -163,7 +163,7 @@ class LogMetadata {
      * @param ledgerId The Ledger Id to search.
      * @return The sought LedgerMetadata, or null if not found.
      */
-    LedgerMetadata getLedgerMetadata(long ledgerId) {
+    LedgerMetadata getLedger(long ledgerId) {
         int index = getLedgerMetadataIndex(ledgerId);
         if (index >= 0) {
             return this.ledgers.get(index);
@@ -181,7 +181,7 @@ class LogMetadata {
      *                    this should be Long.MAX_VALUE, in which case the next address will always be on the same ledger.
      * @return The next address, or null if no such address exists (i.e., if we reached the end of the log).
      */
-    LedgerAddress nextAddress(LedgerAddress address, long lastEntryId) {
+    LedgerAddress getNextAddress(LedgerAddress address, long lastEntryId) {
         if (this.ledgers.size() == 0) {
             // Quick bail-out. Nothing to return.
             return null;
