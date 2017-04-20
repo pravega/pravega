@@ -4,9 +4,6 @@
 package com.emc.pravega.service.server.host.handler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.shared.metrics.MetricsConfig;
-import com.emc.pravega.shared.metrics.MetricsProvider;
-import com.emc.pravega.shared.metrics.OpStatsData;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
@@ -28,10 +25,15 @@ import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.server.store.StreamSegmentService;
+import com.emc.pravega.shared.metrics.MetricsConfig;
+import com.emc.pravega.shared.metrics.MetricsProvider;
+import com.emc.pravega.shared.metrics.OpStatsData;
 import com.emc.pravega.testcommon.InlineExecutor;
 import com.emc.pravega.testcommon.TestUtils;
+import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -104,6 +106,11 @@ public class PravegaRequestProcessorTest {
         protected void fail(Throwable exception) {
             super.fail(exception);
         }
+
+        @Override
+        public void requestContent(Duration timeout) {
+            Preconditions.checkState(getType() != ReadResultEntryType.EndOfStreamSegment, "EndOfStreamSegmentReadResultEntry does not have any content.");
+        }
     }
 
     @Test(timeout = 20000)
@@ -135,6 +142,32 @@ public class PravegaRequestProcessorTest {
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         entry2.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test(timeout = 20000)
+    public void testReadSegmentEmptySealed() {
+        // Set up PravegaRequestProcessor instance to execute read segment request against
+        String streamSegmentName = "testReadSegment";
+        int readLength = 1000;
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.EndOfStreamSegment, 0, readLength);
+
+        List<ReadResultEntry> results = new ArrayList<>();
+        results.add(entry1);
+        CompletableFuture<ReadResult> readResult = new CompletableFuture<>();
+        readResult.complete(new TestReadResult(0, readLength, results));
+        when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
+
+        // Execute and Verify readSegment calling stack in connection and store is executed as design.
+        processor.readSegment(new ReadSegment(streamSegmentName, 0, readLength));
+        verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
+        verify(connection).send(new SegmentRead(streamSegmentName, 0, false, true, ByteBuffer.wrap(new byte[0])));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
