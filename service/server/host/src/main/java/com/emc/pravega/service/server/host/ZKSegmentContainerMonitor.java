@@ -12,15 +12,6 @@ import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.apache.commons.lang.SerializationUtils;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.recipes.cache.NodeCache;
-import org.apache.curator.utils.ZKPaths;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -32,13 +23,21 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.apache.commons.lang.SerializationUtils;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.cache.NodeCache;
+import org.apache.curator.utils.ZKPaths;
 
 /**
- * Monitors the current set of running segment containers and ensure it matches the ownership assigment for this host.
+ * Monitors the current set of running segment containers and ensure it matches the ownership assignment for this host.
  * This monitor watches the shared zk entry that contains the segment container ownership information
  * and starts or stops appropriate segment containers locally. Any start failures are periodically retried until
  * the desired ownership state is achieved.
@@ -64,27 +63,28 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     // The list of containers which have ongoing start/stop tasks pending. This list is needed to ensure
     // we don't initiate conflicting tasks for the same containerId.
     private final Set<Integer> pendingTasks;
-
-    // The single threaded executor used to monitor the shared segment container assignment info.
-    private ScheduledExecutorService scheduledExecutor = null;
+    private final ScheduledExecutorService executor;
+    private AtomicReference<ScheduledFuture<?>> assigmentTask;
 
     /**
      * Creates an instance of ZKSegmentContainerMonitor.
      *
-     * @param containerRegistry         The registry used to control the container state.
-     * @param zkClient                  The curator client.
-     * @param pravegaServiceEndpoint    The pravega endpoint for which we need to fetch the container assignment.
+     * @param containerRegistry      The registry used to control the container state.
+     * @param zkClient               The curator client.
+     * @param pravegaServiceEndpoint The pravega endpoint for which we need to fetch the container assignment.
      */
     ZKSegmentContainerMonitor(SegmentContainerRegistry containerRegistry, CuratorFramework zkClient,
-                              Host pravegaServiceEndpoint) {
+                              Host pravegaServiceEndpoint, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(zkClient, "zkClient");
 
         this.registry = Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         this.host = Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
+        this.executor = Preconditions.checkNotNull(executor, "executor");
         this.handles = new ConcurrentHashMap<>();
         this.pendingTasks = new ConcurrentSkipListSet<>();
         String clusterPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         this.hostContainerMapNode = new NodeCache(zkClient, clusterPath);
+        this.assigmentTask = new AtomicReference<>();
     }
 
     /**
@@ -100,10 +100,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         Exceptions.checkNotClosed(closed.get(), this);
 
         this.hostContainerMapNode.start();
-        this.scheduledExecutor = Executors.newScheduledThreadPool(1,
-                new ThreadFactoryBuilder().setNameFormat("monitor-segment-containers-%d").setDaemon(true).build());
-        this.scheduledExecutor.scheduleWithFixedDelay(
-                this::checkAssignment, 0L, monitorInterval.getSeconds(), TimeUnit.SECONDS);
+        this.assigmentTask.set(this.executor.scheduleWithFixedDelay(
+                this::checkAssignment, 0L, monitorInterval.getSeconds(), TimeUnit.SECONDS));
     }
 
     @Override
@@ -115,15 +113,17 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             // Ignoring exception on shutdown.
             log.warn("Failed to close hostContainerMapNode {}", e);
         }
-        if (this.scheduledExecutor != null) {
-            this.scheduledExecutor.shutdownNow();
+
+        val task = this.assigmentTask.getAndSet(null);
+        if (task != null) {
+            task.cancel(true);
         }
 
         ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
         ArrayList<CompletableFuture<Void>> results = new ArrayList<>();
         for (ContainerHandle handle : toClose) {
             results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER)
-                    .thenAccept(v -> unregisterHandle(handle.getContainerId())));
+                                     .thenAccept(v -> unregisterHandle(handle.getContainerId())));
         }
 
         // Wait for all the containers to be closed.
@@ -135,10 +135,12 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         return this.handles.keySet();
     }
 
-    // The container assignment monitor. This is executed in a single threaded executor and hence there will never be
-    // parallel invocations of this method.
-    // This method will fetch the current owned containers for this host and ensures that the local containers' state
-    // reflects this.
+    /**
+     * The container assignment monitor. This is executed in a single threaded executor and hence there will never be
+     * parallel invocations of this method.
+     * This method will fetch the current owned containers for this host and ensures that the local containers' state
+     * reflects this.
+     */
     private void checkAssignment() {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "checkAssignment");
@@ -157,15 +159,12 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             Collection<Integer> containersToBeStopped = CollectionHelpers.filterOut(runningContainers, desiredList);
             containersToBeStopped = CollectionHelpers.filterOut(containersToBeStopped, containersPendingTasks);
 
-            log.debug("Container Changes: Desired = {}, Current = {}, ToStart = {}, ToStop = {}.",
-                    desiredList, runningContainers, containersToBeStarted, containersToBeStopped);
-            if (!containersPendingTasks.isEmpty()) {
-                log.info("Containers with pending start/stop tasks = {}", containersPendingTasks);
-            }
+            log.debug("Container Changes: Desired = {}, Current = {}, PendingStarts = {}, ToStart = {}, ToStop = {}.",
+                    desiredList, runningContainers, containersPendingTasks, containersToBeStarted, containersToBeStopped);
 
             // Initiate the start and stop tasks asynchronously.
-            containersToBeStarted.stream().forEach(this::startContainer);
-            containersToBeStopped.stream().forEach(this::stopContainer);
+            containersToBeStarted.forEach(this::startContainer);
+            containersToBeStopped.forEach(this::stopContainer);
         } else {
             log.warn("No segment container assignments found");
         }
@@ -181,7 +180,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             return null;
         } else {
             this.pendingTasks.add(containerId);
-            return registry.stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER)
+            return registry
+                    .stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER)
                     .whenComplete((aVoid, throwable) -> {
                         if (throwable != null) {
                             log.warn("Stopping container {} failed: {}", containerId, throwable);
@@ -194,49 +194,50 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         }
     }
 
-    private CompletableFuture<Void> startContainer(int containerId) {
+    private CompletableFuture<ContainerHandle> startContainer(int containerId) {
         log.info("Starting Container {}.", containerId);
         this.pendingTasks.add(containerId);
-        return this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
-                .thenAccept(this::registerHandle)
-                .whenComplete((u, throwable) -> {
-                    if (throwable != null) {
-                        log.warn("Starting container {} failed: {}", containerId, throwable);
-                    }
+        return this.registry
+                .startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
+                .whenComplete((handle, ex) -> {
+                    // First and foremost: unregister pending task; don't risk an exception in this callback from preventing that.
                     this.pendingTasks.remove(containerId);
+                    if (ex == null) {
+                        if (this.handles.putIfAbsent(handle.getContainerId(), handle) != null) {
+                            log.warn("Starting container {} succeeded but handle is already registered.", handle.getContainerId());
+                        } else {
+                            handle.setContainerStoppedListener(this::unregisterHandle);
+                            log.info("Container {} has been registered.", handle.getContainerId());
+                        }
+                    } else {
+                        log.warn("Starting container {} failed: {}", containerId, ex);
+                    }
                 });
     }
 
     private void unregisterHandle(int containerId) {
         if (this.handles.remove(containerId) == null) {
-            log.warn("found unregistered handle {}", containerId);
+            log.warn("Attempted to unregister non-registered container {}.", containerId);
+        } else {
+            log.info("Container {} has been unregistered.", containerId);
         }
-        log.info("Container {} has been unregistered", containerId);
     }
 
-    private void registerHandle(ContainerHandle handle) {
-        Preconditions.checkNotNull(handle, "handle");
-        Preconditions.checkState(this.handles.putIfAbsent(handle.getContainerId(), handle) == null,
-                "handle for container {} is already registered {}", handle.getContainerId(), handle);
-
-        handle.setContainerStoppedListener(this::unregisterHandle);
-        log.info("Container {} has been registered", handle.getContainerId());
-    }
-
-    @SuppressWarnings("unchecked")
     private Set<Integer> getDesiredContainerList() {
-        log.debug("Fetching the latest container assignment from zookeeper");
+        log.debug("Fetching the latest container assignment from ZooKeeper.");
         if (hostContainerMapNode.getCurrentData() != null) { //Check if path exists.
             //read data from zk.
             byte[] containerToHostMapSer = hostContainerMapNode.getCurrentData().getData();
             if (containerToHostMapSer != null) {
+                @SuppressWarnings("unchecked")
                 val controlMapping = (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer);
                 return controlMapping.entrySet().stream()
-                        .filter(ep -> ep.getKey().equals(this.host))
-                        .map(Map.Entry::getValue)
-                        .findFirst().orElse(Collections.emptySet());
+                                     .filter(ep -> ep.getKey().equals(this.host))
+                                     .map(Map.Entry::getValue)
+                                     .findFirst().orElse(Collections.emptySet());
             }
         }
+
         return null;
     }
 }

@@ -268,7 +268,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
 
     private ZKSegmentContainerMonitor createContainerMonitor(
             SegmentContainerRegistry registry, CuratorFramework zkClient) {
-        return new ZKSegmentContainerMonitor(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT);
+        return new ZKSegmentContainerMonitor(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, executorService());
     }
 
     private void initializeHostContainerMapping(CuratorFramework zkClient) throws Exception {
