@@ -141,7 +141,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
         boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
 
-        if (!cachedEntries.isEmpty()) {
+        if (!cachedEntries.isEmpty() || endOfSegment) {
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
