@@ -59,6 +59,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                         .forPath(getLockPath(resource, type), lockData.serialize());
                 return getSeqNumber(path);
             } catch (Exception e) {
+                log.warn("Failed locking resource {}", resource.getString(), e);
                 throw new LockFailedException(resource.toString(), e);
             }
         }, this.executor);
@@ -190,7 +191,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             client.delete().forPath(path);
         } catch (Exception e) {
             // It is ok to not delete the resource node, hence just log the error and proceed.
-            log.warn("Failed trying to check if resource {} is empty and deleting it if empty. Error: {}",
+            log.debug("Failed trying to check if resource {} is empty and deleting it if empty. Error: {}",
                     resource.getString(), e.getMessage());
         }
     }

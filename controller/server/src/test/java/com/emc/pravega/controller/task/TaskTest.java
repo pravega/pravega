@@ -8,6 +8,7 @@ import com.emc.pravega.controller.mocks.AckFutureMock;
 import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
 import com.emc.pravega.controller.server.eventProcessor.CommitEvent;
 import com.emc.pravega.controller.store.stream.TxnStatus;
+import com.emc.pravega.controller.store.stream.VersionedTransactionData;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -65,6 +66,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -357,6 +360,38 @@ public class TaskTest {
         // Ensure that transaction state is COMMITTING.
         status = streamStore.getTransactionData(SCOPE, stream1, txId, null, executor).join().getStatus();
         assertEquals(TxnStatus.COMMITTING, status);
+    }
+
+    @Test(timeout = 10000)
+    public void testParallelTransactionCreate() {
+        final int count = 20;
+        final String commitStream = "commitStream";
+        final String abortStream = "abortStream";
+        final AckFuture future = new AckFutureMock(CompletableFuture.completedFuture(true));
+
+        // Create mock writer objects.
+        EventStreamWriter<CommitEvent> mockCommitWriter = Mockito.mock(EventStreamWriter.class);
+        Mockito.when(mockCommitWriter.writeEvent(Mockito.any())).thenReturn(future);
+        EventStreamWriter<AbortEvent> mockAbortWriter = Mockito.mock(EventStreamWriter.class);
+        Mockito.when(mockAbortWriter.writeEvent(Mockito.any())).thenReturn(future);
+
+        // Create task and sweeper objects
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
+                taskMetadataStore, segmentHelperMock, executor, HOSTNAME, Mockito.mock(ConnectionFactory.class));
+        txnTasks.initializeStreamWriters(commitStream, mockCommitWriter, abortStream, mockAbortWriter);
+
+        List<CompletableFuture<Pair<VersionedTransactionData, List<Segment>>>> futures =
+                IntStream.range(0, count)
+                        .parallel()
+                        .mapToObj(i -> txnTasks.createTxn(SCOPE, stream1, 10000, 30000, 30000, null))
+                        .collect(Collectors.toList());
+
+        for (CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> f : futures) {
+            Pair<VersionedTransactionData, List<Segment>> pair = f.join();
+            Assert.assertNotNull(pair);
+            Assert.assertNotNull(pair.getLeft());
+            Assert.assertNotNull(pair.getRight());
+        }
     }
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
