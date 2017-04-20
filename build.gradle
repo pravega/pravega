@@ -118,8 +118,6 @@ allprojects {
     }
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'test:integration']
-
 project('common') {
     dependencies {
         testCompile project(':test:common')
@@ -143,10 +141,10 @@ project('common') {
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        jar {
-            from project.sourceSets.main.output
-            from project(":test:common").sourceSets.main.output
-        }
+    }
+    jar {
+        from project.sourceSets.main.output
+        from project(":test:common").sourceSets.main.output
     }
     publishing {
         publications {
