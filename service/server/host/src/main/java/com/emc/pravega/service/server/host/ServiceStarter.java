@@ -98,7 +98,7 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        log.info("Creating Segment Stats recoder ...");
+        log.info("Creating Segment Stats recorder ...");
         segmentStatsFactory = new SegmentStatsFactory();
         SegmentStatsRecorder statsRecorder = segmentStatsFactory
                 .createSegmentStatsRecorder(service, builderConfig.getConfig(AutoScalerConfig::builder));
@@ -167,9 +167,9 @@ public final class ServiceStarter {
         builder.withContainerManager(setup -> {
             CuratorFramework zkClient = createZKClient();
             return new ZKSegmentContainerManager(setup.getContainerRegistry(),
-                    setup.getSegmentToContainerMapper(),
                     zkClient,
-                    new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort(), null));
+                    new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort(), null),
+                    setup.getExecutor());
         });
     }
 
