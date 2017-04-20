@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.writer;
 
@@ -49,6 +47,13 @@ interface WriterDataSource {
      * @param sourceStreamSegmentId The Id of the StreamSegment to merge.
      */
     void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId);
+
+    /**
+     * Indicates that the metadata for the given StreamSegmentId has been updated to reflect the most accurate length
+     * of the Segment in Storage.
+     * @param streamSegmentId The Id of the StreamSegment to notify on.
+     */
+    void notifyStorageLengthUpdated(long streamSegmentId);
 
     /**
      * Gets an InputStream representing uncommitted data in a Segment.

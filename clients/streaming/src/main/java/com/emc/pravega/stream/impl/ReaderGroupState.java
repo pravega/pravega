@@ -48,7 +48,7 @@ class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<Segment, Set<Integer>> futureSegments = new HashMap<>();
     @GuardedBy("$lock")
-    private final Map<String, Set<Segment>> assignedSegments = new HashMap<>();
+    private final Map<String, Map<Segment, Long>> assignedSegments = new HashMap<>();
     @GuardedBy("$lock")
     private final Map<Segment, Long> unassignedSegments;
 
@@ -72,12 +72,12 @@ class ReaderGroupState implements Revisioned {
         long maxDistance = Long.MIN_VALUE;
         Map<String, Double> result = new HashMap<>();
         for (Entry<String, Long> entry : distanceToTail.entrySet()) {
-            Set<Segment> segments = assignedSegments.get(entry.getKey());
+            Set<Segment> segments = assignedSegments.get(entry.getKey()).keySet();
             if (segments != null && !segments.isEmpty()) {
                 maxDistance = Math.max(Math.max(ASSUMED_LAG_MILLIS, entry.getValue()), maxDistance);
             }
         }
-        for (Entry<String, Set<Segment>> entry : assignedSegments.entrySet()) {
+        for (Entry<String, Map<Segment, Long>> entry : assignedSegments.entrySet()) {
             if (entry.getValue().isEmpty()) {
                 result.put(entry.getKey(), 0.0);
             } else {
@@ -128,11 +128,11 @@ class ReaderGroupState implements Revisioned {
      */
     @Synchronized
     Set<Segment> getSegments(String reader) {
-        Set<Segment> segments = assignedSegments.get(reader);
+        Map<Segment, Long> segments = assignedSegments.get(reader);
         if (segments == null) {
             return null;
         }
-        return new HashSet<>(segments);
+        return new HashSet<>(segments.keySet());
     }
     
     @Synchronized
@@ -155,14 +155,14 @@ class ReaderGroupState implements Revisioned {
      */
     @Synchronized
     int getNumberOfSegments() {
-        return assignedSegments.values().stream().mapToInt(Set::size).sum() + unassignedSegments.size();
+        return assignedSegments.values().stream().mapToInt(Map::size).sum() + unassignedSegments.size();
     }
     
     @Synchronized
     Set<String> getStreamNames() {
         Set<String> result = new HashSet<>();
-        for (Set<Segment> segments : assignedSegments.values()) {
-            for (Segment segment : segments) {
+        for (Map<Segment, Long> segments : assignedSegments.values()) {
+            for (Segment segment : segments.keySet()) {
                 result.add(segment.getStreamName());
             }
         }
@@ -237,7 +237,7 @@ class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> oldPos = state.assignedSegments.putIfAbsent(readerId, new HashSet<>());
+            Map<Segment, Long> oldPos = state.assignedSegments.putIfAbsent(readerId, new HashMap<>());
             if (oldPos != null) {
                 throw new IllegalStateException("Attempted to add a reader that is already online: " + readerId);
             }
@@ -259,20 +259,28 @@ class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> assignedSegments = state.assignedSegments.remove(readerId);
+            Map<Segment, Long> assignedSegments = state.assignedSegments.remove(readerId);
+            Map<Segment, Long> finalPositions = new HashMap<>();
             if (assignedSegments != null) {
-                val iter = assignedSegments.iterator();
+                val iter = assignedSegments.entrySet().iterator();
                 while (iter.hasNext()) {
-                    Segment segment = iter.next();
-                    Long offset = lastPosition.getOffsetForOwnedSegment(segment);
-                    Preconditions.checkState(offset != null,
-                                             "No offset in lastPosition for assigned segment: " + segment);
+                    Entry<Segment, Long> entry = iter.next();
+                    Segment segment = entry.getKey();
+                    Long offset;
+                    if (lastPosition == null) {
+                        offset = entry.getValue();
+                    } else {
+                        offset = lastPosition.getOffsetForOwnedSegment(segment);
+                        Preconditions.checkState(offset != null,
+                                "No offset in lastPosition for assigned segment: " + segment);
+                    }
+                    finalPositions.put(segment, offset);
                     state.unassignedSegments.put(segment, offset);
                     iter.remove();
                 }
             }
             state.distanceToTail.remove(readerId);
-            state.checkpointState.removeReader(readerId, lastPosition.getOwnedSegmentsWithOffsets());
+            state.checkpointState.removeReader(readerId, finalPositions);
         }
     }
 
@@ -291,9 +299,9 @@ class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> assigned = state.assignedSegments.get(readerId);
+            Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
             Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
-            if (!assigned.remove(segment)) {
+            if (assigned.remove(segment) == null) {
                 throw new IllegalStateException(
                         readerId + " asked to release a segment that was not assigned to it " + segment);
             }
@@ -315,12 +323,13 @@ class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> assigned = state.assignedSegments.get(readerId);
+            Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
             Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
-            if (state.unassignedSegments.remove(segment) == null) {
+            Long offset = state.unassignedSegments.remove(segment);
+            if (offset == null) {
                 throw new IllegalStateException("Segment: " + segment + " is not unassigned. " + state);
             }
-            assigned.add(segment);
+            assigned.put(segment, offset);
         }
     }
     
@@ -357,9 +366,9 @@ class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> assigned = state.assignedSegments.get(readerId);
+            Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
             Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
-            if (!assigned.remove(segmentCompleted)) {
+            if (assigned.remove(segmentCompleted) == null) {
                 throw new IllegalStateException(
                         readerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);
             }

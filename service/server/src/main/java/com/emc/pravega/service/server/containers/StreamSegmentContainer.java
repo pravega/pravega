@@ -15,6 +15,7 @@ import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.OperationLogFactory;
@@ -37,7 +38,6 @@ import com.google.common.util.concurrent.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -301,12 +302,23 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // or ignore the segments altogether (such as StorageWriter).
         Collection<SegmentMetadata> deletedSegments = this.metadata.deleteStreamSegment(streamSegmentName);
 
-        List<CompletableFuture<Void>> deletionFutures = deletedSegments
-                .stream().map(s -> this.storage
-                        .openWrite(s.getName())
-                        .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
-                        .thenComposeAsync(v -> this.stateStore.remove(s.getName(), timer.getRemaining()), this.executor))
-                .collect(Collectors.toList());
+        val deletionFutures = new ArrayList<CompletableFuture<Void>>();
+        for (SegmentMetadata toDelete : deletedSegments) {
+            deletionFutures.add(this.storage
+                    .openWrite(toDelete.getName())
+                    .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
+                    .thenComposeAsync(v -> this.stateStore.remove(toDelete.getName(), timer.getRemaining()), this.executor)
+                    .exceptionally(ex -> {
+                        ex = ExceptionHelpers.getRealException(ex);
+                        if (ex instanceof StreamSegmentNotExistsException && toDelete.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+                            // We are ok if transactions are not found; they may have just been merged in and the metadata
+                            // did not get a chance to get updated.
+                            return null;
+                        }
+
+                        throw new CompletionException(ex);
+                    }));
+        }
 
         notifyMetadataRemoved(deletedSegments);
         return FutureHelpers.allOf(deletionFutures);

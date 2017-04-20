@@ -150,7 +150,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
 
-    private void releaseSegmentsIfNeeded() {
+    private void releaseSegmentsIfNeeded() throws ReinitializationRequiredException {
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
             log.info("{} releasing segment {}", this, segment);

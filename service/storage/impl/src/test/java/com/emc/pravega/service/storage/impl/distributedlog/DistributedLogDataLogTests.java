@@ -11,22 +11,13 @@ import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestUtils;
 import com.twitter.distributedlog.DLSN;
-import com.twitter.distributedlog.admin.DistributedLogAdmin;
-import com.twitter.distributedlog.tools.Tool;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
-import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.bookkeeper.util.ReflectionUtils;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -38,7 +29,6 @@ import org.junit.Test;
 public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
 
-    private static final String DLOG_HOST = "127.0.0.1";
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT_WRITES = 250;
     private static final int WRITE_COUNT_READS = 25;
@@ -57,15 +47,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     public static void setUpDistributedLog() throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         DLOG_PORT.set(TestUtils.getAvailableListenPort());
-        String classPath = getClassPath();
-        val pb = new ProcessBuilder(
-                "java",
-                "-cp", String.join(":", classPath),
-                DistributedLogStarter.class.getCanonicalName(),
-                DLOG_HOST,
-                Integer.toString(DLOG_PORT.get()));
-        pb.inheritIO(); // For some reason we need to inherit IO, otherwise this process is not responsive and we can't use it.
-        DLOG_PROCESS.set(pb.start());
+        DLOG_PROCESS.set(DistributedLogStarter.startOutOfProcess(DLOG_PORT.get()));
     }
 
     @AfterClass
@@ -84,17 +66,12 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     public void setUp() throws Exception {
         // Create a namespace.
         String namespace = "pravegatest_" + Long.toHexString(System.nanoTime());
-        Tool tool = ReflectionUtils.newInstance(DistributedLogAdmin.class.getName(), Tool.class);
-        tool.run(new String[]{
-                "bind",
-                "-l", "/ledgers",
-                "-s", String.format("%s:%s", DLOG_HOST, DLOG_PORT.get()),
-                "-c", String.format("distributedlog://%s:%s/%s", DLOG_HOST, DLOG_PORT.get(), namespace)});
+        DistributedLogStarter.createNamespace(namespace, DLOG_PORT.get());
 
         // Setup config to use the port and namespace.
         this.config.set(DistributedLogConfig
                 .builder()
-                .with(DistributedLogConfig.HOSTNAME, DLOG_HOST)
+                .with(DistributedLogConfig.HOSTNAME, DistributedLogStarter.DLOG_HOST)
                 .with(DistributedLogConfig.PORT, DLOG_PORT.get())
                 .with(DistributedLogConfig.NAMESPACE, namespace)
                 .build());
@@ -111,57 +88,6 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
         if (factory != null) {
             factory.close();
         }
-    }
-
-    /**
-     * Gets the current class path and updates the path to Guava to point to version 16.0 of it.
-     */
-    private static String getClassPath() {
-        String[] classPath = System.getProperty("java.class.path").split(":");
-        String guava16Path = getGuava16PathFromSystemProperties();
-        if (guava16Path == null) {
-            guava16Path = inferGuava16PathFromClassPath(classPath);
-        }
-
-        Assert.assertTrue("Unable to determine Guava 16 path.", guava16Path != null && guava16Path.length() > 0);
-        for (int i = 0; i < classPath.length; i++) {
-            if (classPath[i].contains("guava")) {
-                classPath[i] = guava16Path;
-            }
-        }
-        return String.join(":", classPath);
-    }
-
-    private static String getGuava16PathFromSystemProperties() {
-        String guava16Path = System.getProperty("user.guava16");
-        if (guava16Path != null && guava16Path.length() > 2 && guava16Path.startsWith("[") && guava16Path.endsWith("]")) {
-            guava16Path = guava16Path.substring(1, guava16Path.length() - 1);
-        }
-
-        return guava16Path;
-    }
-
-    @SneakyThrows(IOException.class)
-    private static String inferGuava16PathFromClassPath(String[] classPath) {
-        // Example path: /home/username/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/16.0/aca09d2e5e8416bf91550e72281958e35460be52/guava-16.0.jar
-        final String searchString = "com.google.guava/guava";
-        final Path jarPath = Paths.get("guava-16.0.jar");
-
-        for (String path : classPath) {
-            if (path.contains("guava")) {
-                int dirNameStartPos = path.indexOf(searchString);
-                if (dirNameStartPos >= 0) {
-                    String dirName = path.substring(0, dirNameStartPos + searchString.length());
-                    Path f = Files.find(Paths.get(dirName), 3, (p, a) -> p.endsWith(jarPath))
-                                  .findFirst().orElse(null);
-                    if (f != null) {
-                        return f.toString();
-                    }
-                }
-            }
-        }
-
-        return null;
     }
 
     //endregion
