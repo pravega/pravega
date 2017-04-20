@@ -10,6 +10,7 @@ import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestUtils;
 import com.emc.pravega.testcommon.TestingServerStarter;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -44,7 +45,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ZKSegmentContainerMonitorTest {
+public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
     private final static int TEST_TIMEOUT = 60000;
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
@@ -55,8 +56,14 @@ public class ZKSegmentContainerMonitorTest {
 
     private TestingServer zkTestServer;
 
+    // Timeout per method tested.
     @Rule
-    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT); // timeout per method tested
+    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT);
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 3;
+    }
 
     @Before
     public void startZookeeper() throws Exception {
@@ -162,10 +169,11 @@ public class ZKSegmentContainerMonitorTest {
         ZKSegmentContainerMonitor segMonitor = createContainerMonitor(containerRegistry, zkClient);
         segMonitor.initialize(Duration.ofSeconds(1));
 
-        // Simulate a container that takes a long time to start.
-        CompletableFuture<ContainerHandle> startupFuture = new CompletableFuture<>();
+        // Simulate a container that takes a long time to start. Should be greater than a few monitor loops.
         ContainerHandle containerHandle = mock(ContainerHandle.class);
         when(containerHandle.getContainerId()).thenReturn(2);
+        CompletableFuture<ContainerHandle> startupFuture = FutureHelpers.delayedFuture(
+                () -> CompletableFuture.completedFuture(containerHandle), 3000, executorService());
         when(containerRegistry.startContainer(eq(2), any()))
                 .thenReturn(startupFuture);
 
@@ -183,12 +191,6 @@ public class ZKSegmentContainerMonitorTest {
 
         currentData.clear();
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
-
-        // Wait for sometime and verify that stop is called after start and that its completely shutdown.
-        // The wait here should be greater than the monitor loop interval (set to 1 second above) to guarantee
-        // that the monitor will find the start to be pending in at least one of its runs.
-        Thread.sleep(2000);
-        startupFuture.complete(containerHandle);
 
         verify(containerRegistry, timeout(10000).atLeastOnce()).stopContainer(any(), any());
         Thread.sleep(2000);

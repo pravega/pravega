@@ -53,8 +53,9 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
 
     private TestingServer zkTestServer;
 
+    // Timeout per method tested.
     @Rule
-    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT); // timeout per method tested
+    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT);
 
     @Override
     protected int getThreadPoolSize() {
