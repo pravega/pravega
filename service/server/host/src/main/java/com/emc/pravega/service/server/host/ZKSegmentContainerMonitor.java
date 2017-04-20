@@ -159,8 +159,9 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             Collection<Integer> containersToBeStopped = CollectionHelpers.filterOut(runningContainers, desiredList);
             containersToBeStopped = CollectionHelpers.filterOut(containersToBeStopped, containersPendingTasks);
 
-            log.debug("Container Changes: Desired = {}, Current = {}, PendingStarts = {}, ToStart = {}, ToStop = {}.",
-                    desiredList, runningContainers, containersPendingTasks, containersToBeStarted, containersToBeStopped);
+            log.info("Container Changes: Desired = {}, Current = {}, PendingTasks = {}, ToStart = {}, ToStop = {}.",
+                    desiredList, runningContainers, containersPendingTasks, containersToBeStarted,
+                    containersToBeStopped);
 
             // Initiate the start and stop tasks asynchronously.
             containersToBeStarted.forEach(this::startContainer);
@@ -186,10 +187,16 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                         if (throwable != null) {
                             log.warn("Stopping container {} failed: {}", containerId, throwable);
                         }
-
-                        // We remove the handle and don't attempt retry on stop container failures.
-                        unregisterHandle(containerId);
-                        this.pendingTasks.remove(containerId);
+                        try {
+                            // We remove the handle and don't attempt retry on stop container failures.
+                            unregisterHandle(containerId);
+                        } finally {
+                            // The pending task has to be removed after the handle is removed to avoid inconsistencies
+                            // with the container state.
+                            // Using finally block to ensure this is always called, otherwise this will prevent other
+                            // tasks from being attempted for this container id.
+                            this.pendingTasks.remove(containerId);
+                        }
                     });
         }
     }
@@ -200,17 +207,23 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         return this.registry
                 .startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
                 .whenComplete((handle, ex) -> {
-                    // First and foremost: unregister pending task; don't risk an exception in this callback from preventing that.
-                    this.pendingTasks.remove(containerId);
-                    if (ex == null) {
-                        if (this.handles.putIfAbsent(handle.getContainerId(), handle) != null) {
-                            log.warn("Starting container {} succeeded but handle is already registered.", handle.getContainerId());
+                    try {
+                        if (ex == null) {
+                            if (this.handles.putIfAbsent(handle.getContainerId(), handle) != null) {
+                                log.warn("Starting container {} succeeded but handle is already registered.",
+                                        handle.getContainerId());
+                            } else {
+                                handle.setContainerStoppedListener(this::unregisterHandle);
+                                log.info("Container {} has been registered.", handle.getContainerId());
+                            }
                         } else {
-                            handle.setContainerStoppedListener(this::unregisterHandle);
-                            log.info("Container {} has been registered.", handle.getContainerId());
+                            log.warn("Starting container {} failed: {}", containerId, ex);
                         }
-                    } else {
-                        log.warn("Starting container {} failed: {}", containerId, ex);
+                    } finally {
+                        // The pending task has to be removed in the end to avoid inconsistencies since containerhandle
+                        // should be available immediately after the task is complete.
+                        // Also need to ensure this is always called, hence doing this in a finally block.
+                        this.pendingTasks.remove(containerId);
                     }
                 });
     }
