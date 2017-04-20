@@ -52,9 +52,9 @@ allprojects {
             html.enabled true
         }
     }
-    compileJava { 
-        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
-    } 
+    compileJava {
+        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror"
+    }
 
     repositories {
         // Use 'jcenter' for resolving your dependencies.
@@ -724,7 +724,6 @@ project('singlenode') {
 
         testCompile project(':test:common')
         testCompile files(project(':common').sourceSets.test.output)
-        compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
