@@ -189,10 +189,8 @@ project ('shared') {
 project('clients:streaming') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
         compile project(':shared')
@@ -365,6 +363,9 @@ project('service:server:host') {
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile files(project(':service:server').sourceSets.test.output)
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
+        testCompile files(project(':service:storage:impl').sourceSets.test.output)
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
         dependsOn 'distTar','distZip'
@@ -631,6 +632,7 @@ project('connectors:flink') {
     shadowJar {
         dependencies {
             // 'include' specific dependencies in the shadow jar
+            // IMPORTANT: transitive dependencies must be manually listed here!
             include dependency("com.google.guava:guava")
             include dependency("commons-lang:commons-lang")
             include dependency("org.apache.commons:commons-lang3")
@@ -656,6 +658,7 @@ project('connectors:flink') {
             include dependency("com.google.code.gson:gson")
             include dependency("com.google.instrumentation:instrumentation-api")
             include(project(":common"))
+            include(project(":shared"))
             include(project(":controller:contract"))
             include(project(":clients:streaming"))
         }

@@ -13,12 +13,28 @@ import java.io.ByteArrayInputStream;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
  * Unit tests for InMemoryStorage
  */
 public class InMemoryStorageTests extends TruncateableStorageTestBase {
+    private InMemoryStorageFactory factory;
+
+    @Before
+    public void setUp() {
+        this.factory = new InMemoryStorageFactory(executorService());
+    }
+
+    @After
+    public void tearDown() {
+        if (this.factory != null) {
+            this.factory.close();
+            this.factory = null;
+        }
+    }
 
     @Test
     @Override
@@ -88,7 +104,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
 
     @Override
     protected TruncateableStorage createStorage() {
-        return new InMemoryStorage();
+        return this.factory.createStorageAdapter();
     }
 
     @Override

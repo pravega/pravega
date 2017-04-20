@@ -188,7 +188,6 @@ public class ServiceBuilderConfigTests {
                     int valueCompare = ((String) e1.getValue()).compareTo((String) e2.getValue());
                     return keyCompare * valueCompare + keyCompare + valueCompare;
                 });
-        System.out.println();
     }
 
     private Properties buildProperties(int startId, int count, int base) {

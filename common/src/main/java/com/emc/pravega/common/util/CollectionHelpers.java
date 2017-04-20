@@ -4,8 +4,10 @@
 
 package com.emc.pravega.common.util;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Helper methods for collections.
@@ -46,5 +48,17 @@ public final class CollectionHelpers {
         }
 
         return -1;
+    }
+
+    /**
+     * Returns a new collection which contains all the items in the given collection that are not to be excluded.
+     *
+     * @param collection The collection to check.
+     * @param toExclude  The elements to exclude.
+     * @param <T>        Type of elements.
+     * @return A new collection containing all items in collection, except those in toExclude.
+     */
+    public static <T> Collection<T> filterOut(Collection<T> collection, Collection<T> toExclude) {
+        return collection.stream().filter(o -> !toExclude.contains(o)).collect(Collectors.toList());
     }
 }

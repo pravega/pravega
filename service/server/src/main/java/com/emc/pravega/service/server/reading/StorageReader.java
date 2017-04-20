@@ -34,9 +34,11 @@ class StorageReader implements AutoCloseable {
     private final String traceObjectId;
     private final ReadOnlyStorage storage;
     private final Executor executor;
+    private final String segmentName;
     @GuardedBy("lock")
     private final TreeMap<Long, Request> pendingRequests;
-    private final CompletableFuture<SegmentHandle> handle;
+    @GuardedBy("lock")
+    private CompletableFuture<SegmentHandle> handle;
     private final Object lock = new Object();
     @GuardedBy("lock")
     private boolean closed;
@@ -56,7 +58,7 @@ class StorageReader implements AutoCloseable {
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(), segmentMetadata.getId());
-        this.handle = storage.openRead(segmentMetadata.getName()); // Not waiting on the future; that will be done on the first request.
+        this.segmentName = segmentMetadata.getName();
         this.storage = storage;
         this.executor = executor;
         this.pendingRequests = new TreeMap<>();
@@ -123,7 +125,7 @@ class StorageReader implements AutoCloseable {
     private void executeStorageRead(Request request) {
         try {
             byte[] buffer = new byte[request.length];
-            this.handle
+            getHandle()
                     .thenComposeAsync(handle -> this.storage.read(handle, request.offset, buffer, 0, buffer.length, request.getTimeout()), this.executor)
                     .thenAcceptAsync(bytesRead -> request.complete(new ByteArraySegment(buffer, 0, bytesRead)), this.executor)
                     .whenComplete((r, ex) -> {
@@ -143,7 +145,7 @@ class StorageReader implements AutoCloseable {
             finalizeRequest(request);
         }
     }
-    
+
     /**
      * Ensures that the given request has been finalized (if not, it is failed), and unregisters it from the pending reads.
      *
@@ -180,6 +182,16 @@ class StorageReader implements AutoCloseable {
 
         // Either no previous entry, or the highest previous entry does not overlap.
         return null;
+    }
+
+    private CompletableFuture<SegmentHandle> getHandle() {
+        synchronized (this.lock) {
+            if (this.handle == null) {
+                this.handle = storage.openRead(this.segmentName);
+            }
+
+            return this.handle;
+        }
     }
 
     //endregion

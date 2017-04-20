@@ -117,7 +117,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             ServiceShutdownListener.awaitShutdown(this, false);
 
             this.operationProcessor.close();
-            this.durableDataLog.close();
+            this.durableDataLog.close(); // Call this again just in case we were not able to do it in doStop().
             log.info("{}: Closed.", this.traceObjectId);
             this.closed.set(true);
         }
@@ -168,6 +168,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             cancelTailReads();
 
+            this.durableDataLog.close();
             Throwable cause = this.stopException.get();
             if (cause == null && this.operationProcessor.state() == State.FAILED) {
                 cause = this.operationProcessor.failureCause();
