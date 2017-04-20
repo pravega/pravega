@@ -275,7 +275,7 @@ project('service:storage:impl') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
 
-        compile group: 'org.apache.bookkeeper', name: 'bookkeeper', version: '4.4.0' {
+        compile(group: 'org.apache.bookkeeper', name: 'bookkeeper', version: bookKeeperVersion) {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
 
