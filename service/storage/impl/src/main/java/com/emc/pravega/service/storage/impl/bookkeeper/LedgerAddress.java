@@ -11,10 +11,19 @@ import lombok.Getter;
 /**
  * LogAddress for BookKeeper. Wraps around BookKeeper-specific addressing scheme without exposing such information to the outside.
  */
-class LedgerAddress extends LogAddress {
+class LedgerAddress extends LogAddress implements Comparable<LedgerAddress> {
+    //region Members
+
     private static final long INT_MASK = 0xFFFFFFFFL;
+    /**
+     * The BookKeeper-assigned identifier for the Ledger of this address.
+     */
     @Getter
     private final long ledgerId;
+
+    //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the LedgerAddress class.
@@ -39,12 +48,27 @@ class LedgerAddress extends LogAddress {
         this.ledgerId = ledgerId;
     }
 
+    //endregion
 
-    public int getLedgerSequence() {
+    //region Properties
+
+    /**
+     * Gets a Sequence number identifying the Ledger inside the log. This is different from getSequence (which identifies
+     * a particular write inside the entire log. It is also different from LedgerId, which is a BookKeeper assigned id.
+     *
+     * @return The result.
+     */
+    int getLedgerSequence() {
         return (int) (getSequence() >>> 32);
     }
 
-    public long getEntryId() {
+    /**
+     * Gets a value representing the BookKeeper-assigned Entry id of this address. This entry id is unique per ledger, but
+     * is likely duplicated across ledgers (since it grows sequentially from 0 in each ledger).
+     *
+     * @return The result.
+     */
+    long getEntryId() {
         return getSequence() & INT_MASK;
     }
 
@@ -53,7 +77,26 @@ class LedgerAddress extends LogAddress {
         return String.format("%s, LedgerId = %d, EntryId = %d", super.toString(), this.ledgerId, getEntryId());
     }
 
+    /**
+     * Calculates the globally-unique append sequence by combining the ledger sequence and the entry id.
+     *
+     * @param ledgerSequence The Ledger Sequence (in the log). This will make up the high-order 32 bits of the result.
+     * @param entryId        The Entry Id inside the ledger. This will be interpreted as a 32-bit integer and will make
+     *                       up the low-order 32 bits of the result.
+     * @return The calculated value.
+     */
     private static long calculateAppendSequence(int ledgerSequence, long entryId) {
         return ((long) ledgerSequence << 32) + (entryId & INT_MASK);
     }
+
+    //endregion
+
+    //region Comparable Implementation
+
+    @Override
+    public int compareTo(LedgerAddress address) {
+        return Long.compare(getSequence(), address.getSequence());
+    }
+
+    //endregion
 }

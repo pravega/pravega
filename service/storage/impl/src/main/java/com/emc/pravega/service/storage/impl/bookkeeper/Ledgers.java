@@ -15,10 +15,9 @@ import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
 
 /**
- * Created by andrei on 4/19/17.
+ * General utilities pertaining to BookKeeper Ledgers.
  */
 @Slf4j
-
 final class Ledgers {
     /**
      * How many ledgers to fence out (from the end of the list) when acquiring lock.
@@ -31,8 +30,9 @@ final class Ledgers {
      *
      * @return A LedgerHandle for the new ledger.
      * @throws DataLogNotAvailableException If BookKeeper is unavailable or the ledger could not be created because an
-     *                                      insufficient number of Bookies are available.
-     * @throws DurableDataLogException      If another exception occurred.
+     *                                      insufficient number of Bookies are available. The causing exception is wrapped
+     *                                      inside it.
+     * @throws DurableDataLogException      If another exception occurred. The causing exception is wrapped inside it.
      */
     static LedgerHandle create(BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
@@ -50,6 +50,15 @@ final class Ledgers {
         }
     }
 
+    /**
+     * Opens a ledger. This operation also fences out the ledger in case anyone else was writing to it.
+     *
+     * @param ledgerId   The Id of the Ledger to open.
+     * @param bookKeeper A references to the BookKeeper client to use.
+     * @param config     Configuration to use.
+     * @return A LedgerHandle for the newly opened ledger.
+     * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
+     */
     static LedgerHandle open(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
             return Exceptions.handleInterrupted(() -> bookKeeper.openLedger(ledgerId, LEDGER_DIGEST_TYPE, config.getBkPassword()));
@@ -58,6 +67,12 @@ final class Ledgers {
         }
     }
 
+    /**
+     * Closes the given LedgerHandle.
+     *
+     * @param handle The LedgerHandle to close.
+     * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
+     */
     static void close(LedgerHandle handle) throws DurableDataLogException {
         try {
             Exceptions.handleInterrupted(handle::close);
@@ -66,6 +81,13 @@ final class Ledgers {
         }
     }
 
+    /**
+     * Deletes the Ledger with given LedgerId.
+     *
+     * @param ledgerId   The Id of the Ledger to delete.
+     * @param bookKeeper A reference to the BookKeeper client to use.
+     * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
+     */
     static void delete(long ledgerId, BookKeeper bookKeeper) throws DurableDataLogException {
         try {
             Exceptions.handleInterrupted(() -> bookKeeper.deleteLedger(ledgerId));
@@ -74,6 +96,17 @@ final class Ledgers {
         }
     }
 
+    /**
+     * Fences out a Log made up of the given ledgers.
+     *
+     * @param ledgerIds     An ordered list of LedgerMetadata objects representing all the Ledgers in the log.
+     * @param bookKeeper    A reference to the BookKeeper client to use.
+     * @param config        Configuration to use.
+     * @param traceObjectId Used for logging.
+     * @return A LedgerAddress representing the address of the last written entry in the Log. This value is null if the log
+     * is empty.
+     * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
+     */
     static LedgerAddress fenceOut(List<LedgerMetadata> ledgerIds, BookKeeper bookKeeper, BookKeeperConfig config, String traceObjectId) throws DurableDataLogException {
         // Fence out the last few ledgers, in descending order. We need to fence out at least MIN_FENCE_LEDGER_COUNT,
         // but we also need to find the LedgerId & EntryID of the last written entry (it's possible that the last few

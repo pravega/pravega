@@ -6,6 +6,7 @@ package com.emc.pravega.service.storage.impl.bookkeeper;
 
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.service.storage.DurableDataLog;
+import com.emc.pravega.service.storage.LogAddress;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -30,10 +31,18 @@ import org.apache.zookeeper.data.Stat;
  */
 public class Playground {
     public static void main(String[] args) throws Exception {
-        testLog();
+        System.out.println(HierarchyUtils.getPath("/root/",1234,0));
+        System.out.println(HierarchyUtils.getPath("/root",1234,1));
+        System.out.println(HierarchyUtils.getPath("/root",1234,2));
+        System.out.println(HierarchyUtils.getPath("/root",1234,3));
+        System.out.println(HierarchyUtils.getPath("/root",1234,4));
+        System.out.println(HierarchyUtils.getPath("/root",1234,5));
+        System.out.println(HierarchyUtils.getPath("/root",1234,6));
+        //testLog();
     }
 
     private static void testLog() throws Exception {
+        final int writeCount = 10;
         final Duration TIMEOUT = Duration.ZERO;
         val config = BookKeeperConfig.builder()
                                      .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, 17)
@@ -49,20 +58,46 @@ public class Playground {
         log.initialize(TIMEOUT);
         System.out.println("Opened Log; LastSeqNo = " + log.getLastAppendSequence() + " Epoch = " + log.getEpoch());
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < writeCount; i++) {
             byte[] data = ("append_" + i).getBytes();
             val t = new Timer();
             val address = log.append(new ByteArrayInputStream(data), TIMEOUT).join();
             System.out.println(String.format("Wrote %d bytes at address '%s' (%d ms): %s", data.length, address, t.getElapsedMillis(), new String(data)));
         }
 
-        // Now read everything
+        val addresses = new ArrayList<LogAddress>();
         @Cleanup
-        val reader = log.getReader(-1);
+        val tReader = log.getReader(-1);
         DurableDataLog.ReadItem current;
-        while ((current = reader.getNext()) != null) {
-            System.out.println(String.format("Read %d bytes from address %s: '%s'", current.getPayload().length, current.getAddress(), new String(current.getPayload())));
+        while ((current = tReader.getNext()) != null) {
+            addresses.add(current.getAddress());
         }
+
+        // Now read everything
+        for (LogAddress address : addresses) {
+            System.out.println();
+            log.truncate(address, TIMEOUT).join();
+            @Cleanup
+            val reader = log.getReader(-1);
+            while ((current = reader.getNext()) != null) {
+                System.out.println(String.format("Read %d bytes from address %s: '%s'",
+                        current.getPayload().length, current.getAddress(), new String(current.getPayload())));
+            }
+        }
+        //
+        //        for (LogAddress truncateAddress : addresses) {
+        //            System.out.println();
+        //            log.truncate(truncateAddress, TIMEOUT).join();
+        ////
+        ////            @Cleanup
+        ////            val truncateReader = log.getReader(-1);
+        ////            DurableDataLog.ReadItem current;
+        ////            while ((current = truncateReader.getNext()) != null) {
+        ////                System.out.println(String.format("Truncate @'%s': Read %d bytes from address %s: '%s'",
+        ////                        truncateAddress,
+        ////                        current.getPayload().length, current.getAddress(), new String(current.getPayload())));
+        ////            }
+        //        }
     }
 
     private static void testRaw() throws Exception {

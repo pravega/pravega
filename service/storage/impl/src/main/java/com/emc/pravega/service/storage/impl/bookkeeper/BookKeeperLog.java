@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +51,7 @@ import org.apache.zookeeper.data.Stat;
 @Slf4j
 @ThreadSafe
 class BookKeeperLog implements DurableDataLog {
+    //region Private
     /**
      * Maximum append length, as specified by BookKeeper (this is hardcoded inside BookKeeper's code).
      */
@@ -72,21 +73,28 @@ class BookKeeperLog implements DurableDataLog {
     @GuardedBy("lock")
     private LogMetadata logMetadata;
 
+    //endregion
+
     //region Constructor
 
+    /**
+     * Creates a new instance of the BookKeeper log class.
+     *
+     * @param logId           The BookKeeper Log Id to open.
+     * @param curatorClient   A reference to the CuratorFramework client to use.
+     * @param bookKeeper      A reference to the BookKeeper client to use.
+     * @param config          Configuration to use.
+     * @param executorService An Executor to use for async operations.
+     */
     BookKeeperLog(int logId, CuratorFramework curatorClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
         Preconditions.checkArgument(logId >= 0, "logId must be a non-negative integer.");
-        Preconditions.checkNotNull(curatorClient, "curatorClient");
-        Preconditions.checkNotNull(bookKeeper, "bookKeeper");
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executorService, "executorService");
 
-        this.curatorClient = curatorClient;
-        this.bookKeeper = bookKeeper;
-        this.config = config;
-        this.executorService = executorService;
+        this.curatorClient = Preconditions.checkNotNull(curatorClient, "curatorClient");
+        this.bookKeeper = Preconditions.checkNotNull(bookKeeper, "bookKeeper");
+        this.config = Preconditions.checkNotNull(config, "config");
+        this.executorService = Preconditions.checkNotNull(executorService, "executorService");
         this.closed = new AtomicBoolean();
-        this.logNodePath = getLogNodePath(this.config.getNamespace(), logId);
+        this.logNodePath = HierarchyUtils.getPath(this.config.getNamespace(), logId, this.config.getZkHierarchyDepth());
         this.lastAppendAddress = new AtomicReference<>(new LedgerAddress(0, 0));
         this.traceObjectId = String.format("Log[%d]", logId);
         this.rolloverInProgress = new AtomicBoolean();
@@ -194,8 +202,8 @@ class BookKeeperLog implements DurableDataLog {
     @Override
     public CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout) {
         ensurePreconditions();
-        // TODO: see PDP.
-        return null;
+        Preconditions.checkArgument(upToAddress instanceof LedgerAddress, "upToAddress must be of type LedgerAddress.");
+        return CompletableFuture.runAsync(() -> tryTruncate((LedgerAddress) upToAddress), this.executorService);
     }
 
     @Override
@@ -225,13 +233,27 @@ class BookKeeperLog implements DurableDataLog {
 
     //region Appends
 
+    /**
+     * Attempts to write one append to BookKeeper.
+     *
+     * @param buffer A byte array representing the data to append.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed (successfully or not).
+     */
     private CompletableFuture<LogAddress> tryAppend(byte[] buffer) {
         val result = new CompletableFuture<LogAddress>();
         tryAppend(buffer, getWriteLedger(), result);
         return result;
     }
 
+    /**
+     * Attempts to write one append to BookKeeper. This method auto-retries if the current ledger has been rolled over.
+     *
+     * @param buffer      A byte array representing the data to append.
+     * @param writeLedger The Ledger to write to.
+     * @param result      A Future to complete when the append succeeds or fails.
+     */
     private void tryAppend(byte[] buffer, WriteLedger writeLedger, CompletableFuture<LogAddress> result) {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "tryAppend", buffer.length, writeLedger.ledger.getId());
         AsyncCallback.AddCallback callback = (rc, handle, entryId, ctx) -> {
             @SuppressWarnings("unchecked")
             CompletableFuture<LogAddress> completionFuture = (CompletableFuture<LogAddress>) ctx;
@@ -260,11 +282,16 @@ class BookKeeperLog implements DurableDataLog {
             } catch (Throwable ex) {
                 completionFuture.completeExceptionally(ex);
             }
+
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "tryAppend", traceId, buffer.length, writeLedger.ledger.getId(), !completionFuture.isCompletedExceptionally());
         };
 
         writeLedger.ledger.asyncAddEntry(buffer, callback, result);
     }
 
+    /**
+     * Handles a general Write exception.
+     */
     @SneakyThrows(Throwable.class)
     private <T> T handleWriteException(Throwable ex) {
         if (ex instanceof ObjectClosedException && !this.closed.get()) {
@@ -278,8 +305,15 @@ class BookKeeperLog implements DurableDataLog {
         throw ex;
     }
 
+    /**
+     * Handles an exception after a Write operation, converts it to a Pravega Exception and completes the given future
+     * exceptionally using it.
+     *
+     * @param responseCode   The BookKeeper response code to interpret.
+     * @param callbackFuture The Future to complete exceptionally.
+     */
     private void handleWriteException(int responseCode, CompletableFuture<?> callbackFuture) {
-        assert responseCode != 0 : "cannot handle an exception when responseCode == 0";
+        assert responseCode != BKException.Code.OK : "cannot handle an exception when responseCode == " + BKException.Code.OK;
         Exception ex = BKException.create(responseCode);
         try {
             if (ex instanceof BKException.BKLedgerFencedException) {
@@ -312,6 +346,50 @@ class BookKeeperLog implements DurableDataLog {
                 || ex instanceof DataLogNotAvailableException;
     }
 
+    /**
+     * Attempts to truncate the Log. The general steps are:
+     * 1. Create a copy of the metadata reflecting the truncation.
+     * 2. Attempt to persist the metadata to ZooKeeper.
+     * 3. Swap metadata pointers.
+     * 4. Delete truncated-out ledgers.
+     *
+     * @param upToAddress The address up to which to truncate.
+     */
+    @SneakyThrows(DurableDataLogException.class)
+    private void tryTruncate(LedgerAddress upToAddress) {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "trytruncate", upToAddress);
+
+        // Truncate the metadata and get a new copy of it.
+        val oldMetadata = getLogMetadata();
+        val newMetadata = oldMetadata.truncate(upToAddress);
+
+        // Attempt to persist the new Log Metadata. We need to do this first because if we delete the ledgers but were
+        // unable to update the metadata, then the log will be corrupted (metadata points to inexistent ledgers).
+        persistMetadata(newMetadata, false);
+
+        // Repoint our metadata to the new one.
+        synchronized (this.lock) {
+            this.logMetadata = newMetadata;
+        }
+
+        // Determine ledgers to delete and delete them.
+        val ledgerIdsToKeep = newMetadata.getLedgers().stream().map(LedgerMetadata::getLedgerId).collect(Collectors.toSet());
+        val ledgersToDelete = oldMetadata.getLedgers().stream().filter(lm -> !ledgerIdsToKeep.contains(lm.getLedgerId())).iterator();
+        while (ledgersToDelete.hasNext()) {
+            val lm = ledgersToDelete.next();
+            try {
+                Ledgers.delete(lm.getLedgerId(), this.bookKeeper);
+            } catch (DurableDataLogException ex) {
+                // Nothing we can do if we can't delete a ledger; we've already updated the metadata. Log the error and
+                // move on.
+                log.error("{}: Unable to delete truncated ledger {}.", this.traceObjectId, lm.getLedgerId(), ex);
+            }
+        }
+
+        log.info("{}: Truncated up to {}.", this.traceObjectId, upToAddress);
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "tryTruncate", traceId, upToAddress);
+    }
+
     //endregion
 
     //region Metadata Management
@@ -320,14 +398,14 @@ class BookKeeperLog implements DurableDataLog {
      * Loads the metadata for the current log, as stored in ZooKeeper.
      *
      * @return A new LogMetadata object with the desired information, or null if no such node exists.
-     * @throws DurableDataLogException If an Exception (other than NoNodeException) occurred.
+     * @throws DataLogInitializationException If an Exception (other than NoNodeException) occurred.
      */
-    private LogMetadata loadMetadata() throws DurableDataLogException {
+    private LogMetadata loadMetadata() throws DataLogInitializationException {
         try {
             Stat storingStatIn = new Stat();
             byte[] serializedMetadata = this.curatorClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);
             LogMetadata result = LogMetadata.deserialize(serializedMetadata);
-            result.setUpdateVersion(storingStatIn.getVersion());
+            result.withUpdateVersion(storingStatIn.getVersion());
             return result;
         } catch (KeeperException.NoNodeException nne) {
             // Node does not exist: this is the first time we are accessing this log.
@@ -339,55 +417,87 @@ class BookKeeperLog implements DurableDataLog {
         }
     }
 
+    /**
+     * Updates the metadata and persists it as a result of adding a new Ledger.
+     *
+     * @param currentMetadata The current metadata.
+     * @param newLedger       The newly added Ledger.
+     * @return A new instance of the LogMetadata, which includes the new ledger.
+     * @throws DurableDataLogException If an Exception occurred.
+     */
     private LogMetadata updateMetadata(LogMetadata currentMetadata, LedgerHandle newLedger) throws DurableDataLogException {
-        try {
-            if (currentMetadata == null) {
-                // This is the first ledger ever in the metadata.
-                currentMetadata = new LogMetadata(newLedger.getId());
-                byte[] serializedMetadata = currentMetadata.serialize();
-                this.curatorClient.create()
-                                  .creatingParentsIfNeeded()
-                                  .forPath(this.logNodePath, serializedMetadata);
-                currentMetadata.setUpdateVersion(0); // Initial ZNode creation sets the version to 0.
-            } else {
-                currentMetadata = currentMetadata.addLedger(newLedger.getId(), true);
-                byte[] serializedMetadata = currentMetadata.serialize();
-                this.curatorClient.setData()
-                                  .withVersion(currentMetadata.getUpdateVersion())
-                                  .forPath(this.logNodePath, serializedMetadata);
+        boolean create = currentMetadata == null;
+        if (create) {
+            // This is the first ledger ever in the metadata.
+            currentMetadata = new LogMetadata(newLedger.getId());
+        } else {
+            currentMetadata = currentMetadata.addLedger(newLedger.getId(), true);
+        }
 
-                // Increment the version to keep up with the ZNode's value.
-                currentMetadata.setUpdateVersion(currentMetadata.getUpdateVersion() + 1);
+        try {
+            persistMetadata(currentMetadata, create);
+        } catch (DurableDataLogException ex) {
+            try {
+                Ledgers.delete(newLedger.getId(), this.bookKeeper);
+            } catch (Exception deleteEx) {
+                log.warn("{}: Unable to delete newly created ledger {}.", this.traceObjectId, newLedger.getId(), deleteEx);
+                ex.addSuppressed(deleteEx);
             }
-        } catch (KeeperException.NodeExistsException | KeeperException.BadVersionException keeperEx) {
-            // We were fenced out. Clean up and throw appropriate exception.
-            handleMetadataUpdateException(keeperEx, newLedger, ex -> new DataLogWriterNotPrimaryException(
-                    String.format("Unable to acquire exclusive write lock for log (path = '%s').", this.logNodePath), ex));
-        } catch (Exception generalEx) {
-            // General exception. Clean up and rethrow appropriate exception.
-            handleMetadataUpdateException(generalEx, newLedger, ex -> new DataLogInitializationException(
-                    String.format("Unable to update ZNode for path '%s'.", this.logNodePath), ex));
         }
 
         log.info("{} Metadata updated ({}).", this.traceObjectId, currentMetadata);
         return currentMetadata;
     }
 
-    private void handleMetadataUpdateException(Exception ex, LedgerHandle newLedger, Function<Exception, DurableDataLogException> exceptionConverter) throws DurableDataLogException {
+    /**
+     * Persists the given metadata into ZooKeeper.
+     *
+     * @param metadata The LogMetadata to persist. At the end of this method, this metadata will have its Version updated
+     *                 to the one in ZooKeeper.
+     * @param create   Whether to create (true) or update (false) the data in ZooKeeper.
+     * @throws DataLogWriterNotPrimaryException If the metadata update failed (if we were asked to create and the node
+     *                                          already exists or if we had to update and there was a version mismatch).
+     * @throws DurableDataLogException          If another kind of exception occurred.
+     */
+    private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
         try {
-            Ledgers.delete(newLedger.getId(), this.bookKeeper);
-        } catch (Exception deleteEx) {
-            log.warn("{}: Unable to delete newly created ledger {}.", this.traceObjectId, newLedger.getId(), deleteEx);
-            ex.addSuppressed(deleteEx);
+            if (create) {
+                byte[] serializedMetadata = metadata.serialize();
+                this.curatorClient.create()
+                                  .creatingParentsIfNeeded()
+                                  .forPath(this.logNodePath, serializedMetadata);
+                // Set version to 0 as that will match the ZNode's version.
+                metadata.withUpdateVersion(0);
+            } else {
+                byte[] serializedMetadata = metadata.serialize();
+                this.curatorClient.setData()
+                                  .withVersion(metadata.getUpdateVersion())
+                                  .forPath(this.logNodePath, serializedMetadata);
+
+                // Increment the version to keep up with the ZNode's value (after writing it to ZK).
+                metadata.withUpdateVersion(metadata.getUpdateVersion() + 1);
+            }
+        } catch (KeeperException.NodeExistsException | KeeperException.BadVersionException keeperEx) {
+            // We were fenced out. Clean up and throw appropriate exception.
+            throw new DataLogWriterNotPrimaryException(
+                    String.format("Unable to acquire exclusive write lock for log (path = '%s').", this.logNodePath), keeperEx);
+        } catch (Exception generalEx) {
+            // General exception. Clean up and rethrow appropriate exception.
+            throw new DataLogInitializationException(String.format("Unable to update ZNode for path '%s'.", this.logNodePath), generalEx);
         }
 
-        throw exceptionConverter.apply(ex);
+        log.info("{} Metadata persisted ({}).", this.traceObjectId, metadata);
     }
 
     //endregion
 
     //region Ledger Rollover
 
+    /**
+     * Triggers an asynchronous rollover, but only if both these conditions are met:
+     * 1. The current Write Ledger has exceeded its maximum length.
+     * 2. There isn't already a rollover in progress.
+     */
     private void triggerRolloverIfNecessary() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "triggerRolloverIfNecessary");
         boolean trigger = getWriteLedger().ledger.getLength() >= this.config.getBkLedgerMaxSize()
@@ -402,24 +512,32 @@ class BookKeeperLog implements DurableDataLog {
         LoggerHelpers.traceLeave(log, this.traceObjectId, "triggerRolloverIfNecessary", traceId, trigger);
     }
 
+    /**
+     * Executes a rollover using the following protocol (described in https://bookkeeper.apache.org/docs/r4.4.0/bookkeeperLedgers2Logs.html):
+     * 1. Create a new ledger
+     * 2. Add the new ledger the the metadata
+     * 3. Update the metadata in ZooKeeper.
+     * 4. Swap pointers to the active Write Ledger (all future writes will go to the new ledger).
+     * 5. Close the previous ledger (and implicitly seal it).
+     */
     private void rollover() throws DurableDataLogException {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "rollover");
 
-        // 1. Get latest version of the metadata.
+        // Get latest version of the metadata.
         LogMetadata metadata = getLogMetadata();
         log.debug("{}: Rollover: got metadata '{}'.", this.traceObjectId, metadata);
 
-        // 2.Create new ledger.
+        // Create new ledger.
         LedgerHandle newLedger = Ledgers.create(this.bookKeeper, this.config);
         log.debug("{}: Rollover: created new ledger {}.", this.traceObjectId, metadata, newLedger.getId());
 
-        // 3. Update the metadata.
+        // Update the metadata.
         metadata = updateMetadata(metadata, newLedger);
         LedgerMetadata ledgerMetadata = metadata.getLedgerMetadata(newLedger.getId());
         assert ledgerMetadata != null : "cannot find newly added ledger metadata";
         log.debug("{}: Rollover: updated metadata '{}.", this.traceObjectId, metadata, metadata);
 
-        // 4. Update pointers to the new ledger and metadata.
+        // Update pointers to the new ledger and metadata.
         LedgerHandle oldLedger;
         synchronized (this.lock) {
             oldLedger = this.writeLedger.ledger;
@@ -427,7 +545,7 @@ class BookKeeperLog implements DurableDataLog {
             this.logMetadata = metadata;
         }
 
-        // 5. Close the old ledger. This must be done outside of the lock, otherwise the pending writes (and their callbacks
+        // Close the old ledger. This must be done outside of the lock, otherwise the pending writes (and their callbacks
         // will be invoked within the lock, thus likely candidates for deadlocks).
         Ledgers.close(oldLedger);
         log.debug("{}: Rollover: swapped ledger and metadata pointers (Old = {}, New = {}) and closed old ledger.", this.traceObjectId, oldLedger.getId(), newLedger.getId());
@@ -435,11 +553,6 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     //endregion
-
-    private String getLogNodePath(String zkNamespace, int logId) {
-        // TODO: implement some sort of hierarchical scheme here.
-        return String.format("%s/%s", zkNamespace, logId);
-    }
 
     private LogMetadata getLogMetadata() {
         synchronized (this.lock) {

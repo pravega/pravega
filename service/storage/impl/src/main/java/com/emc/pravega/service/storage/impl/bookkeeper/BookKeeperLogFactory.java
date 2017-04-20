@@ -24,23 +24,31 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
- * Created by andrei on 4/14/17.
+ * Factory for BookKeeperLogs.
  */
 @Slf4j
 class BookKeeperLogFactory implements DurableDataLogFactory {
+    //region Members
+
     private static final RetryPolicy CURATOR_RETRY_POLICY = new ExponentialBackoffRetry(1000, 3);
     private final AtomicReference<CuratorFramework> curator;
     private final AtomicReference<BookKeeper> bookKeeper;
     private final BookKeeperConfig config;
     private final ScheduledExecutorService executor;
 
+    //endregion
+
     //region Constructor
 
+    /**
+     * Creates a new instance of the BookKeeperLogFactory class.
+     *
+     * @param config   The configuration to use for all instances created.
+     * @param executor An executor to use for async operations.
+     */
     BookKeeperLogFactory(BookKeeperConfig config, ScheduledExecutorService executor) {
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
-        this.executor = executor;
+        this.config = Preconditions.checkNotNull(config, "config");
+        this.executor = Preconditions.checkNotNull(executor, "executor");
         this.curator = new AtomicReference<>();
         this.bookKeeper = new AtomicReference<>();
     }
@@ -70,6 +78,11 @@ class BookKeeperLogFactory implements DurableDataLogFactory {
 
     //region Initialization
 
+    /**
+     * Initializes the BookKeeperLogFactory by attempting to connect to ZooKeeper and BookKeeper.
+     *
+     * @throws DurableDataLogException If an exception occurred. The causing exception is usually wrapped in this one.
+     */
     public void initialize() throws DurableDataLogException {
         Preconditions.checkState(this.curator.get() == null, "BookKeeperLogFactory is already initialized.");
         assert this.bookKeeper.get() == null : "curator == null but bookKeeper != null";
@@ -124,10 +137,14 @@ class BookKeeperLogFactory implements DurableDataLogFactory {
 
     //endregion
 
+    //region DurableDataLogFactory Implementation
+
     @Override
     public DurableDataLog createDurableDataLog(int containerId) {
         Preconditions.checkState(this.curator.get() != null, "BookKeeperLogFactory is not initialized.");
         assert this.bookKeeper.get() != null : "curator != null but bookKeeper == null";
         return new BookKeeperLog(containerId, this.curator.get(), this.bookKeeper.get(), this.config, this.executor);
     }
+
+    //endregion
 }

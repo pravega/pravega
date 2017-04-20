@@ -8,6 +8,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -21,7 +22,7 @@ import org.apache.bookkeeper.client.LedgerEntry;
 import org.apache.bookkeeper.client.LedgerHandle;
 
 /**
- * Performs reads from the logs.
+ * Performs read from BookKeeper Logs.
  */
 @Slf4j
 @ThreadSafe
@@ -40,10 +41,17 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the LogReader class.
+     *
+     * @param metadata   The LogMetadata of the Log to read.
+     * @param bookKeeper A reference to the BookKeeper client to use.
+     * @param config     Configuration to use.
+     */
     LogReader(LogMetadata metadata, BookKeeper bookKeeper, BookKeeperConfig config) {
-        this.metadata = metadata;
-        this.bookKeeper = bookKeeper;
-        this.config = config;
+        this.metadata = Preconditions.checkNotNull(metadata, "metadata");
+        this.bookKeeper = Preconditions.checkNotNull(bookKeeper, "bookKeeper");
+        this.config = Preconditions.checkNotNull(config, "config");
         this.closed = new AtomicBoolean();
     }
 
@@ -78,12 +86,13 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         if (this.currentLedgerReader == null) {
-            // First time we call this. Locate the first ledger based on the metadata truncation address.
-            openNextLedger(this.metadata.nextAddress(this.metadata.getTruncationAddress(), 0));
+            // First time we call this. Locate the first ledger based on the metadata truncation address. We don't know
+            // how many entries are in that first ledger, so open it anyway so we can figure out.
+            openNextLedger(this.metadata.nextAddress(this.metadata.getTruncationAddress(), Long.MAX_VALUE));
         }
 
-        while (this.currentLedgerReader != null && !this.currentLedgerReader.hasNext()) {
-            // We have reached the end of the current ledger. Find next one (the loop accounts for empty ledgers).
+        while (this.currentLedgerMetadata != null && (this.currentLedgerReader == null || !this.currentLedgerReader.hasNext())) {
+            // We have reached the end of the current ledger. Find next one, and skip over empty ledgers).
             val lastAddress = new LedgerAddress(this.currentLedgerMetadata.getSequence(), this.currentLedger.getId(), this.currentLedger.getLastAddConfirmed());
             Ledgers.close(this.currentLedger);
             openNextLedger(this.metadata.nextAddress(lastAddress, this.currentLedger.getLastAddConfirmed()));
@@ -107,6 +116,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             close();
             return;
         }
+
         LedgerMetadata metadata = this.metadata.getLedgerMetadata(address.getLedgerId());
         assert metadata != null : "no LedgerMetadata could be found with valid LedgerAddress " + address;
 

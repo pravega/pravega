@@ -24,6 +24,7 @@ public class BookKeeperConfig {
     public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zkSessionTimeoutMillis", 10000);
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
     public static final Property<String> ZK_NAMESPACE = Property.named("zkNamespace", "/pravega/containers");
+    public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
     public static final Property<Retry.RetryWithBackoff> RETRY_POLICY = Property.named("retryPolicy", Retry.withExpBackoff(100, 4, 5, 30000));
     public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
     public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 3);
@@ -59,6 +60,13 @@ public class BookKeeperConfig {
      */
     @Getter
     private final String namespace;
+
+    /**
+     * Depth of the node hierarchy in ZooKeeper. 0 means flat, N means N deep, where each level is indexed by its respective
+     * log id digit.
+     */
+    @Getter
+    private final int zkHierarchyDepth;
 
     /**
      * The Retry Policy base to use for all BookKeeper parameters.
@@ -112,6 +120,12 @@ public class BookKeeperConfig {
         this.zkSessionTimeout = Duration.ofMillis(properties.getInt(ZK_SESSION_TIMEOUT));
         this.zkConnectionTimeout = Duration.ofMillis(properties.getInt(ZK_CONNECTION_TIMEOUT));
         this.namespace = properties.get(ZK_NAMESPACE);
+        this.zkHierarchyDepth = properties.getInt(ZK_HIERARCHY_DEPTH);
+        if (this.zkHierarchyDepth < 0) {
+            throw new InvalidPropertyValueException(String.format("Property %s (%d) must be a non-negative integer.",
+                    ZK_HIERARCHY_DEPTH, this.zkHierarchyDepth));
+        }
+
         this.retryPolicy = properties.getRetryWithBackoff(RETRY_POLICY);
         this.bkEnsembleSize = properties.getInt(BK_ENSEMBLE_SIZE);
         this.bkAckQuorumSize = properties.getInt(BK_ACK_QUORUM_SIZE);

@@ -11,7 +11,14 @@ import lombok.Data;
  */
 @Data
 class LedgerMetadata {
+    /**
+     * The BookKeeper-assigned Ledger Id.
+     */
     private final long ledgerId;
+
+    /**
+     * The metadata-assigned internal sequence number of the Ledger inside the log.
+     */
     private final int sequence;
 
     @Override
