@@ -13,6 +13,7 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.stream.impl.netty.ConnectionFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
  * 1. Send commit txn message to active segments of the stream.
  * 2. Change txn state from committing to committed.
  */
+@Slf4j
 public class CommitEventProcessor extends EventProcessor<CommitEvent> {
 
     private final StreamMetadataStore streamMetadataStore;
@@ -51,6 +53,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         String stream = event.getStream();
         UUID txId = event.getTxid();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
+        log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
         streamMetadataStore.getActiveSegments(event.getScope(), event.getStream(), context, executor)
                 .thenCompose(segments ->
@@ -58,7 +61,16 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                                 .parallel()
                                 .map(segment -> notifyCommitToHost(scope, stream, segment.getNumber(), txId))
                                 .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txId, context, executor));
+                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txId, context, executor))
+                .whenComplete((result, error) -> {
+                    if (error != null) {
+                        log.error("Failed committing transaction {} on stream {}/{}", event.getTxid(),
+                                event.getScope(), event.getStream());
+                    } else {
+                        log.debug("Successfully committed transaction {} on stream {}/{}", event.getTxid(),
+                                event.getScope(), event.getStream());
+                    }
+                });
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {

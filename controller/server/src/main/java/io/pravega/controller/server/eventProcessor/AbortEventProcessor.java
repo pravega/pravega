@@ -13,6 +13,7 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.stream.impl.netty.ConnectionFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
  * 1. Send abort txn message to active segments of the stream.
  * 2. Change txn state from aborting to aborted.
  */
+@Slf4j
 public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
@@ -49,8 +51,9 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
         String scope = event.getScope();
         String stream = event.getStream();
         UUID txId = event.getTxid();
-
         OperationContext context = streamMetadataStore.createContext(scope, stream);
+        log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
+
         streamMetadataStore.getActiveSegments(event.getScope(), event.getStream(), context, executor)
                 .thenCompose(segments ->
                         FutureHelpers.allOfWithResults(
@@ -58,7 +61,16 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
                                         .parallel()
                                         .map(segment -> notifyAbortToHost(scope, stream, segment.getNumber(), txId))
                                         .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor));
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor))
+                .whenComplete((result, error) -> {
+                    if (error != null) {
+                        log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
+                                event.getScope(), event.getStream());
+                    } else {
+                        log.debug("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
+                                event.getScope(), event.getStream());
+                    }
+                });
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyAbortToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
