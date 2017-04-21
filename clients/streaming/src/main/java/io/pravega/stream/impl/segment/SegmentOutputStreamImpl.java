@@ -93,7 +93,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * Blocks until there are no more messages inflight. (No locking required)
          */
         private void waitForEmptyInflight() {
-            Exceptions.handleInterrupted(() -> inflightEmpty.await());
+            handleInterrupted(() -> inflightEmpty.await());
         }
         
         private boolean isInflightEmpty() {
@@ -152,7 +152,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          */
         private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedException {
             try {
-                Exceptions.handleInterrupted(() -> connectionSetup.await());
+                handleInterrupted(() -> connectionSetup.await());
                 synchronized (lock) {
                     if (exception != null) {
                         throw exception;
