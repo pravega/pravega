@@ -94,7 +94,7 @@ allprojects {
         }
         publications {
             maven(MavenPublication) {
-                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "com.emc.pravega"
+                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "io.pravega"
                 version = pravegaVersion
             }
         }
@@ -163,7 +163,7 @@ project('common') {
         }
     }
     javadoc {
-        exclude 'com/emc/pravega/common/*'
+        exclude 'io/pravega/common/*'
     }
 }
 
@@ -182,7 +182,7 @@ project ('shared') {
         }
     }
     javadoc {
-        exclude 'com/emc/pravega/shared/*'
+        exclude 'io/pravega/shared/*'
     }
 }
 
@@ -334,7 +334,7 @@ project('service:server:host') {
     docker {
         url = dockerUrl
     }
-    mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
+    mainClassName = "io.pravega.service.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlogback.configurationFile=SERVER_APP_HOME/config/logback.xml"]
@@ -416,61 +416,61 @@ project('integrationtests') {
     }
 
     task startServer(type: JavaExec) {
-        main = "com.emc.pravega.service.server.host.ServiceStarter"
+        main = "io.pravega.service.server.host.ServiceStarter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startServerInteractive(type: JavaExec) {
-        main = "com.emc.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
+        main = "io.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startBenchmark(type: JavaExec) {
-        main = "com.emc.pravega.service.server.host.ServiceBenchmark"
+        main = "io.pravega.service.server.host.ServiceBenchmark"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startLocalService(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartLocalService"
+        main = "io.pravega.demo.StartLocalService"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startWriter(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartWriter"
+        main = "io.pravega.demo.StartWriter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startReader(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartReader"
+        main = "io.pravega.demo.StartReader"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startController(type: JavaExec) {
-        main = "com.emc.pravega.controller.server.Main"
+        main = "io.pravega.controller.server.Main"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startScaleTest(type: JavaExec) {
-        main = "com.emc.pravega.demo.ScaleTest"
+        main = "io.pravega.demo.ScaleTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startEndToEndTransactionTest(type: JavaExec) {
-        main = "com.emc.pravega.demo.EndToEndTransactionTest"
+        main = "io.pravega.demo.EndToEndTransactionTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startEventProcessorTest(type: JavaExec) {
-        main = "com.emc.pravega.demo.EventProcessorTest"
+        main = "io.pravega.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -529,7 +529,7 @@ project('controller:contract') {
         }
     }
     javadoc {
-        exclude 'com/emc/pravega/controller/*'
+        exclude 'io/pravega/controller/*'
     }
 }
 
@@ -548,7 +548,7 @@ project('controller:server') {
     }
 
     apply plugin: 'application'
-    mainClassName = "com.emc.pravega.controller.server.Main"
+    mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
                                  "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
@@ -663,10 +663,10 @@ project('connectors:flink') {
         }
 
         // Shading the libraries which could cause potential version conflicts with flink.
-        relocate "com.google", "com.emc.pravega.shaded.com.google"
-        relocate "org.apache.commons", "com.emc.pravega.shaded.org.apache.commons"
-        relocate "io.grpc", "com.emc.pravega.shaded.io.grpc"
-        relocate "io.netty", "com.emc.pravega.shaded.io.netty"
+        relocate "com.google", "io.pravega.shaded.com.google"
+        relocate "org.apache.commons", "io.pravega.shaded.org.apache.commons"
+        relocate "io.grpc", "io.pravega.shaded.io.grpc"
+        relocate "io.netty", "io.pravega.shaded.io.netty"
 
         mergeServiceFiles()
     }
@@ -679,7 +679,7 @@ project('connectors:flink') {
                 from components.java
             }
             shadow(MavenPublication) {
-                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "com.emc.pravega"
+                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "io.pravega"
                 version = pravegaVersion
                 artifactId 'pravega-connectors-flink-shaded_2.11'
                 from components.shadow
@@ -690,7 +690,7 @@ project('connectors:flink') {
 
 project('singlenode') {
     apply plugin: 'application'
-    mainClassName = "com.emc.pravega.local.LocalPravegaEmulator"
+    mainClassName = "io.pravega.local.LocalPravegaEmulator"
     applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError", "-Xdebug",
                                  "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
     dependencies {
@@ -726,7 +726,7 @@ project('singlenode') {
 
     task startSinglenode(type: JavaExec) {
 
-        main = "com.emc.pravega.local.LocalPravegaEmulator"
+        main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         args = ["4000", "9090", "6000"]
         environment "ZK_URL", "localhost:4000"
@@ -757,7 +757,7 @@ project('systemtests:tests') {
     }
     //disable the default test task.
     test {
-        exclude 'com/emc/pravega/**'
+        exclude 'io/pravega/**'
     }
 
     jar { //create a fat jar
@@ -799,7 +799,7 @@ project('systemtests:tests') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
         systemProperty "testVersion", project.property("pravegaVersion")
-        systemProperty "testArtifactUrl", project.property('repoUrl') + "/com/emc/pravega/pravega-systemtests/" +
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "io/pravega/pravega-systemtests/" +
                 pravegaVersion+"/pravega-systemtests-"+ pravegaVersion + ".jar"
     }
     publishing {
