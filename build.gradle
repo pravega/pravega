@@ -118,7 +118,7 @@ allprojects {
     }
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
+def pkgs = ['common', 'clients:streming', 'service:server', 'test:integration']
 
 project('common') {
     dependencies {
@@ -393,7 +393,7 @@ project('service:server:host') {
     }
 }
 
-project('integrationtests') {
+project('test:integration') {
     dependencies {
         compile project(':common')
         compile project(':clients:streaming')
@@ -434,19 +434,19 @@ project('integrationtests') {
     }
 
     task startLocalService(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartLocalService"
+        main = "com.emc.pravega.test.integration.demo.StartLocalService"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startWriter(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartWriter"
+        main = "com.emc.pravega.test.integration.demo.StartWriter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startReader(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartReader"
+        main = "com.emc.pravega.test.integration.demo.StartReader"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -458,19 +458,19 @@ project('integrationtests') {
     }
 
     task startScaleTest(type: JavaExec) {
-        main = "com.emc.pravega.demo.ScaleTest"
+        main = "com.emc.pravega.test.integration.demo.ScaleTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startEndToEndTransactionTest(type: JavaExec) {
-        main = "com.emc.pravega.demo.EndToEndTransactionTest"
+        main = "com.emc.pravega.test.integration.demo.EndToEndTransactionTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startEventProcessorTest(type: JavaExec) {
-        main = "com.emc.pravega.demo.EventProcessorTest"
+        main = "com.emc.pravega.test.integration.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
