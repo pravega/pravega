@@ -388,4 +388,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         return Collections.unmodifiableCollection(state.getAllInflightEvents());
     }
 
+    @Override
+    public String getSegmentName() {
+        return segmentName;
+    }
+
 }
