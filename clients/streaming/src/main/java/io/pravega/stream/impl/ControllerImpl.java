@@ -525,7 +525,7 @@ public class ControllerImpl implements Controller {
 
         @Override
         public void onError(Throwable t) {
-            log.warn("gRPC call failed with server error: {}", t.getCause());
+            log.warn("gRPC call failed with server error: {}", t.getCause().getMessage());
             future.completeExceptionally(t);
         }
 
