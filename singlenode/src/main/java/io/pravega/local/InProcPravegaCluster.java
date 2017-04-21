@@ -271,7 +271,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         try {
                 ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                     .builder()
-                    .include("config.properties")
+                    .include(System.getProperty("pravega.configurationFile", "config.properties"))
                     .include(System.getProperties())
                     .include(ServiceConfig.builder()
                                           .with(ServiceConfig.CONTAINER_COUNT, containerCount)
