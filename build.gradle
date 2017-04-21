@@ -10,14 +10,10 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath group: 'com.bmuschko', name :'gradle-docker-plugin', version: gradleDockerPlugin
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
         classpath group: 'com.github.jengelman.gradle.plugins', name:'shadow', version: shadowGradlePlugin
     }
 }
-
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
-import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 
 allprojects {
     apply plugin: 'java'
@@ -29,6 +25,9 @@ allprojects {
     apply plugin: 'findbugs'
     apply plugin: 'maven-publish'
     apply plugin: 'jacoco'
+
+    version = pravegaVersion
+    archivesBaseName = "pravega" + project.path.replace(':', '-')
 
     checkstyle {
         toolVersion = checkstyleToolVersion
@@ -213,9 +212,6 @@ project('clients:streaming') {
         failOnError = false
         exclude "**/impl/**";
         source  =  project(':clients:streaming').sourceSets.main.java
-        def javadocs = new File(rootDir, "javadocs")
-        javadocs.mkdirs()
-        destinationDir = javadocs
     }
 }
 
@@ -333,17 +329,17 @@ project('service:server') {
 
 project('service:server:host') {
     apply plugin: 'application'
-    apply plugin: 'com.bmuschko.docker-java-application'
-    docker {
-        url = dockerUrl
-    }
+    applicationName = "pravega-segmentstore"
     mainClassName = "io.pravega.service.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dlogback.configurationFile=SERVER_APP_HOME/config/logback.xml"]
+                                 "-Dlog.dir=SERVER_APP_HOME/logs",
+                                 "-Dlog.name=segmentstore",
+                                 "-Dpravega.configurationFile=SERVER_APP_HOME/conf/config.properties",
+                                 "-Dlogback.configurationFile=SERVER_APP_HOME/conf/logback.xml"]
 
     applicationDistribution.from('src/config') {
-        into "config"
+        into "conf"
     }
 
     startScripts {
@@ -368,23 +364,6 @@ project('service:server:host') {
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
         testCompile files(project(':service:storage:impl').sourceSets.test.output)
-    }
-    task buildPravegaHostImage(type: DockerBuildImage) {
-        dependsOn 'distTar','distZip'
-        dockerFile = file(dockerFilePravegaHost)
-        inputDir = file(dockerDirPravegaHost)
-        tag = "${pravegaHostBaseTag}:${pravegaVersion}"
-    }
-    task pushPravegaHostImage(type: DockerPushImage) {
-        dependsOn buildPravegaHostImage
-        conventionMapping.imageName = { buildPravegaHostImage.getTag() }
-        docker {
-            registryCredentials {
-                url = "$dockerRegistryUrl"
-                username = "$dockerRegistryUser"
-                password = "$dockerRegistryPass"
-            }
-        }
     }
     publishing {
         publications {
@@ -537,10 +516,6 @@ project('controller:contract') {
 }
 
 project('controller:server') {
-    apply plugin: 'com.bmuschko.docker-java-application'
-    docker {
-        url = dockerUrl
-    }
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
     }
@@ -551,13 +526,17 @@ project('controller:server') {
     }
 
     apply plugin: 'application'
+    applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
-                                 "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
+                                 "-Dconfig.file=CONTROLLER_APP_HOME/conf/controller.conf",
+                                 "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml",
+                                 "-Dlog.dir=CONTROLLER_APP_HOME/logs",
+                                 "-Dlog.name=controller"]
 
     applicationDistribution.from('src/conf') {
         into "conf"
+        rename "application.conf", "controller.conf"
     }
 
     startScripts {
@@ -591,24 +570,6 @@ project('controller:server') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
 
-    task buildPravegaControllerImage(type: DockerBuildImage) {
-        dependsOn 'distTar','distZip'
-        dockerFile = file(dockerFilePravegaController)
-        inputDir = file(dockerDirPravegaController)
-        tag = "${pravegaControllerBaseTag}:${pravegaVersion}"
-    }
-
-    task pushPravegaControllerImage(type: DockerPushImage) {
-        dependsOn buildPravegaControllerImage
-        conventionMapping.imageName = { buildPravegaControllerImage.getTag() }
-        docker {
-            registryCredentials {
-                url = "$dockerRegistryUrl"
-                username = "$dockerRegistryUser"
-                password = "$dockerRegistryPass"
-            }
-        }
-    }
     publishing {
         publications {
             maven(MavenPublication) {
@@ -693,9 +654,21 @@ project('connectors:flink') {
 
 project('singlenode') {
     apply plugin: 'application'
+    applicationName = "pravega-singlenode"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
-    applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError", "-Xdebug",
-                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
+    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dpravega.configurationFile=PRAVEGA_APP_HOME/conf/singlenode.properties"]
+    applicationDistribution.from('config.properties') {
+        into "conf"
+        rename "config.properties", "singlenode.properties"
+    }
+    startScripts {
+        doLast {
+            unixScript.text = unixScript.text.replace('PRAVEGA_APP_HOME', '\$APP_HOME')
+            windowsScript.text = windowsScript.text.replace('PRAVEGA_APP_HOME', '%~dp0..')
+        }
+    }
+
     dependencies {
         compile project(':common')
         compile project(':clients:streaming')
@@ -730,8 +703,7 @@ project('singlenode') {
 
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
-        args = ["4000", "9090", "6000"]
-        environment "ZK_URL", "localhost:4000"
+        environment "JAVA_OPTS", "-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"
     }
 
     publishing {
@@ -849,4 +821,63 @@ task sourceTar(type: Tar) {
 
 task genJavaDocs(type: Javadoc) {
     dependsOn 'clients:streaming:javadoc'
+}
+
+apply plugin: 'distribution'
+distributions {
+    main {
+        baseName = "pravega"
+        contents {
+            duplicatesStrategy = "exclude"
+            from ("dist/conf") {
+                into "conf"
+            }
+            from ("config") {
+                into "conf"
+            }
+            from (project(":controller:server").installDist) {
+                exclude "conf/**"
+            }
+            from (project(":service:server:host").installDist) {
+                exclude "conf/**"
+            }
+            from (project(":singlenode").installDist)
+        }
+    }
+    clients {
+        baseName = "pravega-client"
+        contents {
+            from { project(":clients:streaming").configurations.runtime }
+            from { project(":clients:streaming").configurations.runtime.allArtifacts.files }
+        }
+    }
+    javadoc {
+        baseName = "pravega-javadoc"
+        contents {
+            from (project(':clients:streaming').javadoc)
+        }
+    }
+}
+
+task preparePravegaImage(type: Copy) {
+    into "${buildDir}/docker/pravega"
+    from "docker/pravega"
+    from (installDist) {
+        into "pravega"
+        exclude "**/*.bat"
+    }
+}
+
+task buildPravegaImage(type: Exec, dependsOn: preparePravegaImage) {
+    executable dockerExecutable
+    args "build"
+    args "-t", "${pravegaBaseTag}:${pravegaVersion}"
+    args preparePravegaImage.destinationDir.absolutePath
+}
+
+task buildBookkeeperImage(type: Exec) {
+    executable dockerExecutable
+    args "build"
+    args "-t", "${bookkeeperBaseTag}:${pravegaVersion}"
+    args "docker/bookkeeper"
 }

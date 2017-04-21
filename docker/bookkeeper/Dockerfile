@@ -24,6 +24,6 @@ WORKDIR /opt/dl_all
 
 # After container up, Following instructions to build bookie cluster
 # http://distributedlog.incubator.apache.org/docs/latest/deployment/cluster.html
-COPY /entry_point.sh /opt/dl_all/entry_point.sh
-ENTRYPOINT /opt/dl_all/entry_point.sh
+COPY /entrypoint.sh /opt/dl_all/entrypoint.sh
+ENTRYPOINT /opt/dl_all/entrypoint.sh
 
