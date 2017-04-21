@@ -6,6 +6,7 @@
 package io.pravega.stream.impl;
 
 import io.pravega.ClientFactory;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
 import io.pravega.state.InitialUpdate;
 import io.pravega.state.Revisioned;
@@ -146,7 +147,7 @@ public class ClientFactoryImpl implements ClientFactory {
                                 Serializer<InitT> initialSerializer,
                                 SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
-        if (!getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
+        if (!FutureHelpers.getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
             throw new InvalidStreamException("Segment does not exist: " + segment);
         }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
