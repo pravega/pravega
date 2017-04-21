@@ -46,7 +46,6 @@ import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.common.Exceptions.handleInterrupted;
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 import static com.google.common.base.Preconditions.checkState;
 

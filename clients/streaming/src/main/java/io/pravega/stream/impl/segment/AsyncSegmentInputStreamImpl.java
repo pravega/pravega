@@ -36,8 +36,6 @@ import io.pravega.common.netty.WireCommands;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.common.Exceptions.handleInterrupted;
-
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 

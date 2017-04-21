@@ -311,7 +311,7 @@ public class AutoScaleTest extends AbstractScaleTests {
                             e.getCause() instanceof io.grpc.StatusRuntimeException &&
                             ((io.grpc.StatusRuntimeException) e.getCause()).getStatus().getCode().equals(Status.Code.INTERNAL) &&
                             Objects.equals(((StatusRuntimeException) e.getCause()).getStatus().getDescription(),
-                                    "com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks not yet ready"))) {
+                                    "io.pravega.controller.task.Stream.StreamTransactionMetadataTasks not yet ready"))) {
                         log.warn("test exception writing events in a transaction : {}", e);
                         break;
                     }

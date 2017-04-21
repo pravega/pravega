@@ -14,7 +14,6 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.controller.task.TaskSweeper;
-import io.pravega.common.cluster.ClusterListener;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -72,13 +71,13 @@ public class ControllerClusterListenerTest {
         try {
             clusterZK.addListener((eventType, host) -> {
                 switch (eventType) {
-                    case ClusterListener.EventType.HOST_ADDED:
+                    case HOST_ADDED:
                         nodeAddedQueue.offer(host.getHostId());
                         break;
-                    case ClusterListener.EventType.HOST_REMOVED:
+                    case HOST_REMOVED:
                         nodeRemovedQueue.offer(host.getHostId());
                         break;
-                    case ClusterListener.EventType.ERROR:
+                    case ERROR:
                     default:
                         break;
                 }

@@ -42,8 +42,6 @@ import io.pravega.common.concurrent.FutureHelpers;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
-
 public class ClientFactoryImpl implements ClientFactory {
 
     private final String scope;
