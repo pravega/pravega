@@ -815,16 +815,11 @@ subprojects {
 }
 
 task publishAllJars() {
-    dependsOn ':clients:streaming:publish'
+    dependsOn  clientPkgs.collect{it + ":publish"}
     dependsOn ':common:publish'
-    dependsOn ':service:contracts:publish'
-    dependsOn ':service:storage:publish'
-    dependsOn ':service:storage:impl:publish'
-    dependsOn ':service:server:publish'
-    dependsOn ':service:server:host:publish'
+    dependsOn  servicePkgs.collect{it+ ":publish"}
     dependsOn ':shared:publish'
-    dependsOn ':controller:contract:publish'
-    dependsOn ':controller:server:publish'
+    dependsOn  controllerPkgs.collect{it + ":publish"}
     dependsOn ':connectors:flink:publish'
     dependsOn ':singlenode:publish'
     dependsOn ':systemtests:tests:publish'
