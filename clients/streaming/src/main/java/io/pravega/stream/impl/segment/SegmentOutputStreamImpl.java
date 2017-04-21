@@ -5,7 +5,6 @@
  */
 package io.pravega.stream.impl.segment;
 
-import io.pravega.common.Exceptions;
 import io.pravega.common.netty.Append;
 import io.pravega.common.netty.ConnectionFailedException;
 import io.pravega.common.netty.FailingReplyProcessor;
@@ -93,7 +92,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * Blocks until there are no more messages inflight. (No locking required)
          */
         private void waitForEmptyInflight() {
-            Exceptions.handleInterrupted(() -> inflightEmpty.await());
+            handleInterrupted(() -> inflightEmpty.await());
         }
         
         private boolean isInflightEmpty() {
@@ -152,7 +151,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          */
         private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedException {
             try {
-                Exceptions.handleInterrupted(() -> connectionSetup.await());
+                handleInterrupted(() -> connectionSetup.await());
                 synchronized (lock) {
                     if (exception != null) {
                         throw exception;

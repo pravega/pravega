@@ -38,7 +38,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.util.function.Supplier;
 
-import io.pravega.common.concurrent.FutureHelpers;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -147,7 +146,7 @@ public class ClientFactoryImpl implements ClientFactory {
                                 Serializer<InitT> initialSerializer,
                                 SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
-        if (!FutureHelpers.getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
+        if (!getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
             throw new InvalidStreamException("Segment does not exist: " + segment);
         }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
