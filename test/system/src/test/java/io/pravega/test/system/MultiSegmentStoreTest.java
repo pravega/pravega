@@ -171,7 +171,7 @@ public class MultiSegmentStoreTest {
         Assert.assertTrue(streamManager.createStream(scope, stream, StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(stream)
-                .retentionPolicy(RetentionPolicy.INFINITE)
+                .retentionPolicy(RetentionPolicy.infinte())
                 .scalingPolicy(ScalingPolicy.fixed(10))
                 .build()));
 
