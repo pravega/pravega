@@ -59,9 +59,26 @@ final class Ledgers {
      * @return A LedgerHandle for the newly opened ledger.
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
-    static LedgerHandle open(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
+    static LedgerHandle openFence(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
             return Exceptions.handleInterrupted(() -> bookKeeper.openLedger(ledgerId, LEDGER_DIGEST_TYPE, config.getBkPassword()));
+        } catch (BKException bkEx) {
+            throw new DurableDataLogException(String.format("Unable to open-fence ledger %d.", ledgerId), bkEx);
+        }
+    }
+
+    /**
+     * Opens a ledger for reading. This operation does not fence out the ledger.
+     *
+     * @param ledgerId   The Id of the Ledger to open.
+     * @param bookKeeper A references to the BookKeeper client to use.
+     * @param config     Configuration to use.
+     * @return A LedgerHandle for the newly opened ledger.
+     * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
+     */
+    static LedgerHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
+        try {
+            return Exceptions.handleInterrupted(() -> bookKeeper.openLedgerNoRecovery(ledgerId, LEDGER_DIGEST_TYPE, config.getBkPassword()));
         } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-fence ledger %d.", ledgerId), bkEx);
         }
@@ -116,9 +133,9 @@ final class Ledgers {
         LedgerAddress lastAddress = null;
         while (iterator.hasPrevious() && (count < MIN_FENCE_LEDGER_COUNT || lastAddress == null)) {
             LedgerMetadata ledgerMetadata = iterator.previous();
-            LedgerHandle handle = open(ledgerMetadata.getLedgerId(), bookKeeper, config);
+            LedgerHandle handle = openFence(ledgerMetadata.getLedgerId(), bookKeeper, config);
             if (lastAddress == null && handle.getLastAddConfirmed() >= 0) {
-                lastAddress = new LedgerAddress(ledgerMetadata.getSequence(), handle.getId(), handle.getLastAddConfirmed());
+                lastAddress = new LedgerAddress(ledgerMetadata, handle.getLastAddConfirmed());
             }
 
             close(handle);

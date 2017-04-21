@@ -10,6 +10,8 @@ import com.emc.pravega.service.storage.DurableDataLogTestBase;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestUtils;
+import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,9 +33,10 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT_WRITES = 250;
     private static final int WRITE_COUNT_READS = 25;
-    private static final String CLIENT_ID = "UnitTest";
+    private static final int BOOKIE_COUNT = 3;
+    private static final int THREAD_POOL_SIZE = 5;
 
-    private static final AtomicReference<Process> BK_PROCESS = new AtomicReference<>();
+    private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
     private final AtomicReference<BookKeeperConfig> config = new AtomicReference<>();
     private final AtomicReference<BookKeeperLogFactory> factory = new AtomicReference<>();
@@ -46,14 +49,25 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     public static void setUpBookKeeper() throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         BK_PORT.set(TestUtils.getAvailableListenPort());
-        BK_PROCESS.set(BookKeeperServiceStarter.startOutOfProcess(BK_PORT.get()));
+        val bookiePorts = new ArrayList<Integer>();
+        for (int i = 0; i < BOOKIE_COUNT; i++) {
+            bookiePorts.add(TestUtils.getAvailableListenPort());
+        }
+
+        val runner = BookKeeperServiceRunner.builder()
+                                            .startZk(true)
+                                            .zkPort(BK_PORT.get())
+                                            .bookiePorts(bookiePorts)
+                                            .build();
+        runner.start();
+        BK_SERVICE.set(runner);
     }
 
     @AfterClass
     public static void tearDownBookKeeper() throws Exception {
-        val process = BK_PROCESS.getAndSet(null);
+        val process = BK_SERVICE.getAndSet(null);
         if (process != null) {
-            process.destroy();
+            process.close();
         }
     }
 
@@ -64,12 +78,13 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     @Before
     public void setUp() throws Exception {
         // Create a namespace.
-        String namespace = "pravegatest_" + Long.toHexString(System.nanoTime());
+        String namespace = "/pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
 
         // Setup config to use the port and namespace.
         this.config.set(BookKeeperConfig
                 .builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, BookKeeperServiceStarter.BK_HOST + ":"+BK_PORT.get())
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
+                .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * 10) // Very frequent rollovers.
                 .with(BookKeeperConfig.ZK_NAMESPACE, namespace)
                 .build());
 
@@ -85,6 +100,11 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         if (factory != null) {
             factory.close();
         }
+    }
+
+    @Override
+    protected int getThreadPoolSize() {
+        return THREAD_POOL_SIZE;
     }
 
     //endregion
@@ -121,43 +141,48 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         return WRITE_COUNT_READS;
     }
 
-    @Test
+    //endregion
+
+    //region Specific tests
+
+    @Test(timeout = TIMEOUT_MILLIS)
     @Override
     public void testExclusiveWriteLock() throws Exception {
-        // TODO: this needs rewriting to account for new locking model.
         // Tests the ability of the DurableDataLog to enforce an exclusive writer, by only allowing one client at a time
         // to write to the same physical log.
         final long initialEpoch;
-        try (DurableDataLog log = createDurableDataLog()) {
-            log.initialize(TIMEOUT);
-            initialEpoch = log.getEpoch();
+        final long secondEpoch;
+        TreeMap<LogAddress, byte[]> writeData;
+        try (DurableDataLog log1 = createDurableDataLog()) {
+            log1.initialize(TIMEOUT);
+            initialEpoch = log1.getEpoch();
             AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", 0, initialEpoch);
 
-            // Simulate a different client trying to open the same log. This should not be allowed.
+            // Simulate a different client trying to open the same log. This should be allowed and it should fence out the first log.
             @Cleanup
             val factory = new BookKeeperLogFactory(config.get(), executorService());
             factory.initialize();
             try (DurableDataLog log2 = factory.createDurableDataLog(CONTAINER_ID)) {
+                log2.initialize(TIMEOUT);
+                secondEpoch = log2.getEpoch();
+                AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", initialEpoch, secondEpoch);
+
+                // Verify we cannot write to the first log.
                 AssertExtensions.assertThrows(
-                        "A second log was able to acquire the exclusive write lock, even if another log held it.",
-                        () -> log2.initialize(TIMEOUT),
+                        "The first log was not fenced out.",
+                        () -> log1.append(new ByteArrayInputStream(new byte[1]), TIMEOUT),
                         ex -> ex instanceof DataLogWriterNotPrimaryException);
 
-                AssertExtensions.assertThrows(
-                        "getEpoch() did not throw after failed initialization.",
-                        log2::getEpoch,
-                        ex -> ex instanceof IllegalStateException);
+                // Verify we can write to the second log.
+                writeData = populate(log2, getWriteCountForWrites());
             }
-
-            // Verify we can still append and read to/from the first log.
-            TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForWrites());
-            verifyReads(log, writeData);
         }
 
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
-            long epoch = log.getEpoch();
-            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on non-empty log initialization.", initialEpoch, epoch);
+            long thirdEpoch = log.getEpoch();
+            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on non-empty log initialization.", secondEpoch, thirdEpoch);
+            verifyReads(log, writeData);
         }
     }
 

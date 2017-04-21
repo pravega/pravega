@@ -13,7 +13,7 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperConfig;
 import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperLogFactory;
-import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperServiceStarter;
+import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSClusterHelpers;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
@@ -22,6 +22,7 @@ import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import com.emc.pravega.testcommon.TestUtils;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -35,25 +36,35 @@ import org.junit.Before;
 public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
-    private static final String BK_NAMESPACE = "pravegae2e";
+    private static final String BK_NAMESPACE = "/pravega/segmentstore/e2etest_" + Long.toHexString(System.nanoTime());
+    private static final int BOOKIE_COUNT = 3;
 
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
-    private Process bkProcess;
+    private BookKeeperServiceRunner bkRunner;
 
     /**
      * Starts BookKeeper and HDFS MiniCluster.
      */
     @Before
     public void setUp() throws Exception {
-        // DistributedLog
-        // Pick a random port to reduce chances of collisions during concurrent test executions.
-        int bkPort = TestUtils.getAvailableListenPort();
-        this.bkProcess = BookKeeperServiceStarter.startOutOfProcess(bkPort);
+        // BookKeeper
+        // Pick random ports to reduce chances of collisions during concurrent test executions.
+        int zkPort = TestUtils.getAvailableListenPort();
+        val bookiePorts = new ArrayList<Integer>();
+        for (int i = 0; i < BOOKIE_COUNT; i++) {
+            bookiePorts.add(TestUtils.getAvailableListenPort());
+        }
+
+        this.bkRunner = BookKeeperServiceRunner.builder()
+                                               .startZk(true)
+                                               .zkPort(zkPort)
+                                               .bookiePorts(bookiePorts)
+                                               .build();
 
         this.configBuilder.include(BookKeeperConfig
                 .builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, BookKeeperServiceStarter.BK_HOST + ":" + bkPort)
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + zkPort)
                 .with(BookKeeperConfig.ZK_NAMESPACE, BK_NAMESPACE));
 
         // HDFS
@@ -72,10 +83,10 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     @After
     public void tearDown() throws Exception {
         // BookKeeper
-        val process = this.bkProcess;
+        val process = this.bkRunner;
         if (process != null) {
-            process.destroy();
-            this.bkProcess = null;
+            process.close();
+            this.bkRunner = null;
         }
 
         // HDFS

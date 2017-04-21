@@ -41,7 +41,6 @@ import lombok.Cleanup;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.util.IOUtils;
-import org.apache.bookkeeper.util.LocalBookKeeper;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
@@ -197,7 +196,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private void startLocalZK() throws IOException {
         File zkTmpDir = IOUtils.createTempDir("zookeeper", "test");
         // TODO: fix
-        runZookeeper(1000, zkPort, zkTmpDir);
+        //runZookeeper(1000, zkPort, zkTmpDir);
     }
 
 
@@ -226,7 +225,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private void startLocalBK() throws Exception {
         // TODO: fix
-        LocalBookKeeper(zkHost,zkPort,this.bookieCount,false,this.initialBookiePort);
+        //LocalBookKeeper(zkHost,zkPort,this.bookieCount,false,this.initialBookiePort);
     }
 
 

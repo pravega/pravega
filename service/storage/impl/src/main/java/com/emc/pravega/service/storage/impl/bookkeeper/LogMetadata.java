@@ -191,7 +191,7 @@ class LogMetadata {
         LedgerMetadata firstLedger = this.ledgers.get(0);
         if (address.getLedgerSequence() < firstLedger.getSequence()) {
             // Most likely an old address. The result is the first address of the first ledger we have.
-            result = new LedgerAddress(firstLedger.getSequence(), firstLedger.getLedgerId(), 0);
+            result = new LedgerAddress(firstLedger, 0);
         } else if (address.getEntryId() < lastEntryId) {
             // Same ledger, next entry.
             result = new LedgerAddress(address.getLedgerSequence(), address.getLedgerId(), address.getEntryId() + 1);
@@ -215,7 +215,7 @@ class LogMetadata {
             }
 
             if (ledgerMetadata != null) {
-                result = new LedgerAddress(ledgerMetadata.getSequence(), ledgerMetadata.getLedgerId(), 0);
+                result = new LedgerAddress(ledgerMetadata, 0);
             }
         }
 

@@ -47,6 +47,8 @@ import org.apache.zookeeper.data.Stat;
 
 /**
  * Apache BookKeeper implementation of the DurableDataLog interface.
+ * TODO: write documentation here describing how this created a Log out of ledgers, fencing strategy, rollover as well
+ * as caveats from reading)
  */
 @Slf4j
 @ThreadSafe
@@ -276,7 +278,7 @@ class BookKeeperLog implements DurableDataLog {
                 }
 
                 // Successful write. Complete the callback future and update metrics.
-                LedgerAddress address = new LedgerAddress(writeLedger.metadata.getSequence(), writeLedger.ledger.getId(), entryId);
+                LedgerAddress address = new LedgerAddress(writeLedger.metadata, entryId);
                 this.lastAppendAddress.set(address);
                 completionFuture.complete(address);
             } catch (Throwable ex) {
@@ -409,7 +411,7 @@ class BookKeeperLog implements DurableDataLog {
             return result;
         } catch (KeeperException.NoNodeException nne) {
             // Node does not exist: this is the first time we are accessing this log.
-            log.warn("{}: No ZNode found for path '{}'.", this.traceObjectId, this.logNodePath, nne);
+            log.warn("{}: No ZNode found for path '{}'. This is OK if this is the first time accessing this log.", this.traceObjectId, this.logNodePath);
             return null;
         } catch (Exception ex) {
             throw new DataLogInitializationException(

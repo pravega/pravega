@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Random;
 import java.util.TreeMap;
 import lombok.Cleanup;
 import lombok.val;
@@ -23,7 +24,11 @@ import org.junit.Test;
  * Base class for all tests for implementations of DurableDataLog.
  */
 public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final int TIMEOUT_MILLIS = 60 * 1000;
+    protected static final Duration TIMEOUT = Duration.ofMillis(TIMEOUT_MILLIS);
+    protected static final int WRITE_MIN_LENGTH = 20;
+    protected static final int WRITE_MAX_LENGTH = 200;
+    private final Random random = new Random(0);
 
     //region General DurableDataLog Tests
 
@@ -32,7 +37,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testAppend() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
@@ -47,7 +52,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             LogAddress prevAddress = null;
             int writeCount = getWriteCountForWrites();
             for (int i = 0; i < writeCount; i++) {
-                LogAddress address = log.append(new ByteArrayInputStream(String.format("Write_%s", i).getBytes()), TIMEOUT).join();
+                LogAddress address = log.append(new ByteArrayInputStream(getWriteData()), TIMEOUT).join();
                 Assert.assertNotNull("No address returned from append().", address);
                 if (prevAddress != null) {
                     AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevAddress.getSequence(), address.getSequence());
@@ -63,9 +68,11 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testRead() throws Exception {
-        try (DurableDataLog log = createDurableDataLog()) {
+        TreeMap<LogAddress, byte[]> writeData;
+        Object context = createSharedContext();
+        try (DurableDataLog log = createDurableDataLog(context)) {
             // Check Read pre-initialization.
             AssertExtensions.assertThrows(
                     "read() worked before initialize()",
@@ -73,7 +80,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
-            val writeData = populate(log, getWriteCountForReads());
+            writeData = populate(log, getWriteCountForReads());
+        }
+
+        // Simulate Container recovery: we always read only upon recovery; never while writing.
+        try (DurableDataLog log = createDurableDataLog(context)) {
+            log.initialize(TIMEOUT);
             verifyReads(log, writeData);
         }
     }
@@ -83,9 +95,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testTruncate() throws Exception {
-        try (DurableDataLog log = createDurableDataLog()) {
+        TreeMap<LogAddress, byte[]> writeData;
+        ArrayList<LogAddress> addresses;
+        Object context = createSharedContext();
+        try (DurableDataLog log = createDurableDataLog(context)) {
             // Check Read pre-initialization.
             AssertExtensions.assertThrows(
                     "truncate() worked before initialize()",
@@ -93,9 +108,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
-            TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForReads());
-            ArrayList<LogAddress> addresses = new ArrayList<>(writeData.keySet());
+            writeData = populate(log, getWriteCountForReads());
+            addresses = new ArrayList<>(writeData.keySet());
+        }
 
+        try (DurableDataLog log = createDurableDataLog(context)) {
+            log.initialize(TIMEOUT);
             // Test truncating after each sequence number that we got back.
             for (LogAddress address : addresses) {
                 log.truncate(address, TIMEOUT).join();
@@ -110,7 +128,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testConcurrentIterator() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -137,7 +155,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testOpenCloseClient() throws Exception {
         // This is a very repetitive test; and we only care about "recovery" from no client; all else is already tested.
         final int writeCount = 10;
@@ -222,10 +240,17 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
+    private byte[] getWriteData() {
+        int length = WRITE_MIN_LENGTH + random.nextInt(WRITE_MAX_LENGTH - WRITE_MIN_LENGTH);
+        byte[] data = new byte[length];
+        this.random.nextBytes(data);
+        return data;
+    }
+
     protected TreeMap<LogAddress, byte[]> populate(DurableDataLog log, int writeCount) {
         TreeMap<LogAddress, byte[]> writtenData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
         for (int i = 0; i < writeCount; i++) {
-            byte[] writeData = String.format("Write_%s", i).getBytes();
+            byte[] writeData = getWriteData();
             LogAddress address = log.append(new ByteArrayInputStream(writeData), TIMEOUT).join();
             writtenData.put(address, writeData);
         }
