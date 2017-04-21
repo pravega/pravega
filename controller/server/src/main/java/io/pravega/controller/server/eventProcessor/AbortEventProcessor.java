@@ -70,7 +70,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
                         log.debug("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
                     }
-                });
+                }).join();
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyAbortToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {

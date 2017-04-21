@@ -70,7 +70,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                         log.debug("Successfully committed transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
                     }
-                });
+                }).join();
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
