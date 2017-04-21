@@ -149,13 +149,13 @@ class EventProcessorCell<T extends ControllerEvent> {
             ExceptionHandler.Directive directive = eventProcessorConfig.getExceptionHandler().run(e);
             switch (directive) {
                 case Restart:
-                    log.warn("Restarting event processor: {} due to exception: {}", objectId, e);
+                    log.warn("Restarting event processor: {} due to exception: {}", objectId, e.getMessage());
                     this.restart(e, event == null ? null : event.getEvent());
                     break;
 
                 case Resume:
                     // no action
-                    log.debug("Resuming event processor: {} after receiving exception: {}", objectId, e);
+                    log.debug("Resuming event processor: {} after receiving exception: {}", objectId, e.getMessage());
                     break;
 
                 case Stop:

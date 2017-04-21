@@ -119,7 +119,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                             .forPath(getTaskPath(resource));
                 } else {
 
-                    log.warn(String.format("Lock not owned by owner %s: thread %s", owner, tag));
+                    log.warn("removeLock on resource {} failed, lock not owned by owner ({}, {})", resource, owner, tag);
                     throw new UnlockFailedException(resource.getString());
 
                 }
@@ -134,7 +134,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             return null;
 
         } catch (KeeperException.NoNodeException e) {
-            log.debug("Lock not present on resource {}", resource);
+            log.debug("removeLock on {} failed, as the resource is not locked", resource);
             return null;
         } catch (Exception e) {
             throw new UnlockFailedException(resource.getString(), e);
