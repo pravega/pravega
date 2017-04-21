@@ -29,6 +29,7 @@ public class ExceptionHelpers {
      * Extracts the inner exception from any Exception that may have an inner exception.
      *
      * @param ex The exception to query.
+     * @return Exception.
      */
     public static Throwable getRealException(Throwable ex) {
         if (canInspectCause(ex)) {

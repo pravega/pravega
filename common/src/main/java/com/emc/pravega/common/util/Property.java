@@ -25,6 +25,7 @@ public class Property<T> {
      *
      * @param name The name of the property.
      * @param <T>  The type of the property values.
+     * @return A new instance of the Property class with no default value.
      */
     public static <T> Property<T> named(String name) {
         return new Property<>(name, null);
@@ -36,6 +37,7 @@ public class Property<T> {
      * @param name         The name of the property.
      * @param defaultValue The default value of the property.
      * @param <T>          The type of the property values.
+     * @return A new instance of the Property class with the given default value.
      */
     public static <T> Property<T> named(String name, T defaultValue) {
         return new Property<>(name, defaultValue);

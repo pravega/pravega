@@ -44,6 +44,8 @@ public interface SortedIndex<V extends SortedIndex.IndexEntry> {
 
     /**
      * Gets a value indicating the number of items in the Index.
+     *
+     * @return Integer indicating the size or number of items in the Index.
      */
     int size();
 
@@ -100,6 +102,8 @@ public interface SortedIndex<V extends SortedIndex.IndexEntry> {
         /**
          * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
          * should be very cheap to return (as it is used very frequently).
+         *
+         * @return Long indicating the key of the entry.
          */
         long key();
     }

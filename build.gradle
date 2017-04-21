@@ -162,9 +162,6 @@ project('common') {
             }
         }
     }
-    javadoc {
-        exclude 'com/emc/pravega/common/*'
-    }
 }
 
 project ('shared') {
