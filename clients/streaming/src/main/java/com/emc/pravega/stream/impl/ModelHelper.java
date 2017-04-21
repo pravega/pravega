@@ -16,11 +16,14 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
+import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.google.common.base.Preconditions;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -70,6 +73,32 @@ public final class ModelHelper {
     }
 
     /**
+     * Helper to convert retention policy from RPC call to internal representation.
+     *
+     * @param policy The retention policy from RPC interface.
+     * @return New instance of RetentionPolicy.
+     */
+    public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
+        Preconditions.checkNotNull(policy, "policy");
+        switch (policy.getType()) {
+            case INFINITE:
+                return RetentionPolicy.INFINITE;
+            case LIMITED_SIZE_MB:
+                return RetentionPolicy.builder()
+                        .type(RetentionPolicy.Type.SIZE)
+                        .value(policy.getValue())
+                        .build();
+            case LIMITED_DAYS:
+                return RetentionPolicy.builder()
+                        .type(RetentionPolicy.Type.TIME)
+                        .value(Duration.ofDays(policy.getValue()).toMillis())
+                        .build();
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
+
+    /**
      * Helper to convert StreamConfig into Stream Configuration Impl.
      *
      * @param config The StreamConfig
@@ -78,10 +107,11 @@ public final class ModelHelper {
     public static final StreamConfiguration encode(final StreamConfig config) {
         Preconditions.checkNotNull(config, "config");
         return StreamConfiguration.builder()
-                                  .scope(config.getStreamInfo().getScope())
-                                  .streamName(config.getStreamInfo().getStream())
-                                  .scalingPolicy(encode(config.getPolicy()))
-                                  .build();
+                .scope(config.getStreamInfo().getScope())
+                .streamName(config.getStreamInfo().getStream())
+                .scalingPolicy(encode(config.getScalingPolicy()))
+                .retentionPolicy(encode(config.getRetentionPolicy()))
+                .build();
     }
 
     /**
@@ -190,6 +220,34 @@ public final class ModelHelper {
     }
 
     /**
+     * Decodes RetentionPolicy and returns an instance of Retention Policy impl.
+     *
+     * @param policyModel The Retention Policy.
+     * @return Instance of Retention Policy Impl.
+     */
+    public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
+        Preconditions.checkNotNull(policyModel, "policyModel");
+        if (policyModel.getType() == RetentionPolicy.Type.TIME && policyModel.getValue() == Long.MAX_VALUE) {
+            return Controller.RetentionPolicy.newBuilder()
+                    .setType(Controller.RetentionPolicy.RetentionPolicyType.INFINITE).build();
+        }
+        switch (policyModel.getType()) {
+            case SIZE:
+                return Controller.RetentionPolicy.newBuilder()
+                        .setType(Controller.RetentionPolicy.RetentionPolicyType.LIMITED_SIZE_MB)
+                        .setValue(policyModel.getValue())
+                        .build();
+            case TIME:
+                return Controller.RetentionPolicy.newBuilder()
+                        .setType(Controller.RetentionPolicy.RetentionPolicyType.LIMITED_DAYS)
+                        .setValue(Duration.ofMillis(policyModel.getValue()).toDays())
+                        .build();
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
+
+    /**
      * Converts StreamConfiguration into StreamConfig.
      *
      * @param configModel The stream configuration.
@@ -199,7 +257,9 @@ public final class ModelHelper {
         Preconditions.checkNotNull(configModel, "configModel");
         return StreamConfig.newBuilder()
                 .setStreamInfo(createStreamInfo(configModel.getScope(), configModel.getStreamName()))
-                .setPolicy(decode(configModel.getScalingPolicy())).build();
+                .setScalingPolicy(decode(configModel.getScalingPolicy()))
+                .setRetentionPolicy(decode(configModel.getRetentionPolicy()))
+                .build();
     }
 
     /**
