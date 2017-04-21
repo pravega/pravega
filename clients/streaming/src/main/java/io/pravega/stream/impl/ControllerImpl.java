@@ -107,12 +107,16 @@ public class ControllerImpl implements Controller {
                     LoggerHelpers.traceLeave(log, "createScope", traceId);
                     switch (x.getStatus()) {
                     case FAILURE:
+                        log.warn("Failed to create scope: {}", scopeName);
                         throw new ControllerFailureException("Failed to create scope: " + scopeName);
                     case INVALID_SCOPE_NAME:
+                        log.warn("Illegal scope name: {}", scopeName);
                         throw new IllegalArgumentException("Illegal scope name: " + scopeName);
                     case SCOPE_EXISTS:
+                        log.warn("Scope already exists: {}", scopeName);
                         return false;
                     case SUCCESS:
+                        log.info("Scope created successfully: {}", scopeName);
                         return true;
                     case UNRECOGNIZED:
                     default:
@@ -134,12 +138,16 @@ public class ControllerImpl implements Controller {
                     LoggerHelpers.traceLeave(log, "deleteScope", traceId);
                     switch (x.getStatus()) {
                     case FAILURE:
+                        log.warn("Failed to delete scope: {}", scopeName);
                         throw new ControllerFailureException("Failed to delete scope: " + scopeName);
                     case SCOPE_NOT_EMPTY:
+                        log.warn("Cannot delete non empty scope: {}", scopeName);
                         throw new IllegalStateException("Scope "+ scopeName+ " is not empty.");
                     case SCOPE_NOT_FOUND:
+                        log.warn("Scope not found: {}", scopeName);
                         return false;
                     case SUCCESS:
+                        log.info("Scope deleted successfully: {}", scopeName);
                         return true;
                     case UNRECOGNIZED:
                     default:
@@ -160,14 +168,19 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "createStream", traceId);
             switch (x.getStatus()) {
             case FAILURE:
+                log.warn("Failed to create stream: {}", streamConfig.getStreamName());
                 throw new ControllerFailureException("Failed to create stream: " + streamConfig);
             case INVALID_STREAM_NAME:
+                log.warn("Illegal stream name: {}", streamConfig.getStreamName());
                 throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
             case SCOPE_NOT_FOUND:
+                log.warn("Scope not found: {}", streamConfig.getScope());
                 throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
             case STREAM_EXISTS:
+                log.warn("Stream already exists: {}", streamConfig.getStreamName());
                 return false;
             case SUCCESS:
+                log.info("Stream created successfully: {}", streamConfig.getStreamName());
                 return true;
             case UNRECOGNIZED:
             default:
@@ -188,12 +201,16 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "alterStream", traceId);
             switch (x.getStatus()) {
             case FAILURE:
-                throw new ControllerFailureException("Failed to altering stream: " + streamConfig);
+                log.warn("Failed to alter stream: {}", streamConfig.getStreamName());
+                throw new ControllerFailureException("Failed to alter stream: " + streamConfig);
             case SCOPE_NOT_FOUND:
+                log.warn("Scope not found: {}", streamConfig.getScope());
                 throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
             case STREAM_NOT_FOUND:
+                log.warn("Stream does not exist: {}", streamConfig.getStreamName());
                 throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
             case SUCCESS:
+                log.info("Successfully altered stream: {}", streamConfig.getStreamName());
                 return true;
             case UNRECOGNIZED:
             default:
@@ -226,12 +243,16 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "scaleStream", traceId);
             switch (x.getStatus()) {
             case FAILURE:
+                log.warn("Failed to scale stream: {}", stream.getStreamName());
                 throw new ControllerFailureException("Failed to scale stream: " + stream);
             case PRECONDITION_FAILED:
+                log.warn("Precondition failed for scale stream: {}", stream.getStreamName());
                 return false;
             case SUCCESS:
+                log.info("Successfully scaled stream: {}", stream.getStreamName());
                 return true;
             case TXN_CONFLICT:
+                log.warn("Controller failed to properly abort transactions on stream: {}", stream.getStreamName());
                 throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "
                         + stream);
             case UNRECOGNIZED:
@@ -254,12 +275,16 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "sealStream", traceId);
             switch (x.getStatus()) {
             case FAILURE:
+                log.warn("Failed to seal stream: {}", streamName);
                 throw new ControllerFailureException("Failed to seal stream: " + streamName);
             case SCOPE_NOT_FOUND:
+                log.warn("Scope not found: {}", scope);
                 throw new IllegalArgumentException("Scope does not exist: " + scope);
             case STREAM_NOT_FOUND:
+                log.warn("Stream does not exist: {}", streamName);
                 throw new IllegalArgumentException("Stream does not exist: " + streamName);
             case SUCCESS:
+                log.info("Successfully sealed stream: {}", streamName);
                 return true;
             case UNRECOGNIZED:
             default:
@@ -281,18 +306,21 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "deleteStream", traceId);
             switch (x.getStatus()) {
             case FAILURE:
+                log.warn("Failed to delete stream: {}", streamName);
                 throw new ControllerFailureException("Failed to delete stream: " + streamName);
             case STREAM_NOT_FOUND:
+                log.warn("Stream does not exist: {}", streamName);
                 return false;
             case STREAM_NOT_SEALED:
+                log.warn("Stream is not sealed: {}", streamName);
                 throw new IllegalArgumentException("Stream is not sealed: " + streamName);
             case SUCCESS:
+                log.info("Successfully deleted stream: {}", streamName);
                 return true;
             case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status deleting stream " + streamName
                                                      + " " + x.getStatus());
-            
             }
         });
     }
@@ -497,6 +525,7 @@ public class ControllerImpl implements Controller {
 
         @Override
         public void onError(Throwable t) {
+            log.warn("gRPC call failed with server error: {}", t.getCause());
             future.completeExceptionally(t);
         }
 
