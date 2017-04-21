@@ -40,7 +40,7 @@ public class FlinkPravegaReaderTest {
     private static final int NUM_STREAM_ELEMENTS = 10000;
 
     // TODO: Remove the end marker workaround once the following issue is fixed:
-    // https://github.com/emccode/pravega/issues/408
+    // https://github.com/pravega/pravega/issues/408
     private final static int STREAM_END_MARKER = 99999;
 
     // Setup utility.

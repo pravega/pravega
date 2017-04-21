@@ -84,7 +84,7 @@ public class FlinkPravegaWriterTest {
         Preconditions.checkArgument(eventCountPerSource > 0);
 
         // TODO: Remove the end marker workaround once the following issue is fixed:
-        // https://github.com/emccode/pravega/issues/408
+        // https://github.com/pravega/pravega/issues/408
         final int streamEndMarker = 99999;
 
         // Write the end marker.
