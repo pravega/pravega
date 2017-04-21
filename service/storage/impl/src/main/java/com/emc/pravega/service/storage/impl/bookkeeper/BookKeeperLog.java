@@ -207,7 +207,7 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     @Override
-    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
         ensurePreconditions();
         return new LogReader(getLogMetadata(), this.bookKeeper, this.config);
     }

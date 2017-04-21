@@ -7,9 +7,6 @@ package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.shared.metrics.MetricsConfig;
-import com.emc.pravega.shared.metrics.MetricsProvider;
-import com.emc.pravega.shared.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.host.stat.AutoScalerConfig;
@@ -18,21 +15,22 @@ import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
-import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
-import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
+import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperConfig;
+import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperLogFactory;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
-
+import com.emc.pravega.shared.metrics.MetricsConfig;
+import com.emc.pravega.shared.metrics.MetricsProvider;
+import com.emc.pravega.shared.metrics.StatsProvider;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Starts the Pravega Service.
@@ -61,7 +59,7 @@ public final class ServiceStarter {
 
     private ServiceBuilder createServiceBuilder(Options options) {
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(this.builderConfig);
-        if (options.distributedLog) {
+        if (options.bookKeeper) {
             attachDistributedLog(builder);
         }
 
@@ -137,9 +135,8 @@ public final class ServiceStarter {
     private void attachDistributedLog(ServiceBuilder builder) {
         builder.withDataLogFactory(setup -> {
             try {
-                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::builder);
-                String clientId = String.format("%s-%s", this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort());
-                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory(clientId, dlConfig, setup.getExecutor());
+                BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);
+                BookKeeperLogFactory factory = new BookKeeperLogFactory(bkConfig, setup.getExecutor());
                 factory.initialize();
                 return factory;
             } catch (Exception ex) {
@@ -198,8 +195,8 @@ public final class ServiceStarter {
                     .include("config.properties")
                     .include(System.getProperties())
                     .build();
-            serviceStarter.set(new ServiceStarter(config, Options.builder().
-                    distributedLog(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
+            serviceStarter.set(new ServiceStarter(config, Options.builder()
+                    .bookKeeper(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -232,7 +229,7 @@ public final class ServiceStarter {
     //region Options
     @Builder
     public static class Options {
-        final boolean distributedLog;
+        final boolean bookKeeper;
         final boolean hdfs;
         final boolean rocksDb;
         final boolean zkSegmentManager;

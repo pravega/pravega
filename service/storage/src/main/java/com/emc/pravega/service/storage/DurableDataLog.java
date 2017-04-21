@@ -62,15 +62,14 @@ public interface DurableDataLog extends AutoCloseable {
     CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout);
 
     /**
-     * Reads a number of entries from the log.
+     * Reads all the entries in the log.
      *
-     * @param afterSequence The Sequence of the last entry before the first one to read.
      * @return A CloseableIterator with the result.
-     * @throws DurableDataLogException If an exception occurred:
-     *                                 DataLogNotAvailableException: is not possible to reach the DataLog at the current time;
-     *                                 DurableDataLogException: the operation was unable to open a reader.
+     * @throws DataLogNotAvailableException: is not possible to reach the DataLog at the current time;
+     * @throws DurableDataLogException:      the operation was unable to open a reader.
+     * @throws DurableDataLogException       If another kind of exception occurred.
      */
-    CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException;
+    CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException;
 
     /**
      * Gets the maximum number of bytes allowed for a single append.

@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import lombok.Cleanup;
 import lombok.val;
@@ -70,22 +69,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Check Read pre-initialization.
             AssertExtensions.assertThrows(
                     "read() worked before initialize()",
-                    () -> log.getReader(0),
+                    log::getReader,
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
             val writeData = populate(log, getWriteCountForReads());
-
-            // Test reading after each sequence number that we got back.
-            for (LogAddress address : writeData.keySet()) {
-                verifyReads(log, address, writeData);
-            }
-
-            // Test reading from a sequence number before the first one.
-            verifyReads(log, createLogAddress(writeData.firstKey().getSequence() - 1), writeData);
-
-            // Test reading from a sequence number way beyond the last one.
-            verifyReads(log, createLogAddress(writeData.lastKey().getSequence() * 2), writeData);
+            verifyReads(log, writeData);
         }
     }
 
@@ -111,7 +100,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             for (LogAddress address : addresses) {
                 log.truncate(address, TIMEOUT).join();
                 writeData.headMap(address, true).clear();
-                verifyReads(log, createLogAddress(-1), writeData);
+                verifyReads(log, writeData);
             }
         }
     }
@@ -129,7 +118,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
             // Create a reader and read one item.
             @Cleanup
-            CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(-1);
+            CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader();
             DurableDataLog.ReadItem firstItem = reader.getNext();
             Assert.assertNotNull("Nothing read before modification.", firstItem);
 
@@ -178,7 +167,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Verify reads.
             try (DurableDataLog log = createDurableDataLog(context)) {
                 log.initialize(TIMEOUT);
-                verifyReads(log, createLogAddress(-1), writtenData);
+                verifyReads(log, writtenData);
             }
 
             previousAddress = currentAddress;
@@ -244,11 +233,10 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         return writtenData;
     }
 
-    protected void verifyReads(DurableDataLog log, LogAddress afterAddress, TreeMap<LogAddress, byte[]> writeData) throws Exception {
+    protected void verifyReads(DurableDataLog log, TreeMap<LogAddress, byte[]> writeData) throws Exception {
         @Cleanup
-        CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(afterAddress.getSequence());
-        SortedMap<LogAddress, byte[]> expectedData = writeData.tailMap(afterAddress, false);
-        Iterator<Map.Entry<LogAddress, byte[]>> expectedIterator = expectedData.entrySet().iterator();
+        CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader();
+        Iterator<Map.Entry<LogAddress, byte[]>> expectedIterator = writeData.entrySet().iterator();
         while (true) {
             DurableDataLog.ReadItem nextItem = reader.getNext();
             if (nextItem == null) {

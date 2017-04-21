@@ -60,7 +60,7 @@ public class Playground {
 
         val addresses = new ArrayList<LogAddress>();
         @Cleanup
-        val tReader = log.getReader(-1);
+        val tReader = log.getReader();
         DurableDataLog.ReadItem current;
         while ((current = tReader.getNext()) != null) {
             addresses.add(current.getAddress());
@@ -71,7 +71,7 @@ public class Playground {
             System.out.println();
             log.truncate(address, TIMEOUT).join();
             @Cleanup
-            val reader = log.getReader(-1);
+            val reader = log.getReader();
             while ((current = reader.getNext()) != null) {
                 System.out.println(String.format("Read %d bytes from address %s: '%s'",
                         current.getPayload().length, current.getAddress(), new String(current.getPayload())));

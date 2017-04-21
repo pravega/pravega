@@ -1,8 +1,11 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ *
  */
 
-package com.emc.pravega.service.storage.impl.distributedlog;
+package com.emc.pravega.service.storage.impl.bookkeeper;
 
 import ch.qos.logback.classic.LoggerContext;
 import com.twitter.distributedlog.LocalDLMEmulator;
@@ -16,16 +19,18 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.conf.ServerConfiguration;
+import org.apache.bookkeeper.util.LocalBookKeeper;
 import org.apache.bookkeeper.util.ReflectionUtils;
 import org.junit.Assert;
 import org.slf4j.LoggerFactory;
 
 /**
- * Helper class that starts DistributedLog in-process and creates a namespace.
+ * Helper class that starts BookKeeper in-process.
+ * TODO: make this use BookKeeper.
  */
 @Slf4j
-public final class DistributedLogStarter {
-    public static final String DLOG_HOST = "127.0.0.1";
+public class BookKeeperServiceStarter {
+    public static final String BK_HOST = "127.0.0.1";
 
     public static void main(String[] args) throws Exception {
         // We don't need logging here at all.
@@ -38,12 +43,12 @@ public final class DistributedLogStarter {
 
         // Start DistributedLog in-process.
         ServerConfiguration sc = new ServerConfiguration()
-                .setJournalAdaptiveGroupWrites(false)
-                .setJournalMaxGroupWaitMSec(0);
-        val dlm = LocalDLMEmulator.newBuilder()
-                                  .zkPort(port)
-                                  .serverConf(sc)
-                                  .build();
+                .setJournalAdaptiveGroupWrites(false);
+        // TODO: fix
+        val dlm = LocalBookKeeper.
+                                 .zkPort(port)
+                                 .serverConf(sc)
+                                 .build();
         dlm.start();
 
         // Wait forever. This process will be killed externally.
@@ -63,8 +68,8 @@ public final class DistributedLogStarter {
         val pb = new ProcessBuilder(
                 "java",
                 "-cp", String.join(":", classPath),
-                DistributedLogStarter.class.getCanonicalName(),
-                DLOG_HOST,
+                BookKeeperServiceStarter.class.getCanonicalName(),
+                BK_HOST,
                 Integer.toString(port));
         pb.inheritIO(); // For some reason we need to inherit IO, otherwise this process is not responsive and we can't use it.
         return pb.start();
@@ -82,8 +87,8 @@ public final class DistributedLogStarter {
         tool.run(new String[]{
                 "bind",
                 "-l", "/ledgers",
-                "-s", String.format("%s:%s", DLOG_HOST, port),
-                "-c", String.format("distributedlog://%s:%s/%s", DLOG_HOST, port, namespace) });
+                "-s", String.format("%s:%s", BK_HOST, port),
+                "-c", String.format("distributedlog://%s:%s/%s", BK_HOST, port, namespace) });
     }
 
     /**

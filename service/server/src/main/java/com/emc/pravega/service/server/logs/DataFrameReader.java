@@ -465,7 +465,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
             this.lastReadFrameSequence = INITIAL_LAST_READ_FRAME_SEQUENCE;
             if (this.reader == null) {
                 // We start from the beginning.
-                this.reader = this.log.getReader(INITIAL_LAST_READ_FRAME_SEQUENCE);
+                this.reader = this.log.getReader();
             }
         }
 

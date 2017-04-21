@@ -27,7 +27,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Factory for BookKeeperLogs.
  */
 @Slf4j
-class BookKeeperLogFactory implements DurableDataLogFactory {
+public class BookKeeperLogFactory implements DurableDataLogFactory {
     //region Members
 
     private static final RetryPolicy CURATOR_RETRY_POLICY = new ExponentialBackoffRetry(1000, 3);
@@ -46,7 +46,7 @@ class BookKeeperLogFactory implements DurableDataLogFactory {
      * @param config   The configuration to use for all instances created.
      * @param executor An executor to use for async operations.
      */
-    BookKeeperLogFactory(BookKeeperConfig config, ScheduledExecutorService executor) {
+    public BookKeeperLogFactory(BookKeeperConfig config, ScheduledExecutorService executor) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.curator = new AtomicReference<>();
@@ -130,7 +130,7 @@ class BookKeeperLogFactory implements DurableDataLogFactory {
         ClientConfiguration config = new ClientConfiguration()
                 .setZkServers(this.config.getZkAddress())
                 .setClientTcpNoDelay(true)
-                .setConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
+                .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
         return new BookKeeper(config);
     }

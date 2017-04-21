@@ -89,7 +89,7 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
             log.initialize(TIMEOUT);
 
             // Verify it contains the same entries.
-            verifyReads(log, createLogAddress(-1), writeData);
+            verifyReads(log, writeData);
         }
     }
 
@@ -136,7 +136,7 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
                     ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // ... but it should still be able to read.
-            verifyReads(log, createLogAddress(-1), writeData);
+            verifyReads(log, writeData);
         }
 
         // Verify epoch is incremented with every call to initialize().

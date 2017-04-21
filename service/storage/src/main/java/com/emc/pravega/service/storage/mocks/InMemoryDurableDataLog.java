@@ -151,9 +151,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
         ensurePreconditions();
-        return new ReadResultIterator(this.entries.iterator(), afterSequence);
+        return new ReadResultIterator(this.entries.iterator());
     }
 
     //endregion
@@ -187,17 +187,11 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @RequiredArgsConstructor
     private static class ReadResultIterator implements CloseableIterator<ReadItem, DurableDataLogException> {
         private final Iterator<Entry> entryIterator;
-        private final long afterSequence;
 
         @Override
         public ReadItem getNext() throws DurableDataLogException {
-            while (this.entryIterator.hasNext()) {
-                Entry e = this.entryIterator.next();
-                if (e.sequenceNumber <= afterSequence) {
-                    continue;
-                }
-
-                return new ReadResultItem(e);
+            if (this.entryIterator.hasNext()) {
+                return new ReadResultItem(this.entryIterator.next());
             }
 
             return null;

@@ -11,9 +11,9 @@ import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
-import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
-import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
-import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogStarter;
+import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperConfig;
+import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperLogFactory;
+import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperServiceStarter;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSClusterHelpers;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
@@ -35,28 +35,26 @@ import org.junit.Before;
 public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
-    private static final String DLOG_NAMESPACE = "pravegae2e";
+    private static final String BK_NAMESPACE = "pravegae2e";
 
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
-    private Process dlogProcess;
+    private Process bkProcess;
 
     /**
-     * Starts DistributedLog and HDFS MiniCluster.
+     * Starts BookKeeper and HDFS MiniCluster.
      */
     @Before
     public void setUp() throws Exception {
         // DistributedLog
         // Pick a random port to reduce chances of collisions during concurrent test executions.
-        int dlogPort = TestUtils.getAvailableListenPort();
-        this.dlogProcess = DistributedLogStarter.startOutOfProcess(dlogPort);
-        DistributedLogStarter.createNamespace(DLOG_NAMESPACE, dlogPort);
+        int bkPort = TestUtils.getAvailableListenPort();
+        this.bkProcess = BookKeeperServiceStarter.startOutOfProcess(bkPort);
 
-        this.configBuilder.include(DistributedLogConfig
+        this.configBuilder.include(BookKeeperConfig
                 .builder()
-                .with(DistributedLogConfig.HOSTNAME, DistributedLogStarter.DLOG_HOST)
-                .with(DistributedLogConfig.PORT, dlogPort)
-                .with(DistributedLogConfig.NAMESPACE, DLOG_NAMESPACE));
+                .with(BookKeeperConfig.ZK_ADDRESS, BookKeeperServiceStarter.BK_HOST + ":" + bkPort)
+                .with(BookKeeperConfig.ZK_NAMESPACE, BK_NAMESPACE));
 
         // HDFS
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
@@ -69,15 +67,15 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     }
 
     /**
-     * Shuts down DistributedLog and HDFS MiniCluster.
+     * Shuts down BookKeeper and HDFS MiniCluster.
      */
     @After
     public void tearDown() throws Exception {
-        // DistributedLog
-        val process = this.dlogProcess;
+        // BookKeeper
+        val process = this.bkProcess;
         if (process != null) {
             process.destroy();
-            this.dlogProcess = null;
+            this.bkProcess = null;
         }
 
         // HDFS
@@ -108,8 +106,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
 
     @SneakyThrows(DurableDataLogException.class)
     private DurableDataLogFactory createDistributedLogDataLogFactory(ServiceBuilder.ComponentSetup setup) {
-        DistributedLogDataLogFactory f = new DistributedLogDataLogFactory("End2End",
-                setup.getConfig(DistributedLogConfig::builder), setup.getExecutor());
+        BookKeeperLogFactory f = new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), setup.getExecutor());
         f.initialize();
         return f;
     }

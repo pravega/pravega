@@ -83,9 +83,9 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
         ErrorInjector.throwSyncExceptionIfNeeded(this.getReaderInitialErrorInjector);
-        return new CloseableIteratorWrapper(this.wrappedLog.getReader(afterSequence), this.readSyncErrorInjector, this.readInterceptor);
+        return new CloseableIteratorWrapper(this.wrappedLog.getReader(), this.readSyncErrorInjector, this.readInterceptor);
     }
 
     @Override
@@ -160,7 +160,7 @@ public class TestDurableDataLog implements DurableDataLog {
     public <T> List<T> getAllEntries(FunctionWithException<ReadItem, T> converter) throws Exception {
         ArrayList<T> result = new ArrayList<>();
         @Cleanup
-        CloseableIterator<ReadItem, DurableDataLogException> reader = this.wrappedLog.getReader(-1);
+        CloseableIterator<ReadItem, DurableDataLogException> reader = this.wrappedLog.getReader();
         while (true) {
             DurableDataLog.ReadItem readItem = reader.getNext();
             if (readItem == null) {

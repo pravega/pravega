@@ -26,11 +26,9 @@ import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
-import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
+import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.google.common.base.Preconditions;
-import com.twitter.distributedlog.LocalDLMEmulator;
-import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -43,13 +41,12 @@ import lombok.Cleanup;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.util.IOUtils;
+import org.apache.bookkeeper.util.LocalBookKeeper;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-
-import static org.apache.bookkeeper.util.LocalBookKeeper.runZookeeper;
 
 @Slf4j
 public class InProcPravegaCluster implements AutoCloseable {
@@ -72,8 +69,8 @@ public class InProcPravegaCluster implements AutoCloseable {
     private int segmentStoreCount = 0;
     private int[] segmentStorePorts = null;
 
-    /*Distributed log related variables*/
-    private boolean isInProcDL;
+    /*BookKeeper related variables*/
+    private boolean isInProcBK;
     private int bookieCount;
     private final int initialBookiePort;
 
@@ -93,7 +90,6 @@ public class InProcPravegaCluster implements AutoCloseable {
     private ServiceStarter[] nodeServiceStarter = new ServiceStarter[segmentStoreCount];
 
     private LocalHDFSEmulator localHdfs;
-    private LocalDLMEmulator localDlm;
     @GuardedBy("$lock")
     private ControllerServiceMain[] controllerServers;
 
@@ -122,10 +118,10 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.isInMemStorage = isInMemStorage;
         if ( isInMemStorage ) {
             this.isInProcHDFS = false;
-            this.isInProcDL = false;
+            this.isInProcBK = false;
         } else {
             this.isInProcHDFS = isInProcHDFS;
-            this.isInProcDL = isInProcBK;
+            this.isInProcBK = isInProcBK;
         }
         this.isInProcZK = isInProcZK;
         this.zkUrl = zkUrl;
@@ -176,10 +172,9 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         cleanUpZK();
 
-        if (isInProcDL) {
-            startLocalDL();
+        if (isInProcBK) {
+            startLocalBK();
         }
-        configureDLBinding(this.zkUrl);
 
         if (isInProcController) {
             startLocalControllers();
@@ -193,7 +188,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void checkAvailableFeatures() {
-        if ( isInProcDL ) {
+        if (isInProcBK) {
            //Can not instantiate DL in proc till DL-192 is fixed
            throw new NotImplementedException();
         }
@@ -201,6 +196,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private void startLocalZK() throws IOException {
         File zkTmpDir = IOUtils.createTempDir("zookeeper", "test");
+        // TODO: fix
         runZookeeper(1000, zkPort, zkTmpDir);
     }
 
@@ -228,22 +224,9 @@ public class InProcPravegaCluster implements AutoCloseable {
         zclient.close();
     }
 
-    private void configureDLBinding(String zkUrl) {
-        DistributedLogAdmin admin = new DistributedLogAdmin();
-        String[] params = {"bind", "-dlzr", zkUrl, "-dlzw", zkUrl, "-s", zkUrl, "-bkzr", zkUrl,
-                "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
-                "distributedlog://" + zkUrl  + "/pravega/" + clusterName + "/segmentstore/containers"};
-        try {
-            admin.run(params);
-        } catch (Exception e) {
-            log.warn("Exception {} while configuring the DL bindings.", e.getMessage());
-        }
-    }
-
-    private void startLocalDL() throws Exception {
-        localDlm = LocalDLMEmulator.newBuilder().shouldStartZK(false).zkHost(zkHost).
-                    zkPort(zkPort).numBookies(this.bookieCount).build();
-        localDlm.start();
+    private void startLocalBK() throws Exception {
+        // TODO: fix
+        LocalBookKeeper(zkHost,zkPort,this.bookieCount,false,this.initialBookiePort);
     }
 
 
@@ -291,10 +274,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                     configBuilder = configBuilder.include(HDFSStorageConfig.builder()
                         .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/",
                                 localHdfs.getNameNodePort())))
-                            .include(DistributedLogConfig.builder()
-                                    .with(DistributedLogConfig.HOSTNAME, "localhost")
-                                    .with(DistributedLogConfig.PORT, zkPort)
-                                    .with(DistributedLogConfig.NAMESPACE, "/pravega/"
+                            .include(BookKeeperConfig.builder()
+                                                     .with(BookKeeperConfig.ZK_ADDRESS, "localhost:"+zkPort)
+                                                     .with(BookKeeperConfig.ZK_NAMESPACE, "/pravega/"
                                                                             + clusterName
                                                                             + "/segmentstore/containers"));
             }
@@ -303,7 +285,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .zkSegmentManager(true);
 
             nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs(!isInMemStorage)
-                    .distributedLog(!isInMemStorage).build());
+                    .bookKeeper(!isInMemStorage).build());
         } catch (Exception e) {
             throw e;
         }
