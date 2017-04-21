@@ -68,7 +68,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     /**
      * Starts the BookKeeper cluster in-process.
      *
-     * @throws Exception
+     * @throws Exception If an exception occurred.
      */
     public void start() throws Exception {
         if (this.startZk) {

@@ -4,24 +4,18 @@
 
 package com.emc.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogTestBase;
 import com.emc.pravega.service.storage.LogAddress;
-import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestUtils;
-import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.Cleanup;
 import lombok.val;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -139,51 +133,6 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     @Override
     protected int getWriteCountForReads() {
         return WRITE_COUNT_READS;
-    }
-
-    //endregion
-
-    //region Specific tests
-
-    @Test(timeout = TIMEOUT_MILLIS)
-    @Override
-    public void testExclusiveWriteLock() throws Exception {
-        // Tests the ability of the DurableDataLog to enforce an exclusive writer, by only allowing one client at a time
-        // to write to the same physical log.
-        final long initialEpoch;
-        final long secondEpoch;
-        TreeMap<LogAddress, byte[]> writeData;
-        try (DurableDataLog log1 = createDurableDataLog()) {
-            log1.initialize(TIMEOUT);
-            initialEpoch = log1.getEpoch();
-            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", 0, initialEpoch);
-
-            // Simulate a different client trying to open the same log. This should be allowed and it should fence out the first log.
-            @Cleanup
-            val factory = new BookKeeperLogFactory(config.get(), executorService());
-            factory.initialize();
-            try (DurableDataLog log2 = factory.createDurableDataLog(CONTAINER_ID)) {
-                log2.initialize(TIMEOUT);
-                secondEpoch = log2.getEpoch();
-                AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", initialEpoch, secondEpoch);
-
-                // Verify we cannot write to the first log.
-                AssertExtensions.assertThrows(
-                        "The first log was not fenced out.",
-                        () -> log1.append(new ByteArrayInputStream(new byte[1]), TIMEOUT),
-                        ex -> ex instanceof DataLogWriterNotPrimaryException);
-
-                // Verify we can write to the second log.
-                writeData = populate(log2, getWriteCountForWrites());
-            }
-        }
-
-        try (DurableDataLog log = createDurableDataLog()) {
-            log.initialize(TIMEOUT);
-            long thirdEpoch = log.getEpoch();
-            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on non-empty log initialization.", secondEpoch, thirdEpoch);
-            verifyReads(log, writeData);
-        }
     }
 
     //endregion

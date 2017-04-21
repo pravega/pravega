@@ -104,6 +104,20 @@ class LedgerAddress extends LogAddress implements Comparable<LedgerAddress> {
     //region Comparable Implementation
 
     @Override
+    public int hashCode() {
+        return Long.hashCode(getSequence());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof LedgerAddress) {
+            return this.compareTo((LedgerAddress) obj) == 0;
+        }
+
+        return false;
+    }
+
+    @Override
     public int compareTo(LedgerAddress address) {
         return Long.compare(getSequence(), address.getSequence());
     }

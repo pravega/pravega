@@ -279,14 +279,6 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
         long acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
-            if (!this.writeLock.compareAndSet(null, clientId)) {
-                throw new DataLogWriterNotPrimaryException("Unable to acquire exclusive write lock because is already owned by " + clientId);
-            }
-            return this.epoch.incrementAndGet();
-        }
-
-        long forceAcquireLock(String clientId) {
-            Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             this.writeLock.set(clientId);
             return this.epoch.incrementAndGet();
         }

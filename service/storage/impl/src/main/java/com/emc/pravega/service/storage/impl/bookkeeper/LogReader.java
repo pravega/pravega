@@ -100,7 +100,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
 
         val nextEntry = this.currentLedger.reader.nextElement();
 
-        byte[] payload = nextEntry.getEntry();// TODO: this also exposes an InputStream, which may be more efficient.
+        byte[] payload = nextEntry.getEntry(); // TODO: this also exposes an InputStream, which may be more efficient.
         val address = new LedgerAddress(this.currentLedger.metadata, nextEntry.getEntryId());
         return new LogReader.ReadItem(payload, address);
     }

@@ -192,10 +192,6 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    //endregion
-
-    //region Implementation-specific tests
-
     /**
      * Tests the ability of the DurableDataLog to enforce an exclusive writer, by only allowing one client at a time
      * to write to the same physical log.
@@ -203,7 +199,40 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      * @throws Exception If one got thrown.
      */
     @Test
-    public abstract void testExclusiveWriteLock() throws Exception;
+    public void testExclusiveWriteLock() throws Exception {
+        final long initialEpoch;
+        final long secondEpoch;
+        TreeMap<LogAddress, byte[]> writeData;
+        Object context = createSharedContext();
+        try (DurableDataLog log1 = createDurableDataLog(context)) {
+            log1.initialize(TIMEOUT);
+            initialEpoch = log1.getEpoch();
+            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", 0, initialEpoch);
+
+            // 1. No two logs can use the same EntryCollection.
+            try (DurableDataLog log2 = createDurableDataLog(context)) {
+                log2.initialize(TIMEOUT);
+                secondEpoch = log2.getEpoch();
+                AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", initialEpoch, secondEpoch);
+
+                // Verify we cannot write to the first log.
+                AssertExtensions.assertThrows(
+                        "The first log was not fenced out.",
+                        () -> log1.append(new ByteArrayInputStream(new byte[1]), TIMEOUT),
+                        ex -> ex instanceof DataLogWriterNotPrimaryException);
+
+                // Verify we can write to the second log.
+                writeData = populate(log2, getWriteCountForWrites());
+            }
+        }
+
+        try (DurableDataLog log = createDurableDataLog(context)) {
+            log.initialize(TIMEOUT);
+            long thirdEpoch = log.getEpoch();
+            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on non-empty log initialization.", secondEpoch, thirdEpoch);
+            verifyReads(log, writeData);
+        }
+    }
 
     //endregion
 

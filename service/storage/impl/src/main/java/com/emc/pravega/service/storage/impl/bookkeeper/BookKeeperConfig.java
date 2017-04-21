@@ -12,6 +12,7 @@ import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.TypedProperties;
 import java.nio.charset.Charset;
 import java.time.Duration;
+import java.util.Arrays;
 import lombok.Getter;
 
 /**
@@ -30,7 +31,7 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 3);
     public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
     public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
-    public static final Property<String> BK_PASSWORD = Property.named("bkPassword", "");
+    public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
     private static final String COMPONENT_CODE = "bookkeeper";
 
     //endregion
@@ -99,11 +100,6 @@ public class BookKeeperConfig {
      */
     @Getter
     private final int bkLedgerMaxSize;
-
-    /**
-     * The Password to use for the creation and access of each BK Ledger.
-     */
-    @Getter
     private final byte[] bkPassword;
 
     //endregion
@@ -137,6 +133,13 @@ public class BookKeeperConfig {
 
         this.bkLedgerMaxSize = properties.getInt(BK_LEDGER_MAX_SIZE);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
+    }
+
+    /**
+     * Gets a value representing the Password to use for the creation and access of each BK Ledger.
+     */
+    public byte[] getBKPassword() {
+        return Arrays.copyOf(this.bkPassword, this.bkPassword.length);
     }
 
     /**
