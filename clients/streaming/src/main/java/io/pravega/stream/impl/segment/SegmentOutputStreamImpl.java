@@ -5,7 +5,6 @@
  */
 package io.pravega.stream.impl.segment;
 
-import io.pravega.common.Exceptions;
 import io.pravega.common.netty.Append;
 import io.pravega.common.netty.ConnectionFailedException;
 import io.pravega.common.netty.FailingReplyProcessor;

@@ -38,7 +38,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.util.function.Supplier;
 
-import io.pravega.common.concurrent.FutureHelpers;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
 
