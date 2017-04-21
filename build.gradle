@@ -162,6 +162,14 @@ project('common') {
             }
         }
     }
+    javadoc {
+        title = "Pravega Common Libraries"
+        failOnError = false
+        source  =  project(':common').sourceSets.main.java
+        def javadocs = new File(rootDir, "javadocs")
+        javadocs.mkdirs()
+        destinationDir = javadocs
+    }
 }
 
 project ('shared') {
