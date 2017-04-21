@@ -359,6 +359,9 @@ project('service:server:host') {
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile ('com.twitter:distributedlog-service:0.3.51-RC1') {
+            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        }
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
         testCompile files(project(':service:storage:impl').sourceSets.test.output)
