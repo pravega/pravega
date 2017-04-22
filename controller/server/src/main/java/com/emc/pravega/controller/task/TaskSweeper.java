@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.task;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.TaskBase.Context;
@@ -58,7 +59,9 @@ public class TaskSweeper {
     }
 
     public CompletableFuture<Void> sweepOrphanedTasks(final Supplier<Set<String>> runningProcesses) {
-        return taskMetadataStore.getHosts()
+        return Retry.indefinitelyWithExpBackoff(100, 2, 10000,
+                e -> log.warn("Sweeping failed, retry {}", e))
+                .runAsync(() -> taskMetadataStore.getHosts()
                 .thenComposeAsync(registeredHosts -> {
                     log.info("Hosts {} have ongoing tasks", registeredHosts);
                     try {
@@ -69,7 +72,7 @@ public class TaskSweeper {
                     log.info("Failed hosts {} have orphaned tasks", registeredHosts);
                     return FutureHelpers.allOf(registeredHosts.stream()
                             .map(this::sweepOrphanedTasks).collect(Collectors.toList()));
-                }, executor);
+                }, executor), executor);
     }
 
     /**

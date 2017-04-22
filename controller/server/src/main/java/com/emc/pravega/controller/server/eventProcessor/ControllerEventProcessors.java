@@ -45,6 +45,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
+import static com.emc.pravega.controller.eventProcessor.RetryHelper.CONNECTIVITY_PREDICATE;
+import static com.emc.pravega.controller.eventProcessor.RetryHelper.withRetriesAsync;
+
 @Slf4j
 public class ControllerEventProcessors extends AbstractIdleService {
 
@@ -102,31 +105,32 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     public void notifyProcessFailure(String process) {
         if (commitEventProcessors != null) {
-            CompletableFuture.runAsync(() -> {
+            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     commitEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor);
+            }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
         }
+
         if (abortEventProcessors != null) {
-            CompletableFuture.runAsync(() -> {
+            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     abortEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor);
+            }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
         }
         if (scaleEventProcessors != null) {
-            CompletableFuture.runAsync(() -> {
+            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     scaleEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor);
+            }, executor), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
         }
     }
 
@@ -219,7 +223,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
                                        final Supplier<Set<String>> processes) {
-        CompletableFuture.supplyAsync(() -> {
+        withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             try {
                 return group.getProcesses();
             } catch (CheckpointStoreException e) {
@@ -262,7 +266,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                     }
 
                     return FutureHelpers.allOf(futureList);
-                });
+                }), CONNECTIVITY_PREDICATE, Integer.MAX_VALUE, executor);
     }
 
     private void initialize() throws Exception {
