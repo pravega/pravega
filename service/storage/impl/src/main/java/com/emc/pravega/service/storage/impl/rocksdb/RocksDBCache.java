@@ -116,7 +116,7 @@ class RocksDBCache implements Cache {
 
     @Override
     public void close() {
-        if (!this.closed.get()) {
+        if (this.closed.compareAndSet(false, true)) {
             RocksDB db = this.database.get();
             if (db != null) {
                 db.close();
@@ -133,7 +133,6 @@ class RocksDBCache implements Cache {
 
             clear(false);
             log.info("{}: Closed.", this.logId);
-            this.closed.set(true);
 
             Consumer<String> callback = this.closeCallback;
             if (callback != null) {

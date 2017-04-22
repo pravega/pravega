@@ -57,20 +57,15 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
     }
 
     @Override
-    protected int getWriteCountForWrites() {
+    protected int getWriteCount() {
         return WRITE_COUNT;
-    }
-
-    @Override
-    protected int getWriteCountForReads() {
-        return getWriteCountForWrites(); // In-Memory is fast enough; we can do this many.
     }
 
     /**
      * Tests the constructor of InMemoryDurableDataLog. The constructor takes in an EntryCollection and this verifies
      * that information from a previous instance of an InMemoryDurableDataLog is still accessible.
      */
-    @Test
+    @Test(timeout = 5000)
     public void testConstructor() throws Exception {
         InMemoryDurableDataLog.EntryCollection entries = new InMemoryDurableDataLog.EntryCollection();
         TreeMap<LogAddress, byte[]> writeData;

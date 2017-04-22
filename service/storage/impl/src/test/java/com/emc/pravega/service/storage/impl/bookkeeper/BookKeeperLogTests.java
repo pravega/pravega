@@ -25,8 +25,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
 
     private static final int CONTAINER_ID = 9999;
-    private static final int WRITE_COUNT_WRITES = 250;
-    private static final int WRITE_COUNT_READS = 25;
+    private static final int WRITE_COUNT = 250;
     private static final int BOOKIE_COUNT = 3;
     private static final int THREAD_POOL_SIZE = 5;
 
@@ -126,13 +125,8 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     @Override
-    protected int getWriteCountForWrites() {
-        return WRITE_COUNT_WRITES;
-    }
-
-    @Override
-    protected int getWriteCountForReads() {
-        return WRITE_COUNT_READS;
+    protected int getWriteCount() {
+        return WRITE_COUNT;
     }
 
     //endregion

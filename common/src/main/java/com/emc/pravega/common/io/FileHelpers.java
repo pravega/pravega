@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.io;
 
@@ -18,15 +16,11 @@ public class FileHelpers {
      * @return True if the target was deleted, false otherwise.
      */
     public static boolean deleteFileOrDirectory(File file) {
-        if (file.exists()) {
+        if (file.exists() && file.isDirectory()) {
             File[] files = file.listFiles();
             if (files != null) {
                 for (File f : files) {
-                    if (f.isDirectory()) {
-                        deleteFileOrDirectory(f);
-                    } else {
-                        f.delete();
-                    }
+                    deleteFileOrDirectory(f);
                 }
             }
         }

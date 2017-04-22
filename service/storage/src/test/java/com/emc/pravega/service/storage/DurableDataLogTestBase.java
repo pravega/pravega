@@ -50,7 +50,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
             LogAddress prevAddress = null;
-            int writeCount = getWriteCountForWrites();
+            int writeCount = getWriteCount();
             for (int i = 0; i < writeCount; i++) {
                 LogAddress address = log.append(new ByteArrayInputStream(getWriteData()), TIMEOUT).join();
                 Assert.assertNotNull("No address returned from append().", address);
@@ -80,7 +80,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
-            writeData = populate(log, getWriteCountForReads());
+            writeData = populate(log, getWriteCount());
         }
 
         // Simulate Container recovery: we always read only upon recovery; never while writing.
@@ -108,7 +108,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
-            writeData = populate(log, getWriteCountForReads());
+            writeData = populate(log, getWriteCount());
             addresses = new ArrayList<>(writeData.keySet());
         }
 
@@ -132,7 +132,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
     public void testConcurrentIterator() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
-            populate(log, getWriteCountForWrites());
+            populate(log, getWriteCount());
 
             // Create a reader and read one item.
             @Cleanup
@@ -222,7 +222,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                         ex -> ex instanceof DataLogWriterNotPrimaryException);
 
                 // Verify we can write to the second log.
-                writeData = populate(log2, getWriteCountForWrites());
+                writeData = populate(log2, getWriteCount());
             }
         }
 
@@ -256,14 +256,9 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
     protected abstract LogAddress createLogAddress(long seqNo);
 
     /**
-     * Gets a value indicating how many writes to perform for a Write test.
+     * Gets a value indicating how many writes to perform in any test.
      */
-    protected abstract int getWriteCountForWrites();
-
-    /**
-     * Gets a value indicating how many writes to perform for a Read test.
-     */
-    protected abstract int getWriteCountForReads();
+    protected abstract int getWriteCount();
 
     //endregion
 
