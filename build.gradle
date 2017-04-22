@@ -267,17 +267,6 @@ project('service:storage:impl') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
 
-//        compile(group: 'org.apache.bookkeeper', name: 'bookkeeper', version: bookKeeperVersion) {
-//            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-//        }
-
-        test {
-            // Used to properly start BookKeeper.
-            configurations { guava16 }
-            dependencies { guava16 "com.google.guava:guava:${guavaServiceStorageImplVersion}" }
-            systemProperty "user.guava16", configurations.guava16.files
-        }
-
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
 
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common

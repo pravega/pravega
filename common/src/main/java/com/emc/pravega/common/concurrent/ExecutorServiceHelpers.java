@@ -4,6 +4,7 @@
 package com.emc.pravega.common.concurrent;
 
 import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.function.RunnableWithException;
 import com.google.common.base.Preconditions;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -39,9 +40,9 @@ public final class ExecutorServiceHelpers {
     }
 
     /**
-     * Executs the given RunnableWithFailure on the given Executor.
+     * Executs the given task on the given Executor.
      *
-     * @param task             The RunnableWithFailure to execute.
+     * @param task             The RunnableWithException to execute.
      * @param exceptionHandler A Consumer that will be invoked in case the task threw an Exception. This is not invoked if
      *                         the executor could not execute the given task.
      * @param runFinally       A Runnable that is guaranteed to be invoked at the end of this execution. If the executor
@@ -49,7 +50,7 @@ public final class ExecutorServiceHelpers {
      *                         If the executor did not accept the task, it will be executed when this method returns.
      * @param executor         An Executor to execute the task on.
      */
-    public static void execute(RunnableWithFailure task, Consumer<Throwable> exceptionHandler, Runnable runFinally, Executor executor) {
+    public static void execute(RunnableWithException task, Consumer<Throwable> exceptionHandler, Runnable runFinally, Executor executor) {
         Preconditions.checkNotNull(task, "task");
         Preconditions.checkNotNull(exceptionHandler, "exceptionHandler");
         Preconditions.checkNotNull(runFinally, "runFinally");
@@ -87,9 +88,5 @@ public final class ExecutorServiceHelpers {
         final int activeThreadCount;
         @Getter
         final int poolSize;
-    }
-
-    public interface RunnableWithFailure {
-        void run() throws Throwable;
     }
 }

@@ -3,13 +3,10 @@
  */
 package com.emc.pravega.service.storage.mocks;
 
-import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogTestBase;
 import com.emc.pravega.service.storage.LogAddress;
-import com.emc.pravega.testcommon.AssertExtensions;
 import com.google.common.base.Preconditions;
-import java.io.ByteArrayInputStream;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;

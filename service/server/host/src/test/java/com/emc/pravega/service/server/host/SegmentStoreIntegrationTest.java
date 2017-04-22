@@ -61,6 +61,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
                                                .zkPort(zkPort)
                                                .bookiePorts(bookiePorts)
                                                .build();
+        this.bkRunner.start();
 
         this.configBuilder.include(BookKeeperConfig
                 .builder()
@@ -83,9 +84,9 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     @After
     public void tearDown() throws Exception {
         // BookKeeper
-        val process = this.bkRunner;
-        if (process != null) {
-            process.close();
+        val bk = this.bkRunner;
+        if (bk != null) {
+            bk.close();
             this.bkRunner = null;
         }
 
@@ -112,11 +113,11 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
                     StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
                     return new ListenableStorageFactory(f, storage::set);
                 })
-                .withDataLogFactory(this::createDistributedLogDataLogFactory);
+                .withDataLogFactory(this::createBookKeeperLogFactory);
     }
 
     @SneakyThrows(DurableDataLogException.class)
-    private DurableDataLogFactory createDistributedLogDataLogFactory(ServiceBuilder.ComponentSetup setup) {
+    private DurableDataLogFactory createBookKeeperLogFactory(ServiceBuilder.ComponentSetup setup) {
         BookKeeperLogFactory f = new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), setup.getExecutor());
         f.initialize();
         return f;

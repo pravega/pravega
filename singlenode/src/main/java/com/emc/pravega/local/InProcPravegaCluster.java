@@ -26,10 +26,9 @@ import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
-import com.emc.pravega.service.storage.impl.bookkeeper.BookKeeperConfig;
+import com.emc.pravega.service.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.google.common.base.Preconditions;
-import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
@@ -40,8 +39,6 @@ import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.bookkeeper.util.IOUtils;
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -68,16 +65,12 @@ public class InProcPravegaCluster implements AutoCloseable {
     private int segmentStoreCount = 0;
     private int[] segmentStorePorts = null;
 
-    /*BookKeeper related variables*/
-    private boolean isInProcBK;
-    private int bookieCount;
-    private final int initialBookiePort;
-
 
     /*ZK related variables*/
     private boolean isInProcZK;
     private int zkPort;
     private String zkHost;
+    private ZooKeeperServiceRunner zkService;
 
     /*HDFS related variables*/
     private boolean isInProcHDFS;
@@ -97,7 +90,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     @Builder
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
-                                boolean isInProcHDFS, boolean isInProcBK, int initialBookiePort,
+                                boolean isInProcHDFS,
                                 boolean isInProcController, int controllerCount, String controllerURI,
                                 boolean isInProcSegmentStore, int segmentStoreCount, int containerCount, boolean startRestServer) {
 
@@ -117,15 +110,12 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.isInMemStorage = isInMemStorage;
         if ( isInMemStorage ) {
             this.isInProcHDFS = false;
-            this.isInProcBK = false;
         } else {
             this.isInProcHDFS = isInProcHDFS;
-            this.isInProcBK = isInProcBK;
         }
         this.isInProcZK = isInProcZK;
         this.zkUrl = zkUrl;
         this.zkPort = zkPort;
-        this.initialBookiePort = initialBookiePort;
         this.isInProcController = isInProcController;
         this.controllerURI = controllerURI;
         this.controllerCount = controllerCount;
@@ -133,7 +123,6 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.segmentStoreCount = segmentStoreCount;
         this.containerCount = containerCount;
         this.startRestServer = startRestServer;
-        checkAvailableFeatures();
     }
 
     @Synchronized
@@ -171,10 +160,6 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         cleanUpZK();
 
-        if (isInProcBK) {
-            startLocalBK();
-        }
-
         if (isInProcController) {
             startLocalControllers();
         }
@@ -186,17 +171,9 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     }
 
-    private void checkAvailableFeatures() {
-        if (isInProcBK) {
-           //Can not instantiate DL in proc till DL-192 is fixed
-           throw new NotImplementedException();
-        }
-    }
-
-    private void startLocalZK() throws IOException {
-        File zkTmpDir = IOUtils.createTempDir("zookeeper", "test");
-        // TODO: fix
-        //runZookeeper(1000, zkPort, zkTmpDir);
+    private void startLocalZK() throws Exception {
+        zkService = new ZooKeeperServiceRunner(zkPort);
+        zkService.start();
     }
 
 
@@ -222,12 +199,6 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
         zclient.close();
     }
-
-    private void startLocalBK() throws Exception {
-        // TODO: fix
-        //LocalBookKeeper(zkHost,zkPort,this.bookieCount,false,this.initialBookiePort);
-    }
-
 
     private void startLocalHDFS() throws IOException {
         localHdfs = LocalHDFSEmulator.newBuilder().baseDirName("temp").build();
@@ -267,17 +238,14 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .include(ReadIndexConfig.builder()
                                           .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
                                           .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
-                    .include(AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]));
+                    .include(AutoScalerConfig.builder()
+                                             .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]));
 
             if ( !isInMemStorage ) {
-                    configBuilder = configBuilder.include(HDFSStorageConfig.builder()
-                        .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/",
-                                localHdfs.getNameNodePort())))
-                            .include(BookKeeperConfig.builder()
-                                                     .with(BookKeeperConfig.ZK_ADDRESS, "localhost:"+zkPort)
-                                                     .with(BookKeeperConfig.ZK_NAMESPACE, "/pravega/"
-                                                                            + clusterName
-                                                                            + "/segmentstore/containers"));
+                    configBuilder = configBuilder
+                            .include(HDFSStorageConfig.builder()
+                                                      .with(HDFSStorageConfig.URL,
+                                                              String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort())));
             }
 
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
@@ -364,7 +332,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     @Override
     @Synchronized
-    public void close() {
+    public void close() throws Exception {
         if (isInProcSegmentStore) {
             for ( ServiceStarter starter : this.nodeServiceStarter ) {
                 starter.shutdown();
@@ -374,6 +342,11 @@ public class InProcPravegaCluster implements AutoCloseable {
             for ( ControllerServiceMain controller : this.controllerServers ) {
                     controller.stopAsync();
                 }
+        }
+
+        if (this.zkService != null) {
+            this.zkService.close();
+            this.zkService = null;
         }
     }
 }

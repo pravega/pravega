@@ -7,7 +7,6 @@ package com.emc.pravega.service.storage.impl.bookkeeper;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,14 +16,10 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
-import org.apache.bookkeeper.util.IOUtils;
-import org.apache.bookkeeper.util.LocalBookKeeper;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.ZooDefs;
-import org.apache.zookeeper.server.NIOServerCnxnFactory;
-import org.apache.zookeeper.server.ZooKeeperServer;
 
 /**
  * Helper class that starts BookKeeper in-process.
@@ -39,7 +34,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final int zkPort;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
-    private final AtomicReference<ZooKeeperServer> zkServer = new AtomicReference<>();
+    private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
     private final List<File> tempDirs = new ArrayList<>();
 
     //endregion
@@ -54,7 +49,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             }
 
             if (this.zkServer.get() != null) {
-                this.zkServer.get().shutdown();
+                this.zkServer.get().close();
             }
         } finally {
             cleanupDirectories();
@@ -72,27 +67,14 @@ public class BookKeeperServiceRunner implements AutoCloseable {
      */
     public void start() throws Exception {
         if (this.startZk) {
-            runZookeeper();
+            val zk = new ZooKeeperServiceRunner(this.zkPort);
+            zk.start();
+            this.zkServer.set(zk);
         }
 
         initializeZookeeper();
         val baseConf = new ServerConfiguration();
         runBookies(baseConf);
-    }
-
-    private void runZookeeper() throws Exception {
-        val tmpDir = IOUtils.createTempDir("zookeeper", "localbookkeeper");
-
-        val zks = new ZooKeeperServer(tmpDir, tmpDir, ZooKeeperServer.DEFAULT_TICK_TIME);
-        this.zkServer.set(zks);
-        val serverFactory = new NIOServerCnxnFactory();
-        val address = LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort;
-        log.info("Starting Zookeeper server at " + address + " ...");
-        serverFactory.configure(new InetSocketAddress(LOOPBACK_ADDRESS, this.zkPort), 1000);
-        serverFactory.startup(zks);
-
-        boolean b = LocalBookKeeper.waitForServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
-        log.info("ZooKeeper server {}.", b ? "up" : "not up");
     }
 
     private void initializeZookeeper() throws Exception {
@@ -122,7 +104,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             conf.setBookiePort(bkPort);
             conf.setZkServers(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort);
             conf.setJournalDirName(tmpDir.getPath());
-            conf.setLedgerDirNames(new String[]{tmpDir.getPath()});
+            conf.setLedgerDirNames(new String[]{ tmpDir.getPath() });
             conf.setAllowLoopback(true);
             conf.setJournalAdaptiveGroupWrites(false);
 
