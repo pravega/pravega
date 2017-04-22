@@ -72,7 +72,7 @@ public class ControllerFailoverTest {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
-        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
+        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 false, controllerPort, serviceHost, servicePort, containerCount, -1);
         testSessionExpiryTolerance(controllerWrapper, controllerPort);
     }
@@ -82,7 +82,7 @@ public class ControllerFailoverTest {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
-        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, false,
+        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
         testSessionExpiryTolerance(controllerWrapper, controllerPort);
     }
@@ -155,7 +155,7 @@ public class ControllerFailoverTest {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
-        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, false,
+        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
 
         try {

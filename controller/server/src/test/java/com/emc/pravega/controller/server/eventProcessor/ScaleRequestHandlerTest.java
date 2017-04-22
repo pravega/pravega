@@ -1,12 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.controller.request;
+package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.testcommon.TestingServerStarter;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
-import com.emc.pravega.controller.server.eventProcessor.ScaleRequestHandler;
 import com.emc.pravega.controller.requests.ScaleEvent;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -40,7 +39,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertTrue;
 
-public class RequestTest {
+public class ScaleRequestHandlerTest {
     private final String scope = "scope";
     private final String stream = "stream";
     StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(

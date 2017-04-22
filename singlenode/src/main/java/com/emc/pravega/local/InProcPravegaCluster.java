@@ -361,7 +361,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .controllerClusterListenerConfig(Optional.empty())
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
-                .requestHandlersEnabled(true)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.empty())
                 .build();

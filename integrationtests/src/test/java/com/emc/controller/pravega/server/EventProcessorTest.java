@@ -110,7 +110,6 @@ public class EventProcessorTest {
         ControllerWrapper controllerWrapper = new ControllerWrapper(
                 zkTestServer.getConnectString(),
                 true,
-                true,
                 controllerPort,
                 "localhost",
                 servicePort,

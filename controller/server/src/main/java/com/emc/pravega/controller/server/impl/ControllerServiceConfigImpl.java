@@ -36,7 +36,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final TimeoutServiceConfig timeoutServiceConfig;
 
     private final Optional<ControllerEventProcessorConfig> eventProcessorConfig;
-    private final boolean requestHandlersEnabled;
 
     private final Optional<GRPCServerConfig> gRPCServerConfig;
 
@@ -53,7 +52,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                             final Optional<ControllerClusterListenerConfig> controllerClusterListenerConfig,
                             final TimeoutServiceConfig timeoutServiceConfig,
                             final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
-                            final boolean requestHandlersEnabled,
                             final Optional<GRPCServerConfig> grpcServerConfig,
                             final Optional<RESTServerConfig> restServerConfig) {
         Exceptions.checkArgument(serviceThreadPoolSize > 0, "serviceThreadPoolSize", "Should be positive integer");
@@ -91,7 +89,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.controllerClusterListenerConfig = controllerClusterListenerConfig;
         this.timeoutServiceConfig = timeoutServiceConfig;
         this.eventProcessorConfig = eventProcessorConfig;
-        this.requestHandlersEnabled = requestHandlersEnabled;
         this.gRPCServerConfig = grpcServerConfig;
         this.restServerConfig = restServerConfig;
     }

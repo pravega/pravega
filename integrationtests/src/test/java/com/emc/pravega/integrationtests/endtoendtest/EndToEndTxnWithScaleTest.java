@@ -65,7 +65,6 @@ public class EndToEndTxnWithScaleTest {
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
                 false,
-                true,
                 controllerPort,
                 serviceHost,
                 servicePort,
