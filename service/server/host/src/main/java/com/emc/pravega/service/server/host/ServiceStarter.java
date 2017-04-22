@@ -60,7 +60,7 @@ public final class ServiceStarter {
     private ServiceBuilder createServiceBuilder(Options options) {
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(this.builderConfig);
         if (options.bookKeeper) {
-            attachDistributedLog(builder);
+            attachBookKeeper(builder);
         }
 
         if (options.rocksDb) {
@@ -132,7 +132,7 @@ public final class ServiceStarter {
         }
     }
 
-    private void attachDistributedLog(ServiceBuilder builder) {
+    private void attachBookKeeper(ServiceBuilder builder) {
         builder.withDataLogFactory(setup -> {
             try {
                 BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);

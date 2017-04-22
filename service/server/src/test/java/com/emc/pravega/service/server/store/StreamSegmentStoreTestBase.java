@@ -90,9 +90,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     //endregion
 
     /**
-     * Tests an end-to-end scenario using real adapters for Cache (RocksDB) and Storage (HDFS).
-     * Currently this does not use a real adapter for DurableDataLog due to difficulties in getting DistributedLog
-     * to run in-process.
+     * Tests an end-to-end scenario for the SegmentStore.
+     * * Appends
+     * * Reads
+     * * Segment and transaction creation
+     * * Transaction mergers
+     * * Recovery
      *
      * @throws Exception If an exception occurred.
      */
