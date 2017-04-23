@@ -5,8 +5,9 @@
  */
 package com.emc.pravega.controller.task;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.store.task.LockFailedException;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.TaskBase.Context;
@@ -19,12 +20,17 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static com.emc.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
+import static com.emc.pravega.controller.util.RetryHelper.UNCONDITIONAL_PREDICATE;
+import static com.emc.pravega.controller.util.RetryHelper.withRetries;
+import static com.emc.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 @Slf4j
 public class TaskSweeper {
@@ -59,20 +65,14 @@ public class TaskSweeper {
     }
 
     public CompletableFuture<Void> sweepOrphanedTasks(final Supplier<Set<String>> runningProcesses) {
-        return Retry.indefinitelyWithExpBackoff(100, 2, 10000,
-                e -> log.warn("Sweeping failed, retry {}", e))
-                .runAsync(() -> taskMetadataStore.getHosts()
+        return withRetriesAsync(taskMetadataStore::getHosts, RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor)
                 .thenComposeAsync(registeredHosts -> {
                     log.info("Hosts {} have ongoing tasks", registeredHosts);
-                    try {
-                        registeredHosts.removeAll(runningProcesses.get());
-                    } catch (Exception e) {
-                        throw new CompletionException(e);
-                    }
+                    registeredHosts.removeAll(withRetries(runningProcesses, UNCONDITIONAL_PREDICATE, Integer.MAX_VALUE));
                     log.info("Failed hosts {} have orphaned tasks", registeredHosts);
                     return FutureHelpers.allOf(registeredHosts.stream()
                             .map(this::sweepOrphanedTasks).collect(Collectors.toList()));
-                }, executor), executor);
+                }, executor);
     }
 
     /**
@@ -86,11 +86,12 @@ public class TaskSweeper {
     public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
         log.info("Sweeping orphaned tasks for host {}", oldHostId);
-        return FutureHelpers.doWhileLoop(
+        return withRetriesAsync(() -> FutureHelpers.doWhileLoop(
                 () -> executeHostTask(oldHostId),
-                x -> x != null, executor)
-                .whenCompleteAsync((result, ex) ->
-                        log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor);
+                Objects::nonNull, executor)
+                .whenCompleteAsync((result, ex) -> log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor),
+                RETRYABLE_PREDICATE.and(e -> !(ExceptionHelpers.getRealException(e) instanceof LockFailedException)),
+                Integer.MAX_VALUE, executor);
     }
 
     private CompletableFuture<Result> executeHostTask(final String oldHostId) {

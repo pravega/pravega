@@ -1,11 +1,14 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.controller.eventProcessor;
+package com.emc.pravega.controller.util;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
+import com.emc.pravega.controller.store.stream.StoreConnectionException;
+import com.emc.pravega.controller.store.stream.StoreException;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -14,11 +17,13 @@ import java.util.function.Supplier;
 
 public class RetryHelper {
 
-    public static final Predicate<Throwable> CONNECTIVITY_PREDICATE = e -> {
+    public static final Predicate<Throwable> RETRYABLE_PREDICATE = e -> {
         Throwable t = ExceptionHelpers.getRealException(e);
-        return t instanceof CheckpointStoreException &&
-                ((CheckpointStoreException) t).getType().equals(CheckpointStoreException.Type.Connectivity);
+        return RetryableException.isRetryable(t) || (t instanceof CheckpointStoreException &&
+                ((CheckpointStoreException) t).getType().equals(CheckpointStoreException.Type.Connectivity));
     };
+
+    public static final Predicate<Throwable> UNCONDITIONAL_PREDICATE = e -> true;
 
     public static <U> U withRetries(Supplier<U> supplier, Predicate<Throwable> predicate, int numOfTries) {
         return Retry.withExpBackoff(100, 2, numOfTries, 1000)

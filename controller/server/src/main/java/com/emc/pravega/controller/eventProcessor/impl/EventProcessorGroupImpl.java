@@ -37,9 +37,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.emc.pravega.controller.eventProcessor.RetryHelper.CONNECTIVITY_PREDICATE;
-import static com.emc.pravega.controller.eventProcessor.RetryHelper.withRetries;
-
 @Slf4j
 public final class EventProcessorGroupImpl<T extends ControllerEvent> extends AbstractIdleService
         implements EventProcessorGroup<T> {
@@ -192,53 +189,44 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "notifyProcessFailure", process);
         log.info("Notifying failure of process {} participating in reader group {}", process, this.objectId);
         try {
-            Map<String, Position> map = withRetries(() -> {
-                try {
-                    return checkpointStore.sealReaderGroup(process, readerGroup.getGroupName());
-                } catch (CheckpointStoreException e) {
-                    if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
-                        return Collections.emptyMap();
-                    }
+            Map<String, Position> map;
+            try {
+                map = checkpointStore.sealReaderGroup(process, readerGroup.getGroupName());
+            } catch (CheckpointStoreException e) {
+                if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                    map = Collections.emptyMap();
+                } else {
                     throw new CompletionException(e);
                 }
-            }, CONNECTIVITY_PREDICATE, 10);
+            }
 
             for (Map.Entry<String, Position> entry : map.entrySet()) {
                 // 1. Notify reader group about failed readers
-                withRetries(() -> {
-                            if (readerGroup.getOnlineReaders().contains(entry.getKey())) {
-                                log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
-                                readerGroup.readerOffline(entry.getKey(), entry.getValue());
-                            }
-                            return null;
-                        }, throwable -> true, 10);
+                if (readerGroup.getOnlineReaders().contains(entry.getKey())) {
+                    log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
+                    readerGroup.readerOffline(entry.getKey(), entry.getValue());
+                }
 
                 // 2. Clean up reader from checkpoint store
                 log.info("{} removing reader={} from checkpoint store", this.objectId, entry.getKey());
-                withRetries(() -> {
-                    try {
-                        checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
-                    } catch (CheckpointStoreException e) {
-                        if (!e.getType().equals(CheckpointStoreException.Type.NoNode)) {
-                            throw new CompletionException(e);
-                        }
-                    }
-                    return null;
-                }, CONNECTIVITY_PREDICATE, 10);
-            }
-
-            // finally, remove reader group from checkpoint store
-            log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
-            withRetries(() -> {
                 try {
-                    checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
+                    checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
                 } catch (CheckpointStoreException e) {
                     if (!e.getType().equals(CheckpointStoreException.Type.NoNode)) {
                         throw new CompletionException(e);
                     }
                 }
-                return null;
-            }, CONNECTIVITY_PREDICATE, 10);
+            }
+
+            // finally, remove reader group from checkpoint store
+            log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
+            try {
+                checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
+            } catch (CheckpointStoreException e) {
+                if (!e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                    throw new CompletionException(e);
+                }
+            }
         } finally {
             LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, process);
         }
