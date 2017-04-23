@@ -196,7 +196,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
                     map = Collections.emptyMap();
                 } else {
-                    throw new CompletionException(e);
+                    throw e;
                 }
             }
 
@@ -213,7 +213,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                     checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
                 } catch (CheckpointStoreException e) {
                     if (!e.getType().equals(CheckpointStoreException.Type.NoNode)) {
-                        throw new CompletionException(e);
+                        throw e;
                     }
                 }
             }
@@ -224,7 +224,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
             } catch (CheckpointStoreException e) {
                 if (!e.getType().equals(CheckpointStoreException.Type.NoNode)) {
-                    throw new CompletionException(e);
+                    throw e;
                 }
             }
         } finally {
