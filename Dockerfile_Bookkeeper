@@ -20,7 +20,7 @@ ENV bookiePort 3181
 EXPOSE $bookiePort
 
 # all execute-able bin, download from distributed_log
-WORKDIR /opt/dl_all
+WORKDIR /opt/bk_all
 
 # After container up, Following instructions to build bookie cluster
 COPY /entry_point.sh /opt/bk_all/entry_point.sh
