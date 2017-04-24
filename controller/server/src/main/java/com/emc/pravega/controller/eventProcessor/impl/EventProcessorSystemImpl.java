@@ -13,6 +13,7 @@ import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -53,6 +54,9 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
     public <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(
             final EventProcessorConfig<T> eventProcessorConfig,
             final CheckpointStore checkpointStore) throws CheckpointStoreException {
+        Preconditions.checkNotNull(eventProcessorConfig, "eventProcessorConfig");
+        Preconditions.checkNotNull(checkpointStore, "checkpointStore");
+
         EventProcessorGroupImpl<T> actorGroup;
 
         // Create event processor group.
