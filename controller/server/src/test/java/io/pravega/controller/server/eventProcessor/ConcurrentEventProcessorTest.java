@@ -20,11 +20,23 @@ public class ConcurrentEventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public static class TestEvent implements ControllerEvent {
+    private static class TestEvent implements ControllerEvent {
         int number;
 
         @Override
         public String getKey() {
+            return null;
+        }
+    }
+
+
+    @Data
+    @AllArgsConstructor
+    private static class TestPosition implements Position {
+        int number;
+
+        @Override
+        public PositionInternal asImpl() {
             return null;
         }
     }
@@ -59,17 +71,6 @@ public class ConcurrentEventProcessorTest {
                         runningcount.decrementAndGet();
                     }
             );
-        }
-    }
-
-    @Data
-    @AllArgsConstructor
-    private class TestPosition implements Position {
-        int number;
-
-        @Override
-        public PositionInternal asImpl() {
-            return null;
         }
     }
 
