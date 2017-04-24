@@ -134,7 +134,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             return null;
 
         } catch (KeeperException.NoNodeException e) {
-            log.debug("removeLock on {} failed, as the resource is not locked", resource);
+            log.debug("removeLock on {} completed; resource was not locked", resource);
             return null;
         } catch (Exception e) {
             throw new UnlockFailedException(resource.getString(), e);
