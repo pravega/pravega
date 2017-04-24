@@ -69,6 +69,8 @@ public class ReusableLatch {
 
     /**
      * Returns whether or not release has been called and threads can call await without blocking.
+     *
+     * @return True if the latch is set to release state.
      */
     public boolean isReleased() {
         return released.get();

@@ -57,6 +57,7 @@ public final class Exceptions {
      * @param <ExceptionT> The type of exception.
      * @param <ResultT>    The type of the result.
      * @throws ExceptionT If thrown by call.
+     * @return The result of the call.
      */
     @SneakyThrows(InterruptedException.class)
     public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptibleCall<ExceptionT, ResultT> call)
