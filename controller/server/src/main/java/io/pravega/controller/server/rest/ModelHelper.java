@@ -57,7 +57,7 @@ public class ModelHelper {
                     createStreamRequest.getScalingPolicy().getMinSegments()
             );
         }
-        RetentionPolicy retentionPolicy;
+        RetentionPolicy retentionPolicy = null;
         switch (createStreamRequest.getRetentionPolicy().getType()) {
             case DISABLED:
                 retentionPolicy = RetentionPolicy.disabled();
@@ -69,9 +69,6 @@ public class ModelHelper {
                 retentionPolicy =
                         RetentionPolicy.byTime(Duration.ofMillis(createStreamRequest.getRetentionPolicy().getValue()));
                 break;
-            default:
-                throw new IllegalArgumentException("Found invalid retention type: " +
-                        createStreamRequest.getRetentionPolicy().getType().toString());
         }
         return StreamConfiguration.builder()
                 .scope(scope)
@@ -108,7 +105,7 @@ public class ModelHelper {
                     updateStreamRequest.getScalingPolicy().getMinSegments()
             );
         }
-        RetentionPolicy retentionPolicy;
+        RetentionPolicy retentionPolicy = null;
         switch (updateStreamRequest.getRetentionPolicy().getType()) {
             case DISABLED:
                 retentionPolicy = RetentionPolicy.disabled();
@@ -120,9 +117,6 @@ public class ModelHelper {
                 retentionPolicy =
                         RetentionPolicy.byTime(Duration.ofMillis(updateStreamRequest.getRetentionPolicy().getValue()));
                 break;
-            default:
-                throw new IllegalArgumentException("Found invalid retention type: " +
-                        updateStreamRequest.getRetentionPolicy().getType().toString());
         }
         return StreamConfiguration.builder()
                                   .scope(scope)
@@ -165,9 +159,6 @@ public class ModelHelper {
                 retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_TIME_MILLIS);
                 retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
                 break;
-            default:
-                throw new IllegalArgumentException("Found invalid retention type: " +
-                        streamConfiguration.getRetentionPolicy().getType().toString());
         }
 
         StreamProperty streamProperty = new StreamProperty();
