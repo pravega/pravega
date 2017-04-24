@@ -13,7 +13,9 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.UUID;
@@ -207,24 +209,23 @@ class InMemoryDurableDataLog implements DurableDataLog {
     //region ReadResultItem
 
     private static class ReadResultItem implements DurableDataLog.ReadItem {
-
         private final byte[] payload;
+        @Getter
         private final LogAddress address;
 
         ReadResultItem(Entry entry) {
-            this.payload = new byte[entry.data.length];
-            System.arraycopy(entry.data, 0, this.payload, 0, this.payload.length);
+            this.payload = entry.data;
             this.address = new InMemoryLogAddress(entry.sequenceNumber);
         }
 
         @Override
-        public byte[] getPayload() {
-            return this.payload;
+        public InputStream getPayload() {
+            return new ByteArrayInputStream(this.payload);
         }
 
         @Override
-        public LogAddress getAddress() {
-            return this.address;
+        public int getLength() {
+            return this.payload.length;
         }
 
         @Override

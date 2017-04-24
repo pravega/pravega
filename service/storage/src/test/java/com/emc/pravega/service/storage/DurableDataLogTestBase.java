@@ -4,6 +4,7 @@
 
 package com.emc.pravega.service.storage;
 
+import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -298,7 +299,8 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Verify sequence number, as well as payload.
             val expected = expectedIterator.next();
             Assert.assertEquals("Unexpected sequence number.", expected.getKey().getSequence(), nextItem.getAddress().getSequence());
-            Assert.assertArrayEquals("Unexpected payload for sequence number " + expected.getKey(), expected.getValue(), nextItem.getPayload());
+            val actualPayload = StreamHelpers.readAll(nextItem.getPayload());
+            Assert.assertArrayEquals("Unexpected payload for sequence number " + expected.getKey(), expected.getValue(), actualPayload);
         }
     }
 

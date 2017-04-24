@@ -7,7 +7,6 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
-import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -35,6 +34,7 @@ import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
@@ -43,6 +43,7 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.util.concurrent.Service;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -61,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Cleanup;
+import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
@@ -784,15 +786,15 @@ public class DurableLogTests extends OperationLogTestBase {
             AtomicInteger readCounter = new AtomicInteger();
             dataLog.get().setReadInterceptor(
                     readItem -> {
-                        byte[] payload = readItem.getPayload();
-                        if (readCounter.incrementAndGet() > failReadAfter && payload.length > 14) { // 14 == DataFrame.Header.Length
+                        if (readCounter.incrementAndGet() > failReadAfter && readItem.getLength() > 14) { // 14 == DataFrame.Header.Length
                             // Mangle with the payload and overwrite its contents with a DataFrame having a bogus
                             // previous sequence number.
-                            DataFrame df = new DataFrame(Integer.MAX_VALUE, payload.length);
+                            DataFrame df = new DataFrame(Integer.MAX_VALUE, readItem.getLength());
                             df.seal();
-                            ArrayView frameData = df.getData();
-                            System.arraycopy(frameData.array(), frameData.arrayOffset(), payload, 0, Math.min(frameData.getLength(), payload.length));
+                            return new InjectedReadItem(df.getData().getReader(), readItem.getLength(), readItem.getAddress());
                         }
+
+                        return readItem;
                     }
             );
 
@@ -1100,6 +1102,17 @@ public class DurableLogTests extends OperationLogTestBase {
                     String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
                     expectedItem, actualItem);
         }
+    }
+
+    //endregion
+
+    //region InjectedReadItem
+
+    @Data
+    private static class InjectedReadItem implements TestDurableDataLog.ReadItem {
+        private final InputStream payload;
+        private final int length;
+        private final LogAddress address;
     }
 
     //endregion

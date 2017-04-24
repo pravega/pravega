@@ -43,8 +43,24 @@ import org.apache.zookeeper.data.Stat;
 
 /**
  * Apache BookKeeper implementation of the DurableDataLog interface.
- * TODO: write documentation here describing how this created a Log out of ledgers, fencing strategy, rollover as well
- * as caveats from reading)
+ * Overview:
+ * * A Log is made up of several BookKeeper Ledgers plus a Log Metadata stored in ZooKeeper (separate from BookKeeper).
+ * <p>
+ * The Log Metadata:
+ * * Is made up of an ordered list of active Ledgers along with their sequence (in the Log), the Log Truncation Address
+ * and the Log Epoch.
+ * * Is updated upon every successful initialization, truncation, or ledger rollover.
+ * * The Epoch is updated only upon a successful initialization.
+ * <p>
+ * Fencing and Rollovers:
+ * * This is done according to the protocol described here: https://bookkeeper.apache.org/docs/r4.4.0/bookkeeperLedgers2Logs.html
+ * * See JavaDocs for the initialize() method (Open-Fence) and the rollover() method (for Rollovers) for details.
+ * <p>
+ * Reading the log
+ * * Reading the log can only be done from the beginning. There is no random-access available.
+ * * The Log Reader is designed to work well immediately after recovery. Due to BookKeeper behavior, reading while writing
+ * may not immediately provide access to the last written entry, even if it was acknowledged by BookKeeper.
+ * * See the LogReader class for more details.
  */
 @Slf4j
 @ThreadSafe
@@ -130,6 +146,19 @@ class BookKeeperLog implements DurableDataLog {
 
     //region DurableDataLog Implementation
 
+    /**
+     * Open-Fences this BookKeeper log using the following protocol:
+     * 1. Read Log Metadata from ZooKeeper.
+     * 2. Fence at least the last 2 ledgers in the Ledger List
+     * 3. Create a new Ledger
+     * 4 Update Log Metadata using compare-and-set (this update contains the new ledger and new epoch).
+     *
+     * @param timeout Timeout for the operation.
+     * @throws DataLogWriterNotPrimaryException If we were fenced-out during this process.
+     * @throws DataLogNotAvailableException     If BookKeeper or ZooKeeper are not available.
+     * @throws DataLogInitializationException   If a general initialization error occurred.
+     * @throws DurableDataLogException          If another type of exception occurred.
+     */
     @Override
     public void initialize(Duration timeout) throws DurableDataLogException {
         synchronized (this.lock) {
@@ -496,7 +525,7 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     /**
-     * Executes a rollover using the following protocol (described in https://bookkeeper.apache.org/docs/r4.4.0/bookkeeperLedgers2Logs.html):
+     * Executes a rollover using the following protocol:
      * 1. Create a new ledger
      * 2. Add the new ledger the the metadata
      * 3. Update the metadata in ZooKeeper.
@@ -506,19 +535,16 @@ class BookKeeperLog implements DurableDataLog {
     private void rollover() throws DurableDataLogException {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "rollover");
 
-        // Get latest version of the metadata.
-        LogMetadata metadata = getLogMetadata();
-        log.debug("{}: Rollover: got metadata '{}'.", this.traceObjectId, metadata);
-
         // Create new ledger.
         LedgerHandle newLedger = Ledgers.create(this.bookKeeper, this.config);
-        log.debug("{}: Rollover: created new ledger {}.", this.traceObjectId, metadata, newLedger.getId());
+        log.debug("{}: Rollover: created new ledger {}.", this.traceObjectId, newLedger.getId());
 
         // Update the metadata.
+        LogMetadata metadata = getLogMetadata();
         metadata = updateMetadata(metadata, newLedger);
         LedgerMetadata ledgerMetadata = metadata.getLedger(newLedger.getId());
         assert ledgerMetadata != null : "cannot find newly added ledger metadata";
-        log.debug("{}: Rollover: updated metadata '{}.", this.traceObjectId, metadata, metadata);
+        log.debug("{}: Rollover: updated metadata '{}.", this.traceObjectId, metadata);
 
         // Update pointers to the new ledger and metadata.
         LedgerHandle oldLedger;
@@ -531,7 +557,8 @@ class BookKeeperLog implements DurableDataLog {
         // Close the old ledger. This must be done outside of the lock, otherwise the pending writes (and their callbacks
         // will be invoked within the lock, thus likely candidates for deadlocks).
         Ledgers.close(oldLedger);
-        log.debug("{}: Rollover: swapped ledger and metadata pointers (Old = {}, New = {}) and closed old ledger.", this.traceObjectId, oldLedger.getId(), newLedger.getId());
+        log.debug("{}: Rollover: swapped ledger and metadata pointers (Old = {}, New = {}) and closed old ledger.",
+                this.traceObjectId, oldLedger.getId(), newLedger.getId());
         LoggerHelpers.traceLeave(log, this.traceObjectId, "rollover", traceId);
     }
 

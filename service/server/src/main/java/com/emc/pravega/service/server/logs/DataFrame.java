@@ -1,17 +1,18 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
+import java.io.IOException;
+import java.io.InputStream;
 
 import static com.emc.pravega.common.util.BitConverter.readInt;
 import static com.emc.pravega.common.util.BitConverter.writeInt;
@@ -62,11 +63,12 @@ public class DataFrame {
      * Creates a new instance of the DataFrame class using the given byte array as serialization source.
      *
      * @param source The source byte array.
+     * @throws IOException            If the given InputStream could not be read.
      * @throws SerializationException If the source cannot be deserialized into a DataFrame.
      * @throws NullPointerException   If the source is null.
      */
-    public DataFrame(byte[] source) throws SerializationException {
-        this(new ByteArraySegment(source, 0, source.length));
+    public DataFrame(InputStream source) throws IOException, SerializationException {
+        this(new ByteArraySegment(StreamHelpers.readAll(source)));
     }
 
     /**

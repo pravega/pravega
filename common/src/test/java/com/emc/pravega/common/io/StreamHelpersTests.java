@@ -1,13 +1,10 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.io;
 
 import java.io.IOException;
 import java.io.InputStream;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -16,12 +13,10 @@ import org.junit.Test;
  */
 public class StreamHelpersTests {
     /**
-     * Tests the readAll method.
-     *
-     * @throws IOException
+     * Tests the readAll method that copies data into an existing array.
      */
     @Test
-    public void testReadAll() throws IOException {
+    public void testReadAllIntoArray() throws IOException {
         final int itemCount = 100;
         final byte[] buffer = new byte[itemCount];
         final int readStartOffset = 5;
@@ -37,7 +32,7 @@ public class StreamHelpersTests {
         Assert.assertEquals("Unexpected number of bytes read.", readLength, readBytes);
         for (int i = 0; i < readResult.length; i++) {
             if (i < readStartOffset || i >= readStartOffset + readLength) {
-                Assert.assertEquals("readAll wrote data at wrong offsset " + i, 0, readResult[i]);
+                Assert.assertEquals("readAll wrote data at wrong offset " + i, 0, readResult[i]);
             } else {
                 int originalOffset = i - readStartOffset;
                 Assert.assertEquals("unexpected value at target index " + i, buffer[originalOffset], readResult[i]);
@@ -45,15 +40,35 @@ public class StreamHelpersTests {
         }
     }
 
+    /**
+     * Tests the readAll method that copies data into an existing array.
+     */
+    @Test
+    public void testReadAllNewArray() throws IOException {
+        final int itemCount = 100;
+        final byte[] buffer = new byte[itemCount];
+        for (int i = 0; i < itemCount; i++) {
+            buffer[i] = (byte) i;
+        }
+
+        byte[] readFullyData = StreamHelpers.readAll(new TestInputStream(buffer));
+        Assert.assertArrayEquals(buffer, readFullyData);
+    }
+
     private static class TestInputStream extends InputStream {
         private final byte[] buffer;
         private int pos;
         private boolean pause;
 
-        public TestInputStream(byte[] buffer) {
+        TestInputStream(byte[] buffer) {
             this.buffer = buffer;
             this.pos = 0;
             this.pause = false;
+        }
+
+        @Override
+        public int available() {
+            return this.buffer.length - pos;
         }
 
         @Override

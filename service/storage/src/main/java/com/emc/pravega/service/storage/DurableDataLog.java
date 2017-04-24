@@ -5,6 +5,7 @@ package com.emc.pravega.service.storage;
 
 import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.CloseableIterator;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
@@ -109,9 +110,14 @@ public interface DurableDataLog extends AutoCloseable {
      */
     interface ReadItem {
         /**
-         * Gets the payload associated with this ReadItem.
+         * Gets an InputStream representing the payload associated with this ReadItem.
          */
-        byte[] getPayload();
+        InputStream getPayload();
+
+        /**
+         * Gets a value representing the Length of this ReadItem.
+         */
+        int getLength();
 
         /**
          * Gets a value indicating the Address within the Log that this ReadItem exists at.

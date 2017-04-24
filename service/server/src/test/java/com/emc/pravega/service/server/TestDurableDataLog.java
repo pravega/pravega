@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server;
 
@@ -19,6 +17,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import lombok.Cleanup;
 
 /**
@@ -33,7 +32,7 @@ public class TestDurableDataLog implements DurableDataLog {
     private ErrorInjector<Exception> appendAsyncErrorInjector;
     private ErrorInjector<Exception> getReaderInitialErrorInjector;
     private ErrorInjector<Exception> readSyncErrorInjector;
-    private Consumer<ReadItem> readInterceptor;
+    private Function<ReadItem, ReadItem> readInterceptor;
     private Consumer<LogAddress> truncateCallback;
 
     //endregion
@@ -146,7 +145,7 @@ public class TestDurableDataLog implements DurableDataLog {
      *
      * @param interceptor The read interceptor to set.
      */
-    public void setReadInterceptor(Consumer<ReadItem> interceptor) {
+    public void setReadInterceptor(Function<ReadItem, ReadItem> interceptor) {
         this.readInterceptor = interceptor;
     }
 
@@ -210,9 +209,9 @@ public class TestDurableDataLog implements DurableDataLog {
     private static class CloseableIteratorWrapper implements CloseableIterator<ReadItem, DurableDataLogException> {
         private final CloseableIterator<ReadItem, DurableDataLogException> innerIterator;
         private final ErrorInjector<Exception> getNextErrorInjector;
-        private final Consumer<ReadItem> readInterceptor;
+        private final Function<ReadItem, ReadItem> readInterceptor;
 
-        CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> getNextErrorInjector, Consumer<ReadItem> readInterceptor) {
+        CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> getNextErrorInjector, Function<ReadItem, ReadItem> readInterceptor) {
             assert innerIterator != null;
             this.innerIterator = innerIterator;
             this.getNextErrorInjector = getNextErrorInjector;
@@ -224,7 +223,7 @@ public class TestDurableDataLog implements DurableDataLog {
             ErrorInjector.throwSyncExceptionIfNeeded(getNextErrorInjector);
             ReadItem readItem = this.innerIterator.getNext();
             if (this.readInterceptor != null) {
-                this.readInterceptor.accept(readItem);
+                return this.readInterceptor.apply(readItem);
             }
 
             return readItem;

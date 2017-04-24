@@ -1,13 +1,10 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.io;
 
 import com.emc.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
-
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -43,5 +40,18 @@ public final class StreamHelpers {
         }
 
         return totalBytesRead;
+    }
+
+    /**
+     * Reads the entire InputStream and returns it as the given byte array.
+     * @param source The InputStream to read.
+     * @return A byte array containing the contents of the Stream.
+     * @throws IOException If unable to read from the given InputStream.
+     */
+    public static byte[] readAll(InputStream source) throws IOException {
+        byte[] ret = new byte[source.available()];
+        int readBytes = readAll(source, ret, 0, ret.length);
+        assert readBytes == ret.length : "Unable to read all the bytes.";
+        return ret;
     }
 }
