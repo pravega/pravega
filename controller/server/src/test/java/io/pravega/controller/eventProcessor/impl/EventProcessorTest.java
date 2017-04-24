@@ -352,7 +352,7 @@ public class EventProcessorTest {
         EventProcessorGroupConfig config = createEventProcessorGroupConfig(1);
 
         EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(1, input),
-                readerGroupName);
+                new EventStreamWriterMock<>(), readerGroupName);
 
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(StartFailingEventProcessor::new)
