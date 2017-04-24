@@ -1,0 +1,40 @@
+plugins.withId('maven-publish') {
+    // Only configure publishing if a URL was provided
+    if (project.hasProperty("publishUrl")) {
+        publishing {
+            repositories {
+                maven {
+                    // Only configure credentials if they are provided (allows publishing to the filesystem)
+                    if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
+                        credentials {
+                            username = publishUsername
+                            password = publishPassword
+                        }
+                    }
+                    url = publishUrl
+                }
+            }
+            publications.withType(MavenPublication) {
+                pom.withXml {
+                    asNode().appendNode('repositories', '').appendNode('repository','').
+                            appendNode('id','jcenter').parent().
+                            appendNode('name','JCenter Repository').parent().
+                            appendNode('url','http://jcenter.bintray.com')
+                }
+                artifactId = "pravega" + project.path.replace(':', '-')
+                groupId = "io.pravega"
+            }
+        }
+
+        project.afterEvaluate {
+            // Configure an artifact only it not already configured
+            if (publishing.publications.findByName("maven") == null) {
+                publishing.publications {
+                    maven(MavenPublication) {
+                        from components.java
+                    }
+                }
+            }
+        }
+    }
+}

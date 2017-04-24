@@ -1,0 +1,11 @@
+plugins.withId('findbugs') {
+    tasks.withType(FindBugs) {
+        effort = "default"
+        includeFilter = file("$rootDir/checkstyle/findbugs-include.xml")
+        excludeFilter = file("$rootDir/checkstyle/findbugs-exclude.xml")
+        reports {
+            xml.enabled false
+            html.enabled true
+        }
+    }
+}
