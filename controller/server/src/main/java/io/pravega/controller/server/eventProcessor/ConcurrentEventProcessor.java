@@ -72,9 +72,10 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     protected void process(R request, Position position) {
         // Limiting number of concurrent processing using semaphores. Otherwise we will keep picking messages from the stream
         // and it could lead to memory overload.
-        semaphore.acquireUninterruptibly();
 
         if (!stop.get()) {
+            semaphore.acquireUninterruptibly();
+
             long next = counter.incrementAndGet();
             PositionCounter pc = new PositionCounter(position, next);
             running.add(pc);
@@ -97,7 +98,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
             // note: Since stop was requested we will not do any processing on new event.
             // Event processor will pick the next event until it is eventually stopped. But we will keep ignoring them.
             // And since this class does its own checkpointing, so we are not updating our last checkpoint.
-            semaphore.release();
+            log.info("processing requested after processor is stopped");
         }
     }
 

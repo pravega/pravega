@@ -53,7 +53,7 @@ public class ConcurrentEventProcessorTest {
                                 // wait on a latch
                                 FutureHelpers.getAndHandleExceptions(latch, RuntimeException::new);
                                 if (checkpoint != -1) {
-                                    result.completeExceptionally(new RuntimeException("0 not complete yet checkpoint moved ahead"));
+                                    result.completeExceptionally(new RuntimeException("0 still running yet checkpoint moved ahead"));
                                 }
                                 break;
                             case 80:
@@ -87,9 +87,6 @@ public class ConcurrentEventProcessorTest {
         processor.setCheckpointer(pos -> {
             checkpoint = ((TestPosition) pos).getNumber();
 
-            if (checkpoint < 80) {
-                result.completeExceptionally(new RuntimeException("0 not complete yet and checkpoint moved ahead"));
-            }
             if (checkpoint == 99) {
                 result.complete(null);
             }
