@@ -20,7 +20,6 @@ import io.pravega.stream.Position;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.Service;
-import io.pravega.stream.ReinitializationRequiredException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -88,19 +87,8 @@ class EventProcessorCell<T extends ControllerEvent> {
             log.debug("Event processor RUN {}, state={}", objectId, state());
 
             while (isRunning()) {
-                // Read the next event.
                 try {
                     event = reader.readNextEvent(defaultTimeout);
-                } catch (ReinitializationRequiredException e) {
-                    // Todo: handle this error as part of checkpoing changes in event processors issue #1072
-                    log.warn("Received reinitialization required error {} in {}", e.getMessage(), objectId);
-                    continue;
-                } catch (RuntimeException e) {
-                    log.info("Received error in readNextEvent {} in {}", e.getMessage(), objectId);
-                    continue;
-                }
-                // Process received event.
-                try {
                     if (event != null && event.getEvent() != null) {
                         // invoke the user specified event processing method
                         actor.process(event.getEvent());
