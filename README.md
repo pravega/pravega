@@ -1,12 +1,6 @@
 # Pravega [![Build Status](https://travis-ci.com/pravega/pravega.svg?token=qhH3WLZqyhzViixpn6ZT&branch=master)](https://travis-ci.com/pravega/pravega) [![codecov](https://codecov.io/gh/pravega/pravega/branch/master/graph/badge.svg?token=6xOvaR0sIa)](https://codecov.io/gh/pravega/pravega)
 
-
-
-
 Pravega is an open source distributed storage service implementing **Streams**. It redesigns **Streams** as the foundation for reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
-
-
-, the framework for assembling them into custom container-based systems, and a place for all container enthusiasts to experiment and exchange ideas.
 
 To learn more about Pravega, visit http://pravega.io
 
