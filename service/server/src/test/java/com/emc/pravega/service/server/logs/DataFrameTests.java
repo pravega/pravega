@@ -1,18 +1,15 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
+import java.util.List;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.List;
 
 /**
  * Unit tests for the DataFrame class.
@@ -60,12 +57,11 @@ public class DataFrameTests {
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
 
-        byte[] serialization = new byte[writeFrame.getLength()];
-        int bytesRead = StreamHelpers.readAll(writeFrame.getData(), serialization, 0, serialization.length);
-        Assert.assertEquals("StreamHelpers.readAll did not read the entire DataFrame serialization.", serialization.length, bytesRead);
+        val frameData = writeFrame.getData();
+        Assert.assertEquals("Unexpected length from getData().", writeFrame.getLength(), frameData.getLength());
 
         // Read them back, by deserializing the frame.
-        DataFrame readFrame = new DataFrame(serialization);
+        DataFrame readFrame = new DataFrame(new ByteArraySegment(frameData.array(), frameData.arrayOffset(), frameData.getLength()));
         DataFrameTestHelpers.checkReadRecords(readFrame, allRecords, b -> b);
     }
 

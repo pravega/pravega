@@ -3,8 +3,8 @@
  */
 package com.emc.pravega.service.storage;
 
+import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.CloseableIterator;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
@@ -35,14 +35,12 @@ public interface DurableDataLog extends AutoCloseable {
      * <li>WriteTooLongException - When a write that is greater than getMaxAppendLength() is given.
      * </ul>
      *
-     * @param data    An InputStream representing the data to append. The InputStream must be positioned at the first byte
-     *                where the data should be read from. The InputStream's available() method must also specify the number
-     *                of bytes to append.
+     * @param data    An ArrayView representing the data to append.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the LogAddress within the log for the entry. If the entry
      * failed to be added, this Future will complete with the appropriate exception.
      */
-    CompletableFuture<LogAddress> append(InputStream data, Duration timeout);
+    CompletableFuture<LogAddress> append(ArrayView data, Duration timeout);
 
     /**
      * Truncates the log up to the given sequence.

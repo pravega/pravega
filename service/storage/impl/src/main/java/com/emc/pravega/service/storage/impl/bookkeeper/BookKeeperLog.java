@@ -10,8 +10,7 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.service.storage.DataLogInitializationException;
@@ -21,10 +20,7 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.WriteFailureException;
-import com.emc.pravega.service.storage.WriteTooLongException;
 import com.google.common.base.Preconditions;
-import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -165,35 +161,20 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ensurePreconditions();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append");
         Timer timer = new Timer();
 
-        // TODO: refactor API to take in ByteArraySegment instead of InputStream to avoid the extra copy. Then get rid of this block of code.
-        byte[] buffer;
-        try {
-            int dataLength = data.available();
-            if (dataLength > MAX_APPEND_LENGTH) {
-                return FutureHelpers.failedFuture(new WriteTooLongException(dataLength, MAX_APPEND_LENGTH));
-            }
-
-            buffer = new byte[dataLength];
-            int bytesRead = StreamHelpers.readAll(data, buffer, 0, buffer.length);
-            assert bytesRead == buffer.length : String.format("StreamHelpers.ReadAll did not read entire input stream. Expected %d, Actual %d.", buffer.length, bytesRead);
-        } catch (IOException ex) {
-            return FutureHelpers.failedFuture(ex);
-        }
-
         // Use a retry loop to handle retryable exceptions.
-        val result = this.retryPolicy.runAsync(() -> tryAppend(buffer).exceptionally(this::handleWriteException), this.executorService);
+        val result = this.retryPolicy.runAsync(() -> tryAppend(data).exceptionally(this::handleWriteException), this.executorService);
 
         // Post append tasks. We do not need to wait for these to happen before returning the call.
         result.thenAcceptAsync(address -> {
             // Update metrics and take care of other logging tasks.
             Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-            Metrics.WRITE_BYTES.add(buffer.length);
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, address, buffer.length);
+            Metrics.WRITE_BYTES.add(data.getLength());
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, address, data.getLength());
 
             // After every append, check if we need to trigger a rollover.
             triggerRolloverIfNecessary();
@@ -238,24 +219,24 @@ class BookKeeperLog implements DurableDataLog {
     /**
      * Attempts to write one append to BookKeeper.
      *
-     * @param buffer A byte array representing the data to append.
+     * @param data An ArrayView representing the data to append.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed (successfully or not).
      */
-    private CompletableFuture<LogAddress> tryAppend(byte[] buffer) {
+    private CompletableFuture<LogAddress> tryAppend(ArrayView data) {
         val result = new CompletableFuture<LogAddress>();
-        tryAppend(buffer, getWriteLedger(), result);
+        tryAppend(data, getWriteLedger(), result);
         return result;
     }
 
     /**
      * Attempts to write one append to BookKeeper. This method auto-retries if the current ledger has been rolled over.
      *
-     * @param buffer      A byte array representing the data to append.
+     * @param data        An ArrayView representing the data to append.
      * @param writeLedger The Ledger to write to.
      * @param result      A Future to complete when the append succeeds or fails.
      */
-    private void tryAppend(byte[] buffer, WriteLedger writeLedger, CompletableFuture<LogAddress> result) {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "tryAppend", buffer.length, writeLedger.ledger.getId());
+    private void tryAppend(ArrayView data, WriteLedger writeLedger, CompletableFuture<LogAddress> result) {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "tryAppend", data.getLength(), writeLedger.ledger.getId());
         AsyncCallback.AddCallback callback = (rc, handle, entryId, ctx) -> {
             @SuppressWarnings("unchecked")
             CompletableFuture<LogAddress> completionFuture = (CompletableFuture<LogAddress>) ctx;
@@ -268,7 +249,7 @@ class BookKeeperLog implements DurableDataLog {
                         // If that's the case, retry the write with the new ledger.
                         WriteLedger currentLedger = getWriteLedger();
                         if (!currentLedger.ledger.isClosed() && currentLedger.ledger.getId() != writeLedger.ledger.getId()) {
-                            tryAppend(buffer, currentLedger, result);
+                            tryAppend(data, currentLedger, result);
                             return;
                         }
                     }
@@ -285,10 +266,10 @@ class BookKeeperLog implements DurableDataLog {
                 completionFuture.completeExceptionally(ex);
             }
 
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "tryAppend", traceId, buffer.length, writeLedger.ledger.getId(), !completionFuture.isCompletedExceptionally());
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "tryAppend", traceId, data.getLength(), writeLedger.ledger.getId(), !completionFuture.isCompletedExceptionally());
         };
 
-        writeLedger.ledger.asyncAddEntry(buffer, callback, result);
+        writeLedger.ledger.asyncAddEntry(data.array(), data.arrayOffset(), data.getLength(), callback, result);
     }
 
     /**

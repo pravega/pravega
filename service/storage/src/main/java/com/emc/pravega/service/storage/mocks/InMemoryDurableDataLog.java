@@ -5,7 +5,7 @@ package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
@@ -14,7 +14,6 @@ import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.UUID;
@@ -124,7 +123,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ensurePreconditions();
         Duration delay = this.appendDelayProvider.get();
         if (delay.compareTo(Duration.ZERO) <= 0) {
@@ -158,7 +157,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     //endregion
 
-    private LogAddress appendInternal(InputStream data) {
+    private LogAddress appendInternal(ArrayView data) {
         Entry entry;
         try {
             entry = new Entry(data);
@@ -310,9 +309,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
         long sequenceNumber = -1;
         final byte[] data;
 
-        Entry(InputStream inputData) throws IOException {
-            this.data = new byte[inputData.available()];
-            StreamHelpers.readAll(inputData, this.data, 0, this.data.length);
+        Entry(ArrayView inputData) throws IOException {
+            this.data = new byte[inputData.getLength()];
+            System.arraycopy(inputData.array(), inputData.arrayOffset(), this.data, 0, this.data.length);
         }
 
         @Override

@@ -7,7 +7,7 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
-import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -776,9 +776,8 @@ public class DurableLogTests extends OperationLogTestBase {
         // Recovery failure due to DataCorruption
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // Reset error injectors to nothing.
             dataLog.get().setReadErrorInjectors(null, null);
@@ -791,11 +790,8 @@ public class DurableLogTests extends OperationLogTestBase {
                             // previous sequence number.
                             DataFrame df = new DataFrame(Integer.MAX_VALUE, payload.length);
                             df.seal();
-                            try {
-                                StreamHelpers.readAll(df.getData(), payload, 0, payload.length);
-                            } catch (Exception ex) {
-                                Assert.fail(ex.toString());
-                            }
+                            ArrayView frameData = df.getData();
+                            System.arraycopy(frameData.array(), frameData.arrayOffset(), payload, 0, Math.min(frameData.getLength(), payload.length));
                         }
                     }
             );

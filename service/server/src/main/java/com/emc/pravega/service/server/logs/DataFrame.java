@@ -6,13 +6,12 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
-
-import java.io.InputStream;
 
 import static com.emc.pravega.common.util.BitConverter.readInt;
 import static com.emc.pravega.common.util.BitConverter.writeInt;
@@ -131,12 +130,12 @@ public class DataFrame {
     /**
      * Returns a new InputStream representing the serialized form of this frame.
      */
-    InputStream getData() {
+    ArrayView getData() {
         if (this.data.isReadOnly()) {
-            return this.data.getReader();
+            return this.data;
         } else {
             // We have just created this frame. Only return the segment of the buffer that contains data.
-            return this.data.getReader(0, this.header.getSerializationLength() + this.header.getContentLength());
+            return this.data.subSegment(0, this.header.getSerializationLength() + this.header.getContentLength());
         }
     }
 

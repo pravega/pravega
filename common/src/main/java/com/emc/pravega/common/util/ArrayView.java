@@ -1,14 +1,12 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.common.util;
 
 import java.io.InputStream;
 
 /**
- * Defines a generic view of an index-based, array-like structure.
+ * Defines a generic read-only view of an index-based, array-like structure.
  */
 public interface ArrayView {
     /**
@@ -20,31 +18,28 @@ public interface ArrayView {
     byte get(int index);
 
     /**
-     * Sets the value at the specified index.
-     *
-     * @param index The index to set the value at.
-     * @param value The value to set.
-     * @throws IllegalStateException          If the ByteArraySegment is readonly.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid.
-     */
-    void set(int index, byte value);
-
-    /**
-     * Sets the value(s) starting at the specified index.
-     *
-     * @param index  The index to start setting the values at.
-     * @param values The values to set. Position n inside this array will correspond to position 'index + n' inside the ArrayView.
-     * @throws IllegalStateException          If the ArrayView is readonly.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid or the items to be added cannot fit.
-     */
-    void setSequence(int index, byte... values);
-
-    /**
      * Gets a value representing the length of this ArrayView.
      *
      * @return The length.
      */
     int getLength();
+
+    /**
+     * Gets a reference to the backing array for this ArrayView. This should be used in conjunction with arrayOffset()
+     * in order to determine where in the array this ArrayView starts at.
+     * NOTE: Care must be taken when using this array. Just like any other array in Java, it is modifiable and changes to
+     * it will be reflected in this ArrayView.
+     *
+     * @return The backing array.
+     */
+    byte[] array();
+
+    /**
+     * Gets a value indicating the offset in the backing array where this ArrayView starts at.
+     *
+     * @return The offset in the backing array.
+     */
+    int arrayOffset();
 
     /**
      * Creates an InputStream that can be used to read the contents of this ArrayView. The InputStream returned

@@ -4,10 +4,10 @@
 
 package com.emc.pravega.service.storage;
 
+import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
-import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -43,7 +43,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(
                     "append() worked before initialize()",
-                    () -> log.append(new ByteArrayInputStream("h".getBytes()), TIMEOUT),
+                    () -> log.append(new ByteArraySegment("h".getBytes()), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
@@ -52,7 +52,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             LogAddress prevAddress = null;
             int writeCount = getWriteCount();
             for (int i = 0; i < writeCount; i++) {
-                LogAddress address = log.append(new ByteArrayInputStream(getWriteData()), TIMEOUT).join();
+                LogAddress address = log.append(new ByteArraySegment(getWriteData()), TIMEOUT).join();
                 Assert.assertNotNull("No address returned from append().", address);
                 if (prevAddress != null) {
                     AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevAddress.getSequence(), address.getSequence());
@@ -141,7 +141,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             Assert.assertNotNull("Nothing read before modification.", firstItem);
 
             // Make a modification.
-            log.append(new ByteArrayInputStream("foo".getBytes()), TIMEOUT).join();
+            log.append(new ByteArraySegment("foo".getBytes()), TIMEOUT).join();
 
             // Try to get a new item.
             DurableDataLog.ReadItem secondItem = reader.getNext();
@@ -169,7 +169,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             try (DurableDataLog log = createDurableDataLog(context)) {
                 log.initialize(TIMEOUT);
                 byte[] writeData = String.format("Write_%s", i).getBytes();
-                currentAddress = log.append(new ByteArrayInputStream(writeData), TIMEOUT).join();
+                currentAddress = log.append(new ByteArraySegment(writeData), TIMEOUT).join();
                 writtenData.put(currentAddress, writeData);
             }
 
@@ -218,7 +218,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                 // Verify we cannot write to the first log.
                 AssertExtensions.assertThrows(
                         "The first log was not fenced out.",
-                        () -> log1.append(new ByteArrayInputStream(new byte[1]), TIMEOUT),
+                        () -> log1.append(new ByteArraySegment(new byte[1]), TIMEOUT),
                         ex -> ex instanceof DataLogWriterNotPrimaryException);
 
                 // Verify we can write to the second log.
@@ -275,7 +275,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         TreeMap<LogAddress, byte[]> writtenData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
         for (int i = 0; i < writeCount; i++) {
             byte[] writeData = getWriteData();
-            LogAddress address = log.append(new ByteArrayInputStream(writeData), TIMEOUT).join();
+            LogAddress address = log.append(new ByteArraySegment(writeData), TIMEOUT).join();
             writtenData.put(address, writeData);
         }
 
