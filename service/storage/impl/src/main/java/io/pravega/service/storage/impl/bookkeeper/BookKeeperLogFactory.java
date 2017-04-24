@@ -6,22 +6,17 @@ package io.pravega.service.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.Exceptions;
 import io.pravega.service.storage.DataLogNotAvailableException;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.DurableDataLogFactory;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.conf.ClientConfiguration;
-import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
  * Factory for BookKeeperLogs.
@@ -30,8 +25,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 public class BookKeeperLogFactory implements DurableDataLogFactory {
     //region Members
 
-    private static final RetryPolicy CURATOR_RETRY_POLICY = new ExponentialBackoffRetry(1000, 3);
-    private final AtomicReference<CuratorFramework> curator;
+    private final CuratorFramework zkClient;
     private final AtomicReference<BookKeeper> bookKeeper;
     private final BookKeeperConfig config;
     private final ScheduledExecutorService executor;
@@ -44,12 +38,14 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
      * Creates a new instance of the BookKeeperLogFactory class.
      *
      * @param config   The configuration to use for all instances created.
+     * @param zkClient ZooKeeper Client to use.
      * @param executor An executor to use for async operations.
      */
-    public BookKeeperLogFactory(BookKeeperConfig config, ScheduledExecutorService executor) {
+    public BookKeeperLogFactory(BookKeeperConfig config, CuratorFramework zkClient, ScheduledExecutorService executor) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.curator = new AtomicReference<>();
+        this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient")
+                                     .usingNamespace(this.config.getNamespace());
         this.bookKeeper = new AtomicReference<>();
     }
 
@@ -67,11 +63,6 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 log.error("Unable to close BookKeeper client.", ex);
             }
         }
-
-        val curator = this.curator.getAndSet(null);
-        if (curator != null) {
-            curator.close();
-        }
     }
 
     //endregion
@@ -80,10 +71,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
 
     @Override
     public void initialize() throws DurableDataLogException {
-        Preconditions.checkState(this.curator.get() == null, "BookKeeperLogFactory is already initialized.");
-        assert this.bookKeeper.get() == null : "curator == null but bookKeeper != null";
+        Preconditions.checkState(this.bookKeeper.get() == null, "BookKeeperLogFactory is already initialized.");
         try {
-            this.curator.set(startCuratorClient());
             this.bookKeeper.set(startBookKeeperClient());
         } catch (IllegalArgumentException | NullPointerException ex) {
             // Most likely a configuration issue; re-throw as is.
@@ -102,36 +91,13 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
 
     @Override
     public DurableDataLog createDurableDataLog(int containerId) {
-        Preconditions.checkState(this.curator.get() != null, "BookKeeperLogFactory is not initialized.");
-        assert this.bookKeeper.get() != null : "curator != null but bookKeeper == null";
-        return new BookKeeperLog(containerId, this.curator.get(), this.bookKeeper.get(), this.config, this.executor);
+        Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
+        return new BookKeeperLog(containerId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
     }
 
     //endregion
 
     //region Initialization
-
-    private CuratorFramework startCuratorClient() {
-        val curator = CuratorFrameworkFactory.newClient(
-                this.config.getZkAddress(),
-                (int) this.config.getZkSessionTimeout().toMillis(),
-                (int) this.config.getZkConnectionTimeout().toMillis(),
-                CURATOR_RETRY_POLICY);
-
-        try {
-            curator.start();
-            Exceptions.handleInterrupted(() -> {
-                curator.blockUntilConnected((int) this.config.getZkConnectionTimeout().toMillis(), TimeUnit.MILLISECONDS);
-            });
-            return curator;
-        } catch (Throwable ex) {
-            if (!ExceptionHelpers.mustRethrow(ex)) {
-                curator.close();
-            }
-
-            throw ex;
-        }
-    }
 
     private BookKeeper startBookKeeperClient() throws Exception {
         ClientConfiguration config = new ClientConfiguration()

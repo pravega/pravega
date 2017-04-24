@@ -43,6 +43,7 @@ public final class ServiceStarter {
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
     private SegmentStatsFactory segmentStatsFactory;
+    private CuratorFramework zkClient;
     private boolean closed;
 
     //endregion
@@ -88,6 +89,9 @@ public final class ServiceStarter {
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start();
 
+        log.info("Initializing ZooKeeper Client ...");
+        this.zkClient = createZKClient();
+
         log.info("Initializing Service Builder ...");
         this.serviceBuilder.initialize();
 
@@ -122,6 +126,12 @@ public final class ServiceStarter {
                 log.info("Metrics statsProvider is now closed.");
             }
 
+            if (this.zkClient != null) {
+                this.zkClient.close();
+                this.zkClient = null;
+                log.info("ZooKeeper Client shut down.");
+            }
+
             if (this.segmentStatsFactory != null) {
                 segmentStatsFactory.close();
             }
@@ -132,7 +142,7 @@ public final class ServiceStarter {
 
     private void attachBookKeeper(ServiceBuilder builder) {
         builder.withDataLogFactory(setup ->
-                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), setup.getExecutor()));
+                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
@@ -151,17 +161,16 @@ public final class ServiceStarter {
     }
 
     private void attachZKSegmentManager(ServiceBuilder builder) {
-        builder.withContainerManager(setup -> {
-            CuratorFramework zkClient = createZKClient();
-            return new ZKSegmentContainerManager(setup.getContainerRegistry(),
-                    zkClient,
-                    new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort(), null),
-                    setup.getExecutor());
-        });
+        builder.withContainerManager(setup ->
+                new ZKSegmentContainerManager(setup.getContainerRegistry(),
+                        this.zkClient,
+                        new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort(), null),
+                        setup.getExecutor()));
     }
 
     private CuratorFramework createZKClient() {
-        CuratorFramework zkClient = CuratorFrameworkFactory.builder()
+        CuratorFramework zkClient = CuratorFrameworkFactory
+                .builder()
                 .connectString(this.serviceConfig.getZkURL())
                 .namespace("pravega/" + this.serviceConfig.getClusterName())
                 .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))

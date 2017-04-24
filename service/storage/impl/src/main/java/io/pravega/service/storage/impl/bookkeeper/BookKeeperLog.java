@@ -73,7 +73,7 @@ class BookKeeperLog implements DurableDataLog {
     private static final int MAX_APPEND_LENGTH = 1024 * 1024 - 100;
 
     private final String logNodePath;
-    private final CuratorFramework curatorClient;
+    private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
     private final BookKeeperConfig config;
     private final ScheduledExecutorService executorService;
@@ -96,20 +96,20 @@ class BookKeeperLog implements DurableDataLog {
      * Creates a new instance of the BookKeeper log class.
      *
      * @param logId           The BookKeeper Log Id to open.
-     * @param curatorClient   A reference to the CuratorFramework client to use.
+     * @param zkClient        A reference to the CuratorFramework client to use.
      * @param bookKeeper      A reference to the BookKeeper client to use.
      * @param config          Configuration to use.
      * @param executorService An Executor to use for async operations.
      */
-    BookKeeperLog(int logId, CuratorFramework curatorClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
+    BookKeeperLog(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
         Preconditions.checkArgument(logId >= 0, "logId must be a non-negative integer.");
 
-        this.curatorClient = Preconditions.checkNotNull(curatorClient, "curatorClient");
+        this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient");
         this.bookKeeper = Preconditions.checkNotNull(bookKeeper, "bookKeeper");
         this.config = Preconditions.checkNotNull(config, "config");
         this.executorService = Preconditions.checkNotNull(executorService, "executorService");
         this.closed = new AtomicBoolean();
-        this.logNodePath = HierarchyUtils.getPath(this.config.getNamespace(), logId, this.config.getZkHierarchyDepth());
+        this.logNodePath = HierarchyUtils.getPath(logId, this.config.getZkHierarchyDepth());
         this.lastAppendAddress = new AtomicReference<>(new LedgerAddress(0, 0));
         this.traceObjectId = String.format("Log[%d]", logId);
         this.rolloverInProgress = new AtomicBoolean();
@@ -416,17 +416,18 @@ class BookKeeperLog implements DurableDataLog {
     private LogMetadata loadMetadata() throws DataLogInitializationException {
         try {
             Stat storingStatIn = new Stat();
-            byte[] serializedMetadata = this.curatorClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);
+            byte[] serializedMetadata = this.zkClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);
             LogMetadata result = LogMetadata.deserialize(serializedMetadata);
             result.withUpdateVersion(storingStatIn.getVersion());
             return result;
         } catch (KeeperException.NoNodeException nne) {
             // Node does not exist: this is the first time we are accessing this log.
-            log.warn("{}: No ZNode found for path '{}'. This is OK if this is the first time accessing this log.", this.traceObjectId, this.logNodePath);
+            log.warn("{}: No ZNode found for path '{}{}'. This is OK if this is the first time accessing this log.",
+                    this.traceObjectId, this.zkClient.getNamespace(), this.logNodePath);
             return null;
         } catch (Exception ex) {
-            throw new DataLogInitializationException(
-                    String.format("Unable to load ZNode contents for path '%s'.", this.logNodePath), ex);
+            throw new DataLogInitializationException(String.format("Unable to load ZNode contents for path '%s%s'.",
+                    this.zkClient.getNamespace(), this.logNodePath), ex);
         }
     }
 
@@ -476,16 +477,16 @@ class BookKeeperLog implements DurableDataLog {
         try {
             if (create) {
                 byte[] serializedMetadata = metadata.serialize();
-                this.curatorClient.create()
-                                  .creatingParentsIfNeeded()
-                                  .forPath(this.logNodePath, serializedMetadata);
+                this.zkClient.create()
+                             .creatingParentsIfNeeded()
+                             .forPath(this.logNodePath, serializedMetadata);
                 // Set version to 0 as that will match the ZNode's version.
                 metadata.withUpdateVersion(0);
             } else {
                 byte[] serializedMetadata = metadata.serialize();
-                this.curatorClient.setData()
-                                  .withVersion(metadata.getUpdateVersion())
-                                  .forPath(this.logNodePath, serializedMetadata);
+                this.zkClient.setData()
+                             .withVersion(metadata.getUpdateVersion())
+                             .forPath(this.logNodePath, serializedMetadata);
 
                 // Increment the version to keep up with the ZNode's value (after writing it to ZK).
                 metadata.withUpdateVersion(metadata.getUpdateVersion() + 1);
@@ -493,10 +494,13 @@ class BookKeeperLog implements DurableDataLog {
         } catch (KeeperException.NodeExistsException | KeeperException.BadVersionException keeperEx) {
             // We were fenced out. Clean up and throw appropriate exception.
             throw new DataLogWriterNotPrimaryException(
-                    String.format("Unable to acquire exclusive write lock for log (path = '%s').", this.logNodePath), keeperEx);
+                    String.format("Unable to acquire exclusive write lock for log (path = '%s%s').", this.zkClient.getNamespace(), this.logNodePath),
+                    keeperEx);
         } catch (Exception generalEx) {
             // General exception. Clean up and rethrow appropriate exception.
-            throw new DataLogInitializationException(String.format("Unable to update ZNode for path '%s'.", this.logNodePath), generalEx);
+            throw new DataLogInitializationException(
+                    String.format("Unable to update ZNode for path '%s%s'.", this.zkClient.getNamespace(), this.logNodePath),
+                    generalEx);
         }
 
         log.info("{} Metadata persisted ({}).", this.traceObjectId, metadata);

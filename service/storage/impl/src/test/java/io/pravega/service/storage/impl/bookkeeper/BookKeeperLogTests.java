@@ -12,6 +12,9 @@ import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.val;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -32,11 +35,12 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
     private final AtomicReference<BookKeeperConfig> config = new AtomicReference<>();
+    private final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
     private final AtomicReference<BookKeeperLogFactory> factory = new AtomicReference<>();
 
     /**
-     * Start BookKeeper once for the duration of this class. This is pretty strenuous, and it actually starts a
-     * new process, so in the interest of running time we only do it once.
+     * Start BookKeeper once for the duration of this class. This is pretty strenuous, so in the interest of running time
+     * we only do it once.
      */
     @BeforeClass
     public static void setUpBookKeeper() throws Exception {
@@ -70,8 +74,15 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
      */
     @Before
     public void setUp() throws Exception {
-        // Create a namespace.
-        String namespace = "/pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
+        // Create a ZKClient with a unique namespace.
+        String namespace = "pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
+        this.zkClient.set(CuratorFrameworkFactory
+                .builder()
+                .connectString("localhost:" + BK_PORT.get())
+                .namespace(namespace)
+                .retryPolicy(new ExponentialBackoffRetry(1000, 5))
+                .build());
+        this.zkClient.get().start();
 
         // Setup config to use the port and namespace.
         this.config.set(BookKeeperConfig
@@ -82,7 +93,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .build());
 
         // Create default factory.
-        val factory = new BookKeeperLogFactory(this.config.get(), executorService());
+        val factory = new BookKeeperLogFactory(this.config.get(), this.zkClient.get(), executorService());
         factory.initialize();
         this.factory.set(factory);
     }
@@ -92,6 +103,11 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         val factory = this.factory.getAndSet(null);
         if (factory != null) {
             factory.close();
+        }
+
+        val zkClient = this.zkClient.getAndSet(null);
+        if (zkClient != null) {
+            zkClient.close();
         }
     }
 
