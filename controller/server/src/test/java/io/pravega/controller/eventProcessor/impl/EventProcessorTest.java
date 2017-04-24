@@ -122,7 +122,7 @@ public class EventProcessorTest {
 
         protected void beforeStart() {
             for (int i : testEvents) {
-                this.getSelfWriter().writeEvent(new TestEvent(i));
+                this.getSelfWriter().write(new TestEvent(i));
             }
         }
     }
@@ -292,8 +292,8 @@ public class EventProcessorTest {
                 .config(config)
                 .build();
         checkpointStore.addReader(PROCESS, READER_GROUP, READER_ID);
-        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, null,
-                system.getProcess(), READER_ID, 0, checkpointStore);
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader,
+                new EventStreamWriterMock<>(), system.getProcess(), READER_ID, 0, checkpointStore);
         cell.startAsync();
         cell.awaitTerminated();
         Assert.assertTrue(true);
@@ -360,7 +360,7 @@ public class EventProcessorTest {
         EventProcessorGroupConfig config = createEventProcessorGroupConfig(initialCount);
 
         EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(count, input),
-                null, readerGroupName);
+                new EventStreamWriterMock<>(), readerGroupName);
 
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false))
@@ -458,8 +458,8 @@ public class EventProcessorTest {
                                     final CheckpointStore checkpointStore,
                                     final int expectedSum) throws CheckpointStoreException {
         checkpointStore.addReader(PROCESS, READER_GROUP, readerId);
-        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, null,
-                system.getProcess(), readerId, 0, checkpointStore);
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader,
+                new EventStreamWriterMock<>(), system.getProcess(), readerId, 0, checkpointStore);
 
         cell.startAsync();
 

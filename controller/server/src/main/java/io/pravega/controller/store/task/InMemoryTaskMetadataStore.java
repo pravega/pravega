@@ -87,6 +87,10 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
         // Read the existing lock data, if it is owned by (oldOwner, oldThreadId) change it and transfer lock.
         // Otherwise fail.
         synchronized (lockTable) {
+            if (!lockTable.containsKey(resource)) {
+                log.debug("removeLock on {} completed; resource was not locked", resource);
+                return null;
+            }
             LockData lockData = lockTable.get(resource);
 
             if (lockData != null && lockData.isOwnedBy(owner, tag)) {
