@@ -7,8 +7,8 @@ package io.pravega.controller.util;
 
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.common.util.Property;
-import com.emc.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import com.emc.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
