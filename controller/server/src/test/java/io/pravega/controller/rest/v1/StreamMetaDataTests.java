@@ -39,6 +39,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -98,7 +99,7 @@ public class StreamMetaDataTests {
             .scope(scope1)
             .streamName(stream1)
             .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-            .retentionPolicy(RetentionPolicy.byDays(123L))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
             .build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
@@ -146,13 +147,13 @@ public class StreamMetaDataTests {
         scalingPolicyCommon2.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
         scalingPolicyCommon2.setMinSegments(2);
 
-        retentionPolicyCommon.setType(TypeEnum.LIMITED_DAYS);
+        retentionPolicyCommon.setType(TypeEnum.LIMITED_TIME_MILLIS);
         retentionPolicyCommon.setValue(123L);
 
         retentionPolicyCommon2.setType(null);
         retentionPolicyCommon2.setValue(null);
 
-        retentionPolicyCommon3.setType(TypeEnum.INFINITE);
+        retentionPolicyCommon3.setType(TypeEnum.DISABLED);
 
         streamResponseExpected.setScopeName(scope1);
         streamResponseExpected.setStreamName(stream1);
@@ -223,7 +224,7 @@ public class StreamMetaDataTests {
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
         response.close();
 
-        // Test to create a stream which doesn't exist and have Retention Policy INFINITE
+        // Test to create a stream which doesn't exist and have Retention Policy DISABLED
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
         response = client.target(streamResourceURI).request().buildPost(Entity.json(createStreamRequest4)).invoke();
         assertEquals("Create Stream Status", 201, response.getStatus());
@@ -538,14 +539,14 @@ public class StreamMetaDataTests {
                 .scope(scope1)
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byDays(123L))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         final StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(stream2)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byDays(123L))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         // Test to list streams.
@@ -581,7 +582,7 @@ public class StreamMetaDataTests {
                 .scope(scope1)
                 .streamName(NameUtils.getInternalNameForStream("stream3"))
                 .scalingPolicy(ScalingPolicy.fixed(1))
-                .retentionPolicy(RetentionPolicy.infinte())
+                .retentionPolicy(RetentionPolicy.disabled())
                 .build();
         List<StreamConfiguration> allStreamsList = Arrays.asList(streamConfiguration1, streamConfiguration2,
                 streamConfiguration3);

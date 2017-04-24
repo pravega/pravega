@@ -1,7 +1,10 @@
 package io.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
-
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
 
@@ -16,11 +19,11 @@ public class RetentionConfig   {
    * Gets or Sets type
    */
   public enum TypeEnum {
-    INFINITE("INFINITE"),
+    DISABLED("DISABLED"),
     
-    LIMITED_DAYS("LIMITED_DAYS"),
+    LIMITED_TIME_MILLIS("LIMITED_TIME_MILLIS"),
     
-    LIMITED_SIZE_MB("LIMITED_SIZE_MB");
+    LIMITED_SIZE_BYTES("LIMITED_SIZE_BYTES");
 
     private String value;
 

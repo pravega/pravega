@@ -16,6 +16,8 @@
 package io.pravega.client.stream;
 
 import java.io.Serializable;
+import java.time.Duration;
+
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -29,31 +31,33 @@ public class RetentionPolicy implements Serializable {
 
     public enum Type {
         /**
-         * Set retention based on how long data has been in the stream.
+         * Set retention based on how long data has been in the stream in milliseconds.
          */
-        LIMITED_DAYS,
+        TIME,
+
         /**
-         * Set retention based on the total size of the data in the stream.
+         * Set retention based on the total size of the data in the stream in bytes.
          */
-        LIMITED_SIZE_MB,
+        SIZE,
+
         /**
-         * Set retention to infinite.
+         * Disable retention policy so stream data is kept forever.
          */
-        INFINITE
+        DISABLED
     }
 
     private final Type type;
     private final Long value;
 
-    public static RetentionPolicy byDays(Long days) {
-        return new RetentionPolicy(Type.LIMITED_DAYS, days);
+    public static RetentionPolicy byTime(Duration duration) {
+        return new RetentionPolicy(Type.TIME, duration.toMillis());
     }
 
-    public static RetentionPolicy bySizeMB(Long size) {
-        return new RetentionPolicy(Type.LIMITED_SIZE_MB, size);
+    public static RetentionPolicy bySizeBytes(long size) {
+        return new RetentionPolicy(Type.SIZE, size);
     }
 
-    public static RetentionPolicy infinte() {
-        return new RetentionPolicy(Type.INFINITE, 0L);
+    public static RetentionPolicy disabled() {
+        return new RetentionPolicy(Type.DISABLED, 0L);
     }
 }

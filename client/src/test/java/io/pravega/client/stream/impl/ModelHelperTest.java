@@ -25,6 +25,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.client.stream.RetentionPolicy;
 
 import java.util.Arrays;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,16 +113,16 @@ public class ModelHelperTest {
 
     @Test
     public void encodeRetentionPolicy() {
-        RetentionPolicy policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.bySizeMB(1000L)));
-        assertEquals(RetentionPolicy.Type.LIMITED_SIZE_MB, policy1.getType());
+        RetentionPolicy policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.bySizeBytes(1000L)));
+        assertEquals(RetentionPolicy.Type.SIZE, policy1.getType());
         assertEquals(1000L, (long) policy1.getValue());
 
-        RetentionPolicy policy2 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byDays(100L)));
-        assertEquals(RetentionPolicy.Type.LIMITED_DAYS, policy2.getType());
-        assertEquals(100L, (long) policy2.getValue());
+        RetentionPolicy policy2 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byTime(Duration.ofDays(100L))));
+        assertEquals(RetentionPolicy.Type.TIME, policy2.getType());
+        assertEquals(Duration.ofDays(100L).toMillis(), (long) policy2.getValue());
 
-        RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.infinte()));
-        assertEquals(RetentionPolicy.Type.INFINITE, policy3.getType());
+        RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.disabled()));
+        assertEquals(RetentionPolicy.Type.DISABLED, policy3.getType());
 
         AssertExtensions.assertThrows(NullPointerException.class,
                 () -> ModelHelper.encode((Controller.RetentionPolicy) null));
@@ -129,16 +130,16 @@ public class ModelHelperTest {
 
     @Test
     public void decodeRetentionPolicy() {
-        Controller.RetentionPolicy policy1 = ModelHelper.decode(RetentionPolicy.bySizeMB(1000L));
-        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.LIMITED_SIZE_MB, policy1.getType());
+        Controller.RetentionPolicy policy1 = ModelHelper.decode(RetentionPolicy.bySizeBytes(1000L));
+        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.SIZE, policy1.getType());
         assertEquals(1000L, policy1.getValue());
 
-        Controller.RetentionPolicy policy2 = ModelHelper.decode(RetentionPolicy.byDays(100L));
-        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.LIMITED_DAYS, policy2.getType());
-        assertEquals(100L, policy2.getValue());
+        Controller.RetentionPolicy policy2 = ModelHelper.decode(RetentionPolicy.byTime(Duration.ofDays(100L)));
+        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, policy2.getType());
+        assertEquals(Duration.ofDays(100L).toMillis(), policy2.getValue());
 
-        Controller.RetentionPolicy policy3 = ModelHelper.decode(RetentionPolicy.infinte());
-        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.INFINITE, policy3.getType());
+        Controller.RetentionPolicy policy3 = ModelHelper.decode(RetentionPolicy.disabled());
+        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.DISABLED, policy3.getType());
 
         AssertExtensions.assertThrows(NullPointerException.class, () -> ModelHelper.decode((RetentionPolicy) null));
     }
@@ -154,7 +155,7 @@ public class ModelHelperTest {
                 .scope("scope")
                 .streamName("test")
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
-                .retentionPolicy(RetentionPolicy.byDays(100L))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(100L)))
                 .build());
         assertEquals("test", config.getStreamInfo().getStream());
         Controller.ScalingPolicy policy = config.getScalingPolicy();
@@ -163,8 +164,8 @@ public class ModelHelperTest {
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
         Controller.RetentionPolicy retentionPolicy = config.getRetentionPolicy();
-        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.LIMITED_DAYS, retentionPolicy.getType());
-        assertEquals(100L, retentionPolicy.getValue());
+        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, retentionPolicy.getType());
+        assertEquals(Duration.ofDays(100L).toMillis(), retentionPolicy.getValue());
     }
 
     @Test(expected = NullPointerException.class)
@@ -178,7 +179,7 @@ public class ModelHelperTest {
           .scope("scope")
           .streamName("test")
           .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
-          .retentionPolicy(RetentionPolicy.bySizeMB(1000L))
+          .retentionPolicy(RetentionPolicy.bySizeBytes(1000L))
           .build()));
         assertEquals("test", config.getStreamName());
         ScalingPolicy policy = config.getScalingPolicy();
@@ -187,7 +188,7 @@ public class ModelHelperTest {
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
         RetentionPolicy retentionPolicy = config.getRetentionPolicy();
-        assertEquals(RetentionPolicy.Type.LIMITED_SIZE_MB, retentionPolicy.getType());
+        assertEquals(RetentionPolicy.Type.SIZE, retentionPolicy.getType());
         assertEquals(1000L, (long) retentionPolicy.getValue());
     }
 

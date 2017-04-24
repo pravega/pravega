@@ -52,7 +52,7 @@ public class StreamConfiguration implements Serializable {
     private final RetentionPolicy retentionPolicy;
     
     public static final class StreamConfigurationBuilder {
-        private RetentionPolicy retentionPolicy = RetentionPolicy.infinte();
+        private RetentionPolicy retentionPolicy = RetentionPolicy.disabled();
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     }
 }

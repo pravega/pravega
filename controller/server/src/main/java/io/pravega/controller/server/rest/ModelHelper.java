@@ -24,6 +24,8 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 
+import java.time.Duration;
+
 /**
  * Provides translation between the Model classes and its REST representation.
  */
@@ -55,10 +57,22 @@ public class ModelHelper {
                     createStreamRequest.getScalingPolicy().getMinSegments()
             );
         }
-        RetentionPolicy retentionPolicy = RetentionPolicy.builder()
-                .type(RetentionPolicy.Type.valueOf(createStreamRequest.getRetentionPolicy().getType().name()))
-                .value(createStreamRequest.getRetentionPolicy().getValue())
-                .build();
+        RetentionPolicy retentionPolicy;
+        switch (createStreamRequest.getRetentionPolicy().getType()) {
+            case DISABLED:
+                retentionPolicy = RetentionPolicy.disabled();
+                break;
+            case LIMITED_SIZE_BYTES:
+                retentionPolicy = RetentionPolicy.bySizeBytes(createStreamRequest.getRetentionPolicy().getValue());
+                break;
+            case LIMITED_TIME_MILLIS:
+                retentionPolicy =
+                        RetentionPolicy.byTime(Duration.ofMillis(createStreamRequest.getRetentionPolicy().getValue()));
+                break;
+            default:
+                throw new IllegalArgumentException("Found invalid retention type: " +
+                        createStreamRequest.getRetentionPolicy().getType().toString());
+        }
         return StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(createStreamRequest.getStreamName())
@@ -94,10 +108,22 @@ public class ModelHelper {
                     updateStreamRequest.getScalingPolicy().getMinSegments()
             );
         }
-        RetentionPolicy retentionPolicy = RetentionPolicy.builder()
-                .type(RetentionPolicy.Type.valueOf(updateStreamRequest.getRetentionPolicy().getType().name()))
-                .value(updateStreamRequest.getRetentionPolicy().getValue())
-                .build();
+        RetentionPolicy retentionPolicy;
+        switch (updateStreamRequest.getRetentionPolicy().getType()) {
+            case DISABLED:
+                retentionPolicy = RetentionPolicy.disabled();
+                break;
+            case LIMITED_SIZE_BYTES:
+                retentionPolicy = RetentionPolicy.bySizeBytes(updateStreamRequest.getRetentionPolicy().getValue());
+                break;
+            case LIMITED_TIME_MILLIS:
+                retentionPolicy =
+                        RetentionPolicy.byTime(Duration.ofMillis(updateStreamRequest.getRetentionPolicy().getValue()));
+                break;
+            default:
+                throw new IllegalArgumentException("Found invalid retention type: " +
+                        updateStreamRequest.getRetentionPolicy().getType().toString());
+        }
         return StreamConfiguration.builder()
                                   .scope(scope)
                                   .streamName(stream)
@@ -113,7 +139,6 @@ public class ModelHelper {
      * @return Stream properties wrapped in StreamResponse object
      */
     public static final StreamProperty encodeStreamResponse(final StreamConfiguration streamConfiguration) {
-
         ScalingConfig scalingPolicy = new ScalingConfig();
         if (streamConfiguration.getScalingPolicy().getType() == ScalingPolicy.Type.FIXED_NUM_SEGMENTS) {
             scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().
@@ -128,10 +153,21 @@ public class ModelHelper {
         }
 
         RetentionConfig retentionConfig = new RetentionConfig();
-        retentionConfig.setType(
-                RetentionConfig.TypeEnum.valueOf(streamConfiguration.getRetentionPolicy().getType().name()));
-        if (retentionConfig.getType() != RetentionConfig.TypeEnum.INFINITE) {
-            retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
+        switch (streamConfiguration.getRetentionPolicy().getType()) {
+            case DISABLED:
+                retentionConfig.setType(RetentionConfig.TypeEnum.DISABLED);
+                break;
+            case SIZE:
+                retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_BYTES);
+                retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
+                break;
+            case TIME:
+                retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_TIME_MILLIS);
+                retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
+                break;
+            default:
+                throw new IllegalArgumentException("Found invalid retention type: " +
+                        streamConfiguration.getRetentionPolicy().getType().toString());
         }
 
         StreamProperty streamProperty = new StreamProperty();
@@ -139,7 +175,6 @@ public class ModelHelper {
         streamProperty.setScopeName(streamConfiguration.getScope());
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
-
         return streamProperty;
     }
 }
