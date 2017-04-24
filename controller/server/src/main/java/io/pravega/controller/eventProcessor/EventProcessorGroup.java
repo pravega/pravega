@@ -5,6 +5,7 @@
  */
 package io.pravega.controller.eventProcessor;
 
+import io.pravega.controller.requests.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.stream.EventStreamWriter;
 import com.google.common.util.concurrent.Service;

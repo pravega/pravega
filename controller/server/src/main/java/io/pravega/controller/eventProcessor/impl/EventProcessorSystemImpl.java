@@ -8,12 +8,12 @@ package io.pravega.controller.eventProcessor.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.ClientFactory;
 import io.pravega.ReaderGroupManager;
+import io.pravega.controller.requests.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
-import io.pravega.controller.eventProcessor.ControllerEvent;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

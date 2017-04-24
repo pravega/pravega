@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.controller.server.eventProcessor;
 
@@ -9,7 +7,8 @@ import io.pravega.ClientFactory;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.eventProcessor.ControllerEvent;
+import io.pravega.controller.requests.ControllerEvent;
+import io.pravega.controller.requests.ScaleEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -22,7 +21,10 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.controller.util.Config;
+import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.Serializer;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.impl.ClientFactoryImpl;
@@ -32,16 +34,26 @@ import io.pravega.stream.impl.ReaderGroupManagerImpl;
 import io.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
+
+import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
+import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 @Slf4j
 public class ControllerEventProcessors extends AbstractIdleService {
 
     public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
     public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
+    public static final Serializer<ScaleEvent> SCALE_EVENT_SERIALIZER = new JavaSerializer<>();
 
     // Retry configuration
     private static final long DELAY = 100;
@@ -60,8 +72,10 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private final ClientFactory clientFactory;
     private final ScheduledExecutorService executor;
 
-    private EventProcessorGroup<CommitEvent> commitEventEventProcessors;
-    private EventProcessorGroup<AbortEvent> abortEventEventProcessors;
+    private EventProcessorGroup<CommitEvent> commitEventProcessors;
+    private EventProcessorGroup<AbortEvent> abortEventProcessors;
+    private EventProcessorGroup<ScaleEvent> scaleEventProcessors;
+    private ScaleRequestHandler scaleRequestHandler;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -71,8 +85,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
                                      final HostControllerStore hostControllerStore,
                                      final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
+                                     final StreamMetadataTasks streamMetadataTasks,
                                      final ScheduledExecutorService executor) {
-        this.objectId  = "ControllerEventProcessors";
+        this.objectId = "ControllerEventProcessors";
         this.config = config;
         this.checkpointStore = checkpointStore;
         this.streamMetadataStore = streamMetadataStore;
@@ -83,19 +98,39 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
         this.system = new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
                 new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory));
+        this.scaleRequestHandler = new ScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor);
+
         this.executor = executor;
     }
 
     public void notifyProcessFailure(String process) {
-        try {
-            if (commitEventEventProcessors != null) {
-                commitEventEventProcessors.notifyProcessFailure(process);
-            }
-            if (abortEventEventProcessors != null) {
-                abortEventEventProcessors.notifyProcessFailure(process);
-            }
-        } catch (CheckpointStoreException e) {
-            log.error(String.format("Failed handling failure for host %s", process), e);
+        if (commitEventProcessors != null) {
+            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+                try {
+                    commitEventProcessors.notifyProcessFailure(process);
+                } catch (CheckpointStoreException e) {
+                    throw new CompletionException(e);
+                }
+            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
+        }
+
+        if (abortEventProcessors != null) {
+            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+                try {
+                    abortEventProcessors.notifyProcessFailure(process);
+                } catch (CheckpointStoreException e) {
+                    throw new CompletionException(e);
+                }
+            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
+        }
+        if (scaleEventProcessors != null) {
+            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+                try {
+                    scaleEventProcessors.notifyProcessFailure(process);
+                } catch (CheckpointStoreException e) {
+                    throw new CompletionException(e);
+                }
+            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
         }
     }
 
@@ -138,10 +173,18 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .scalingPolicy(config.getAbortStreamScalingPolicy())
                         .build();
 
+        StreamConfiguration scaleStreamConfig =
+                StreamConfiguration.builder()
+                        .scope(config.getScopeName())
+                        .streamName(Config.SCALE_STREAM_NAME)
+                        .scalingPolicy(ScalingPolicy.fixed(1))
+                        .build();
+
         return createScope(config.getScopeName())
                 .thenCompose(ignore ->
                         CompletableFuture.allOf(createStream(commitStreamConfig),
-                                createStream(abortStreamConfig)));
+                                createStream(abortStreamConfig),
+                                createStream(scaleStreamConfig)));
     }
 
     private CompletableFuture<Void> createScope(final String scopeName) {
@@ -155,47 +198,77 @@ public class ControllerEventProcessors extends AbstractIdleService {
         return FutureHelpers.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
                 .runAsync(() -> controller.createStream(streamConfig)
-                        .thenAccept(x ->
-                                log.info("Created stream {}/{}", streamConfig.getScope(), streamConfig.getStreamName())),
+                                .thenAccept(x ->
+                                        log.info("Created stream {}/{}", streamConfig.getScope(), streamConfig.getStreamName())),
                         executor));
     }
 
-
     public CompletableFuture<Void> bootstrap(final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-            log.info("Bootstrapping controller event processors");
+        log.info("Bootstrapping controller event processors");
         return createStreams().thenAcceptAsync(x ->
                 streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config), executor);
     }
 
-    public void handleOrphanedReaders(final Set<String> activeProcesses) {
-        log.info("Handling orphaned readers from processes {}", activeProcesses);
-        if (this.commitEventEventProcessors != null) {
-            handleOrphanedReaders(this.commitEventEventProcessors, activeProcesses);
+    public void handleOrphanedReaders(final Supplier<Set<String>> processes) {
+        if (this.commitEventProcessors != null) {
+            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.commitEventProcessors, processes), executor);
         }
-        if (this.abortEventEventProcessors != null) {
-            handleOrphanedReaders(this.abortEventEventProcessors, activeProcesses);
+        if (this.abortEventProcessors != null) {
+            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.abortEventProcessors, processes), executor);
+        }
+        if (this.scaleEventProcessors != null) {
+            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.scaleEventProcessors, processes), executor);
         }
     }
 
     private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
-                                       final Set<String> activeProcesses) {
-        Set<String> registeredProcesses;
-        try {
-            registeredProcesses = group.getProcesses();
-        } catch (CheckpointStoreException e) {
-            log.error(String.format("Error fetching processes registered in event processor group %s", group.toString()), e);
-            return;
-        }
-        registeredProcesses.removeAll(activeProcesses);
-        // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
-        for (String process : registeredProcesses) {
+                                       final Supplier<Set<String>> processes) {
+        withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             try {
-                group.notifyProcessFailure(process);
-            } catch (CheckpointStoreException | NullPointerException e) {
-                log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
-                        group.toString()), e);
+                return group.getProcesses();
+            } catch (CheckpointStoreException e) {
+                if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                    return Collections.<String>emptySet();
+                }
+                throw new CompletionException(e);
             }
-        }
+        }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor)
+                .thenComposeAsync(groupProcesses -> withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return new ImmutablePair<>(processes.get(), groupProcesses);
+                    } catch (Exception e) {
+                        log.error(String.format("Error fetching current processes%s", group.toString()), e);
+                        throw new CompletionException(e);
+                    }
+                }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor))
+                .thenComposeAsync(pair -> {
+                    Set<String> registeredProcesses = pair.getLeft();
+                    Set<String> activeProcesses = pair.getRight();
+
+                    if (registeredProcesses == null || registeredProcesses.isEmpty()) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+
+                    if (activeProcesses != null) {
+                        registeredProcesses.removeAll(activeProcesses);
+                    }
+
+                    List<CompletableFuture<Void>> futureList = new ArrayList<>();
+                    for (String process : registeredProcesses) {
+                        futureList.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+                            try {
+                                group.notifyProcessFailure(process);
+                                // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
+                            } catch (CheckpointStoreException | NullPointerException e) {
+                                log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
+                                        group.toString()), e);
+                                throw new CompletionException(e);
+                            }
+                        }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
+                    }
+
+                    return FutureHelpers.allOf(futureList);
+                });
     }
 
     private void initialize() throws Exception {
@@ -222,7 +295,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    commitEventEventProcessors = system.createEventProcessorGroup(commitConfig, checkpointStore);
+                    commitEventProcessors = system.createEventProcessorGroup(commitConfig, checkpointStore);
                     return null;
                 });
 
@@ -233,7 +306,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
         EventProcessorGroupConfig abortReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
                         .streamName(config.getAbortStreamName())
-                        .readerGroupName(config.getAbortReaderGrouopName())
+                        .readerGroupName(config.getAbortReaderGroupName())
                         .eventProcessorCount(config.getAbortReaderGroupSize())
                         .checkpointConfig(config.getAbortCheckpointConfig())
                         .build();
@@ -250,34 +323,74 @@ public class ControllerEventProcessors extends AbstractIdleService {
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    abortEventEventProcessors = system.createEventProcessorGroup(abortConfig, checkpointStore);
+                    abortEventProcessors = system.createEventProcessorGroup(abortConfig, checkpointStore);
+                    return null;
+                });
+
+        // endregion
+
+        // region Create scale event processor
+
+        EventProcessorGroupConfig scaleReadersConfig =
+                EventProcessorGroupConfigImpl.builder()
+                        .streamName(config.getScaleStreamName())
+                        .readerGroupName(config.getScaleReaderGroupName())
+                        .eventProcessorCount(1)
+                        .checkpointConfig(config.getScaleCheckpointConfig())
+                        .build();
+
+        EventProcessorConfig<ScaleEvent> scaleConfig =
+                EventProcessorConfig.<ScaleEvent>builder()
+                        .config(scaleReadersConfig)
+                        .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
+                        .serializer(SCALE_EVENT_SERIALIZER)
+                        .supplier(() -> new ConcurrentEventProcessor<>(
+                                scaleRequestHandler,
+                                executor))
+                        .build();
+
+        log.info("Creating scale event processors");
+        Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+                e -> log.warn("Error creating scale event processor group", e))
+                .run(() -> {
+                    scaleEventProcessors = system.createEventProcessorGroup(scaleConfig, checkpointStore);
                     return null;
                 });
 
         // endregion
 
         log.info("Awaiting start of commit event processors");
-        commitEventEventProcessors.awaitRunning();
+        commitEventProcessors.awaitRunning();
         log.info("Awaiting start of abort event processors");
-        abortEventEventProcessors.awaitRunning();
+        abortEventProcessors.awaitRunning();
+        log.info("Awaiting start of scale event processors");
+        scaleEventProcessors.awaitRunning();
     }
 
     private void stopEventProcessors() {
-        if (commitEventEventProcessors != null) {
+        if (commitEventProcessors != null) {
             log.info("Stopping commit event processors");
-            commitEventEventProcessors.stopAsync();
+            commitEventProcessors.stopAsync();
         }
-        if (abortEventEventProcessors != null) {
+        if (abortEventProcessors != null) {
             log.info("Stopping abort event processors");
-            abortEventEventProcessors.stopAsync();
+            abortEventProcessors.stopAsync();
         }
-        if (commitEventEventProcessors != null) {
+        if (scaleEventProcessors != null) {
+            log.info("Stopping scale event processors");
+            scaleEventProcessors.stopAsync();
+        }
+        if (commitEventProcessors != null) {
             log.info("Awaiting termination of commit event processors");
-            commitEventEventProcessors.awaitTerminated();
+            commitEventProcessors.awaitTerminated();
         }
-        if (abortEventEventProcessors != null) {
+        if (abortEventProcessors != null) {
             log.info("Awaiting termination of abort event processors");
-            abortEventEventProcessors.awaitTerminated();
+            abortEventProcessors.awaitTerminated();
+        }
+        if (scaleEventProcessors != null) {
+            log.info("Awaiting termination of scale event processors");
+            scaleEventProcessors.awaitTerminated();
         }
     }
 }

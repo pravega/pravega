@@ -91,7 +91,6 @@ public class Main {
                 .controllerClusterListenerConfig(Optional.of(controllerClusterListenerConfig))
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
-                .requestHandlersEnabled(true)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.of(restServerConfig))
                 .build();

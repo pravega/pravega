@@ -16,7 +16,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -62,11 +64,6 @@ public class ControllerClusterListener extends AbstractIdleService {
             log.info("Registering host {} with controller cluster", host);
             cluster.registerHost(host);
 
-            Set<String> activeProcesses = cluster.getClusterMembers()
-                    .stream()
-                    .map(Host::getHostId)
-                    .collect(Collectors.toSet());
-
             // Register cluster listener.
             log.info("Adding controller cluster listener");
             cluster.addListener((type, host) -> {
@@ -92,7 +89,19 @@ public class ControllerClusterListener extends AbstractIdleService {
             }, executor);
 
             log.info("Sweeping orphaned tasks at startup");
-            taskSweeper.sweepOrphanedTasks(activeProcesses);
+            Supplier<Set<String>> process = () -> {
+                try {
+                    return cluster.getClusterMembers()
+                            .stream()
+                            .map(Host::getHostId)
+                            .collect(Collectors.toSet());
+                } catch (Exception e) {
+                    log.error("error fetching cluster members {}", e);
+                    throw new CompletionException(e);
+                }
+            };
+
+            taskSweeper.sweepOrphanedTasks(process);
 
             if (eventProcessorsOpt.isPresent()) {
                 // Await initialization of eventProcesorsOpt
@@ -101,7 +110,7 @@ public class ControllerClusterListener extends AbstractIdleService {
 
                 // Sweep orphaned tasks or readers at startup.
                 log.info("Sweeping orphaned readers at startup");
-                eventProcessorsOpt.get().handleOrphanedReaders(activeProcesses);
+                eventProcessorsOpt.get().handleOrphanedReaders(process);
             }
 
             log.info("Controller cluster listener startUp complete");

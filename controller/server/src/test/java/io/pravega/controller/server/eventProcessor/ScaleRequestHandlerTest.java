@@ -1,13 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package io.pravega.controller.request;
+package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.testcommon.TestingServerStarter;
 import io.pravega.controller.mocks.SegmentHelperMock;
-import io.pravega.controller.requesthandler.ScaleRequestHandler;
-import io.pravega.controller.requests.ScaleRequest;
+import io.pravega.controller.requests.ScaleEvent;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
@@ -22,6 +20,7 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import io.pravega.testcommon.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -40,7 +39,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertTrue;
 
-public class RequestTest {
+public class ScaleRequestHandlerTest {
     private final String scope = "scope";
     private final String stream = "stream";
     StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
@@ -109,8 +108,8 @@ public class RequestTest {
 
     @Test(timeout = 10000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
-        ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor);
-        ScaleRequest request = new ScaleRequest(scope, stream, 2, ScaleRequest.UP, System.currentTimeMillis(), 2, false);
+        ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, executor);
+        ScaleEvent request = new ScaleEvent(scope, stream, 2, ScaleEvent.UP, System.currentTimeMillis(), 2, false);
 
         assertTrue(FutureHelpers.await(requestHandler.process(request)));
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
@@ -120,7 +119,7 @@ public class RequestTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);
 
-        request = new ScaleRequest(scope, stream, 4, ScaleRequest.DOWN, System.currentTimeMillis(), 0, false);
+        request = new ScaleEvent(scope, stream, 4, ScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
         assertTrue(FutureHelpers.await(requestHandler.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
@@ -128,7 +127,7 @@ public class RequestTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);
 
-        request = new ScaleRequest(scope, stream, 3, ScaleRequest.DOWN, System.currentTimeMillis(), 0, false);
+        request = new ScaleEvent(scope, stream, 3, ScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
         assertTrue(FutureHelpers.await(requestHandler.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();

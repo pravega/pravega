@@ -12,7 +12,6 @@ import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.ControllerClusterListenerConfig;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
-import io.pravega.controller.requesthandler.RequestHandlersInit;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
@@ -45,8 +44,6 @@ import java.net.UnknownHostException;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -109,7 +106,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         log.info("Initiating controller service startUp");
         log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
-        log.info("Request handlers enabled = {}", serviceConfig.isRequestHandlersEnabled());
         log.info("Cluster listener enabled = {}", serviceConfig.getControllerClusterListenerConfig().isPresent());
         log.info("    Host monitor enabled = {}", serviceConfig.getHostMonitorConfig().isHostMonitorEnabled());
         log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
@@ -187,7 +183,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
                 controllerClusterListener = new ControllerClusterListener(host, cluster,
-                        controllerEventProcessors == null ? Optional.empty() : Optional.of(controllerEventProcessors),
+                        Optional.ofNullable(controllerEventProcessors),
                         taskSweeper, clusterListenerExecutor);
 
                 log.info("Starting controller cluster listener");
@@ -205,20 +201,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        hostStore, segmentHelper, connectionFactory, eventProcExecutor);
+                        hostStore, segmentHelper, connectionFactory, streamMetadataTasks, eventProcExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
                 controllerEventProcessors.bootstrap(streamTransactionMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
-            }
-
-            // Start request handlers
-            CompletableFuture<Void> requestHandlersFuture = CompletableFuture.completedFuture(null);
-            if (serviceConfig.isRequestHandlersEnabled()) {
-                log.info("Starting request handlers");
-                requestHandlersFuture = RequestHandlersInit.bootstrapRequestHandlers(controllerService,
-                        streamStore, requestExecutor);
             }
 
             // Start RPC server.
@@ -241,16 +229,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 log.info("Awaiting start of controller event processors");
                 controllerEventProcessors.awaitRunning();
-            }
-
-            // Wait for request handlers to start.
-            if (serviceConfig.isRequestHandlersEnabled()) {
-                log.info("Awaiting start of request handlers");
-                try {
-                    requestHandlersFuture.join();
-                } catch (CompletionException e) {
-                    throw new IllegalStateException("Request handlers failed to start", e);
-                }
             }
 
             // Wait for controller cluster listeners to start.
@@ -278,10 +256,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (controllerEventProcessors != null) {
                 log.info("Stopping controller event processors");
                 controllerEventProcessors.stopAsync();
-            }
-            if (serviceConfig.isRequestHandlersEnabled()) {
-                log.info("Shutting down request handlers");
-                RequestHandlersInit.shutdownRequestHandlers();
             }
             if (monitor != null) {
                 log.info("Stopping the segment container monitor");

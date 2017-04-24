@@ -58,7 +58,7 @@ public class ControllerServiceTest {
         server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
         
-        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
+        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                                                                     controllerPort, serviceHost, servicePort, containerCount);
         controllerWrapper.awaitRunning();
     }

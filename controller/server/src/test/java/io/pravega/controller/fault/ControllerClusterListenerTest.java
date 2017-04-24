@@ -9,7 +9,6 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.testcommon.TestingServerStarter;
-import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.TestTasks;
@@ -124,7 +123,7 @@ public class ControllerClusterListenerTest {
                 new TestTasks(taskStore, executor, host.getHostId()));
 
         ControllerClusterListener clusterListener =
-                new ControllerClusterListener(host, clusterZK, Optional.<ControllerEventProcessors>empty(),
+                new ControllerClusterListener(host, clusterZK, Optional.empty(),
                         taskSweeper, executor);
         clusterListener.startAsync();
 

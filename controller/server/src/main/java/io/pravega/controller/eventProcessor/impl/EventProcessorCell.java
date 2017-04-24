@@ -7,13 +7,13 @@ package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
+import io.pravega.controller.requests.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.EventProcessorInitException;
 import io.pravega.controller.eventProcessor.EventProcessorReinitException;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
-import io.pravega.controller.eventProcessor.ControllerEvent;
 import io.pravega.stream.EventRead;
 import io.pravega.stream.EventStreamReader;
 import io.pravega.stream.EventStreamWriter;
@@ -265,9 +265,9 @@ class EventProcessorCell<T extends ControllerEvent> {
 
     private EventProcessor<T> createEventProcessor(final EventProcessorConfig<T> eventProcessorConfig) {
         EventProcessor<T> eventProcessor = eventProcessorConfig.getSupplier().get();
-        eventProcessor.checkpointer = (Position position) ->
-                checkpointStore.setPosition(process, readerGroupName, readerId, position);
-        eventProcessor.selfWriter = selfWriter;
+        eventProcessor.setCheckpointer((Position position) ->
+                checkpointStore.setPosition(process, readerGroupName, readerId, position));
+        eventProcessor.setSelfWriter(selfWriter);
         return eventProcessor;
     }
 

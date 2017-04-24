@@ -4,10 +4,10 @@
 package io.pravega.controller.server;
 
 import io.pravega.ClientFactory;
+import io.pravega.controller.requests.ControllerEvent;
 import io.pravega.stream.Position;
 import io.pravega.testcommon.TestingServerStarter;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
-import io.pravega.controller.eventProcessor.ControllerEvent;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -33,7 +33,6 @@ import io.pravega.stream.impl.ReaderGroupManagerImpl;
 import io.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import io.pravega.testcommon.TestUtils;
 import com.google.common.base.Preconditions;
-import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
 import lombok.AllArgsConstructor;
 import lombok.Cleanup;
@@ -79,9 +78,14 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public static class TestEvent implements ControllerEvent, Serializable {
+    public static class TestEvent implements ControllerEvent {
         private static final long serialVersionUID = 1L;
         int number;
+
+        @Override
+        public String getKey() {
+            return null;
+        }
     }
 
     public static void main(String[] args) throws Exception {
@@ -105,7 +109,6 @@ public class EventProcessorTest {
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(
                 zkTestServer.getConnectString(),
-                true,
                 true,
                 controllerPort,
                 "localhost",

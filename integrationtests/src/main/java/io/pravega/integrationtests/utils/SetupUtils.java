@@ -83,7 +83,7 @@ public final class SetupUtils {
         // Start Controller.
         int controllerPort = TestUtils.getAvailableListenPort();
         this.controllerWrapper = new ControllerWrapper(
-                this.zkTestServer.getConnectString(), true, true, controllerPort, "localhost", servicePort,
+                this.zkTestServer.getConnectString(), true, controllerPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT);
         this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(this.scope).get();

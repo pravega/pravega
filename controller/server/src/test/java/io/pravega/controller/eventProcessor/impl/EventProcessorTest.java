@@ -9,13 +9,13 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.ClientFactory;
 import io.pravega.ReaderGroupManager;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
+import io.pravega.controller.requests.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
-import io.pravega.controller.eventProcessor.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.stream.EventPointer;
 import io.pravega.stream.EventRead;
@@ -39,7 +39,6 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -66,8 +65,13 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public static class TestEvent implements ControllerEvent, Serializable {
+    public static class TestEvent implements ControllerEvent {
         int number;
+
+        @Override
+        public String getKey() {
+            return null;
+        }
     }
 
     public static class TestEventProcessor extends EventProcessor<TestEvent> {

@@ -4,7 +4,7 @@
 package io.pravega.service.server.host.stat;
 
 import io.pravega.common.netty.WireCommands;
-import io.pravega.controller.requests.ScaleRequest;
+import io.pravega.controller.requests.ScaleEvent;
 import io.pravega.stream.AckFuture;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.EventWriterConfig;
@@ -24,31 +24,31 @@ public class MonitorTest {
 
     @Test
     public void monitorTest() {
-        EventStreamWriter<ScaleRequest> writer = new EventStreamWriter<ScaleRequest>() {
+        EventStreamWriter<ScaleEvent> writer = new EventStreamWriter<ScaleEvent>() {
             @Override
-            public AckFuture writeEvent(ScaleRequest event) {
+            public AckFuture writeEvent(ScaleEvent event) {
                 return null;
             }
 
             @Override
-            public AckFuture writeEvent(String routingKey, ScaleRequest event) {
+            public AckFuture writeEvent(String routingKey, ScaleEvent event) {
                 assert event != null;
 
                 assert routingKey.equals(String.format("%s/%s", SCOPE, STREAM)) &&
                         event.getScope().equals(SCOPE) &&
                         event.getStream().equals(STREAM) &&
-                        event.getDirection() == ScaleRequest.UP;
+                        event.getDirection() == ScaleEvent.UP;
                 return null;
             }
 
             @Override
-            public Transaction<ScaleRequest> beginTxn(long transactionTimeout, long maxExecutionTime,
-                                                      long scaleGracePeriod) {
+            public Transaction<ScaleEvent> beginTxn(long transactionTimeout, long maxExecutionTime,
+                                                    long scaleGracePeriod) {
                 return null;
             }
 
             @Override
-            public Transaction<ScaleRequest> getTxn(UUID transactionId) {
+            public Transaction<ScaleEvent> getTxn(UUID transactionId) {
                 return null;
             }
 

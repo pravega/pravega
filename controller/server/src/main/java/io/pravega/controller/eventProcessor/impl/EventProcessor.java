@@ -5,10 +5,11 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
-import io.pravega.controller.eventProcessor.ControllerEvent;
+import io.pravega.controller.requests.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.Position;
+import lombok.Setter;
 
 /**
  * Event processor interface.
@@ -20,8 +21,10 @@ public abstract class EventProcessor<T extends ControllerEvent> {
         void store(Position position) throws CheckpointStoreException;
     }
 
+    @Setter
     Checkpointer checkpointer;
 
+    @Setter
     EventStreamWriter<T> selfWriter;
 
     /**

@@ -1,23 +1,22 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package io.pravega.controller.requesthandler;
+package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.requests.ScaleRequest;
+import io.pravega.controller.requests.ScaleEvent;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.StreamConfiguration;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -35,13 +34,12 @@ import java.util.stream.Collectors;
  * Request handler for scale requests in scale-request-stream.
  */
 @Slf4j
-public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
+public class ScaleRequestHandler implements RequestHandler<ScaleEvent> {
 
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 2;
     private static final int RETRY_MAX_ATTEMPTS = 10;
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
-    private static final long BLOCK_VALIDITY_PERIOD = Duration.ofSeconds(5).toMillis();
 
     private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
     private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
@@ -50,24 +48,20 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
-    private final StreamTransactionMetadataTasks streamTxMetadataTasks;
     private final ScheduledExecutorService executor;
 
     public ScaleRequestHandler(final StreamMetadataTasks streamMetadataTasks,
                                final StreamMetadataStore streamMetadataStore,
-                               final StreamTransactionMetadataTasks streamTxMetadataTasks,
                                final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(executor);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
-        this.streamTxMetadataTasks = streamTxMetadataTasks;
         this.executor = executor;
     }
 
-    @Override
-    public CompletableFuture<Void> process(final ScaleRequest request) {
+    public CompletableFuture<Void> process(final ScaleEvent request) {
         if (!(request.getTimestamp() + REQUEST_VALIDITY_PERIOD > System.currentTimeMillis())) {
             // request no longer valid. Ignore.
             // log, because a request was fetched from the stream after its validity expired.
@@ -86,7 +80,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     .getConfiguration(request.getScope(), request.getStream(), context, executor)
                     .thenApply(StreamConfiguration::getScalingPolicy);
 
-            if (request.getDirection() == ScaleRequest.UP) {
+            if (request.getDirection() == ScaleEvent.UP) {
                 return policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context), executor);
             } else {
                 return policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context), executor);
@@ -94,7 +88,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
         }, executor);
     }
 
-    private CompletableFuture<Void> processScaleUp(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
+    private CompletableFuture<Void> processScaleUp(final ScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         log.debug("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
@@ -114,7 +108,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                 }, executor);
     }
 
-    private CompletableFuture<Void> processScaleDown(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
+    private CompletableFuture<Void> processScaleDown(final ScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         log.debug("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
@@ -193,7 +187,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @param context   operation context
      * @return CompletableFuture
      */
-    private CompletableFuture<Void> executeScaleTask(final ScaleRequest request, final ArrayList<Integer> segments,
+    private CompletableFuture<Void> executeScaleTask(final ScaleEvent request, final ArrayList<Integer> segments,
                                                      final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                      final OperationContext context) {
         CompletableFuture<Void> result = new CompletableFuture<>();
