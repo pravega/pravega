@@ -6,6 +6,8 @@
 package io.pravega.controller.task;
 
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.store.task.LockOwner;
+import io.pravega.controller.store.task.LockType;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaggedResource;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -13,6 +15,7 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -20,6 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,19 +47,46 @@ public abstract class TaskBase implements AutoCloseable {
         private final String oldHostId;
         private final String oldTag;
         private final Resource oldResource;
+        private final int seqNumber;
 
         public Context(final String hostId) {
             this.hostId = hostId;
             this.oldHostId = null;
             this.oldTag = null;
             this.oldResource = null;
+            this.seqNumber = -1;
         }
 
-        public Context(final String hostId, final String oldHost, final String oldTag, final Resource oldResource) {
+        public Context(final String hostId, final String oldHost, final String oldTag, final Resource oldResource,
+                       final int seqNumber) {
+            Preconditions.checkNotNull(oldHost, "oldHost");
+            Preconditions.checkNotNull(oldTag, "oldTag");
+            Preconditions.checkNotNull(oldResource, "oldResource");
             this.hostId = hostId;
             this.oldHostId = oldHost;
             this.oldTag = oldTag;
             this.oldResource = oldResource;
+            this.seqNumber = seqNumber;
+        }
+
+        public Optional<Integer> getSeqNumberOpt() {
+            if (this.seqNumber < 0) {
+                return Optional.empty();
+            } else {
+                return Optional.of(this.seqNumber);
+            }
+        }
+
+        public Optional<LockOwner> getOldLockOwnerOpt() {
+            if (oldHostId != null) {
+                return Optional.of(new LockOwner(oldHostId, oldTag));
+            } else {
+                return Optional.empty();
+            }
+        }
+
+        public LockOwner getLockOwner(String tag) {
+            return new LockOwner(this.hostId, tag);
         }
     }
 
@@ -93,13 +124,15 @@ public abstract class TaskBase implements AutoCloseable {
     /**
      * Wrapper method that initially obtains lock then executes the passed method, and finally releases lock.
      *
-     * @param resource resource to be updated by the task.
+     * @param resource   resource to be updated by the task.
+     * @param type       lock type
      * @param parameters method parameters.
-     * @param operation lambda operation that is the actual task.
-     * @param <T> type parameter of return value of operation to be executed.
-     * @return return value of task execution.
+     * @param operation  lambda operation that is the actual task.
+     * @param <T>        type parameter of return value of operation to be executed.
+     * @return           return value of task execution.
      */
-    public <T> CompletableFuture<T> execute(final Resource resource, final Serializable[] parameters, final FutureOperation<T> operation) {
+    public <T> CompletableFuture<T> execute(final Resource resource, final LockType type,
+                                            final Serializable[] parameters, final FutureOperation<T> operation) {
         if (!ready) {
             return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }
@@ -110,7 +143,7 @@ public abstract class TaskBase implements AutoCloseable {
 
         log.debug("Host={}, Tag={} starting to execute task on resource {}", context.hostId, tag, resource);
         if (createIndexOnlyMode) {
-            return createIndexes(context.hostId, taggedResource, taskData);
+            return createIndexes(type, taggedResource, taskData);
         }
         // PutChild (HostId, resource)
         // Initially store the fact that I am about the update the resource.
@@ -119,7 +152,7 @@ public abstract class TaskBase implements AutoCloseable {
         // creation or deletion of resource children under HostId node.
         taskMetadataStore.putChild(context.hostId, taggedResource)
                 // After storing that fact, lock the resource, execute task and unlock the resource
-                .thenComposeAsync(x -> executeTask(resource, taskData, tag, operation), executor)
+                .thenComposeAsync(x -> executeTask(resource, type, taskData, tag, operation), executor)
                 // finally delete the resource child created under the controller's HostId
                 .whenCompleteAsync((value, e) ->
                                 taskMetadataStore.removeChild(context.hostId, taggedResource, true)
@@ -136,10 +169,10 @@ public abstract class TaskBase implements AutoCloseable {
         return result;
     }
 
-    private <T> CompletableFuture<T> createIndexes(String hostId, TaggedResource taggedResource, TaskData taskData) {
+    private <T> CompletableFuture<T> createIndexes(LockType type, TaggedResource taggedResource, TaskData taskData) {
         return taskMetadataStore.putChild(context.hostId, taggedResource)
-                .thenComposeAsync(x -> taskMetadataStore.lock(taggedResource.getResource(), taskData, context.hostId,
-                            taggedResource.getTag(), context.oldHostId, context.oldTag), executor)
+                .thenComposeAsync(x -> taskMetadataStore.lock(taggedResource.getResource(), type, taskData,
+                        new LockOwner(context.hostId, taggedResource.getTag()), context.getSeqNumberOpt(), context.getOldLockOwnerOpt()), executor)
                 .thenApplyAsync(x -> {
                     throw new IllegalStateException("Index only mode");
                 }, executor);
@@ -168,15 +201,17 @@ public abstract class TaskBase implements AutoCloseable {
     }
 
     private <T> CompletableFuture<T> executeTask(final Resource resource,
+                                                 final LockType type,
                                                  final TaskData taskData,
                                                  final String tag,
                                                  final FutureOperation<T> operation) {
         final CompletableFuture<T> result = new CompletableFuture<>();
 
-        final CompletableFuture<Void> lockResult = new CompletableFuture<>();
+        final CompletableFuture<Integer> lockResult = new CompletableFuture<>();
 
         taskMetadataStore
-                .lock(resource, taskData, context.hostId, tag, context.oldHostId, context.oldTag)
+                .lock(resource, type, taskData, new LockOwner(context.hostId, tag), context.getSeqNumberOpt(),
+                        context.getOldLockOwnerOpt())
 
                 // On acquiring lock, the following invariants hold
                 // Invariant 1. No other thread within any controller process is running an update task on the resource
@@ -212,7 +247,7 @@ public abstract class TaskBase implements AutoCloseable {
                         // If lock was obtained, irrespective of result of operation execution,
                         // release lock before completing operation.
                         log.debug("Host={}, Tag={} completed executing task on resource {}", context.hostId, tag, resource);
-                        taskMetadataStore.unlock(resource, context.hostId, tag)
+                        taskMetadataStore.unlock(resource, type, lockResult.join(), context.getLockOwner(tag))
                                 .whenComplete((innerValue, innerE) -> {
                                     log.debug("Host={}, Tag={} unlock attempt completed on resource {}", context.hostId, tag, resource);
                                     // If lock was acquired above, unlock operation retries until it is released.

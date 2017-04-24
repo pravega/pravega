@@ -8,8 +8,11 @@ import io.pravega.controller.mocks.AckFutureMock;
 import io.pravega.controller.server.eventProcessor.AbortEvent;
 import io.pravega.controller.server.eventProcessor.CommitEvent;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.task.LockOwner;
+import io.pravega.controller.store.task.LockType;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.stream.AckFuture;
 import io.pravega.stream.EventStreamWriter;
@@ -25,20 +28,19 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamAlreadyExistsException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaggedResource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -64,6 +66,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -187,12 +191,14 @@ public class TaskTest {
         final TaggedResource taggedResource = new TaggedResource(deadThreadId, resource);
         taskMetadataStore.putChild(deadHost, taggedResource).join();
 
-        taskMetadataStore.lock(resource, taskData, deadHost, deadThreadId, null, null).join();
+        taskMetadataStore.lock(resource, LockType.WRITE, taskData, new LockOwner(deadHost, deadThreadId),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
         taskSweeper.sweepOrphanedTasks(deadHost).get();
 
-        Optional<TaskData> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource,
+                new LockOwner(deadHost, deadThreadId)).get();
         assertFalse(data.isPresent());
 
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
@@ -217,7 +223,8 @@ public class TaskTest {
 
         // Create entries for partial task execution on failed host in task metadata store.
         taskMetadataStore.putChild(deadHost, taggedResource).join();
-        taskMetadataStore.lock(resource, taskData, deadHost, deadThreadId, null, null).join();
+        taskMetadataStore.lock(resource, LockType.READ, taskData, new LockOwner(deadHost, deadThreadId),
+                Optional.empty(), Optional.empty()).join();
 
         // Create TaskSweeper instance.
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
@@ -246,7 +253,7 @@ public class TaskTest {
         Map<UUID, ActiveTxnRecord> map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
         assertEquals(1, map.size());
 
-        Optional<TaskData> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource, new LockOwner(deadHost, deadThreadId)).get();
         assertFalse(data.isPresent());
 
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
@@ -355,6 +362,38 @@ public class TaskTest {
         assertEquals(TxnStatus.COMMITTING, status);
     }
 
+    @Test(timeout = 10000)
+    public void testParallelTransactionCreate() {
+        final int count = 20;
+        final String commitStream = "commitStream";
+        final String abortStream = "abortStream";
+        final AckFuture future = new AckFutureMock(CompletableFuture.completedFuture(true));
+
+        // Create mock writer objects.
+        EventStreamWriter<CommitEvent> mockCommitWriter = Mockito.mock(EventStreamWriter.class);
+        Mockito.when(mockCommitWriter.writeEvent(Mockito.any())).thenReturn(future);
+        EventStreamWriter<AbortEvent> mockAbortWriter = Mockito.mock(EventStreamWriter.class);
+        Mockito.when(mockAbortWriter.writeEvent(Mockito.any())).thenReturn(future);
+
+        // Create task and sweeper objects
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
+                taskMetadataStore, segmentHelperMock, executor, HOSTNAME, Mockito.mock(ConnectionFactory.class));
+        txnTasks.initializeStreamWriters(commitStream, mockCommitWriter, abortStream, mockAbortWriter);
+
+        List<CompletableFuture<Pair<VersionedTransactionData, List<Segment>>>> futures =
+                IntStream.range(0, count)
+                        .parallel()
+                        .mapToObj(i -> txnTasks.createTxn(SCOPE, stream1, 10000, 30000, 30000, null))
+                        .collect(Collectors.toList());
+
+        for (CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> f : futures) {
+            Pair<VersionedTransactionData, List<Segment>> pair = f.join();
+            Assert.assertNotNull(pair);
+            Assert.assertNotNull(pair.getLeft());
+            Assert.assertNotNull(pair.getRight());
+        }
+    }
+
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
         AssertExtensions.assertThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
         sweeper.sweepOrphanedTasks(hostId).join();
@@ -393,8 +432,10 @@ public class TaskTest {
         final TaggedResource taggedResource2 = new TaggedResource(deadThreadId2, resource2);
         taskMetadataStore.putChild(deadHost, taggedResource2).join();
 
-        taskMetadataStore.lock(resource1, taskData1, deadHost, deadThreadId1, null, null).join();
-        taskMetadataStore.lock(resource2, taskData2, deadHost, deadThreadId2, null, null).join();
+        taskMetadataStore.lock(resource1, LockType.WRITE, taskData1, new LockOwner(deadHost, deadThreadId1),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
+        taskMetadataStore.lock(resource2, LockType.WRITE, taskData2, new LockOwner(deadHost, deadThreadId2),
+                Optional.<Integer>empty(), Optional.<LockOwner>empty()).join();
 
         final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, executor, taskMetadataStore, streamMetadataTasks,
                 deadHost);
@@ -407,10 +448,11 @@ public class TaskTest {
         sweeperThread1.getResult().join();
         sweeperThread2.getResult().join();
 
-        Optional<TaskData> data = taskMetadataStore.getTask(resource1, deadHost, deadThreadId1).get();
+        Optional<Pair<TaskData, Integer>> data = taskMetadataStore.getTask(resource1,
+                new LockOwner(deadHost, deadThreadId1)).get();
         assertFalse(data.isPresent());
 
-        data = taskMetadataStore.getTask(resource2, deadHost, deadThreadId2).get();
+        data = taskMetadataStore.getTask(resource2, new LockOwner(deadHost, deadThreadId2)).get();
         assertFalse(data.isPresent());
 
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
@@ -422,20 +464,6 @@ public class TaskTest {
 
         config = streamStore.getConfiguration(SCOPE, stream2, null, executor).get();
         assertTrue(config.getStreamName().equals(stream2));
-    }
-
-    @Test
-    public void testLocking() {
-        TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
-
-        CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);
-        CompletableFuture<Void> second = testTasks.testStreamLock(SCOPE, stream1);
-        try {
-            first.getNow(null);
-            second.getNow(null);
-        } catch (CompletionException ce) {
-            assertTrue(ce.getCause() instanceof LockFailedException);
-        }
     }
 
     @Data

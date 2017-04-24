@@ -13,6 +13,7 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.task.LockType;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -91,6 +92,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<CreateStreamStatus.Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
                 new Resource(scope, stream),
+                LockType.WRITE,
                 new Serializable[]{scope, stream, config, createTimestamp},
                 () -> createStreamBody(scope, stream, config, createTimestamp));
     }
@@ -109,6 +111,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<UpdateStreamStatus.Status> alterStream(String scope, String stream, StreamConfiguration config, OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
+                LockType.WRITE,
                 new Serializable[]{scope, stream, config, null},
                 () -> updateStreamConfigBody(scope, stream, config, contextOpt));
     }
@@ -125,6 +128,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<UpdateStreamStatus.Status> sealStream(String scope, String stream, OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
+                LockType.WRITE,
                 new Serializable[]{scope, stream, null},
                 () -> sealStreamBody(scope, stream, contextOpt));
     }
@@ -142,6 +146,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      final OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
+                LockType.WRITE,
                 new Serializable[]{scope, stream, null},
                 () -> deleteStreamBody(scope, stream, contextOpt));
     }
@@ -163,6 +168,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                   OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
+                LockType.WRITE,
                 new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp, null},
                 () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp, contextOpt));
     }

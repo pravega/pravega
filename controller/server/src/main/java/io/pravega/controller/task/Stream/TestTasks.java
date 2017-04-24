@@ -5,6 +5,7 @@
  */
 package io.pravega.controller.task.Stream;
 
+import io.pravega.controller.store.task.LockType;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.task.Task;
@@ -33,6 +34,7 @@ public class TestTasks extends TaskBase {
     public CompletableFuture<Void> testStreamLock(String scope, String stream) {
         return execute(
                 new Resource(scope, stream),
+                LockType.WRITE,
                 new Serializable[]{scope, stream},
                 () -> {
                     try {

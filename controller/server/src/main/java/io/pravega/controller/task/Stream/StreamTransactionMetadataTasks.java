@@ -17,6 +17,7 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.task.LockType;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.task.Task;
@@ -137,6 +138,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
         return execute(
                 new Resource(scope, stream),
+                LockType.READ,
                 new Serializable[]{scope, stream, lease, maxExecutionTime, scaleGracePeriod, null},
                 () -> createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context));
     }
@@ -159,6 +161,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
         return execute(
                 new Resource(scope, stream, txId.toString()),
+                LockType.WRITE,
                 new Serializable[]{scope, stream, txId},
                 () -> pingTxnBody(scope, stream, txId, lease, context));
     }
@@ -180,6 +183,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
         return execute(
                 new Resource(scope, stream, txId.toString()),
+                LockType.WRITE,
                 new Serializable[]{scope, stream, txId, version, null},
                 () -> abortTxnBody(scope, stream, txId, version, context));
     }
@@ -200,6 +204,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
         return execute(
                 new Resource(scope, stream, txId.toString()),
+                LockType.WRITE,
                 new Serializable[]{scope, stream, txId, null},
                 () -> commitTxnBody(scope, stream, txId, context));
     }

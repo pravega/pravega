@@ -6,11 +6,13 @@
 package io.pravega.controller.task;
 
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.store.task.LockOwner;
 import io.pravega.controller.store.task.TaggedResource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import com.google.common.base.Preconditions;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -121,18 +123,18 @@ public class TaskSweeper {
         // Else
         //     It is safe to delete the taggedResource child under oldHostId, since there is no pending task on
         //     resource taggedResource.resource and owned by (oldHostId, taggedResource.threadId).
-        taskMetadataStore.getTask(taggedResource.getResource(), oldHostId, taggedResource.getTag())
-                .whenComplete((taskData, ex) -> {
-                    if (taskData != null && taskData.isPresent()) {
+        taskMetadataStore.getTask(taggedResource.getResource(), new LockOwner(oldHostId, taggedResource.getTag()))
+                .whenComplete((pair, ex) -> {
+                    if (pair != null && pair.isPresent()) {
 
                         log.debug("Host={} found task for child <{}, {}> of {}",
                                 this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
-                        execute(oldHostId, taskData.get(), taggedResource)
+                        execute(oldHostId, pair.get(), taggedResource)
                                 .whenComplete((value, e) -> result.complete(new Result(taggedResource, value, e)));
 
                     } else {
 
-                        if (taskData != null) {
+                        if (pair != null) {
 
                             log.debug("Host={} found no task for child <{}, {}> of {}. Removing child.",
                                     this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
@@ -165,18 +167,18 @@ public class TaskSweeper {
      * This method identifies correct method to execute form among the task classes and executes it.
      *
      * @param oldHostId      identifier of old failed host.
-     * @param taskData       taks data.
+     * @param pair           taks data.
      * @param taggedResource resource on which old host had unfinished task.
      * @return the object returned from task method.
      */
     @SuppressWarnings("unchecked")
-    private CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
+    public CompletableFuture<Object> execute(final String oldHostId, final Pair<TaskData, Integer> pair, final TaggedResource taggedResource) {
 
         log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
-                this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
+                this.hostId, pair.getLeft().getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
         try {
 
-            String key = getKey(taskData.getMethodName(), taskData.getMethodVersion());
+            String key = getKey(pair.getLeft().getMethodName(), pair.getLeft().getMethodVersion());
             if (methodMap.containsKey(key)) {
 
                 // find the method and object
@@ -185,10 +187,11 @@ public class TaskSweeper {
                     TaskBase o = objectMap.get(key).copyWithContext(new TaskBase.Context(hostId,
                             oldHostId,
                             taggedResource.getTag(),
-                            taggedResource.getResource()));
+                            taggedResource.getResource(),
+                            pair.getRight().intValue()));
 
                     // finally execute the task by invoking corresponding method and return its result
-                    return (CompletableFuture<Object>) method.invoke(o, (Object[]) taskData.getParameters());
+                    return (CompletableFuture<Object>) method.invoke(o, (Object[]) pair.getLeft().getParameters());
                 } else {
                     // The then branch of this if-then-else executes the task and releases the lock even if the
                     // task execution fails. Eventually all the orphaned tasks of the failed host shall complete.
@@ -205,9 +208,9 @@ public class TaskSweeper {
 
             } else {
                 CompletableFuture<Object> error = new CompletableFuture<>();
-                log.warn("Task {} not found", taskData.getMethodName());
+                log.warn("Task {} not found", pair.getLeft().getMethodName());
                 error.completeExceptionally(
-                        new RuntimeException(String.format("Task %s not found", taskData.getMethodName()))
+                        new RuntimeException(String.format("Task %s not found", pair.getLeft().getMethodName()))
                 );
                 return error;
             }
