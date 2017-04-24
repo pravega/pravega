@@ -2,14 +2,14 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.common.util.ConfigBuilder;
-import com.emc.pravega.common.util.ConfigurationException;
-import com.emc.pravega.common.util.InvalidPropertyValueException;
-import com.emc.pravega.common.util.Property;
-import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.common.util.TypedProperties;
+import io.pravega.common.util.ConfigBuilder;
+import io.pravega.common.util.ConfigurationException;
+import io.pravega.common.util.InvalidPropertyValueException;
+import io.pravega.common.util.Property;
+import io.pravega.common.util.Retry;
+import io.pravega.common.util.TypedProperties;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Arrays;

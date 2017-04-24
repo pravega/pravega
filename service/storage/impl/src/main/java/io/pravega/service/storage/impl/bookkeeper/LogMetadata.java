@@ -2,10 +2,10 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.common.util.CollectionHelpers;
 import com.google.common.base.Preconditions;
+import io.pravega.common.util.CollectionHelpers;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;

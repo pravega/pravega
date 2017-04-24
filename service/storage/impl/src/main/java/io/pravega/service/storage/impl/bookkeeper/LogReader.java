@@ -2,13 +2,13 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.util.CloseableIterator;
-import com.emc.pravega.service.storage.DurableDataLog;
-import com.emc.pravega.service.storage.DurableDataLogException;
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
+import io.pravega.common.util.CloseableIterator;
+import io.pravega.service.storage.DurableDataLog;
+import io.pravega.service.storage.DurableDataLogException;
 import java.io.InputStream;
 import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicBoolean;

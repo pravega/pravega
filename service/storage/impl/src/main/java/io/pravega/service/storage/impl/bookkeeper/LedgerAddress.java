@@ -2,10 +2,10 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
+import io.pravega.service.storage.LogAddress;
 import lombok.Getter;
 
 /**

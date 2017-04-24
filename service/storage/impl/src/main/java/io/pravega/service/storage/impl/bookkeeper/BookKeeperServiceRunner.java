@@ -1,8 +1,11 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ *
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
 import java.io.File;
 import java.io.IOException;

@@ -7,9 +7,6 @@ package io.pravega.service.server.host;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
-import io.pravega.shared.metrics.MetricsConfig;
-import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.service.contracts.StreamSegmentStore;
 import io.pravega.service.server.host.handler.PravegaConnectionListener;
 import io.pravega.service.server.host.stat.AutoScalerConfig;
@@ -18,11 +15,17 @@ import io.pravega.service.server.host.stat.SegmentStatsRecorder;
 import io.pravega.service.server.store.ServiceBuilder;
 import io.pravega.service.server.store.ServiceBuilderConfig;
 import io.pravega.service.server.store.ServiceConfig;
+import io.pravega.service.storage.impl.bookkeeper.BookKeeperConfig;
+import io.pravega.service.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.service.storage.impl.rocksdb.RocksDBConfig;
-
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;

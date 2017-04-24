@@ -2,13 +2,13 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.shared.MetricsNames;
-import com.emc.pravega.shared.metrics.Counter;
-import com.emc.pravega.shared.metrics.MetricsProvider;
-import com.emc.pravega.shared.metrics.OpStatsLogger;
-import com.emc.pravega.shared.metrics.StatsLogger;
+import io.pravega.shared.MetricsNames;
+import io.pravega.shared.metrics.Counter;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.OpStatsLogger;
+import io.pravega.shared.metrics.StatsLogger;
 
 /**
  * Metrics for BookKeeper.

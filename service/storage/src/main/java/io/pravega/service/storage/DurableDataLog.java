@@ -3,6 +3,7 @@
  */
 package io.pravega.service.storage;
 
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import java.io.InputStream;
 import java.time.Duration;

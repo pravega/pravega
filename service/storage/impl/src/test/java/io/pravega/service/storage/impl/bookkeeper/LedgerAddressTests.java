@@ -2,10 +2,9 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.testcommon.AssertExtensions;
-import io.pravega.service.storage.impl.bookkeeper.LedgerAddress;
+import io.pravega.testcommon.AssertExtensions;
 import java.util.ArrayList;
 import lombok.val;
 import org.junit.Assert;

@@ -2,11 +2,11 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.service.storage.DataLogNotAvailableException;
-import com.emc.pravega.service.storage.DurableDataLogException;
+import io.pravega.common.Exceptions;
+import io.pravega.service.storage.DataLogNotAvailableException;
+import io.pravega.service.storage.DurableDataLogException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;

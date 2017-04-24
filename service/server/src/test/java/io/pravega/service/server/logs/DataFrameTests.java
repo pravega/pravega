@@ -3,11 +3,11 @@
  */
 package io.pravega.service.server.logs;
 
-import java.util.List;
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.service.storage.LogAddress;
 import io.pravega.testcommon.AssertExtensions;
+import java.util.List;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 

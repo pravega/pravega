@@ -2,9 +2,8 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import io.pravega.service.storage.impl.bookkeeper.HierarchyUtils;
 import org.junit.Assert;
 import org.junit.Test;
 

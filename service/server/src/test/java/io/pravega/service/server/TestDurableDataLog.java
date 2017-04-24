@@ -3,14 +3,14 @@
  */
 package io.pravega.service.server;
 
-import com.emc.pravega.common.util.ArrayView;
+import com.google.common.base.Preconditions;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.LogAddress;
 import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.testcommon.ErrorInjector;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

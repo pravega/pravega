@@ -2,9 +2,8 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.common.concurrent;
+package io.pravega.common.concurrent;
 
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.testcommon.AssertExtensions;
 import io.pravega.testcommon.IntentionalException;
 import io.pravega.testcommon.ThreadPooledTestSuite;

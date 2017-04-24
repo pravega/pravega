@@ -2,25 +2,25 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
-import com.emc.pravega.common.util.ArrayView;
-import com.emc.pravega.common.util.CloseableIterator;
-import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.service.storage.DataLogInitializationException;
-import com.emc.pravega.service.storage.DataLogNotAvailableException;
-import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
-import com.emc.pravega.service.storage.DurableDataLog;
-import com.emc.pravega.service.storage.DurableDataLogException;
-import com.emc.pravega.service.storage.LogAddress;
-import com.emc.pravega.service.storage.WriteFailureException;
 import com.google.common.base.Preconditions;
+import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
+import io.pravega.common.ObjectClosedException;
+import io.pravega.common.Timer;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.Retry;
+import io.pravega.service.storage.DataLogInitializationException;
+import io.pravega.service.storage.DataLogNotAvailableException;
+import io.pravega.service.storage.DataLogWriterNotPrimaryException;
+import io.pravega.service.storage.DurableDataLog;
+import io.pravega.service.storage.DurableDataLogException;
+import io.pravega.service.storage.LogAddress;
+import io.pravega.service.storage.WriteFailureException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;

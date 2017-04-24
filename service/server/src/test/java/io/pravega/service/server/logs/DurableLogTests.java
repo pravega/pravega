@@ -3,11 +3,11 @@
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.service.contracts.StreamSegmentException;
 import io.pravega.service.contracts.StreamSegmentInformation;
@@ -35,13 +35,13 @@ import io.pravega.service.server.reading.ReadIndexConfig;
 import io.pravega.service.storage.CacheFactory;
 import io.pravega.service.storage.DataLogNotAvailableException;
 import io.pravega.service.storage.DurableDataLogException;
+import io.pravega.service.storage.LogAddress;
 import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.mocks.InMemoryCacheFactory;
 import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.service.storage.mocks.InMemoryStorage;
 import io.pravega.testcommon.AssertExtensions;
 import io.pravega.testcommon.ErrorInjector;
-import com.google.common.util.concurrent.Service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;

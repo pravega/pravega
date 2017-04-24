@@ -2,16 +2,12 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.storage.impl.bookkeeper;
+package io.pravega.service.storage.impl.bookkeeper;
 
-import com.emc.pravega.service.storage.DurableDataLog;
-import com.emc.pravega.service.storage.DurableDataLogTestBase;
-import com.emc.pravega.service.storage.LogAddress;
-import com.emc.pravega.testcommon.TestUtils;
-import io.pravega.service.storage.impl.bookkeeper.BookKeeperConfig;
-import io.pravega.service.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.service.storage.impl.bookkeeper.BookKeeperServiceRunner;
-import io.pravega.service.storage.impl.bookkeeper.LedgerAddress;
+import io.pravega.service.storage.DurableDataLog;
+import io.pravega.service.storage.DurableDataLogTestBase;
+import io.pravega.service.storage.LogAddress;
+import io.pravega.testcommon.TestUtils;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
