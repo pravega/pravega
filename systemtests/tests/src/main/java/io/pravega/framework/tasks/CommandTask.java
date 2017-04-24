@@ -9,7 +9,6 @@ import io.pravega.framework.metronome.model.v1.Job;
 import io.pravega.framework.metronome.model.v1.Restart;
 import io.pravega.framework.metronome.model.v1.Run;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,7 +54,7 @@ public class CommandTask extends MetronomeBasedTask {
 
     @Override
     public void stop() {
-        throw new NotImplementedException("Stopping a Metronome task is not implemented");
+        deleteTask(getID());
     }
 
     private Job createJob(final String id, final double cpu, final double mem, final int disk) {
