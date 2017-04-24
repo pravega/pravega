@@ -89,7 +89,7 @@ public class ControllerEventProcessorTest {
 
         CommitEventProcessor commitEventProcessor = new CommitEventProcessor(streamStore, hostStore, executor,
                 segmentHelperMock, null);
-        commitEventProcessor.process(new CommitEvent(SCOPE, STREAM, txnData.getId()));
+        commitEventProcessor.process(new CommitEvent(SCOPE, STREAM, txnData.getId()), null);
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
     }
 
@@ -105,7 +105,7 @@ public class ControllerEventProcessorTest {
 
         AbortEventProcessor abortEventProcessor = new AbortEventProcessor(streamStore, hostStore, executor,
                 segmentHelperMock, null);
-        abortEventProcessor.process(new AbortEvent(SCOPE, STREAM, txnData.getId()));
+        abortEventProcessor.process(new AbortEvent(SCOPE, STREAM, txnData.getId()), null);
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }
 
