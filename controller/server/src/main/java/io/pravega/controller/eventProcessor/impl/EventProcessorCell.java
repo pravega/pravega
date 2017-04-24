@@ -20,6 +20,7 @@ import io.pravega.stream.Position;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.Service;
+import io.pravega.stream.ReinitializationRequiredException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -87,8 +88,18 @@ class EventProcessorCell<T extends ControllerEvent> {
             log.debug("Event processor RUN {}, state={}", objectId, state());
 
             while (isRunning()) {
+                // Read the next event.
                 try {
                     event = reader.readNextEvent(defaultTimeout);
+                } catch (ReinitializationRequiredException e) {
+                    log.warn("Received reinitialization required error {} in {}", e.getMessage(), objectId);
+                    continue;
+                } catch (RuntimeException e) {
+                    log.info("Received error in readNextEvent {} in {}", e.getMessage(), objectId);
+                    continue;
+                }
+                // Process received event.
+                try {
                     if (event != null && event.getEvent() != null) {
                         // invoke the user specified event processing method
                         actor.process(event.getEvent());
@@ -149,13 +160,13 @@ class EventProcessorCell<T extends ControllerEvent> {
             ExceptionHandler.Directive directive = eventProcessorConfig.getExceptionHandler().run(e);
             switch (directive) {
                 case Restart:
-                    log.warn("Restarting event processor: {} due to exception: {}", objectId, e.getMessage());
+                    log.warn("Restarting event processor: {} due to exception: {}", objectId, e);
                     this.restart(e, event == null ? null : event.getEvent());
                     break;
 
                 case Resume:
                     // no action
-                    log.debug("Resuming event processor: {} after receiving exception: {}", objectId, e.getMessage());
+                    log.debug("Resuming event processor: {} after receiving exception: {}", objectId, e);
                     break;
 
                 case Stop:

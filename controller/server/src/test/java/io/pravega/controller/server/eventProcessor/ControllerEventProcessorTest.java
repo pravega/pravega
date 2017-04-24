@@ -39,22 +39,24 @@ public class ControllerEventProcessorTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
 
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    private ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
     private HostControllerStore hostStore;
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
-    private CuratorFramework cli;
+    private CuratorFramework zkClient;
 
     @Before
     public void setUp() throws Exception {
+        executor = Executors.newScheduledThreadPool(10);
+
         zkServer = new TestingServerStarter().start();
         zkServer.start();
 
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
-        cli.start();
+        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
+        zkClient.start();
 
-        streamStore = StreamStoreFactory.createZKStore(cli, executor);
+        streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
 
@@ -70,8 +72,7 @@ public class ControllerEventProcessorTest {
 
     @After
     public void tearDown() throws Exception {
-        cli.close();
-        zkServer.stop();
+        zkClient.close();
         zkServer.close();
         executor.shutdown();
     }
