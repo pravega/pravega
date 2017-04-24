@@ -39,7 +39,7 @@ public class BookKeeperConfig {
     //region Members
 
     /**
-     * The address (host and port) where BookKeeper is listening.
+     * The address (host and port) where the ZooKeeper controlling BookKeeper for this cluster can be found at.
      */
     @Getter
     private final String zkAddress;
@@ -63,8 +63,8 @@ public class BookKeeperConfig {
     private final String namespace;
 
     /**
-     * Depth of the node hierarchy in ZooKeeper. 0 means flat, N means N deep, where each level is indexed by its respective
-     * log id digit.
+     * Depth of the node hierarchy in ZooKeeper. 0 means flat, N means N deep, where each level is indexed by its
+     * respective log id digit.
      */
     @Getter
     private final int zkHierarchyDepth;

@@ -40,7 +40,7 @@ public final class ExecutorServiceHelpers {
     }
 
     /**
-     * Executs the given task on the given Executor.
+     * Executes the given task on the given Executor.
      *
      * @param task             The RunnableWithException to execute.
      * @param exceptionHandler A Consumer that will be invoked in case the task threw an Exception. This is not invoked if

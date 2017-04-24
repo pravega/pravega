@@ -65,7 +65,8 @@ import org.apache.zookeeper.data.Stat;
 @Slf4j
 @ThreadSafe
 class BookKeeperLog implements DurableDataLog {
-    //region Private
+    //region Members
+
     /**
      * Maximum append length, as specified by BookKeeper (this is hardcoded inside BookKeeper's code).
      */

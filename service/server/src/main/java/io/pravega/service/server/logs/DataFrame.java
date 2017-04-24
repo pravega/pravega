@@ -130,7 +130,7 @@ public class DataFrame {
     }
 
     /**
-     * Returns a new InputStream representing the serialized form of this frame.
+     * Returns an ArrayView representing the serialized form of this frame.
      */
     ArrayView getData() {
         if (this.data.isReadOnly()) {
