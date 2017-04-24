@@ -7,8 +7,6 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
-import com.emc.pravega.controller.store.stream.StoreConnectionException;
-import com.emc.pravega.controller.store.stream.StoreException;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;

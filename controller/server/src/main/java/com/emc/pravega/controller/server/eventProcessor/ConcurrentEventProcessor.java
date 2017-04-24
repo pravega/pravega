@@ -48,11 +48,16 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
 
     ConcurrentEventProcessor(final H requestHandler,
                              final ExecutorService executor) {
+        this(requestHandler, MAX_CONCURRENT, executor);
+    }
+
+    ConcurrentEventProcessor(final H requestHandler,
+                             final int maxConcurrent,
+                             final ExecutorService executor) {
         Preconditions.checkNotNull(requestHandler);
         Preconditions.checkNotNull(executor);
 
         this.requestHandler = requestHandler;
-
         running = new ConcurrentSkipListSet<>(positionCounterComparator);
         completed = new ConcurrentSkipListSet<>(positionCounterComparator);
 
@@ -60,7 +65,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
 
         this.executor = executor;
 
-        semaphore = new Semaphore(MAX_CONCURRENT);
+        semaphore = new Semaphore(maxConcurrent);
     }
 
     @Override

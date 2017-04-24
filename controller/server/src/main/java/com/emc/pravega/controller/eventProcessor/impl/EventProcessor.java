@@ -9,6 +9,7 @@ import com.emc.pravega.controller.requests.ControllerEvent;
 import com.emc.pravega.controller.store.checkpoint.CheckpointStoreException;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Position;
+import lombok.Setter;
 
 /**
  * Event processor interface.
@@ -20,8 +21,10 @@ public abstract class EventProcessor<T extends ControllerEvent> {
         void store(Position position) throws CheckpointStoreException;
     }
 
+    @Setter
     Checkpointer checkpointer;
 
+    @Setter
     EventStreamWriter<T> selfWriter;
 
     /**
