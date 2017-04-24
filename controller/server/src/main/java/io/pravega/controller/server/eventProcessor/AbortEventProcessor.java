@@ -12,6 +12,7 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.stream.Position;
 import io.pravega.stream.impl.netty.ConnectionFactory;
 
 import java.util.UUID;
@@ -45,7 +46,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     }
 
     @Override
-    protected void process(AbortEvent event) {
+    protected void process(AbortEvent event, Position position) {
         String scope = event.getScope();
         String stream = event.getStream();
         UUID txId = event.getTxid();

@@ -5,6 +5,7 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
+import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.ClientFactory;
 import io.pravega.ReaderGroupManager;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
@@ -19,6 +20,7 @@ import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.stream.EventPointer;
 import io.pravega.stream.EventRead;
 import io.pravega.stream.EventStreamReader;
+import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.Position;
 import io.pravega.stream.ReaderGroup;
 import io.pravega.stream.ReaderGroupConfig;
@@ -30,6 +32,7 @@ import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.ArrayUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -41,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -77,7 +81,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        protected void process(TestEvent event) {
+        protected void process(TestEvent event, Position position) {
             if (event.getNumber() < 0) {
                 throw new RuntimeException();
             } else {
@@ -99,8 +103,23 @@ public class EventProcessorTest {
         }
 
         @Override
-        protected void process(TestEvent event) {
+        protected void process(TestEvent event, Position position) {
             sum += event.getNumber();
+        }
+    }
+
+    public static class StartWritingEventProcessor extends TestEventProcessor {
+        private final int[] testEvents;
+
+        public StartWritingEventProcessor(Boolean throwErrors, int[] testEvents) {
+            super(throwErrors);
+            this.testEvents = testEvents.clone();
+        }
+
+        protected void beforeStart() {
+            for (int i : testEvents) {
+                this.getSelfWriter().write(new TestEvent(i));
+            }
         }
     }
 
@@ -269,11 +288,58 @@ public class EventProcessorTest {
                 .config(config)
                 .build();
         checkpointStore.addReader(PROCESS, READER_GROUP, READER_ID);
-        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(),
-                READER_ID, 0, checkpointStore);
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader,
+                new EventStreamWriterMock<>(), system.getProcess(), READER_ID, 0, checkpointStore);
         cell.startAsync();
         cell.awaitTerminated();
         Assert.assertTrue(true);
+    }
+
+    @Test(timeout = 10000)
+    public void testEventProcessorWriter() throws ReinitializationRequiredException, CheckpointStoreException {
+        int initialCount = 1;
+        String systemName = "testSystem";
+        String readerGroupName = "testReaderGroup";
+        int[] input = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        EventStreamWriterMock<TestEvent> writer = new EventStreamWriterMock<>();
+
+        CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+
+        CheckpointConfig checkpointConfig = CheckpointConfig.builder().type(CheckpointConfig.Type.None).build();
+
+        EventProcessorGroupConfig config = EventProcessorGroupConfigImpl.builder()
+                .eventProcessorCount(1)
+                .readerGroupName(READER_GROUP)
+                .streamName(STREAM_NAME)
+                .checkpointConfig(checkpointConfig)
+                .build();
+
+        createEventProcessorGroupConfig(initialCount);
+
+        EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(1, input),
+                writer, readerGroupName);
+
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new StartWritingEventProcessor(false, input))
+                .serializer(new JavaSerializer<>())
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(config)
+                .build();
+
+        // Create EventProcessorGroup.
+        EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>)
+                system.createEventProcessorGroup(eventProcessorConfig, checkpointStore);
+
+        // Await until it is ready.
+        group.awaitRunning();
+
+        // By now, the events have been written to the Mock EventStreamWriter.
+        Integer[] writerList = writer.getEventList().stream()
+                .map(TestEvent::getNumber)
+                .collect(Collectors.toList()).toArray(new Integer[input.length]);
+
+        // Validate that events are correctly written.
+        Assert.assertArrayEquals(input, ArrayUtils.toPrimitive(writerList));
     }
 
     @Test(timeout = 10000)
@@ -290,7 +356,7 @@ public class EventProcessorTest {
         EventProcessorGroupConfig config = createEventProcessorGroupConfig(initialCount);
 
         EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(count, input),
-                readerGroupName);
+                new EventStreamWriterMock<>(), readerGroupName);
 
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false))
@@ -341,11 +407,14 @@ public class EventProcessorTest {
 
     @SuppressWarnings("unchecked")
     private EventProcessorSystemImpl createMockSystem(final String name, final String processId, final String scope,
-                                                  final SequenceAnswer<EventStreamReader<TestEvent>> readers,
+                                                      final SequenceAnswer<EventStreamReader<TestEvent>> readers,
+                                                      final EventStreamWriter<TestEvent> writer,
                                                   String readerGroupName) {
         ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
         Mockito.when(clientFactory.createReader(anyString(), anyString(), any(), any()))
                 .thenAnswer(readers);
+
+        Mockito.when(clientFactory.<TestEvent>createEventWriter(anyString(), any(), any())).thenReturn(writer);
 
         ReaderGroup readerGroup = Mockito.mock(ReaderGroup.class);
         Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
@@ -385,8 +454,8 @@ public class EventProcessorTest {
                                     final CheckpointStore checkpointStore,
                                     final int expectedSum) throws CheckpointStoreException {
         checkpointStore.addReader(PROCESS, READER_GROUP, readerId);
-        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(),
-                readerId, 0, checkpointStore);
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader,
+                new EventStreamWriterMock<>(), system.getProcess(), readerId, 0, checkpointStore);
 
         cell.startAsync();
 

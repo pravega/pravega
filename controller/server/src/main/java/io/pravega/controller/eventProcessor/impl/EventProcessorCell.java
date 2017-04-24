@@ -16,6 +16,7 @@ import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.ControllerEvent;
 import io.pravega.stream.EventRead;
 import io.pravega.stream.EventStreamReader;
+import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.Position;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -43,6 +44,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 class EventProcessorCell<T extends ControllerEvent> {
 
     private final EventStreamReader<T> reader;
+    private final EventStreamWriter<T> selfWriter;
+    private final CheckpointStore checkpointStore;
+    private final String process;
+    private final String readerGroupName;
+    private final String readerId;
     private final String objectId;
 
     @VisibleForTesting
@@ -63,12 +69,9 @@ class EventProcessorCell<T extends ControllerEvent> {
         private EventRead<T> event;
         private final CheckpointState state;
 
-        Delegate(final String process, final String readerId, final EventProcessorConfig<T> eventProcessorConfig,
-                 final CheckpointStore checkpointStore) {
+        Delegate(final EventProcessorConfig<T> eventProcessorConfig) {
             this.eventProcessorConfig = eventProcessorConfig;
-            this.state = new CheckpointState(checkpointStore, process,
-                    eventProcessorConfig.getConfig().getReaderGroupName(), readerId,
-                    eventProcessorConfig.getConfig().getCheckpointConfig().getCheckpointPeriod());
+            this.state = new CheckpointState(eventProcessorConfig.getConfig().getCheckpointConfig());
         }
 
         @Override
@@ -91,7 +94,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                     event = reader.readNextEvent(defaultTimeout);
                     if (event != null && event.getEvent() != null) {
                         // invoke the user specified event processing method
-                        actor.process(event.getEvent());
+                        actor.process(event.getEvent(), event.getPosition());
 
                         // possibly persist event position
                         state.store(event.getPosition());
@@ -124,7 +127,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
                 // Next, clean up the reader and its position from checkpoint store
                 log.info("Cleaning up checkpoint store for {}", objectId);
-                state.stop();
+                checkpointStore.removeReader(process, readerGroupName, readerId);
             }
         }
 
@@ -169,36 +172,31 @@ class EventProcessorCell<T extends ControllerEvent> {
     @NotThreadSafe
     private class CheckpointState {
 
-        private final CheckpointStore checkpointStore;
-        private final String process;
-        private final String readerGroupName;
-        private final String readerId;
+        private final boolean enableCheckpoint;
         private final CheckpointConfig.CheckpointPeriod checkpointPeriod;
-
         private int count;
         private int previousCheckpointIndex;
         private long previousCheckpointTimestamp;
 
-        CheckpointState(final CheckpointStore checkpointStore,
-                        final String process,
-                        final String readerGroupName,
-                        final String readerId,
-                        final CheckpointConfig.CheckpointPeriod checkpointPeriod) {
-            this.checkpointStore = checkpointStore;
-            this.process = process;
-            this.readerGroupName = readerGroupName;
-            this.readerId = readerId;
-            this.checkpointPeriod = checkpointPeriod;
-
+        CheckpointState(final CheckpointConfig checkpointConfig) {
+            if (checkpointConfig.getType() == CheckpointConfig.Type.Periodic) {
+                this.enableCheckpoint = true;
+                this.checkpointPeriod = checkpointConfig.getCheckpointPeriod();
+            } else {
+                this.enableCheckpoint = false;
+                this.checkpointPeriod = null;
+            }
             count = 0;
             previousCheckpointIndex = 0;
             previousCheckpointTimestamp = System.currentTimeMillis();
         }
 
         void store(Position position) {
+            if (!enableCheckpoint) {
+                return;
+            }
             count++;
             final long timestamp = System.currentTimeMillis();
-
             final int countInterval = count - previousCheckpointIndex;
             final long timeInterval = timestamp - previousCheckpointTimestamp;
 
@@ -206,13 +204,11 @@ class EventProcessorCell<T extends ControllerEvent> {
                     timeInterval >= 1000 * checkpointPeriod.getNumSeconds()) {
 
                 try {
-
-                    checkpointStore.setPosition(process, readerGroupName, readerId, position);
+                    actor.getCheckpointer().store(position);
                     // update the previous checkpoint stats if successful,
                     // otherwise, we again attempt checkpointing after processing next event
                     previousCheckpointIndex = count;
                     previousCheckpointTimestamp = timestamp;
-
                 } catch (CheckpointStoreException cse) {
                     // Log the exception, without updating previous checkpoint index or timestamp.
                     // So that persisting checkpoint shall be attempted again after processing next message.
@@ -221,23 +217,24 @@ class EventProcessorCell<T extends ControllerEvent> {
                 }
             }
         }
-
-        void stop() throws CheckpointStoreException {
-            checkpointStore.removeReader(process, readerGroupName, readerId);
-        }
     }
 
     EventProcessorCell(final EventProcessorConfig<T> eventProcessorConfig,
                        final EventStreamReader<T> reader,
+                       final EventStreamWriter<T> selfWriter,
                        final String process,
                        final String readerId,
                        final int index,
                        final CheckpointStore checkpointStore) {
-        this.objectId = String.format("EventProcessor[%s:%s]", eventProcessorConfig.getConfig().getReaderGroupName(),
-                index);
         this.reader = reader;
+        this.selfWriter = selfWriter;
+        this.checkpointStore = checkpointStore;
+        this.process = process;
+        this.readerGroupName = eventProcessorConfig.getConfig().getReaderGroupName();
+        this.readerId = readerId;
+        this.objectId = String.format("EventProcessor[%s:%s]", this.readerGroupName, index);
         this.actor = createEventProcessor(eventProcessorConfig);
-        this.delegate = new Delegate(process, readerId, eventProcessorConfig, checkpointStore);
+        this.delegate = new Delegate(eventProcessorConfig);
     }
 
     final void startAsync() {
@@ -267,7 +264,11 @@ class EventProcessorCell<T extends ControllerEvent> {
     }
 
     private EventProcessor<T> createEventProcessor(final EventProcessorConfig<T> eventProcessorConfig) {
-        return eventProcessorConfig.getSupplier().get();
+        EventProcessor<T> eventProcessor = eventProcessorConfig.getSupplier().get();
+        eventProcessor.checkpointer = (Position position) ->
+                checkpointStore.setPosition(process, readerGroupName, readerId, position);
+        eventProcessor.selfWriter = selfWriter::writeEvent;
+        return eventProcessor;
     }
 
     @Override
