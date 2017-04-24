@@ -1,7 +1,19 @@
-ignore:
-  - "benchmark"
-  - "controller/contract/src/generated"
-  - "integrationtests"
-  - "singlenode"
-  - "testcommon"
-  - "systemtests"
+#
+#  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+#
+coverage:
+  status:
+    project:
+      default:
+        against: parent
+        target: auto
+        threshold: 0.5%
+        branches:
+          - master
+  ignore:
+    - "benchmark"
+    - "generated"
+    - "integrationtests"
+    - "singlenode"
+    - "testcommon"
+    - "systemtests"

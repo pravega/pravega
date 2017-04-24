@@ -110,6 +110,16 @@
               "docker": {
                   "image": "arvindkandhare/pravega_host",
                   "network": "HOST",
+                  "parameters": [
+                  {
+                    "key": "env",
+                    "value": "JAVA_OPTS=-Xmx900m"
+                  },
+                  {
+                    "key": "env",
+                    "value": "HOST_OPTS=\"-Dpravegaservice.zkURL=master.mesos:2181\" \"-Ddlog.hostname=master.mesos\" \"-Ddlog.port=2181\" \"-Dhdfs.hdfsUrl=namenode-0.hdfs.mesos:9001\" \"-DautoScale.muteInSeconds=120\" \"-DautoScale.cooldownInSeconds=120\"  \"-DautoScale.cacheExpiryInSeconds=120\" \"-DautoScale.cacheCleanUpInSeconds=120\" \"-DautoScale.controllerUri=tcp://controller.pravega.marathon.mesos:9090\" \"-Dlog.level=INFO\""
+                  }
+                  ],
 		  "forcePullImage": true
               }
           },
@@ -158,7 +168,11 @@
                   "network": "HOST",
 		   "parameters": [
         				{ "key": "env",
-        				  "value": "SERVER_OPTS=\"-DZK_URL=master.mesos:2181\"" }
+        				  "value": "SERVER_OPTS=\"-DZK_URL=master.mesos:2181\" \"-DCONTROLLER_SERVER_PORT=9090\" \"-DREST_SERVER_PORT=9091\" \"-Dlog.level=INFO\""
+                        },
+                        { "key": "env",
+                          "value": "JAVA_OPTS=-Xmx512m"
+                        }
 		    ],
 		  "forcePullImage": true
               }

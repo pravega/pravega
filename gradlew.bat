@@ -1,4 +1,7 @@
 @if "%DEBUG%" == "" @echo off
+@rem
+@rem  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+@rem
 @rem ##########################################################################
 @rem
 @rem  Gradle startup script for Windows
