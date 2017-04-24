@@ -8,6 +8,7 @@ package io.pravega.stream.impl;
 import io.pravega.common.netty.PravegaNodeUri;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.Segment;
+import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.Stream;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.Transaction;
@@ -192,7 +193,7 @@ public interface Controller {
      * @param segment The segment whose successors should be looked up.
      * @return A mapping from Successor to the list of all of the Successor's predecessors
      */
-    CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(final Segment segment);
+    CompletableFuture<Map<SegmentWithRange, List<Integer>>> getSuccessors(final Segment segment);
 
     // Controller Apis that are called by writers and readers
 

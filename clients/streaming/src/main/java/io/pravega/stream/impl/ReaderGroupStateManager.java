@@ -5,6 +5,7 @@
  */
 package io.pravega.stream.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.state.StateSynchronizer;
@@ -20,7 +21,9 @@ import io.pravega.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.stream.impl.ReaderGroupState.RemoveReader;
 import io.pravega.stream.impl.ReaderGroupState.SegmentCompleted;
 import io.pravega.stream.impl.ReaderGroupState.UpdateDistanceToTail;
-import com.google.common.base.Preconditions;
+import lombok.Getter;
+import lombok.val;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,8 +36,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import lombok.Getter;
-import lombok.val;
+import java.util.stream.Collectors;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -141,7 +143,9 @@ public class ReaderGroupStateManager {
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
     void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
-        val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted),
+        val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted)
+                        .thenApply(entry -> entry.entrySet().stream()
+                                .collect(Collectors.toMap(e -> e.getKey().getSegment(), Entry::getValue))),
                 RuntimeException::new);
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
