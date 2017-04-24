@@ -1,13 +1,14 @@
-/**
+/*
+ *
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.framework.tasks;
+package io.pravega.framework.tasks;
 
-import com.emc.pravega.framework.TestFrameworkException;
-import com.emc.pravega.framework.metronome.model.v1.Job;
-import com.emc.pravega.framework.metronome.model.v1.Restart;
-import com.emc.pravega.framework.metronome.model.v1.Run;
+import io.pravega.framework.TestFrameworkException;
+import io.pravega.framework.metronome.model.v1.Job;
+import io.pravega.framework.metronome.model.v1.Restart;
+import io.pravega.framework.metronome.model.v1.Run;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -18,7 +19,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
+import static io.pravega.framework.TestFrameworkException.Type.InternalError;
+
 
 @Slf4j
 public class CommandTask extends MetronomeBasedTask {

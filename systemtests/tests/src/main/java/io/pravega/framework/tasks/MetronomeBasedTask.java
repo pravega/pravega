@@ -2,15 +2,16 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.framework.tasks;
+package io.pravega.framework.tasks;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.framework.TestFrameworkException;
-import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
-import com.emc.pravega.framework.metronome.Metronome;
-import com.emc.pravega.framework.metronome.MetronomeException;
-import com.emc.pravega.framework.metronome.model.v1.Job;
+import com.emc.pravega.framework.tasks.Task;
+import io.pravega.common.concurrent.FutureHelpers;
 import feign.Response;
+import io.pravega.framework.TestFrameworkException;
+import io.pravega.framework.metronome.AuthEnabledMetronomeClient;
+import io.pravega.framework.metronome.Metronome;
+import io.pravega.framework.metronome.MetronomeException;
+import io.pravega.framework.metronome.model.v1.Job;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -19,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.pravega.framework.TestFrameworkException.*;
 
 /**
  * Metronome based task implementation.
@@ -62,7 +64,7 @@ public abstract class MetronomeBasedTask implements Task {
         try {
             metronomeClient.deleteJob(jobId);
         } catch (MetronomeException e) {
-            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while deleting the " +
+            throw new TestFrameworkException(Type.RequestFailed, "Error while deleting the " +
                     "test run job", e);
         }
     }
@@ -72,13 +74,13 @@ public abstract class MetronomeBasedTask implements Task {
             metronomeClient.createJob(job);
             Response response = metronomeClient.triggerJobRun(job.getId());
             if (response.status() != CREATED.code()) {
-                throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
+                throw new TestFrameworkException(Type.ConnectionFailed, "Error while starting " +
                         "Task : " + job.getId());
             }
         }).thenCompose(v2 -> waitForTaskCompletion(job.getId()))
                 .<Void>thenApply(v1 -> {
                     if (metronomeClient.getJob(job.getId()).getHistory().getFailureCount() != 0) {
-                        throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Error while " +
+                        throw new TestFrameworkException(Type.InternalError, "Error while " +
                                 "executing task" + job.getId());
                     }
                     return null;
