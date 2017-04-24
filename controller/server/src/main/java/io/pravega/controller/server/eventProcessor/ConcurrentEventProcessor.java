@@ -90,7 +90,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
 
                             if (RetryableException.isRetryable(e)) {
                                 FutureHelpers.getAndHandleExceptions(
-                                        getSelfWriter().writeEvent(request.getKey(), request), RuntimeException::new);
+                                        getSelfWriter().write(request), RuntimeException::new);
                             }
                         }
                     }, executor);
