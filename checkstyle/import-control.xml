@@ -5,7 +5,7 @@
   Copyright (c) 2017 Dell Inc., or its subsidiaries.
 -->
 
-<import-control pkg="com.emc">
+<import-control pkg="io.pravega">
 
     <!-- THINK HARD ABOUT THE LAYERING OF THE PROJECT BEFORE CHANGING THIS FILE -->
 
@@ -22,7 +22,7 @@
     <allow pkg="javax.security"/>
     <allow pkg="org.ietf.jgss"/>
     <allow pkg="com.google"/>
-    <allow pkg="com.emc"/>
+    <allow pkg="io.pravega"/>
     <allow pkg="com.twitter"/>
     <allow pkg="lombok"/>
     <allow pkg="ch.qos.logback"/>
