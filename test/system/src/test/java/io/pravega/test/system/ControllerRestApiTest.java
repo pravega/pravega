@@ -50,6 +50,7 @@ import javax.ws.rs.core.Response;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.List;
 
 import static javax.ws.rs.core.Response.Status.CREATED;
@@ -168,8 +169,8 @@ public class ControllerRestApiTest {
         scalingConfig.minSegments(2);
 
         RetentionConfig retentionConfig = new RetentionConfig();
-        retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
-        retentionConfig.setValue(123L);
+        retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_TIME_MILLIS);
+        retentionConfig.setValue(Duration.ofDays(123L).toMillis());
 
         createStreamRequest.setStreamName(stream1);
         createStreamRequest.setScalingPolicy(scalingConfig);

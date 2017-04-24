@@ -47,7 +47,7 @@ public class RetentionPolicy implements Serializable {
     }
 
     private final Type type;
-    private final Long value;
+    private final long value;
 
     public static RetentionPolicy byTime(Duration duration) {
         return new RetentionPolicy(Type.TIME, duration.toMillis());
