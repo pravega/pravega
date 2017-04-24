@@ -7,8 +7,9 @@ package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.controller.eventProcessor.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
-import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.Position;
+
+import java.util.concurrent.Future;
 
 /**
  * Event processor interface.
@@ -20,9 +21,14 @@ public abstract class EventProcessor<T extends ControllerEvent> {
         void store(Position position) throws CheckpointStoreException;
     }
 
+    @FunctionalInterface
+    public interface Writer<T> {
+        Future<Void> write(T event);
+    }
+
     Checkpointer checkpointer;
 
-    EventStreamWriter<T> selfWriter;
+    Writer<T> selfWriter;
 
     /**
      * AbstractActor initialization hook that is called before actor starts receiving events.
@@ -62,7 +68,7 @@ public abstract class EventProcessor<T extends ControllerEvent> {
      * Returns a stream writer that can be used to write events to the underlying event stream.
      * @return a stream writer that can be used to write events to the underlying event stream.
      */
-    protected EventStreamWriter<T> getSelfWriter() {
+    protected Writer<T> getSelfWriter() {
         return selfWriter;
     }
 }
