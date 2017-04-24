@@ -12,7 +12,7 @@ import io.pravega.stream.Segment;
 import io.pravega.stream.impl.netty.ClientConnection;
 import io.pravega.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.stream.mock.MockController;
-import io.pravega.testcommon.Async;
+import io.pravega.test.common.Async;
 
 import java.nio.ByteBuffer;
 

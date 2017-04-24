@@ -8,7 +8,7 @@ import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.StorageNotPrimaryException;
 import io.pravega.service.storage.TruncateableStorage;
 import io.pravega.service.storage.TruncateableStorageTestBase;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.TimeUnit;
 

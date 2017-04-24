@@ -4,7 +4,7 @@
 
 package io.pravega.common.concurrent;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;

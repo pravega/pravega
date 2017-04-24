@@ -11,7 +11,7 @@ import io.pravega.common.netty.WireCommandType;
 import io.pravega.common.netty.WireCommands;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.stream.Segment;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
 import java.util.Vector;
 import java.util.concurrent.CompletableFuture;
@@ -23,7 +23,7 @@ import lombok.Data;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import static io.pravega.testcommon.Async.testBlocking;
+import static io.pravega.test.common.Async.testBlocking;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

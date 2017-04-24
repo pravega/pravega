@@ -37,7 +37,7 @@ import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.Segment;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.Transaction;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import io.grpc.Status;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;

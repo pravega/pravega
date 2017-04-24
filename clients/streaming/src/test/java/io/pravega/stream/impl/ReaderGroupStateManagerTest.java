@@ -16,7 +16,7 @@ import io.pravega.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.stream.mock.MockController;
 import io.pravega.stream.mock.MockSegmentStreamFactory;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
