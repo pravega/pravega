@@ -3,16 +3,13 @@
  */
 package io.pravega.service.storage.mocks;
 
-import io.pravega.service.storage.DataLogWriterNotPrimaryException;
+import com.google.common.base.Preconditions;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogTestBase;
 import io.pravega.service.storage.LogAddress;
-import io.pravega.testcommon.AssertExtensions;
-import com.google.common.base.Preconditions;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
