@@ -206,11 +206,10 @@ public class InProcPravegaCluster implements AutoCloseable {
         localHdfs.start();
     }
 
-    private void startLocalSegmentStores() throws IOException {
+    private void startLocalSegmentStores() throws Exception {
         for (int i = 0; i < this.segmentStoreCount; i++) {
             startLocalSegmentStore(i);
         }
-
     }
 
     /**
@@ -219,7 +218,7 @@ public class InProcPravegaCluster implements AutoCloseable {
      *
      * @param segmentStoreId id of the SegmentStore.
      */
-    private void startLocalSegmentStore(int segmentStoreId) throws IOException {
+    private void startLocalSegmentStore(int segmentStoreId) throws Exception {
 
         try {
                 ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig

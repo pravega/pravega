@@ -5,6 +5,10 @@
  */
 package io.pravega.integrationtests;
 
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.service.contracts.StreamSegmentStore;
 import io.pravega.service.server.host.handler.PravegaConnectionListener;
 import io.pravega.service.server.store.ServiceBuilder;
@@ -20,25 +24,18 @@ import io.pravega.stream.TxnFailedException;
 import io.pravega.stream.impl.JavaSerializer;
 import io.pravega.stream.mock.MockStreamManager;
 import io.pravega.testcommon.TestUtils;
-
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
-
+import lombok.Cleanup;
+import lombok.Data;
+import lombok.val;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
-import lombok.Cleanup;
-import lombok.Data;
-import lombok.val;
 
 public class StateSynchronizerTest {
 
@@ -51,7 +48,7 @@ public class StateSynchronizerTest {
         ResourceLeakDetector.setLevel(Level.PARANOID);
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize().get();
+        this.serviceBuilder.initialize();
     }
 
     @After

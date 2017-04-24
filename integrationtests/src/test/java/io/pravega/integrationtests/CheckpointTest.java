@@ -51,7 +51,7 @@ public class CheckpointTest {
     public void setup() throws Exception {
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize().get();
+        this.serviceBuilder.initialize();
     }
 
     @After

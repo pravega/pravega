@@ -4,7 +4,6 @@
 package io.pravega.service.server.host;
 
 import io.pravega.common.cluster.Host;
-import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.service.server.ContainerHandle;
 import io.pravega.service.server.SegmentContainerRegistry;
 import io.pravega.testcommon.AssertExtensions;
@@ -18,7 +17,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -85,7 +83,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
         CuratorFramework zkClient = startClient();
         @Cleanup
         ZKSegmentContainerManager segManager = createContainerManager(createMockContainerRegistry(), zkClient);
-        segManager.initialize().get();
+        segManager.initialize();
     }
 
     /**
@@ -120,7 +118,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
         ZKSegmentContainerManager segManager = createContainerManager(containerRegistry, zkClient);
-        FutureHelpers.await(segManager.initialize());
+        segManager.initialize();
         segManager.close();
     }
 
@@ -138,7 +136,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
 
         @Cleanup
         ZKSegmentContainerManager segManager = createContainerManager(containerRegistry, zkClient);
-        FutureHelpers.await(segManager.initialize());
+        segManager.initialize();
         verify(containerRegistry, timeout(30000).atLeastOnce()).startContainer(eq(1), any());
     }
 

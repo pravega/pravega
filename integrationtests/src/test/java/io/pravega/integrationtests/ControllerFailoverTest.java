@@ -48,7 +48,7 @@ public class ControllerFailoverTest {
         // 2. Start Pravega SSS
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         try {
-            serviceBuilder.initialize().get();
+            serviceBuilder.initialize();
         } catch (Exception e) {
             Assert.fail("Failed starting Pravega host");
         }

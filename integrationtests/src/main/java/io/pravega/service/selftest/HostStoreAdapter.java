@@ -26,7 +26,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import lombok.val;
 
 /**
@@ -90,16 +89,13 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
-        return super.initialize(timeout)
-                    .thenAccept(v -> {
-                        this.listener = new PravegaConnectionListener(false, this.listeningPort,
-                                getStreamSegmentStore());
-                        this.listener.startListening();
-                        this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, this.listeningPort);
-                        this.streamManager.createScope(SCOPE);
-                        TestLogger.log(LOG_ID, "Initialized.");
-                    });
+    public void initialize() throws Exception {
+        super.initialize();
+        this.listener = new PravegaConnectionListener(false, this.listeningPort, getStreamSegmentStore());
+        this.listener.startListening();
+        this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, this.listeningPort);
+        this.streamManager.createScope(SCOPE);
+        TestLogger.log(LOG_ID, "Initialized.");
     }
 
     @Override

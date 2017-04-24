@@ -1,27 +1,25 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.service.selftest;
 
-import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
-import io.pravega.service.server.store.ServiceBuilderConfig;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.ServiceManager;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.val;
-
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.service.server.store.ServiceBuilderConfig;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.SneakyThrows;
+import lombok.val;
 
 /**
  * Main Entry Point for Pravega Segment Store Self Tester.
@@ -115,8 +113,8 @@ class SelfTest extends AbstractService implements AutoCloseable {
         TestLogger.log(LOG_ID, "Starting.");
 
         // Create all segments, then start the Actor Manager.
-        CompletableFuture<Void> startFuture = this.store
-                .initialize(this.testConfig.getTimeout())
+        CompletableFuture<Void> startFuture = CompletableFuture
+                .runAsync(this::initializeStore)
                 .thenCompose(v -> this.dataSource.createSegments())
                 .thenRunAsync(() -> {
                             // Create and initialize the Test Actors (Producers & Consumers).
@@ -157,6 +155,11 @@ class SelfTest extends AbstractService implements AutoCloseable {
     protected void doStop() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         this.actorManager.stopAsync();
+    }
+
+    @SneakyThrows(Exception.class)
+    private void initializeStore() {
+        this.store.initialize();
     }
 
     //endregion

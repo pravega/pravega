@@ -54,7 +54,7 @@ public class ControllerStreamMetadataTest {
 
             // 2. Start Pravega service.
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-            serviceBuilder.initialize().get();
+            serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
             this.server = new PravegaConnectionListener(false, servicePort, store);

@@ -54,7 +54,7 @@ public class EndToEndAutoScaleUpTest {
             ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(false));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-            serviceBuilder.initialize().get();
+            serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
             @Cleanup
             SegmentStatsFactory segmentStatsFactory = new SegmentStatsFactory();

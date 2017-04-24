@@ -7,8 +7,6 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.service.server.store.ServiceBuilder;
 import io.pravega.service.server.store.ServiceBuilderConfig;
 import io.pravega.service.server.store.StreamSegmentStoreTestBase;
-import io.pravega.service.storage.DurableDataLogException;
-import io.pravega.service.storage.DurableDataLogFactory;
 import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.StorageFactory;
 import io.pravega.service.storage.impl.bookkeeper.BookKeeperConfig;
@@ -24,8 +22,6 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-
-import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
@@ -114,14 +110,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
                     StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
                     return new ListenableStorageFactory(f, storage::set);
                 })
-                .withDataLogFactory(this::createBookKeeperLogFactory);
-    }
-
-    @SneakyThrows(DurableDataLogException.class)
-    private DurableDataLogFactory createBookKeeperLogFactory(ServiceBuilder.ComponentSetup setup) {
-        BookKeeperLogFactory f = new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), setup.getExecutor());
-        f.initialize();
-        return f;
+                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), setup.getExecutor()));
     }
 
     //endregion

@@ -6,6 +6,7 @@
 package io.pravega.service.server;
 
 import io.pravega.service.storage.DurableDataLog;
+import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.DurableDataLogFactory;
 
 import java.util.function.Consumer;
@@ -35,6 +36,11 @@ public class TestDurableDataLogFactory implements DurableDataLogFactory {
         }
 
         return result;
+    }
+
+    @Override
+    public void initialize() throws DurableDataLogException {
+        this.wrappedFactory.initialize();
     }
 
     @Override

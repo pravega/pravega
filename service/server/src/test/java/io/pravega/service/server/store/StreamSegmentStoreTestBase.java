@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -163,10 +162,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private ServiceBuilder createBuilder(AtomicReference<Storage> storage) {
+    private ServiceBuilder createBuilder(AtomicReference<Storage> storage) throws Exception {
         val builderConfig = this.configBuilder.build();
         val builder = createBuilder(builderConfig, storage);
-        builder.initialize().join();
+        builder.initialize();
         return builder;
     }
 

@@ -30,12 +30,12 @@ import static org.junit.Assert.assertTrue;
 public class StreamMetadataTest {
 
     @Test(timeout = 60000)
-    public void testMedadataOperations() throws Exception {
+    public void testMetadataOperations() throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServerStarter().start();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup

@@ -22,14 +22,10 @@ import io.pravega.stream.impl.JavaSerializer;
 import io.pravega.stream.mock.MockClientFactory;
 import io.pravega.stream.mock.MockStreamManager;
 import io.pravega.testcommon.TestUtils;
-
 import java.util.Collections;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
-
 import lombok.Cleanup;
 import lombok.Data;
-
 import org.junit.Test;
 
 public class ReaderGroupTest {
@@ -73,7 +69,7 @@ public class ReaderGroupTest {
         int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
@@ -111,12 +107,12 @@ public class ReaderGroupTest {
     }
     
     @Test
-    public void testMultiSegmentsPerReader() throws InterruptedException, ExecutionException {
+    public void testMultiSegmentsPerReader() throws Exception {
         String endpoint = "localhost";
         int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);

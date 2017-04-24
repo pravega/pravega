@@ -3,6 +3,7 @@
  */
 package io.pravega.service.server.host;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
@@ -11,12 +12,8 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.service.server.SegmentContainerManager;
 import io.pravega.service.server.SegmentContainerRegistry;
-import com.google.common.base.Preconditions;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -52,26 +49,24 @@ class ZKSegmentContainerManager implements SegmentContainerManager {
     }
 
     @Override
-    public CompletableFuture<Void> initialize() {
+    public void initialize() {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
 
-        return CompletableFuture
-                .runAsync(() -> {
-                    // Initialize the container monitor.
-                    this.containerMonitor.initialize();
+        try {
+            // Initialize the container monitor.
+            this.containerMonitor.initialize();
 
-                    // Advertise this segment store to the cluster.
-                    this.cluster.registerHost(this.host);
-                    log.info("Initialized.");
-                    LoggerHelpers.traceLeave(log, "initialize", traceId);
-                }, this.executor)
-                .exceptionally(ex -> {
-                    // Need to make sure we clean up resources if we failed to initialize.
-                    log.error("Initialization error. Cleaning up.", ex);
-                    close();
-                    throw new CompletionException(ex);
-                });
+            // Advertise this segment store to the cluster.
+            this.cluster.registerHost(this.host);
+            log.info("Initialized.");
+            LoggerHelpers.traceLeave(log, "initialize", traceId);
+        } catch (Exception ex) {
+            // Need to make sure we clean up resources if we failed to initialize.
+            log.error("Initialization error. Cleaning up.", ex);
+            close();
+            throw ex;
+        }
     }
 
     @Override

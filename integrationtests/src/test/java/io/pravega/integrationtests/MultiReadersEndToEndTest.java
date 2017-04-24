@@ -5,6 +5,7 @@
  */
 package io.pravega.integrationtests;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.ClientFactory;
 import io.pravega.ReaderGroupManager;
 import io.pravega.StreamManager;
@@ -26,7 +27,6 @@ import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.mock.MockClientFactory;
 import io.pravega.stream.mock.MockStreamManager;
 import io.pravega.testcommon.TestUtils;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,11 +36,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -177,10 +175,10 @@ public class MultiReadersEndToEndTest {
     }
     
     private void runTestUsingMock(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
-            throws ExecutionException, InterruptedException {
+            throws Exception {
         int servicePort = TestUtils.getAvailableListenPort();
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);

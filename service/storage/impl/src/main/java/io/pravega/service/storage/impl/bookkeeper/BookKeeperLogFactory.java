@@ -76,13 +76,9 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
 
     //endregion
 
-    //region Initialization
+    //region DurableDataLogFactory Implementation
 
-    /**
-     * Initializes the BookKeeperLogFactory by attempting to connect to ZooKeeper and BookKeeper.
-     *
-     * @throws DurableDataLogException If an exception occurred. The causing exception is usually wrapped in this one.
-     */
+    @Override
     public void initialize() throws DurableDataLogException {
         Preconditions.checkState(this.curator.get() == null, "BookKeeperLogFactory is already initialized.");
         assert this.bookKeeper.get() == null : "curator == null but bookKeeper != null";
@@ -103,6 +99,17 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
             throw new DataLogNotAvailableException("Unable to establish connection to ZooKeeper or BookKeeper.", ex);
         }
     }
+
+    @Override
+    public DurableDataLog createDurableDataLog(int containerId) {
+        Preconditions.checkState(this.curator.get() != null, "BookKeeperLogFactory is not initialized.");
+        assert this.bookKeeper.get() != null : "curator != null but bookKeeper == null";
+        return new BookKeeperLog(containerId, this.curator.get(), this.bookKeeper.get(), this.config, this.executor);
+    }
+
+    //endregion
+
+    //region Initialization
 
     private CuratorFramework startCuratorClient() {
         val curator = CuratorFrameworkFactory.newClient(
@@ -133,17 +140,6 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
         return new BookKeeper(config);
-    }
-
-    //endregion
-
-    //region DurableDataLogFactory Implementation
-
-    @Override
-    public DurableDataLog createDurableDataLog(int containerId) {
-        Preconditions.checkState(this.curator.get() != null, "BookKeeperLogFactory is not initialized.");
-        assert this.bookKeeper.get() != null : "curator != null but bookKeeper == null";
-        return new BookKeeperLog(containerId, this.curator.get(), this.bookKeeper.get(), this.config, this.executor);
     }
 
     //endregion

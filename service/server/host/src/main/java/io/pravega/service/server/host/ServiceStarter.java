@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.service.server.host;
 
@@ -82,7 +80,7 @@ public final class ServiceStarter {
 
     //region Service Operation
 
-    public void start() {
+    public void start() throws Exception {
         Exceptions.checkNotClosed(this.closed, this);
 
         log.info("Initializing metrics provider ...");
@@ -91,7 +89,7 @@ public final class ServiceStarter {
         statsProvider.start();
 
         log.info("Initializing Service Builder ...");
-        this.serviceBuilder.initialize().join();
+        this.serviceBuilder.initialize();
 
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
@@ -133,16 +131,8 @@ public final class ServiceStarter {
     }
 
     private void attachBookKeeper(ServiceBuilder builder) {
-        builder.withDataLogFactory(setup -> {
-            try {
-                BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);
-                BookKeeperLogFactory factory = new BookKeeperLogFactory(bkConfig, setup.getExecutor());
-                factory.initialize();
-                return factory;
-            } catch (Exception ex) {
-                throw new CompletionException(ex);
-            }
-        });
+        builder.withDataLogFactory(setup ->
+                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), setup.getExecutor()));
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
@@ -184,7 +174,7 @@ public final class ServiceStarter {
 
     //region main()
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         AtomicReference<ServiceStarter> serviceStarter = new AtomicReference<>();
         try {
             // Load up the ServiceBuilderConfig, using this priority order:
@@ -196,7 +186,7 @@ public final class ServiceStarter {
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()
-                    .bookKeeper(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
+                                                                 .bookKeeper(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);

@@ -19,7 +19,7 @@ import java.util.concurrent.CompletableFuture;
  */
 interface StoreAdapter extends AutoCloseable {
 
-    CompletableFuture<Void> initialize(Duration timeout);
+    void initialize() throws Exception;
 
     CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
 

@@ -1,10 +1,9 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.service.selftest;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -19,8 +18,6 @@ import io.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.service.storage.mocks.InMemoryStorageFactory;
-import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.Collection;
 import java.util.UUID;
@@ -107,15 +104,13 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     //region StoreAdapter Implementation
 
     @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
+    public void initialize() throws Exception {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
         TestLogger.log(LOG_ID, "Initializing.");
-        return this.serviceBuilder.initialize()
-                                  .thenRun(() -> {
-                                      this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
-                                      this.initialized.set(true);
-                                      TestLogger.log(LOG_ID, "Up and running.");
-                                  });
+        this.serviceBuilder.initialize();
+        this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
+        this.initialized.set(true);
+        TestLogger.log(LOG_ID, "Up and running.");
     }
 
     @Override
