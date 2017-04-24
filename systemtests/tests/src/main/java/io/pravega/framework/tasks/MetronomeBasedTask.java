@@ -4,7 +4,6 @@
 
 package io.pravega.framework.tasks;
 
-import com.emc.pravega.framework.tasks.Task;
 import io.pravega.common.concurrent.FutureHelpers;
 import feign.Response;
 import io.pravega.framework.TestFrameworkException;
