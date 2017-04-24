@@ -101,7 +101,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 handleLogSealed();
             }
         }
-        return new AckFutureImpl(result);
+        return new AckFutureImpl(result, () -> {
+            if (!closed.get()) {
+                flushInternal();
+            }
+        });
     }
 
     /**
@@ -276,6 +280,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     @Override
     public void flush() {
         Preconditions.checkState(!closed.get());
+        flushInternal();
+    }
+    
+    private void flushInternal() {
         boolean success = false;
         while (!success) {
             success = true;
