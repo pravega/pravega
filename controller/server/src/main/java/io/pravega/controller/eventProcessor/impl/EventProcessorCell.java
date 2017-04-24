@@ -92,6 +92,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                 try {
                     event = reader.readNextEvent(defaultTimeout);
                 } catch (ReinitializationRequiredException e) {
+                    // Todo: handle this error as part of checkpoing changes in event processors issue #1072
                     log.warn("Received reinitialization required error {} in {}", e.getMessage(), objectId);
                     continue;
                 } catch (RuntimeException e) {
