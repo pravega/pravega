@@ -83,10 +83,12 @@ Deployment Options 
 -------------------
 
 1.  Manual Installation
-TBD
+
+To be filled by Chris
 
 2.  Docker Based Installation
-TBD
+
+To be filled by Chris
 
 Support
 -------
