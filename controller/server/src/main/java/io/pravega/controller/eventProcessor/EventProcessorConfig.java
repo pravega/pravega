@@ -5,7 +5,6 @@
  */
 package io.pravega.controller.eventProcessor;
 
-import java.io.Serializable;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.requests.ControllerEvent;
 import io.pravega.stream.Serializer;
