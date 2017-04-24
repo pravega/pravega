@@ -15,6 +15,11 @@ RUN wget http://apache.claz.org/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.
 && mkdir -p /opt/bk_all \
 && mv bookkeeper-server-4.4.0/ /opt/bk_all/
 
+RUN wget http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz \
+&& tar xvzf  zookeeper-3.5.1-alpha.tar.gz \
+&& mkdir -p /opt/zk \
+&& mv zookeeper-3.5.1-alpha/ /opt/zk/
+
 ENV bookiePort 3181
 
 EXPOSE $bookiePort
