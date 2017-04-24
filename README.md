@@ -1,6 +1,6 @@
 # Pravega [![Build Status](https://travis-ci.com/pravega/pravega.svg?token=qhH3WLZqyhzViixpn6ZT&branch=master)](https://travis-ci.com/pravega/pravega) [![codecov](https://codecov.io/gh/pravega/pravega/branch/master/graph/badge.svg?token=6xOvaR0sIa)](https://codecov.io/gh/pravega/pravega)
 
-Pravega is an open source distributed storage service implementing **Streams**. It redesigns **Streams** as the foundation for reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
+Pravega is an open source distributed storage service implementing **Streams**. It reinvents stream as the foundation for reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
 
 To learn more about Pravega, visit http://pravega.io
 
@@ -73,27 +73,19 @@ EventRead<String> event = reader.readNextEvent(READER_TIMEOUT_MS);
 
 ```
 
-Building Pravega from Source
+Quick Start
 ----------------------------
 
-```
-$ git clone https://github.com/pravega/pravega && cd pravega
-$ ./gradlew publishMavenPublicationToMavenLocal
+Read [Getting Started](http://pravega.io/docs/Getting-Started/) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications. 
 
-```
 
 Deployment Options 
 -------------------
 
-1.  Single node
-```
-$ git clone https://github.com/pravega/pravega && cd pravega
-
-$ ./gradlew startSingleNode
-```
-2.  Multi-Node Manual Installation
+1.  Manual Installation
 TBD
-3.  Docker Based Installation
+
+2.  Docker Based Installation
 TBD
 
 Support
