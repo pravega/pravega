@@ -1,3 +1,6 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ */
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.common.concurrent.FutureHelpers;
@@ -33,7 +36,7 @@ public class ConcurrentEventProcessorTest {
                 result.completeExceptionally(new RuntimeException("max concurrent not honoured"));
             }
             return CompletableFuture.runAsync(() -> {
-                switch (testEvent.getNumber()) {
+                        switch (testEvent.getNumber()) {
                             case 0:
                                 // wait on a latch
                                 FutureHelpers.getAndHandleExceptions(latch, RuntimeException::new);
@@ -43,7 +46,7 @@ public class ConcurrentEventProcessorTest {
                                 break;
                             case 80:
                                 // verify the checkpoint
-                                if(checkpoint != -1) {
+                                if (checkpoint != -1) {
                                     result.completeExceptionally(new RuntimeException("0 not complete yet checkpoint moved ahead"));
                                 }
 
@@ -81,7 +84,7 @@ public class ConcurrentEventProcessorTest {
     public void testConcurrentEventProcessor() throws InterruptedException, ExecutionException {
         processor = new ConcurrentEventProcessor<>(new TestRequestHandler(), 2, Executors.newFixedThreadPool(2));
         processor.setCheckpointer(pos -> {
-            checkpoint = ((TestPosition)pos).getNumber();
+            checkpoint = ((TestPosition) pos).getNumber();
 
             if (checkpoint < 80) {
                 result.completeExceptionally(new RuntimeException("0 not complete yet and checkpoint moved ahead"));
@@ -91,10 +94,10 @@ public class ConcurrentEventProcessorTest {
             }
         });
         CompletableFuture.runAsync(() -> {
-                    for (int i = 0; i < 100; i++) {
-                        processor.process(new TestEvent(i), new TestPosition(i));
-                    }
-                });
+            for (int i = 0; i < 100; i++) {
+                processor.process(new TestEvent(i), new TestPosition(i));
+            }
+        });
         result.get();
     }
 }
