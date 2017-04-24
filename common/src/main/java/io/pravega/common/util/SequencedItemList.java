@@ -232,6 +232,8 @@ public class SequencedItemList<T extends SequencedItemList.Element> {
         /**
          * Gets a value indicating the Sequence Number for this item.
          * The Sequence Number is a unique, strictly monotonically increasing number that assigns order to items.
+         *
+         * @return Long indicating the Sequence number for this item.
          */
         long getSequenceNumber();
     }

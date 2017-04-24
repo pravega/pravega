@@ -163,7 +163,12 @@ project('common') {
         }
     }
     javadoc {
-        exclude 'io/pravega/common/*'
+        title = "Pravega Common Libraries"
+        failOnError = false
+        source  =  project(':common').sourceSets.main.java
+        def javadocs = new File(rootDir, "javadocs")
+        javadocs.mkdirs()
+        destinationDir = javadocs
     }
 }
 
@@ -334,7 +339,7 @@ project('service:server:host') {
     docker {
         url = dockerUrl
     }
-    mainClassName = "io.pravega.service.server.host.ServiceStarter"
+    mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlogback.configurationFile=SERVER_APP_HOME/config/logback.xml"]
