@@ -192,6 +192,7 @@ project('clients:streaming') {
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'net.sf.jopt-simple', name: 'jopt-simple', version: '5.0.3'
         compile project(':common')
         compile project(':shared')
         compile project(":controller:contract")
@@ -739,6 +740,20 @@ project('singlenode') {
                 from components.java
             }
         }
+    }
+}
+
+task consoleWriter(type: JavaExec) {
+    dependencies {
+        compile project(':clients:streaming')
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+    }
+
+    main = "com.emc.pravega.console.ConsoleWriter"
+    classpath = sourceSets.main.runtimeClasspath
+    systemProperties 'logback.configurationFile' : new File(path,'config/logback.xml').absolutePath
+    if (project.hasProperty("writerArgs")) {
+        args Eval.me(writerArgs)
     }
 }
 
