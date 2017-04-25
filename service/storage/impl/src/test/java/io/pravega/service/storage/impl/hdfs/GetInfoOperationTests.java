@@ -8,11 +8,6 @@ import io.pravega.service.contracts.SegmentProperties;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -91,25 +86,5 @@ public class GetInfoOperationTests extends FileSystemOperationTestBase {
         Assert.assertEquals("Unexpected name (" + stage + ").", SEGMENT_NAME, sp.getName());
         Assert.assertEquals("Unexpected length (" + stage + ").", expectedLength, sp.getLength());
         Assert.assertEquals("Unexpected sealed status (" + stage + ").", expectedSealed, sp.isSealed());
-    }
-
-    private static class GetInfoOperationWithFakeResult extends GetInfoOperation {
-        private final AtomicInteger findAllFakeCount;
-
-        GetInfoOperationWithFakeResult(String segmentName, OperationContext context, int findAllFakeCount) {
-            super(segmentName, context);
-            this.findAllFakeCount = new AtomicInteger(findAllFakeCount);
-        }
-
-        @Override
-        List<FileDescriptor> findAll(String segmentName, boolean enforceExistence) throws IOException {
-            val result = super.findAll(segmentName, enforceExistence);
-            if (this.findAllFakeCount.getAndDecrement() > 0) {
-                val lastFile = result.get(result.size() - 1);
-                result.add(new FileDescriptor(new Path("foo"), lastFile.getLastOffset(), 0, lastFile.getEpoch(), lastFile.isReadOnly()));
-            }
-
-            return result;
-        }
     }
 }

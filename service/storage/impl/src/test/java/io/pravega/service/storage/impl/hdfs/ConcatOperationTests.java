@@ -3,17 +3,12 @@
  */
 package io.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.service.contracts.BadOffsetException;
-import com.emc.pravega.testcommon.AssertExtensions;
 import io.pravega.service.contracts.BadOffsetException;
-import io.pravega.service.storage.StorageNotPrimaryException;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.hadoop.hdfs.protocol.AclException;
