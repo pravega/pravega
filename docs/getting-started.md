@@ -1,168 +1,116 @@
-##Getting started
+# Getting started
+
 
 The best way to get to know Pravega is to start it up and run a sample Pravega
 application.
 
-Running Pravega is simple
-=========================
+## Running Pravega is simple
 
-1.  Verify the following prerequisite software is installed on your machine:
-```
-JDK version 1.8  
-```      
 
-2.  Download Pravega
-
->   **Download Pravega**
+**Verify the following prerequisite**:
 
 ```
->   \$ mkdir pravega
->   \$ cd pravega
->   \$ git clone https://github.com/pravega/pravega
+JDK version 1.8
 ```
 
->    
+**Download Pravega**
 
-1.  Launch Pravega in a single node
+```
+$ mkdir pravega
+$ cd pravega
+$ git clone https://github.com/pravega/pravega
+```
 
-2.  This launches all the components of Pravega on your local machine
 
-    -   NOTE: this is for testing/demo purposes only, *do not* use this mode of
-        deployment in Production!
+**Launch Pravega in a single node**
 
-        -   We talk about multi-node production quality deployment of Pravega
-            [elsewhere](/display/NAUT/Deploying+and+Managing+Pravega).  
+This launches all the components of Pravega on your local machine.
+NOTE: this is for testing/demo purposes only, *do not* use this mode of
+  deployment in Production! We talk about multi-node production quality deployment of Pravega
+            [elsewhere](http://pravega.io/docs//Deploying-and-Managing-Pravega/index.html).
              
 
->   **Run Single Node**
+```
+$ cd pravega 
+$ ./gradlew startSingleNode
+```
 
->   \$ cd pravega \# cd to the root of Pravega (where Pravega's build.gradle
->   file can be found)
-
->   \$ ./gradlew startSingleNode
-
- 
-
--   Thats it.  Pravega should be up and running very soon.  Look for the
-    "Pravega Sandbox is running locally now." message on the console to be sure
-    Pravega has launched successfully:
-
-**Transcript showing successful Pravega Single Node startup**
-
-...
-
- 
-
+Thats it.  Pravega should be up and running very soon.  Look for the
+  "Pravega Sandbox is running locally now." message on the console to be sure
+  Pravega has launched successfully:
+```
 Pravega Sandbox is running locally now. You could access it at 127.0.0.1:9090
+```
 
-...
+## Running a sample Pravega App is simple too
 
-Running a sample Pravega App is simple too
-==========================================
+Pravega maintains a separate github repository for sample applications.  It is located at:
+[https://github.com/pravega/pravega-samples](https://github.com/pravega/pravega-samples)
 
->   Pravega maintains a separate github repository for sample applications.  It
->   is located at:
+Lets download and run the "Hello World" Pravega sample reader and writer apps.
 
->   <https://github.com/pravega/pravega-samples>
-
->   Lets download and run the "Hello World" Pravega sample reader and writer
->   apps.
-
-1.  Download the Pravega-Samples git repo
-
-    -   **Download Pravega**
-
-        -   \$ mkdir pravega-samples
-
-        -   \$ cd pravega-samples
-
->   \$ git clone https://github.com/pravega/pravega-samples
-
-1.  Generate the client jar files and publish them to the local maven repo 
-
-    -   Note: you need to do this only if you have downloaded and are running a
+**Generate the client jar files and publish them to the local maven repo** 
+-   Note: you need to do this only if you have downloaded and are running a
         nightly build of Pravega.  If you are using a released build, the
         artifacts should already be in Maven Central.
+-   Note: maven 2 needs to be installed and running on your machine
 
-    -   Note: maven 2 needs to be installed and running on your machine
+```
+$ cd pravega 
+$ ./gradlew publishMavenPublicationToMavenLocal
+```
+  -   The above command should generate the required jar files into your local
+      maven repo.
 
->   **Generate Jar files to local Maven**
+**Download the Pravega-Samples git repo**
 
->   \$ cd pravega \# cd to the root of Pravega (where Pravega's build.gradle
->   file can be found)
+```
+$ mkdir pravega-samples
+$ cd pravega-samples
+$ git clone https://github.com/pravega/pravega-samples
+```
 
->   \$ ./gradlew publishMavenPublicationToMavenLocal
+**Generate the scripts to run the apps**
 
--   The above command should generate the required jar files into your local
-    maven repo.
+```
+$ cd pravega-samples/pravega-samples
+$ ./gradlew installDist
+```
 
-1.  Generate the scripts to run the apps
-
-    -   **Generate the scripts**
-
-    -   \$ cd pravega-samples/pravega-samples
-
->   \$ ./gradlew installDist
-
-1.  Run the sample "HelloWorldWriter"
-
-    -   This runs a simple Java application that writes a "hello world" message
+**Run the sample "HelloWorldWriter"**
+This runs a simple Java application that writes a "hello world" message
         as an event into a Pravega stream.
-
->   **Run HelloWorldWriter**
-
->   \$ cd
->   pravega-samples/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
-
->   \$ bin/helloWorldWriter
-
--   You should see output on the console similar to the following:
-
--   **Example HelloWorldWriter output**
-
--   ...
-
->   \*\*\*\*\*\*\*\* Writing message: 'hello world' with routing-key:
->   'hello\_routingKey' to stream 'helloScope / helloStream'
-
--   See the [readme.md](http://readme.md) file in /HelloPravega for more details
+```
+$ cd pravega-samples/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
+$ bin/helloWorldWriter
+```
+**Example HelloWorldWriter output**
+```
+...
+******** Writing message: 'hello world' with routing-key: 'hello\_routingKey' to stream 'helloScope / helloStream'
+...
+```
+See the [readme.md](https://github.com/pravega/pravega-samples/blob/master/standalone-examples/README.md) file in /HelloPravega for more details
     on running the HelloWorldWriter with different parameters
 
-1.  Run the sample "HelloWorldReader"
+**Run the sample "HelloWorldReader"**
 
-2.  This runs a simple Java application that reads from a Pravega stream
+```
+$ cd pravega-samples/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
+$ bin/helloWorldReader
+```
 
->   **Run HelloWorldReader**
+**Example HelloWorldReader output**
+```
+...
+******** Reading all the events from helloScope/helloStream
+******** Read event 'hello world'
+******** Read event 'null'
+******** No more events from helloScope/helloStream
+...
+```
 
->   \$ cd
->   pravega-samples/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
-
->   \$ bin/helloWorldReader
-
--   You should see output on the console similar to the following:
-
->   **Example HelloWorldReader output**
-
->   ...
-
->    
-
->   \*\*\*\*\*\*\*\* Reading all the events from helloScope/helloStream
-
->   \*\*\*\*\*\*\*\* Read event 'hello world'
-
->   \*\*\*\*\*\*\*\* Read event 'null'
-
->   \*\*\*\*\*\*\*\* No more events from helloScope/helloStream
-
->    
-
->   ...
-
--   See the readme.md file in /HelloPravega for more details on running the
+See the readme.md file in /HelloPravega for more details on running the
     HelloWorldReader application
 
- 
-
->   Congratulations!  You have successfully installed Pravega and ran a couple
->   of simple Pravega applications.
+**Congratulations!**  You have successfully installed Pravega and ran a couple of simple Pravega applications.
