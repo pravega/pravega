@@ -288,6 +288,24 @@ public final class FutureHelpers {
     }
 
     /**
+     * Similar to CompletableFuture.allOf(varargs), but that works on a Map and that returns another Map which has the
+     * results of the given CompletableFutures, with the same input keys.
+     *
+     * @param futureMap A Map of Keys to CompletableFutures to wait on.
+     * @param <K>       The type of the Keys.
+     * @param <V>       The Type of the Values.
+     * @return A CompletableFuture that will contain a Map of Keys to Values, where Values are the results of the Futures
+     * in the input map.
+     */
+    public static <K, V> CompletableFuture<Map<K, V>> keysAllOfWithResults(Map<CompletableFuture<K>, V> futureMap) {
+        return FutureHelpers
+                .allOf(futureMap.keySet())
+                .thenApply(ignored ->
+                        futureMap.entrySet().stream()
+                                .collect(Collectors.toMap(future -> future.getKey().join(), Map.Entry::getValue)));
+    }
+
+    /**
      * Similar implementation to CompletableFuture.allOf(vararg) but that works on a Collection.
      *
      * @param futures A Collection of CompletableFutures to wait on.

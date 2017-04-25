@@ -5,6 +5,11 @@
  */
 package io.pravega.stream.impl;
 
+import io.grpc.Status;
+import io.grpc.inprocess.InProcessChannelBuilder;
+import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.internal.ServerImpl;
+import io.grpc.stub.StreamObserver;
 import io.pravega.common.netty.PravegaNodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -36,13 +41,16 @@ import io.pravega.stream.RetentionPolicy;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.Segment;
 import io.pravega.stream.StreamConfiguration;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.Transaction;
 import io.pravega.testcommon.AssertExtensions;
-import io.grpc.Status;
-import io.grpc.inprocess.InProcessChannelBuilder;
-import io.grpc.inprocess.InProcessServerBuilder;
-import io.grpc.internal.ServerImpl;
-import io.grpc.stub.StreamObserver;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
+
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -56,13 +64,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -286,24 +287,30 @@ public class ControllerImplTest {
 
             @Override
             public void getSegmentsImmediatlyFollowing(SegmentId request,
-                    StreamObserver<SuccessorResponse> responseObserver) {
+                                                       StreamObserver<SuccessorResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(SuccessorResponse.newBuilder()
-                                                    .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                                                         .setSegmentId(ModelHelper.createSegmentId(
-                                                                                 "scope1",
-                                                                                 "stream1",
-                                                                                 0))
-                                                                         .addValue(10)
-                                                                         .build())
-                                                    .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                                                         .setSegmentId(ModelHelper.createSegmentId(
-                                                                                 "scope1",
-                                                                                 "stream1",
-                                                                                 1))
-                                                                         .addValue(20)
-                                                                         .build())
-                                                    .build());
+                            .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
+                                    .setSegment(Controller.SegmentRange.newBuilder()
+                                            .setSegmentId(ModelHelper.createSegmentId(
+                                                    "scope1",
+                                                    "stream1",
+                                                    0))
+                                            .setMinKey(0.0)
+                                            .setMaxKey(0.5).build())
+                                    .addValue(10)
+                                    .build())
+                            .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
+                                    .setSegment(Controller.SegmentRange.newBuilder()
+                                            .setSegmentId(ModelHelper.createSegmentId(
+                                                    "scope1",
+                                                    "stream1",
+                                                    1))
+                                            .setMinKey(0.5)
+                                            .setMaxKey(1.0).build())
+                                    .addValue(20)
+                                    .build())
+                            .build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -693,12 +700,16 @@ public class ControllerImplTest {
     @Test
     public void testGetSegmentsImmediatlyFollowing() throws Exception {
         CompletableFuture<Map<Segment, List<Integer>>> successors;
-        successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0));
+        successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0))
+                .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         assertEquals(2, successors.get().size());
-        assertEquals(10, successors.get().get(new Segment("scope1", "stream1", 0)).get(0).longValue());
-        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 1)).get(0).longValue());
+        assertEquals(10, successors.get().get(new Segment("scope1", "stream1", 0))
+                .get(0).longValue());
+        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 1))
+                .get(0).longValue());
 
-        successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0));
+        successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0))
+                .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         AssertExtensions.assertThrows("Should throw Exception", successors, throwable -> true);
     }
 

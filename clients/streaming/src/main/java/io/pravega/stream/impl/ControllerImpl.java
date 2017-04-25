@@ -35,8 +35,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.stream.PingFailedException;
 import io.pravega.stream.Segment;
+import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.Stream;
 import io.pravega.stream.StreamConfiguration;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.Transaction;
 import io.pravega.stream.TxnFailedException;
 import com.google.common.annotations.VisibleForTesting;
@@ -379,18 +381,18 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
+    public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessors", segment);
 
         RPCAsyncCallback<SuccessorResponse> callback = new RPCAsyncCallback<>();
         client.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment), callback);
         return callback.getFuture().thenApply(successors -> {
             log.debug("Received the following data from the controller {}", successors.getSegmentsList());
-            Map<Segment, List<Integer>> result = new HashMap<>();
+            Map<SegmentWithRange, List<Integer>> result = new HashMap<>();
             for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
-                result.put(ModelHelper.encode(entry.getSegmentId()), entry.getValueList());
+                result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList());
             }
-            return result;
+            return new StreamSegmentsWithPredecessors(result);
         }).whenComplete((x, e) -> {
             if (e != null) {
                 log.warn("getSuccessors failed: ", e);
