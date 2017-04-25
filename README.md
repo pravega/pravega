@@ -1,6 +1,6 @@
 # Pravega [![Build Status](https://travis-ci.com/pravega/pravega.svg?token=qhH3WLZqyhzViixpn6ZT&branch=master)](https://travis-ci.com/pravega/pravega) [![codecov](https://codecov.io/gh/pravega/pravega/branch/master/graph/badge.svg?token=6xOvaR0sIa)](https://codecov.io/gh/pravega/pravega)
 
-Pravega is an open source distributed storage service implementing **Streams**. It reinvents stream as the foundation for reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
+Pravega is an open source distributed storage service implementing **Streams**. It offers Stream as the main primitive as the foundation for reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
 
 To learn more about Pravega, visit http://pravega.io
 
@@ -10,15 +10,15 @@ To learn more about Pravega, visit http://pravega.io
     and processing resources to accommodate dynamically changing data ingestion
     rate.
 
--   Infinite Retention - Ingest, process and retain events as stream format.
+-   Infinite Retention - Ingest, process and retain events as streams.
     Use same paradigm to access both real-time and historical events stored as stream.
 
--   Durability - Don't comprise between performance, durability and consistency.
+-   Durability - Don't compromise between performance, durability and consistency.
     Pravega replicates and persists the ingested event before acknowledging while 
     maintaining low latency and strong consistency.
     
 -   Exactly-Once Semantics - Ensure that each message is delivered and processed
-    exactly once, despite failures on both client, server and network ends.
+    exactly once despite failures with retransmissions, idempotence and transactions.
     
 -   Transaction Support - Use transactional data ingestion to guarantee that a set
     of events are added to a stream atomically.
@@ -82,13 +82,8 @@ Read [Getting Started](http://pravega.io/docs/Getting-Started/) page for more in
 Deployment Options 
 -------------------
 
-1.  Manual Installation
+There are multiple ways to deploy your own Pravega Cluster. Currently, These  installation options currently include [manual](http://pravega.io/docs/Manual-Deployment-Pravega-Cluster/) and [docker based](http://pravega.io/docs/Docker-based-Deployment-Pravega-Cluster/). As we are enabling more options with help of the community, check out [Deoplying Pravega Cluster](http://pravega.io/docs/Deploying-Pravega/) page for more. 
 
-To be filled by Chris
-
-2.  Docker Based Installation
-
-To be filled by Chris
 
 Support
 -------
@@ -108,7 +103,7 @@ source code.
 Contribute
 ----------
 
-Become one of early contributors! We thrive to build an welcoming and open
+Become one of the contributors! We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
 [Here](https://github.com/pravega/pravega/wiki/Contributing) we describe how to
 contribute to Pravega!
