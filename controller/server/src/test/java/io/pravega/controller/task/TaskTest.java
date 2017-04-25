@@ -3,16 +3,33 @@
  */
 package io.pravega.controller.task;
 
+import io.pravega.ClientFactory;
+import io.pravega.ReaderGroupManager;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.mocks.AckFutureMock;
+import io.pravega.controller.eventProcessor.CheckpointConfig;
+import io.pravega.controller.eventProcessor.ControllerEvent;
+import io.pravega.controller.eventProcessor.EventProcessorConfig;
+import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
+import io.pravega.controller.eventProcessor.ExceptionHandler;
+import io.pravega.controller.eventProcessor.impl.EventProcessor;
+import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
+import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.server.eventProcessor.AbortEvent;
+import io.pravega.controller.server.eventProcessor.AbortEventProcessor;
 import io.pravega.controller.server.eventProcessor.CommitEvent;
+import io.pravega.controller.server.eventProcessor.CommitEventProcessor;
+import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.stream.AckFuture;
+import io.pravega.stream.EventStreamReader;
 import io.pravega.stream.EventStreamWriter;
+import io.pravega.stream.ReaderGroup;
+import io.pravega.stream.ReaderGroupConfig;
+import io.pravega.stream.impl.JavaSerializer;
 import io.pravega.stream.impl.netty.ConnectionFactory;
 import io.pravega.testcommon.AssertExtensions;
 import io.pravega.testcommon.TestingServerStarter;
@@ -58,16 +75,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 
 /**
  * Task test cases.
@@ -77,7 +99,6 @@ public class TaskTest {
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
-    private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
     private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -111,7 +132,7 @@ public class TaskTest {
 
     @Before
     public void setUp() throws ExecutionException, InterruptedException {
-
+        final String stream2 = "stream2";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
@@ -236,8 +257,8 @@ public class TaskTest {
         }
 
         // Now, set mockTxnTasks to ready.
-        txnTasks.initializeStreamWriters("commitStream", Mockito.mock(EventStreamWriter.class),
-                "abortStream", Mockito.mock(EventStreamWriter.class));
+        txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
+                "abortStream", new EventStreamWriterMock<>());
 
         // Task sweeping should now complete, wait for it.
         future.join();
@@ -264,8 +285,8 @@ public class TaskTest {
         final ArrayList<Integer> sealSegments = new ArrayList<>();
         sealSegments.add(0);
         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
-        newRanges.add(new AbstractMap.SimpleEntry(0.0, 0.25));
-        newRanges.add(new AbstractMap.SimpleEntry(0.25, 0.5));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.25));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.25, 0.5));
         final int newSegments = initialSegments - sealSegments.size() + newRanges.size();
 
         // Create objects.
@@ -299,17 +320,25 @@ public class TaskTest {
 
     @Test(timeout = 10000)
     @SuppressWarnings("unchecked")
-    public void testTransactionTaskSweeping() {
+    public void testTransactionTaskSweeping() throws CheckpointStoreException, InterruptedException {
         final String deadHost = "deadHost";
         final String commitStream = "commitStream";
         final String abortStream = "abortStream";
-        final AckFuture future = new AckFutureMock(CompletableFuture.completedFuture(true));
 
         // Create mock writer objects.
-        EventStreamWriter<CommitEvent> mockCommitWriter = Mockito.mock(EventStreamWriter.class);
-        Mockito.when(mockCommitWriter.writeEvent(Mockito.any())).thenReturn(future);
-        EventStreamWriter<AbortEvent> mockAbortWriter = Mockito.mock(EventStreamWriter.class);
-        Mockito.when(mockAbortWriter.writeEvent(Mockito.any())).thenReturn(future);
+        EventStreamWriterMock<CommitEvent> mockCommitWriter = new EventStreamWriterMock<>();
+        EventStreamWriterMock<AbortEvent> mockAbortWriter = new EventStreamWriterMock<>();
+
+        // Create commit and abort event processors.
+        ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
+        BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
+        BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
+        createEventProcessor("commitRG", "commitStream", mockCommitWriter.getReader(), mockCommitWriter,
+                () -> new CommitEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedCommitEvents));
+        createEventProcessor("abortRG", "abortStream", mockAbortWriter.getReader(), mockAbortWriter,
+                () -> new AbortEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedAbortEvents));
 
         // Create task and sweeper objects
         StreamTransactionMetadataTasks mockTxnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
@@ -335,24 +364,31 @@ public class TaskTest {
         TxnStatus status = streamStore.getTransactionData(SCOPE, stream1, txId, null, executor).join().getStatus();
         assertEquals(TxnStatus.ABORTING, status);
 
+        // Wait until the abort event is processed and ensure that the txn state is ABORTED.
+        AbortEvent abortEvent = processedAbortEvents.take();
+        assertEquals(txId, abortEvent.getTxid());
+        status = streamStore.transactionStatus(SCOPE, stream1, txId, null, executor).join();
+        assertEquals(TxnStatus.ABORTED, status);
+
         // Create another transaction for committing.
         completePartialTask(mockTxnTasks.createTxn(SCOPE, stream1, 10000, 10000, 10000, null), deadHost, sweeper);
 
         // Ensure that a transaction is created.
         map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
-        assertEquals(2, map.size());
-        Optional<UUID> txIdOpt = map.entrySet().stream()
-                .filter(e -> e.getValue().getTxnStatus() == TxnStatus.OPEN)
-                .map(e -> e.getKey())
-                .findAny();
-        Assert.assertTrue(txIdOpt.isPresent());
+        assertEquals(1, map.size());
+        txId = map.keySet().iterator().next();
 
         // Commit the transaction.
-        txId = txIdOpt.get();
         completePartialTask(mockTxnTasks.commitTxn(SCOPE, stream1, txId, null), deadHost, sweeper);
         // Ensure that transaction state is COMMITTING.
         status = streamStore.getTransactionData(SCOPE, stream1, txId, null, executor).join().getStatus();
         assertEquals(TxnStatus.COMMITTING, status);
+
+        // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
+        CommitEvent commitEvent = processedCommitEvents.take();
+        assertEquals(txId, commitEvent.getTxid());
+        status = streamStore.transactionStatus(SCOPE, stream1, txId, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, status);
     }
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
@@ -466,6 +502,42 @@ public class TaskTest {
                         }
                     });
         }
+    }
+
+    private <T extends ControllerEvent>
+    void createEventProcessor(final String readerGroupName,
+                                    final String streamName,
+                                    final EventStreamReader<T> reader,
+                                    final EventStreamWriter<T> writer,
+                                    Supplier<EventProcessor<T>> factory) throws CheckpointStoreException {
+        ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
+        Mockito.when(clientFactory.<T>createReader(anyString(), anyString(), any(), any())).thenReturn(reader);
+        Mockito.when(clientFactory.<T>createEventWriter(anyString(), any(), any())).thenReturn(writer);
+
+        ReaderGroup readerGroup = Mockito.mock(ReaderGroup.class);
+        Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
+
+        ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
+        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class), any()))
+                .then(invocation -> readerGroup);
+
+        EventProcessorSystemImpl system = new EventProcessorSystemImpl("system", HOSTNAME, SCOPE, clientFactory, readerGroupManager);
+
+        EventProcessorGroupConfig eventProcessorConfig = EventProcessorGroupConfigImpl.builder()
+                .eventProcessorCount(1)
+                .readerGroupName(readerGroupName)
+                .streamName(streamName)
+                .checkpointConfig(CheckpointConfig.periodic(1, 1))
+                .build();
+
+        EventProcessorConfig<T> config = EventProcessorConfig.<T>builder()
+                .config(eventProcessorConfig)
+                .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
+                .serializer(new JavaSerializer<>())
+                .supplier(factory)
+                .build();
+
+        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore());
     }
 }
 
