@@ -7,7 +7,7 @@ package io.pravega.service.storage.impl.bookkeeper;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogTestBase;
 import io.pravega.service.storage.LogAddress;
-import io.pravega.testcommon.TestUtils;
+import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;

@@ -3,7 +3,7 @@
  */
 package io.pravega.common.io;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.io.InputStream;
 import org.junit.Assert;

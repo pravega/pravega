@@ -9,6 +9,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -99,9 +100,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             return null;
         }
 
-        val nextEntry = this.currentLedger.reader.nextElement();
-        val address = new LedgerAddress(this.currentLedger.metadata, nextEntry.getEntryId());
-        return new LogReader.ReadItem(nextEntry.getEntryInputStream(), (int) nextEntry.getLength(), address);
+        return new LogReader.ReadItem(this.currentLedger.reader.nextElement(), this.currentLedger.metadata);
     }
 
     @SneakyThrows
@@ -140,7 +139,6 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
 
     //region ReadItem
 
-    @RequiredArgsConstructor
     private static class ReadItem implements DurableDataLog.ReadItem {
         @Getter
         private final InputStream payload;
@@ -148,6 +146,13 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         private final int length;
         @Getter
         private final LedgerAddress address;
+
+        @SneakyThrows(IOException.class)
+        ReadItem(LedgerEntry entry, LedgerMetadata ledgerMetadata) {
+            this.address = new LedgerAddress(ledgerMetadata, entry.getEntryId());
+            this.payload = entry.getEntryInputStream();
+            this.length = this.payload.available();
+        }
 
         @Override
         public String toString() {

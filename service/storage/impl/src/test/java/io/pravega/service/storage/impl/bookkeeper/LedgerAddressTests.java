@@ -4,7 +4,7 @@
 
 package io.pravega.service.storage.impl.bookkeeper;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import lombok.val;
 import org.junit.Assert;

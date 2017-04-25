@@ -4,7 +4,7 @@
 
 package io.pravega.service.storage.impl.bookkeeper;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;

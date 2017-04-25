@@ -4,9 +4,9 @@
 
 package io.pravega.common.concurrent;
 
-import io.pravega.testcommon.AssertExtensions;
-import io.pravega.testcommon.IntentionalException;
-import io.pravega.testcommon.ThreadPooledTestSuite;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
