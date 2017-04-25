@@ -243,6 +243,8 @@ public class ByteArraySegment implements ArrayView {
      * Returns a new ByteArraySegment that wraps the same underlying array that this ByteSegmentDoes, except that the
      * new instance is marked as Read-Only.
      * If this instance is already Read-Only, this instance is returned instead.
+     *
+     * @return  A new read-only ByteArraySegment.
      */
     public ByteArraySegment asReadOnly() {
         if (isReadOnly()) {
