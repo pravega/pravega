@@ -124,4 +124,9 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return Collections.emptyList();
     }
 
+    @Override
+    public String getSegmentName() {
+        return segment.getScopedName();
+    }
+
 }

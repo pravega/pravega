@@ -14,11 +14,10 @@ import io.pravega.stream.impl.segment.SegmentSealedException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Random;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -75,6 +74,11 @@ public class SegmentSelector {
     public void removeWriter(SegmentOutputStream outputStream) {
         writers.values().remove(outputStream);
     }
+    
+    public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment) {
+        //TODO: call controller.getSuccessors(sealedSegment); and modify current segments based on the result.
+        return refreshSegmentEventWriters();
+    }
 
     /**
      * Refresh the latest list of segments in the given stream.
@@ -84,33 +88,42 @@ public class SegmentSelector {
      */
     @Synchronized
     public List<PendingEvent> refreshSegmentEventWriters() {
-        List<PendingEvent> toResend = new ArrayList<>();
-        currentSegments = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
-                                                                                             stream.getStreamName()),
-                                                               RuntimeException::new);
-        for (Segment segment : currentSegments.getSegments()) {
-            if (!writers.containsKey(segment)) {
-                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
-                writers.put(segment, out);
-            }
+        currentSegments = FutureHelpers.getAndHandleExceptions(
+                controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
+        addNewSegments(currentSegments.getSegments()
+                                      .stream()
+                                      .filter(s -> !writers.containsKey(s))
+                                      .collect(Collectors.toList()));
+        return removeOldSegments(
+                writers.keySet()
+                       .stream()
+                       .filter(s -> !currentSegments.getSegments().contains(s))
+                       .collect(Collectors.toList()));
+    }
+
+    private void addNewSegments(List<Segment> newSegments) {
+        for (Segment segment : newSegments) {
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
+            writers.put(segment, out);
         }
-        Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
-        while (iter.hasNext()) {
-            Entry<Segment, SegmentOutputStream> entry = iter.next();
-            if (!currentSegments.getSegments().contains(entry.getKey())) {
-                SegmentOutputStream writer = entry.getValue();
-                iter.remove();
+    }
+    
+    private List<PendingEvent> removeOldSegments(List<Segment> oldSegments) {
+        List<PendingEvent> toResend = new ArrayList<>();
+        for (Segment segment : oldSegments) {
+            SegmentOutputStream writer = writers.remove(segment);
+            if (writer != null) {
                 try {
                     writer.close();
                 } catch (SegmentSealedException e) {
-                    log.info("Caught segment sealed while refreshing on segment {}", entry.getKey());
+                    log.info("Caught segment sealed while refreshing on segment {}", segment);
                 }
                 toResend.addAll(writer.getUnackedEvents());
             }
         }
         return toResend;
     }
-
+    
     @Synchronized
     public List<Segment> getSegments() {
         if (currentSegments == null) {
@@ -123,4 +136,5 @@ public class SegmentSelector {
     public List<SegmentOutputStream> getWriters() {
         return new ArrayList<>(writers.values());
     }
+
 }

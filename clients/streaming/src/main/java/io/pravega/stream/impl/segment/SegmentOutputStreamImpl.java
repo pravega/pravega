@@ -40,6 +40,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.ToString;
@@ -59,6 +60,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
+    @Getter
     private final String segmentName;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;

@@ -91,14 +91,14 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             while (segmentWriter == null) {
                 log.info("Don't have a writer for segment: {}", selector.getSegmentForEvent(routingKey));
-                handleLogSealed();
+                handleMissingLog();
                 segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             }
             try {
                 segmentWriter.write(new PendingEvent(routingKey, data, result));
             } catch (SegmentSealedException e) {
                 log.info("Segment was sealed: {}", segmentWriter);
-                handleLogSealed();
+                handleLogSealed(Segment.fromScopedName(segmentWriter.getSegmentName()));
             }
         }
         return new AckFutureImpl(result, () -> {
@@ -107,6 +107,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             }
         });
     }
+    
+    @GuardedBy("lock")
+    private void handleMissingLog() {
+        List<PendingEvent> toResend = selector.refreshSegmentEventWriters();
+        resend(toResend);
+    }
 
     /**
      * If a log sealed is encountered, we need to 1. Find the new segments to write to. 2. For each outstanding
@@ -114,8 +120,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * over very quickly.
      */
     @GuardedBy("lock")
-    private void handleLogSealed() {
-        List<PendingEvent> toResend = selector.refreshSegmentEventWriters();
+    private void handleLogSealed(Segment segment) {
+        List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment);
+        resend(toResend);
+    }
+
+    @GuardedBy("lock")
+    private void resend(List<PendingEvent> toResend) {
         while (!toResend.isEmpty()) {
             List<PendingEvent> unsent = new ArrayList<>();
             for (PendingEvent event : toResend) {
@@ -285,6 +296,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     
     private void flushInternal() {
         boolean success = false;
+        String sealedSegment = null;
         while (!success) {
             success = true;
             synchronized (lock) {
@@ -294,10 +306,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     } catch (SegmentSealedException e) {
                         log.info("Segment was sealed during flush: {}", writer);
                         success = false;
+                        sealedSegment = writer.getSegmentName();
+                        break;
                     }
                 }
                 if (!success) {
-                    handleLogSealed();
+                    handleLogSealed(Segment.fromScopedName(sealedSegment));
                 }
             }
         }
@@ -310,6 +324,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
         synchronized (lock) {
             boolean success = false;
+            String sealedSegment = null;
             while (!success) {
                 success = true;
                 for (SegmentOutputStream writer : selector.getWriters()) {
@@ -318,10 +333,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     } catch (SegmentSealedException e) {
                         log.info("Segment was sealed during close: {}", writer);
                         success = false;
+                        sealedSegment = writer.getSegmentName();
+                        break;
                     }
                 }
                 if (!success) {
-                    handleLogSealed();
+                    handleLogSealed(Segment.fromScopedName(sealedSegment));
                 }
             }
         }
