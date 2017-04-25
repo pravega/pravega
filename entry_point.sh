@@ -21,6 +21,7 @@ fi
 echo "bookie service port0 is $PORT0 "
 echo "ZK_URL is $ZK_URL"
 echo "BK_DIR is $BK_DIR"
+echo "BK_LEDGERS_PATH is $BK_LEDGERS_PATH"
 
 sed -i 's/3181/'$PORT0'/' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 sed -i "s/localhost:2181/${ZK_URL}/" /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf

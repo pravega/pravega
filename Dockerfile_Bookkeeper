@@ -3,7 +3,7 @@
 #
 
 FROM java:8
-MAINTAINER Jia Zhai <jia.zhai@emc.com>
+MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
 
 RUN apt-get update \
 &&  apt-get install -y wget unzip \
@@ -24,7 +24,7 @@ ENV bookiePort 3181
 
 EXPOSE $bookiePort
 
-# all execute-able bin, download from distributed_log
+# all execute-able bin, download from apache BK and ZK
 WORKDIR /opt/bk_all
 
 # After container up, Following instructions to build bookie cluster
