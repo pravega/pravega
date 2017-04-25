@@ -102,8 +102,6 @@ class ZKCheckpointStore implements CheckpointStore {
         }
     }
 
-
-
     @Override
     public void removeReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         String path = getReaderGroupPath(process, readerGroup);
