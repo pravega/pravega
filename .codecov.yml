@@ -14,5 +14,5 @@ coverage:
     - "benchmark"
     - "generated"
     - "singlenode"
-    - "testcommon"
-    - "systemtests"
+    - "test/common"
+    - "test/system"
