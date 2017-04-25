@@ -1,5 +1,4 @@
-Getting started
-===============
+##Getting started
 
 The best way to get to know Pravega is to start it up and run a sample Pravega
 application.
