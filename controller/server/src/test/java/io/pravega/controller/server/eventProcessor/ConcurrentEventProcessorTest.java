@@ -14,7 +14,10 @@ import org.junit.Test;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.Assert.assertTrue;
 
 public class ConcurrentEventProcessorTest {
 
@@ -83,19 +86,19 @@ public class ConcurrentEventProcessorTest {
 
     @Test(timeout = 10000)
     public void testConcurrentEventProcessor() throws InterruptedException, ExecutionException {
-        processor = new ConcurrentEventProcessor<>(new TestRequestHandler(), 2, Executors.newFixedThreadPool(2));
+        processor = new ConcurrentEventProcessor<>(new TestRequestHandler(), 2, Executors.newScheduledThreadPool(2), 1, TimeUnit.SECONDS);
         processor.setCheckpointer(pos -> {
             checkpoint = ((TestPosition) pos).getNumber();
-
             if (checkpoint == 99) {
                 result.complete(null);
             }
         });
+
         CompletableFuture.runAsync(() -> {
             for (int i = 0; i < 100; i++) {
                 processor.process(new TestEvent(i), new TestPosition(i));
             }
         });
-        result.get();
+        assertTrue(FutureHelpers.await(result));
     }
 }

@@ -3,6 +3,7 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.requests.ControllerEvent;
@@ -18,8 +19,12 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -39,21 +44,25 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final ConcurrentSkipListSet<PositionCounter> running;
     private final ConcurrentSkipListSet<PositionCounter> completed;
     private final AtomicReference<PositionCounter> checkpoint;
-    private final ExecutorService executor;
+    private final ScheduledExecutorService executor;
     private final H requestHandler;
     private final AtomicLong counter = new AtomicLong(0);
     private final AtomicBoolean stop = new AtomicBoolean(false);
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
+    private final ScheduledFuture periodicCheckpoint;
 
-    ConcurrentEventProcessor(final H requestHandler,
-                             final ExecutorService executor) {
-        this(requestHandler, MAX_CONCURRENT, executor);
+    public ConcurrentEventProcessor(final H requestHandler,
+                                    final ScheduledExecutorService executor) {
+        this(requestHandler, MAX_CONCURRENT, executor, 1, TimeUnit.MINUTES);
     }
 
+    @VisibleForTesting
     ConcurrentEventProcessor(final H requestHandler,
                              final int maxConcurrent,
-                             final ExecutorService executor) {
+                             final ScheduledExecutorService executor,
+                             final long checkpointPeriod,
+                             final TimeUnit timeUnit) {
         Preconditions.checkNotNull(requestHandler);
         Preconditions.checkNotNull(executor);
 
@@ -64,7 +73,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         this.checkpoint = new AtomicReference<>();
 
         this.executor = executor;
-
+        periodicCheckpoint = this.executor.schedule(this::periodicCheckpointing, checkpointPeriod, timeUnit);
         semaphore = new Semaphore(maxConcurrent);
     }
 
@@ -72,7 +81,6 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     protected void process(R request, Position position) {
         // Limiting number of concurrent processing using semaphores. Otherwise we will keep picking messages from the stream
         // and it could lead to memory overload.
-
         if (!stop.get()) {
             semaphore.acquireUninterruptibly();
 
@@ -105,6 +113,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     @Override
     protected void afterStop() {
         stop.set(true);
+        periodicCheckpoint.cancel(true);
     }
 
     /**
@@ -131,12 +140,16 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
             final PositionCounter checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
             completed.removeAll(checkpointCandidates);
             checkpoint.set(checkpointPosition);
-            try {
+        }
+    }
+
+    private void periodicCheckpointing() {
+        try {
+            if (checkpoint.get() != null && checkpoint.get().position != null) {
                 getCheckpointer().store(checkpoint.get().position);
-            } catch (CheckpointStoreException e) {
-                // log and ignore
-                log.warn("failed to checkpoint {}", e);
             }
+        } catch (Exception e) {
+            log.warn("error while trying to store checkpoint in the store {}", e);
         }
     }
 
