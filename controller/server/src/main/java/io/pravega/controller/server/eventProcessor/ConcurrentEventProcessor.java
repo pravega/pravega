@@ -48,16 +48,18 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
     private final ScheduledFuture periodicCheckpoint;
+    private final Checkpointer checkpointer;
 
     public ConcurrentEventProcessor(final H requestHandler,
                                     final ScheduledExecutorService executor) {
-        this(requestHandler, MAX_CONCURRENT, executor, 1, TimeUnit.MINUTES);
+        this(requestHandler, MAX_CONCURRENT, executor, null, 1, TimeUnit.MINUTES);
     }
 
     @VisibleForTesting
     ConcurrentEventProcessor(final H requestHandler,
                              final int maxConcurrent,
                              final ScheduledExecutorService executor,
+                             final Checkpointer checkpointer,
                              final long checkpointPeriod,
                              final TimeUnit timeUnit) {
         Preconditions.checkNotNull(requestHandler);
@@ -66,11 +68,11 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         this.requestHandler = requestHandler;
         running = new ConcurrentSkipListSet<>(positionCounterComparator);
         completed = new ConcurrentSkipListSet<>(positionCounterComparator);
-
+        this.checkpointer = checkpointer;
         this.checkpoint = new AtomicReference<>();
 
         this.executor = executor;
-        periodicCheckpoint = this.executor.schedule(this::periodicCheckpointing, checkpointPeriod, timeUnit);
+        periodicCheckpoint = this.executor.scheduleAtFixedRate(this::periodicCheckpointing, 0, checkpointPeriod, timeUnit);
         semaphore = new Semaphore(maxConcurrent);
     }
 
@@ -143,7 +145,11 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private void periodicCheckpointing() {
         try {
             if (checkpoint.get() != null && checkpoint.get().position != null) {
-                getCheckpointer().store(checkpoint.get().position);
+                if (checkpointer != null) {
+                    checkpointer.store(checkpoint.get().position);
+                } else if (getCheckpointer() != null) {
+                    getCheckpointer().store(checkpoint.get().position);
+                }
             }
         } catch (Exception e) {
             log.warn("error while trying to store checkpoint in the store {}", e);

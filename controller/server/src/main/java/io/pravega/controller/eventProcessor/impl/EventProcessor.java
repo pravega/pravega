@@ -8,7 +8,6 @@ package io.pravega.controller.eventProcessor.impl;
 import io.pravega.controller.requests.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.stream.Position;
-import lombok.Setter;
 
 import java.util.concurrent.Future;
 
@@ -27,10 +26,8 @@ public abstract class EventProcessor<T extends ControllerEvent> {
         Future<Void> write(T event);
     }
 
-    @Setter
     Checkpointer checkpointer;
 
-    @Setter
     Writer<T> selfWriter;
 
     /**

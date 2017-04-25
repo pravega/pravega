@@ -11,6 +11,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -32,7 +34,6 @@ public class ConcurrentEventProcessorTest {
         }
     }
 
-
     @Data
     @AllArgsConstructor
     private static class TestPosition implements Position {
@@ -52,25 +53,16 @@ public class ConcurrentEventProcessorTest {
             }
             return CompletableFuture.runAsync(() -> {
                         switch (testEvent.getNumber()) {
-                            case 0:
-                                // wait on a latch
+                            case 3:
                                 FutureHelpers.getAndHandleExceptions(latch, RuntimeException::new);
-                                if (checkpoint != -1) {
-                                    result.completeExceptionally(new RuntimeException("0 still running yet checkpoint moved ahead"));
+                                if (checkpoint > 2) {
+                                    result.completeExceptionally(new RuntimeException("3 still running yet checkpoint moved ahead"));
                                 }
-                                break;
-                            case 80:
-                                // verify the checkpoint
-                                if (checkpoint != -1) {
-                                    result.completeExceptionally(new RuntimeException("0 not complete yet checkpoint moved ahead"));
-                                }
-
-                                // release the latch
-                                latch.complete(null);
                                 break;
                             default:
                                 break;
                         }
+                        map.put(testEvent.getNumber(), true);
                         runningcount.decrementAndGet();
                     }
             );
@@ -79,26 +71,44 @@ public class ConcurrentEventProcessorTest {
 
     ConcurrentEventProcessor<TestEvent, TestRequestHandler> processor;
     int checkpoint = -1;
+    Map<Integer, Boolean> map = new HashMap<>();
     CompletableFuture<Void> latch = new CompletableFuture<>();
     CompletableFuture<Void> result = new CompletableFuture<>();
 
     AtomicInteger runningcount = new AtomicInteger(0);
 
-    @Test(timeout = 10000)
+    @Test(timeout = 100000)
     public void testConcurrentEventProcessor() throws InterruptedException, ExecutionException {
-        processor = new ConcurrentEventProcessor<>(new TestRequestHandler(), 2, Executors.newScheduledThreadPool(2), 1, TimeUnit.SECONDS);
-        processor.setCheckpointer(pos -> {
-            checkpoint = ((TestPosition) pos).getNumber();
-            if (checkpoint == 99) {
-                result.complete(null);
-            }
-        });
+        processor = new ConcurrentEventProcessor<>(new TestRequestHandler(), 2, Executors.newScheduledThreadPool(2),
+                pos -> {
+                    checkpoint = ((TestPosition) pos).getNumber();
+
+                    if (!latch.isDone() && checkpoint > 2) {
+                        result.completeExceptionally(new IllegalStateException("checkpoint greater than 2"));
+                    }
+
+                    if (checkpoint == 2) {
+                        if (map.get(0) && map.get(1) && map.get(2) && map.get(4)) {
+                            latch.complete(null);
+                        }
+                    }
+
+                    if (checkpoint == 4) {
+                        if (map.get(0) && map.get(1) && map.get(2) && map.get(3) && map.get(4)) {
+                            result.complete(null);
+                        } else {
+                            result.completeExceptionally(new IllegalStateException("checkpoint 5 while not everything is complete"));
+                        }
+                    }
+                }, 1, TimeUnit.SECONDS);
 
         CompletableFuture.runAsync(() -> {
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 5; i++) {
+                map.put(i, false);
                 processor.process(new TestEvent(i), new TestPosition(i));
             }
         });
+        result.get();
         assertTrue(FutureHelpers.await(result));
     }
 }
