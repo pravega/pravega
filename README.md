@@ -1,6 +1,6 @@
 # Pravega [![Build Status](https://travis-ci.com/pravega/pravega.svg?token=qhH3WLZqyhzViixpn6ZT&branch=master)](https://travis-ci.com/pravega/pravega) [![codecov](https://codecov.io/gh/pravega/pravega/branch/master/graph/badge.svg?token=6xOvaR0sIa)](https://codecov.io/gh/pravega/pravega)
 
-Pravega is an open source distributed storage service implementing **Streams**. It offers Stream as the main primitive as the foundation for reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
+Pravega is an open source distributed storage service implementing **Streams**. It offers Stream as the main primitive for the foundation of reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
 
 To learn more about Pravega, visit http://pravega.io
 
@@ -82,7 +82,7 @@ Read [Getting Started](http://pravega.io/docs/Getting-Started/) page for more in
 Deployment Options 
 -------------------
 
-There are multiple ways to deploy your own Pravega Cluster. Currently, These  installation options currently include [manual](http://pravega.io/docs/Manual-Deployment-Pravega-Cluster/) and [docker based](http://pravega.io/docs/Docker-based-Deployment-Pravega-Cluster/). As we are enabling more options with help of the community, check out [Deoplying Pravega Cluster](http://pravega.io/docs/Deploying-Pravega/) page for more. 
+There are multiple ways to deploy your own Pravega Cluster. These  installation options currently include [manual](http://pravega.io/docs/Manual-Deployment-Pravega-Cluster/) and [docker based](http://pravega.io/docs/Docker-based-Deployment-Pravega-Cluster/). As we are enabling more options with help of the community, check out [Deploying Pravega Cluster](http://pravega.io/docs/Deploying-Pravega/) page for more. 
 
 
 Support
