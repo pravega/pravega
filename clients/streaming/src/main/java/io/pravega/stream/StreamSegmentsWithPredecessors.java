@@ -4,6 +4,7 @@
 
 package io.pravega.stream;
 
+import com.google.common.base.Preconditions;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.lang.math.DoubleRange;
 import org.apache.commons.lang.math.Range;
@@ -46,5 +47,17 @@ public class StreamSegmentsWithPredecessors {
      */
     public Map<Segment, Range> getSegmentToRange() {
         return segmentWithKeyRange;
+    }
+
+    /**
+     * Get Segment given the key.
+     * @param key key value
+     * @return Segment which contains the key.
+     */
+    public Segment getSegmentForKey(double key) {
+        Preconditions.checkArgument(key >= 0.0);
+        Preconditions.checkArgument(key <= 1.0);
+        return segmentWithKeyRange.entrySet().stream().filter(segmentRangeEntry -> segmentRangeEntry.getValue()
+                .containsDouble(key)).map(Map.Entry::getKey).findFirst().orElse(null);
     }
 }
