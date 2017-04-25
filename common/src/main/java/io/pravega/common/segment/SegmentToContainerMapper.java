@@ -28,6 +28,8 @@ public final class SegmentToContainerMapper {
 
     /**
      * Gets a value representing the total number of available SegmentContainers available within the cluster.
+     *
+     * @return Integer indicating the total number of available SegmentContainers available within the cluster.
      */
     public int getTotalContainerCount() {
         return this.containerCount;
@@ -43,6 +45,7 @@ public final class SegmentToContainerMapper {
      * </ul>
      *
      * @param streamSegmentName The name of the StreamSegment.
+     * @return Integer indicating the container id for the given StreamSegment.
      */
     public int getContainerId(String streamSegmentName) {
         String parentStreamSegmentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName);

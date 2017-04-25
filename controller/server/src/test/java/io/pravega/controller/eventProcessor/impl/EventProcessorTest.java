@@ -343,6 +343,34 @@ public class EventProcessorTest {
     }
 
     @Test(timeout = 10000)
+    public void testFailingEventProcessorInGroup() throws ReinitializationRequiredException, CheckpointStoreException {
+        String systemName = "testSystem";
+        String readerGroupName = "testReaderGroup";
+        int[] input = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+
+        EventProcessorGroupConfig config = createEventProcessorGroupConfig(1);
+
+        EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(1, input),
+                new EventStreamWriterMock<>(), readerGroupName);
+
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(StartFailingEventProcessor::new)
+                .serializer(new JavaSerializer<>())
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(config)
+                .build();
+
+        // Create EventProcessorGroup.
+        EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>) system
+                .createEventProcessorGroup(eventProcessorConfig, checkpointStore);
+
+        // awaitRunning should succeed.
+        group.awaitRunning();
+        Assert.assertTrue(true);
+    }
+
+    @Test(timeout = 10000)
     public void testEventProcessorGroup() throws CheckpointStoreException, ReinitializationRequiredException {
         int count = 4;
         int initialCount = count / 2;

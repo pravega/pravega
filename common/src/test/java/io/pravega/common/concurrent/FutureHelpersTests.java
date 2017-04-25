@@ -192,6 +192,52 @@ public class FutureHelpersTests {
     }
 
     /**
+     * Tests the allOfWithResults(Map) method.
+     */
+    @Test
+    public void testKeysAllOfWithResults() {
+        int count = 10;
+
+        // Already completed futures.
+        Map<CompletableFuture<Integer>, Integer> futures = createMappedNumericKeyFutures(count);
+        completeKeyFutures(futures);
+        CompletableFuture<Map<Integer, Integer>> allFuturesComplete = FutureHelpers.keysAllOfWithResults(futures);
+        Assert.assertTrue("keysAllOfWithResults() did not create a completed future when all futures were previously complete.",
+                allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
+        checkKeyResults(allFuturesComplete.join());
+
+        // Not completed futures.
+        futures = createMappedNumericKeyFutures(count);
+        allFuturesComplete = FutureHelpers.keysAllOfWithResults(futures);
+        Assert.assertFalse("keysAllOfWithResults() created a completed future when none of the futures were previously complete.",
+                allFuturesComplete.isDone());
+        completeKeyFutures(futures);
+        Assert.assertTrue("The result of keysAllOfWithResults() complete when all its futures completed.",
+                allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
+        checkKeyResults(allFuturesComplete.join());
+
+        // At least one failed & completed future.
+        futures = createMappedNumericKeyFutures(count);
+        failRandomFuture(new ArrayList<>(futures.keySet()));
+        allFuturesComplete = FutureHelpers.keysAllOfWithResults(futures);
+        Assert.assertFalse("keysAllOfWithResults() created a completed future when not all of the futures were previously complete (but one failed).",
+                allFuturesComplete.isDone());
+        completeKeyFutures(futures);
+        Assert.assertTrue("The result of keysAllOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+                allFuturesComplete.isCompletedExceptionally());
+
+        // At least one failed future.
+        futures = createMappedNumericKeyFutures(count);
+        allFuturesComplete = FutureHelpers.keysAllOfWithResults(futures);
+        failRandomFuture(new ArrayList<>(futures.keySet()));
+        Assert.assertFalse("The result of keysAllOfWithResults() completed when not all the futures completed (except one that failed).",
+                allFuturesComplete.isDone());
+        completeKeyFutures(futures);
+        Assert.assertTrue("The result of keysAllOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+                allFuturesComplete.isCompletedExceptionally());
+    }
+
+    /**
      * Test method for FutureHelpers.filter.
      *
      * @throws InterruptedException when future is interrupted
@@ -398,6 +444,15 @@ public class FutureHelpersTests {
         return result;
     }
 
+    private Map<CompletableFuture<Integer>, Integer> createMappedNumericKeyFutures(int count) {
+        HashMap<CompletableFuture<Integer>, Integer> result = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            result.put( new CompletableFuture<>(), i);
+        }
+
+        return result;
+    }
+
     private void completeFutures(List<CompletableFuture<Integer>> futures) {
         for (int i = 0; i < futures.size(); i++) {
             if (!futures.get(i).isDone()) {
@@ -412,6 +467,14 @@ public class FutureHelpersTests {
                 futures.get(i).complete(i * i); // It may have previously been completed exceptionally.
             }
         }
+    }
+
+    private void completeKeyFutures(Map<CompletableFuture<Integer>, Integer> futures) {
+        futures.forEach((future, value) -> {
+            if (!future.isDone()) {
+                future.complete( value * value); // It may have previously been completed exceptionally.
+            }
+        } );
     }
 
     private void failRandomFuture(List<CompletableFuture<Integer>> futures) {
@@ -431,6 +494,15 @@ public class FutureHelpersTests {
         int expected = 0;
         for (Map.Entry<Integer, Integer> entry : results.entrySet()) {
             Assert.assertEquals("Unexpected result for future " + expected, entry.getKey() * entry.getKey(), (int) entry.getValue());
+            expected++;
+        }
+    }
+
+    private void checkKeyResults(Map<Integer, Integer> results) {
+        int expected = 0;
+        for (Map.Entry<Integer, Integer> entry : results.entrySet()) {
+            Assert.assertEquals("Unexpected result for future " + expected, entry.getValue() * entry.getValue(), (int) entry
+                    .getKey());
             expected++;
         }
     }

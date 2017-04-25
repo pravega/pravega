@@ -203,7 +203,7 @@ message PingTxnRequest {
 
 message SuccessorResponse {
     message SegmentEntry {
-        SegmentId segmentId = 1;
+        SegmentRange segment = 1;
         repeated int32 value = 2;
     }
     repeated SegmentEntry segments = 1;

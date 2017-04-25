@@ -104,6 +104,8 @@ public class CircularBuffer {
 
     /**
      * Gets the number of bytes that can be read.
+     *
+     * @return Integer indicating the number of bytes that can be read.
      */
     public int dataAvailable() {
         if (readBuffer.position() < fillBuffer.position()) {

@@ -240,7 +240,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
                     if (ex != null) {
                         Throwable cause = ExceptionHelpers.getRealException(ex);
-                        log.warn("Controller api failed with error: {}", cause.getMessage());
+                        log.error("Controller api failed with error: ", ex);
                         streamObserver.onError(Status.INTERNAL
                                 .withCause(cause)
                                 .withDescription(cause.getMessage())
