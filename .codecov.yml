@@ -13,7 +13,7 @@ coverage:
   ignore:
     - "benchmark"
     - "generated"
-    - "integrationtests"
     - "singlenode"
-    - "testcommon"
-    - "systemtests"
+    - "test/integration"
+    - "test/common"
+    - "test/system"

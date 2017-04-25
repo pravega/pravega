@@ -94,7 +94,7 @@ allprojects {
         }
         publications {
             maven(MavenPublication) {
-                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "com.emc.pravega"
+                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "io.pravega"
                 version = pravegaVersion
             }
         }
@@ -118,11 +118,11 @@ allprojects {
     }
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
+def pkgs = ['common', 'clients:streming', 'service:server', 'test:integration']
 
 project('common') {
     dependencies {
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
@@ -145,7 +145,7 @@ project('common') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         jar {
             from project.sourceSets.main.output
-            from project(":testcommon").sourceSets.main.output
+            from project(":test:common").sourceSets.main.output
         }
     }
     publishing {
@@ -163,7 +163,12 @@ project('common') {
         }
     }
     javadoc {
-        exclude 'com/emc/pravega/common/*'
+        title = "Pravega Common Libraries"
+        failOnError = false
+        source  =  project(':common').sourceSets.main.java
+        def javadocs = new File(rootDir, "javadocs")
+        javadocs.mkdirs()
+        destinationDir = javadocs
     }
 }
 
@@ -172,20 +177,30 @@ project ('shared') {
     compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
     compile project(':common')
    }
+
+   publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-shared'
+                from components.java
+            }
+        }
+    }
+    javadoc {
+        exclude 'io/pravega/shared/*'
+    }
 }
 
 project('clients:streaming') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
         compile project(':shared')
         compile project(":controller:contract")
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
     publishing {
         publications {
@@ -206,7 +221,7 @@ project('clients:streaming') {
     }
 }
 
-project('testcommon') {
+project('test:common') {
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -215,13 +230,14 @@ project('testcommon') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
 }
 
 project('service:contracts') {
     dependencies {
         compile project(':common')
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
     publishing {
         publications {
@@ -238,7 +254,7 @@ project('service:storage') {
         compile project(':common')
         compile project(':service:contracts')
         compile project(':shared')
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
     publishing {
         publications {
@@ -286,7 +302,7 @@ project('service:storage:impl') {
         compile project(':common')
         compile project(':service:storage')
         compile project(':shared')
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile files(project(':service:storage').sourceSets.test.output)
     }
     publishing {
@@ -305,7 +321,7 @@ project('service:server') {
         compile project(':service:contracts')
         compile project(':service:storage')
         compile project(':shared')
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
     publishing {
         publications {
@@ -323,7 +339,7 @@ project('service:server:host') {
     docker {
         url = dockerUrl
     }
-    mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
+    mainClassName = "io.pravega.service.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlogback.configurationFile=SERVER_APP_HOME/config/logback.xml"]
@@ -346,8 +362,14 @@ project('service:server:host') {
         compile project(':service:storage:impl')
         compile project(':service:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile ('com.twitter:distributedlog-service:0.3.51-RC1') {
+            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        }
+        testCompile files(project(':service:server').sourceSets.test.output)
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
+        testCompile files(project(':service:storage:impl').sourceSets.test.output)
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
         dependsOn 'distTar','distZip'
@@ -376,7 +398,7 @@ project('service:server:host') {
     }
 }
 
-project('integrationtests') {
+project('test:integration') {
     dependencies {
         compile project(':common')
         compile project(':clients:streaming')
@@ -384,7 +406,7 @@ project('integrationtests') {
         compile project(':service:server:host')
         compile project(':controller:server')
         compile project(':connectors:flink')
-        compile project(':testcommon')
+        compile project(':test:common')
         compile group: 'junit', name:'junit', version: junitVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -399,61 +421,61 @@ project('integrationtests') {
     }
 
     task startServer(type: JavaExec) {
-        main = "com.emc.pravega.service.server.host.ServiceStarter"
+        main = "io.pravega.service.server.host.ServiceStarter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startServerInteractive(type: JavaExec) {
-        main = "com.emc.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
+        main = "io.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startBenchmark(type: JavaExec) {
-        main = "com.emc.pravega.service.server.host.ServiceBenchmark"
+        main = "io.pravega.service.server.host.ServiceBenchmark"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startLocalService(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartLocalService"
+        main = "io.pravega.test.integration.demo.StartLocalService"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startWriter(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartWriter"
+        main = "io.pravega.test.integration.demo.StartWriter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startReader(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartReader"
+        main = "io.pravega.test.integration.demo.StartReader"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startController(type: JavaExec) {
-        main = "com.emc.pravega.controller.server.Main"
+        main = "io.pravega.controller.server.Main"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startScaleTest(type: JavaExec) {
-        main = "com.emc.pravega.demo.ScaleTest"
+        main = "io.pravega.test.integration.demo.ScaleTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startEndToEndTransactionTest(type: JavaExec) {
-        main = "com.emc.pravega.demo.EndToEndTransactionTest"
+        main = "io.pravega.test.integration.demo.EndToEndTransactionTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startEventProcessorTest(type: JavaExec) {
-        main = "com.emc.pravega.demo.EventProcessorTest"
+        main = "io.pravega.test.integration.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -461,7 +483,7 @@ project('integrationtests') {
 
 project('controller') {
     dependencies {
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
 }
 
@@ -512,7 +534,7 @@ project('controller:contract') {
         }
     }
     javadoc {
-        exclude 'com/emc/pravega/controller/*'
+        exclude 'io/pravega/controller/*'
     }
 }
 
@@ -531,7 +553,7 @@ project('controller:server') {
     }
 
     apply plugin: 'application'
-    mainClassName = "com.emc.pravega.controller.server.Main"
+    mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
                                  "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
@@ -566,7 +588,7 @@ project('controller:server') {
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: jerseyVersion
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
@@ -614,6 +636,7 @@ project('connectors:flink') {
     shadowJar {
         dependencies {
             // 'include' specific dependencies in the shadow jar
+            // IMPORTANT: transitive dependencies must be manually listed here!
             include dependency("com.google.guava:guava")
             include dependency("commons-lang:commons-lang")
             include dependency("org.apache.commons:commons-lang3")
@@ -639,15 +662,16 @@ project('connectors:flink') {
             include dependency("com.google.code.gson:gson")
             include dependency("com.google.instrumentation:instrumentation-api")
             include(project(":common"))
+            include(project(":shared"))
             include(project(":controller:contract"))
             include(project(":clients:streaming"))
         }
 
         // Shading the libraries which could cause potential version conflicts with flink.
-        relocate "com.google", "com.emc.pravega.shaded.com.google"
-        relocate "org.apache.commons", "com.emc.pravega.shaded.org.apache.commons"
-        relocate "io.grpc", "com.emc.pravega.shaded.io.grpc"
-        relocate "io.netty", "com.emc.pravega.shaded.io.netty"
+        relocate "com.google", "io.pravega.shaded.com.google"
+        relocate "org.apache.commons", "io.pravega.shaded.org.apache.commons"
+        relocate "io.grpc", "io.pravega.shaded.io.grpc"
+        relocate "io.netty", "io.pravega.shaded.io.netty"
 
         mergeServiceFiles()
     }
@@ -660,7 +684,7 @@ project('connectors:flink') {
                 from components.java
             }
             shadow(MavenPublication) {
-                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "com.emc.pravega"
+                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "io.pravega"
                 version = pravegaVersion
                 artifactId 'pravega-connectors-flink-shaded_2.11'
                 from components.shadow
@@ -671,7 +695,7 @@ project('connectors:flink') {
 
 project('singlenode') {
     apply plugin: 'application'
-    mainClassName = "com.emc.pravega.local.LocalPravegaEmulator"
+    mainClassName = "io.pravega.local.LocalPravegaEmulator"
     applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError", "-Xdebug",
                                  "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
     dependencies {
@@ -698,7 +722,7 @@ project('singlenode') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
 
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
@@ -707,7 +731,7 @@ project('singlenode') {
 
     task startSinglenode(type: JavaExec) {
 
-        main = "com.emc.pravega.local.LocalPravegaEmulator"
+        main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         args = ["4000", "9090", "6000"]
         environment "ZK_URL", "localhost:4000"
@@ -723,13 +747,14 @@ project('singlenode') {
     }
 }
 
-project('systemtests:tests') {
+project('test:system') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
         compile project(':controller:server')
         compile project(":clients:streaming")
+        compile project(":test:common")
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: jerseyVersion
@@ -737,7 +762,7 @@ project('systemtests:tests') {
     }
     //disable the default test task.
     test {
-        exclude 'com/emc/pravega/**'
+        exclude 'io/pravega/**'
     }
 
     jar { //create a fat jar
@@ -779,13 +804,13 @@ project('systemtests:tests') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
         systemProperty "testVersion", project.property("pravegaVersion")
-        systemProperty "testArtifactUrl", project.property('repoUrl') + "/com/emc/pravega/pravega-systemtests/" +
-                pravegaVersion+"/pravega-systemtests-"+ pravegaVersion + ".jar"
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/io/pravega/pravega-test-system/" +
+                pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-systemtests'
+                artifactId 'pravega-test-system'
                 from components.java
             }
         }
@@ -804,11 +829,12 @@ task publishAllJars() {
     dependsOn ':service:storage:impl:publish'
     dependsOn ':service:server:publish'
     dependsOn ':service:server:host:publish'
+    dependsOn ':shared:publish'
     dependsOn ':controller:contract:publish'
     dependsOn ':controller:server:publish'
     dependsOn ':connectors:flink:publish'
     dependsOn ':singlenode:publish'
-    dependsOn ':systemtests:tests:publish'
+    dependsOn ':test:system:publish'
 }
 
 task sourceCopy(type: Copy) {
