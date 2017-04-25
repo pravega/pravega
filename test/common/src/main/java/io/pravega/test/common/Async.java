@@ -9,12 +9,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import io.pravega.test.common.AssertExtensions.RunnableWithException;
 
 import org.junit.Assert;
 
 public class Async {
 
-    public static void testBlocking(AssertExtensions.RunnableWithException blockingFunction, Runnable unblocker) {
+    public static void testBlocking(RunnableWithException blockingFunction, Runnable unblocker) {
         final AtomicReference<Exception> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
         Thread t = new Thread(new Runnable() {

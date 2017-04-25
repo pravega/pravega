@@ -5,7 +5,6 @@
 package io.pravega.test.system;
 
 import static org.junit.Assert.assertTrue;
-
 import io.pravega.ClientFactory;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;

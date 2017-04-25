@@ -799,7 +799,7 @@ project('test:system') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
         systemProperty "testVersion", project.property("pravegaVersion")
-        systemProperty "testArtifactUrl", project.property('repoUrl') + "io/pravega/pravega-test-system/" +
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/io/pravega/pravega-test-system/" +
                 pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
     }
     publishing {
