@@ -29,7 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SegmentStatsRecorderTest {
-    private final String STREAM_SEGMENT_NAME = "test/test/0";
+    private static final String STREAM_SEGMENT_NAME = "test/test/0";
 
     private SegmentStatsRecorderImpl statsRecorder;
     private final CompletableFuture<Void> latch = new CompletableFuture<>();
