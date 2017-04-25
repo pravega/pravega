@@ -84,7 +84,7 @@ This runs a simple Java application that writes a "hello world" message
 $ cd pravega-samples/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
 $ bin/helloWorldWriter
 ```
-**Example HelloWorldWriter output**
+_Example HelloWorldWriter output_
 ```
 ...
 ******** Writing message: 'hello world' with routing-key: 'hello\_routingKey' to stream 'helloScope / helloStream'
@@ -100,7 +100,7 @@ $ cd pravega-samples/pravega-samples/standalone-examples/build/install/pravega-s
 $ bin/helloWorldReader
 ```
 
-**Example HelloWorldReader output**
+_Example HelloWorldReader output_
 ```
 ...
 ******** Reading all the events from helloScope/helloStream
