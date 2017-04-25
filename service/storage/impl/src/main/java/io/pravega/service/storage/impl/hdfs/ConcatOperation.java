@@ -4,19 +4,14 @@
 
 package io.pravega.service.storage.impl.hdfs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.function.RunnableWithException;
 import io.pravega.service.contracts.BadOffsetException;
 import io.pravega.service.contracts.StreamSegmentSealedException;
 import io.pravega.service.storage.StorageNotPrimaryException;
-import com.google.common.base.Preconditions;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.hadoop.hdfs.protocol.AclException;
