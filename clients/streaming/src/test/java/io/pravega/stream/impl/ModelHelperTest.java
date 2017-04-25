@@ -10,11 +10,16 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.Segment;
+import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.StreamConfiguration;
-import java.util.HashMap;
-import java.util.Map;
-
+import io.pravega.testcommon.AssertExtensions;
+import org.junit.Assert;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
@@ -126,5 +131,48 @@ public class ModelHelperTest {
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
     }
+
+    @Test
+    public void createSuccessorResponse() {
+        Controller.SegmentRange segmentRange = createSegmentRange(0.1, 0.5);
+
+        Map<Controller.SegmentRange, List<Integer>> inputMap = new HashMap<>(1);
+        inputMap.put(segmentRange, Arrays.asList(1));
+
+        Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap);
+        Assert.assertEquals(1, successorResponse.getSegmentsCount());
+        final SegmentId resultSegmentID = successorResponse.getSegments(0).getSegment().getSegmentId();
+        assertEquals("testScope", resultSegmentID.getStreamInfo().getScope());
+        assertEquals("testStream", resultSegmentID.getStreamInfo().getStream());
+    }
+
+    @Test
+    public void encodeSegmentRange() {
+        Controller.SegmentRange range = createSegmentRange(0.1, 0.5);
+        SegmentWithRange result = ModelHelper.encode(range);
+        assertEquals(0, result.getSegment().getSegmentNumber());
+        assertEquals("testScope", result.getSegment().getScope());
+        assertEquals("testStream", result.getSegment().getStreamName());
+
+        final Controller.SegmentRange invalidMinSegrange = createSegmentRange(-0.1, 0.5);
+        AssertExtensions.assertThrows("Unexpected behaviour of invalid minkey",
+                () -> ModelHelper.encode(invalidMinSegrange),
+                ex -> ex instanceof IllegalArgumentException);
+
+        final Controller.SegmentRange invalidMaxSegrange = createSegmentRange(0.1, 1.5);
+        AssertExtensions.assertThrows("Unexpected behaviour of invalid minkey",
+                () -> ModelHelper.encode(invalidMaxSegrange),
+                ex -> ex instanceof IllegalArgumentException);
+
+    }
+
+    private Controller.SegmentRange createSegmentRange(double minKey, double maxKey) {
+        SegmentId.Builder segment = SegmentId.newBuilder().setStreamInfo(Controller.StreamInfo.newBuilder().
+                setScope("testScope").setStream("testStream")).setSegmentNumber(0);
+        return Controller.SegmentRange.newBuilder().setSegmentId(segment)
+                .setMinKey(minKey).setMaxKey(maxKey).build();
+    }
+
+
 
 }

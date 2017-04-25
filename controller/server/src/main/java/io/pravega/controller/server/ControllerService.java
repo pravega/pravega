@@ -8,6 +8,7 @@ package io.pravega.controller.server;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.shared.NameUtils;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.Segment;
@@ -148,18 +149,28 @@ public class ControllerService {
         });
     }
 
-    public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatelyFollowing(SegmentId segment) {
+    public CompletableFuture<Map<SegmentRange, List<Integer>>> getSegmentsImmediatelyFollowing(SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
+        OperationContext context = streamStore.createContext(segment.getStreamInfo().getScope(), segment
+                .getStreamInfo().getStream());
         return streamStore.getSuccessors(segment.getStreamInfo().getScope(),
-                                         segment.getStreamInfo().getStream(),
-                                         segment.getSegmentNumber(),
-                                         null,
-                                         executor)
-                .thenApplyAsync(successors -> successors.entrySet().stream().collect(
-                        Collectors.toMap(
-                                entry -> ModelHelper.createSegmentId(segment.getStreamInfo().getScope(),
-                                                                     segment.getStreamInfo().getStream(),
-                                                                     entry.getKey()), Map.Entry::getValue)), executor);
+                segment.getStreamInfo().getStream(),
+                segment.getSegmentNumber(),
+                context,
+                executor)
+                .thenComposeAsync(successors -> FutureHelpers.keysAllOfWithResults(successors.entrySet().stream()
+                        .collect(Collectors.toMap(
+                        entry -> streamStore.getSegment(segment.getStreamInfo().getScope(),
+                                segment.getStreamInfo().getStream(),
+                                entry.getKey(),
+                                context,
+                                executor)
+                                .thenApply(seg -> ModelHelper.createSegmentRange(segment.getStreamInfo().getScope(),
+                                        segment.getStreamInfo().getStream(),
+                                        seg.getNumber(),
+                                        seg.getKeyStart(),
+                                        seg.getKeyEnd())),
+                        Map.Entry::getValue))), executor);
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,

@@ -12,6 +12,7 @@ import io.pravega.state.SynchronizerConfig;
 import io.pravega.stream.ReaderGroupConfig;
 import io.pravega.stream.ReinitializationRequiredException;
 import io.pravega.stream.Segment;
+import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.stream.mock.MockController;
@@ -58,9 +59,10 @@ public class ReaderGroupStateManagerTest {
         Segment successorB = new Segment(scope, stream, 2);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory) {
             @Override
-            public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
+            public CompletableFuture<Map<SegmentWithRange, List<Integer>>> getSuccessors(Segment segment) {
                 assertEquals(initialSegment, segment);
-                return completedFuture(ImmutableMap.of(successorA, singletonList(0), successorB, singletonList(0)));
+                return completedFuture(ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0),
+                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0)));
             }
         };
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
@@ -103,13 +105,13 @@ public class ReaderGroupStateManagerTest {
         Segment successor = new Segment(scope, stream, 2);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory) {
             @Override
-            public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
+            public CompletableFuture<Map<SegmentWithRange, List<Integer>>> getSuccessors(Segment segment) {
                 if (segment.getSegmentNumber() == 0) {
                     assertEquals(initialSegmentA, segment);
                 } else {
                     assertEquals(initialSegmentB, segment);
                 }
-                return completedFuture(Collections.singletonMap(successor, ImmutableList.of(0, 1)));
+                return completedFuture(Collections.singletonMap(new SegmentWithRange(successor, 0.0, 1.0), ImmutableList.of(0, 1)));
             }
         };
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
@@ -430,9 +432,10 @@ public class ReaderGroupStateManagerTest {
         Segment successorB = new Segment(scope, stream, 2);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory) {
             @Override
-            public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
+            public CompletableFuture<Map<SegmentWithRange, List<Integer>>> getSuccessors(Segment segment) {
                 assertEquals(initialSegment, segment);
-                return completedFuture(ImmutableMap.of(successorA, singletonList(0), successorB, singletonList(0)));
+                return completedFuture(ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0),
+                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0)));
             }
         };
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
