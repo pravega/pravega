@@ -150,9 +150,12 @@ class BookKeeperLog implements DurableDataLog {
     /**
      * Open-Fences this BookKeeper log using the following protocol:
      * 1. Read Log Metadata from ZooKeeper.
-     * 2. Fence at least the last 2 ledgers in the Ledger List
-     * 3. Create a new Ledger
-     * 4 Update Log Metadata using compare-and-set (this update contains the new ledger and new epoch).
+     * 2. Fence at least the last 2 ledgers in the Ledger List.
+     * 3. Create a new Ledger.
+     * 3.1 If any of the steps so far fails, the process is interrupted at the point of failure, and no cleanup is attempted.
+     * 4. Update Log Metadata using compare-and-set (this update contains the new ledger and new epoch).
+     * 4.1 If CAS fails on metadata update, the newly created Ledger is deleted (this means we were fenced out by some
+     * other instance) and no other update is performed.
      *
      * @param timeout Timeout for the operation.
      * @throws DataLogWriterNotPrimaryException If we were fenced-out during this process.
@@ -361,16 +364,18 @@ class BookKeeperLog implements DurableDataLog {
 
     /**
      * Attempts to truncate the Log. The general steps are:
-     * 1. Create a copy of the metadata reflecting the truncation.
+     * 1. Create an in-memory copy of the metadata reflecting the truncation.
      * 2. Attempt to persist the metadata to ZooKeeper.
-     * 3. Swap metadata pointers.
+     * 2.1. This is the only operation that can fail the process. If this fails, the operation stops here.
+     * 3. Swap in-memory metadata pointers.
      * 4. Delete truncated-out ledgers.
+     * 4.1. If any of the ledgers cannot be deleted, no further attempt to clean them up is done.
      *
      * @param upToAddress The address up to which to truncate.
      */
     @SneakyThrows(DurableDataLogException.class)
     private void tryTruncate(LedgerAddress upToAddress) {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "trytruncate", upToAddress);
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "tryTruncate", upToAddress);
 
         // Truncate the metadata and get a new copy of it.
         val oldMetadata = getLogMetadata();
@@ -532,10 +537,12 @@ class BookKeeperLog implements DurableDataLog {
     /**
      * Executes a rollover using the following protocol:
      * 1. Create a new ledger
-     * 2. Add the new ledger the the metadata
-     * 3. Update the metadata in ZooKeeper.
-     * 4. Swap pointers to the active Write Ledger (all future writes will go to the new ledger).
+     * 2. Create an in-memory copy of the metadata and add the new ledger to it.
+     * 3. Update the metadata in ZooKeeper using compare-and-set.
+     * 3.1 If the update fails, the newly created ledger is deleted and the operation stops.
+     * 4. Swap in-memory pointers to the active Write Ledger (all future writes will go to the new ledger).
      * 5. Close the previous ledger (and implicitly seal it).
+     * 5.1 If closing fails, there is nothing we can do. We've already opened a new ledger and new writes are going to it.
      */
     private void rollover() throws DurableDataLogException {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "rollover");
