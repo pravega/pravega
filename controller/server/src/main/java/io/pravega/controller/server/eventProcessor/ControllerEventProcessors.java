@@ -258,8 +258,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         futureList.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                             try {
                                 group.notifyProcessFailure(process);
-                                // TODO: remove the following catch NPE once null position objects are handled in ReaderGroup#readerOffline
-                            } catch (CheckpointStoreException | NullPointerException e) {
+                            } catch (CheckpointStoreException e) {
                                 log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
                                         group.toString()), e);
                                 throw new CompletionException(e);
