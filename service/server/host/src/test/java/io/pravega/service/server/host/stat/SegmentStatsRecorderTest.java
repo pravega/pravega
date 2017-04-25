@@ -21,7 +21,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertTrue;
@@ -110,19 +109,17 @@ public class SegmentStatsRecorderTest {
         statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
         assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) != null);
-        ScheduledFuture future = maintenanceExecutor.schedule(() -> {
-        }, 2500, TimeUnit.MILLISECONDS);
-        future.get();
+        Thread.sleep(2500);
         // Verify that segment has been removed from the cache
-
         assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) == null);
 
         // this should result in asynchronous loading of STREAM_SEGMENT_NAME
         statsRecorder.record(STREAM_SEGMENT_NAME, 0, 1);
         latch.get();
-        future = maintenanceExecutor.schedule(() -> {
-        }, 500, TimeUnit.MILLISECONDS);
-        future.get();
+        int i = 20;
+        while (statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) == null && i-- != 0) {
+            Thread.sleep(100);
+        }
         assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) != null);
     }
 }
