@@ -159,9 +159,19 @@ public class ModelHelperTest {
                 () -> ModelHelper.encode(invalidMinSegrange),
                 ex -> ex instanceof IllegalArgumentException);
 
+        final Controller.SegmentRange invalidMinSegrange1 = createSegmentRange(1.5, 0.5);
+        AssertExtensions.assertThrows("Unexpected behaviour of invalid minkey",
+                () -> ModelHelper.encode(invalidMinSegrange1),
+                ex -> ex instanceof IllegalArgumentException);
+
         final Controller.SegmentRange invalidMaxSegrange = createSegmentRange(0.1, 1.5);
         AssertExtensions.assertThrows("Unexpected behaviour of invalid minkey",
                 () -> ModelHelper.encode(invalidMaxSegrange),
+                ex -> ex instanceof IllegalArgumentException);
+
+        final Controller.SegmentRange invalidMaxSegrange1 = createSegmentRange(0.1, -0.5);
+        AssertExtensions.assertThrows("Unexpected behaviour of invalid minkey",
+                () -> ModelHelper.encode(invalidMaxSegrange1),
                 ex -> ex instanceof IllegalArgumentException);
 
     }
