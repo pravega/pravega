@@ -4,8 +4,8 @@
 
 package io.pravega.service.storage.impl.hdfs;
 
-import io.pravega.service.storage.StorageNotPrimaryException;
 import com.google.common.base.Preconditions;
+import io.pravega.service.storage.StorageNotPrimaryException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
@@ -147,7 +147,7 @@ abstract class FileSystemOperation<T> {
      *
      * @param target  A FileDescriptor for the target file.
      * @param sources An ordered List of FileDescriptors for the files to concatenate. These files will be added, in order,
-     *                to the target.
+     *                to the target. Empty files in this list will be deleted and skipped for concatenation.
      * @param force   If set, it will execute the concatenation even if the target file is marked as read-only, otherwise
      *                it will throw an exception. If set, and the target file is read-only, it will continue to be read-only
      *                when the method completes. There is no guarantee that it will stay read-only should an error occur
@@ -162,11 +162,9 @@ abstract class FileSystemOperation<T> {
             return target;
         }
 
-        // Collect sources.
-        Path[] sourcePaths = new Path[sources.size()];
-        for (int i = 0; i < sources.size(); i++) {
-            sourcePaths[i] = sources.get(i).getPath();
-        }
+        // Collect sources. Since HDFS does not allow concatenating empty source files, collect those separately.
+        Path[] toConcat = sources.stream().filter(fd -> fd.getLength() > 0).map(FileDescriptor::getPath).toArray(Path[]::new);
+        Path[] toDelete = sources.stream().filter(fd -> fd.getLength() == 0).map(FileDescriptor::getPath).toArray(Path[]::new);
 
         // The concat operation will fail if the target is read-only. See if we are allowed to bypass that.
         boolean makeReadOnly = false;
@@ -180,7 +178,15 @@ abstract class FileSystemOperation<T> {
         }
 
         try {
-            this.context.fileSystem.concat(target.getPath(), sourcePaths);
+            // First, delete empty files. There is no harm in doing so.
+            for (Path p : toDelete) {
+                if (this.context.fileSystem.delete(p, false) && this.context.fileSystem.exists(p)) {
+                    throw new IOException("Could not delete empty file " + p);
+                }
+            }
+
+            // Finally, concatenate the source files into the target.
+            this.context.fileSystem.concat(target.getPath(), toConcat);
         } finally {
             if (makeReadOnly) {
                 // Make sure we revert back to the original state if an error occurred.

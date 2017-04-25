@@ -96,7 +96,13 @@ class MockFileSystem extends FileSystem {
                 Preconditions.checkArgument(uniquePaths.add(sourcePath.toString()),
                         "Circular dependency in concat arguments: file %s has been seen more than once.", sourcePath);
 
-                sources.add(getFileData(sourcePath));
+                val fd = getFileData(sourcePath);
+                if (fd.contents.size() == 0) {
+                    // There is a restriction in HDFS that empty files cannot be used as sources for concat...
+                    throw new IOException(String.format("Source file '%s' is empty.", sourcePath));
+                }
+
+                sources.add(fd);
             }
 
             // Check target not readonly status.

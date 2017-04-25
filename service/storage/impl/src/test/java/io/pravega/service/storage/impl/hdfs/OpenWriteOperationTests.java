@@ -179,21 +179,28 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      */
     @Test
     public void testMultiFileCoalescing() throws Exception {
-        final int epochs = Byte.MAX_VALUE;
+        final int iterations = Byte.MAX_VALUE;
+        final int emptyFileEvery = 10;
         val fs = new MockFileSystem();
         new CreateOperation(SEGMENT_NAME, newContext(0, fs)).call();
-        byte[] expectedData = new byte[epochs];
+        byte[] expectedData = new byte[iterations];
         Arrays.fill(expectedData, (byte) -1);
-        for (int epoch = 0; epoch < epochs; epoch++) {
-            val context = newContext(epoch, fs);
+        int epoch = 0;
+        for (int iteration = 0; iteration < iterations; iteration++) {
+            val context = newContext(epoch++, fs);
             val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
-            byte toWrite = (byte) epoch;
-            new WriteOperation(handle, epoch, new ByteArrayInputStream(new byte[]{toWrite}), 1, context).run();
-            expectedData[epoch] = toWrite;
+            byte toWrite = (byte) iteration;
+            new WriteOperation(handle, iteration, new ByteArrayInputStream(new byte[]{toWrite}), 1, context).run();
+            expectedData[iteration] = toWrite;
+            if (epoch % emptyFileEvery == 0) {
+                // Every now and then, just open the file without writing anything. The next time OpenWrite is called
+                // it will be forced to concat an empty file.
+                new OpenWriteOperation(SEGMENT_NAME, newContext(epoch++, fs)).call();
+            }
         }
 
         Assert.assertEquals("Unexpected number of files in the file system.", 2, fs.getFileCount());
-        val readContext = newContext(epochs, fs);
+        val readContext = newContext(iterations, fs);
         val readHandle = new OpenReadOperation(SEGMENT_NAME, readContext).call();
         Assert.assertEquals("Unexpected total segment length in the file system.", expectedData.length, readHandle.getLastFile().getLastOffset());
         byte[] actualData = new byte[expectedData.length];
