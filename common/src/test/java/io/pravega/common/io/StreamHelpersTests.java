@@ -3,6 +3,7 @@
  */
 package io.pravega.common.io;
 
+import io.pravega.testcommon.AssertExtensions;
 import java.io.IOException;
 import java.io.InputStream;
 import org.junit.Assert;
@@ -51,8 +52,13 @@ public class StreamHelpersTests {
             buffer[i] = (byte) i;
         }
 
-        byte[] readFullyData = StreamHelpers.readAll(new TestInputStream(buffer));
+        byte[] readFullyData = StreamHelpers.readAll(new TestInputStream(buffer), buffer.length);
         Assert.assertArrayEquals(buffer, readFullyData);
+
+        AssertExtensions.assertThrows(
+                "readAll accepted a length higher than the given input stream length.",
+                () -> StreamHelpers.readAll(new TestInputStream(buffer), buffer.length + 1),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
     private static class TestInputStream extends InputStream {
@@ -64,11 +70,6 @@ public class StreamHelpersTests {
             this.buffer = buffer;
             this.pos = 0;
             this.pause = false;
-        }
-
-        @Override
-        public int available() {
-            return this.buffer.length - pos;
         }
 
         @Override

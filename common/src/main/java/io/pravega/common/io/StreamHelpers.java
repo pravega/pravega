@@ -3,8 +3,8 @@
  */
 package io.pravega.common.io;
 
-import io.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -43,15 +43,18 @@ public final class StreamHelpers {
     }
 
     /**
-     * Reads the entire InputStream and returns it as the given byte array.
+     * Reads a number of bytes from the given InputStream and returns it as the given byte array.
+     *
      * @param source The InputStream to read.
+     * @param length The number of bytes to read.
      * @return A byte array containing the contents of the Stream.
      * @throws IOException If unable to read from the given InputStream.
      */
-    public static byte[] readAll(InputStream source) throws IOException {
-        byte[] ret = new byte[source.available()];
+    public static byte[] readAll(InputStream source, int length) throws IOException {
+        byte[] ret = new byte[length];
         int readBytes = readAll(source, ret, 0, ret.length);
-        assert readBytes == ret.length : "Unable to read all the bytes.";
+        Preconditions.checkArgument(readBytes == ret.length,
+                "Invalid value for length (%s). Was only able to read %s bytes from the given InputStream.", ret.length, readBytes);
         return ret;
     }
 }

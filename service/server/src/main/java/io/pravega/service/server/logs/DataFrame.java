@@ -60,15 +60,16 @@ public class DataFrame {
     }
 
     /**
-     * Creates a new instance of the DataFrame class using the given byte array as serialization source.
+     * Creates a new instance of the DataFrame class using the given InputStream as serialization source.
      *
-     * @param source The source byte array.
+     * @param source An InputStream containing the serialization for this DataFrame.
+     * @param length The length of the serialization in the given InputStream.
      * @throws IOException            If the given InputStream could not be read.
      * @throws SerializationException If the source cannot be deserialized into a DataFrame.
      * @throws NullPointerException   If the source is null.
      */
-    public DataFrame(InputStream source) throws IOException, SerializationException {
-        this(new ByteArraySegment(StreamHelpers.readAll(source)));
+    public DataFrame(InputStream source, int length) throws IOException, SerializationException {
+        this(new ByteArraySegment(StreamHelpers.readAll(source, length)));
     }
 
     /**

@@ -8,6 +8,7 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.service.contracts.StreamSegmentException;
 import io.pravega.service.contracts.StreamSegmentInformation;
@@ -791,7 +792,8 @@ public class DurableLogTests extends OperationLogTestBase {
                             // previous sequence number.
                             DataFrame df = new DataFrame(Integer.MAX_VALUE, readItem.getLength());
                             df.seal();
-                            return new InjectedReadItem(df.getData().getReader(), readItem.getLength(), readItem.getAddress());
+                            ArrayView serialization = df.getData();
+                            return new InjectedReadItem(serialization.getReader(), serialization.getLength(), readItem.getAddress());
                         }
 
                         return readItem;

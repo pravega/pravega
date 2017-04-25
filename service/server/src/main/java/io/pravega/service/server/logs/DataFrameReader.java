@@ -1,10 +1,10 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
@@ -15,14 +15,11 @@ import io.pravega.service.server.logs.operations.Operation;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.LogAddress;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.util.LinkedList;
 import java.util.stream.Stream;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Decomposes Data Frames into the Log Operations that were serialized into them. Uses a DataFrameLog as an input, reads
@@ -500,7 +497,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
 
             DataFrame frame;
             try {
-                frame = new DataFrame(nextItem.getPayload());
+                frame = new DataFrame(nextItem.getPayload(), nextItem.getLength());
                 frame.setAddress(nextItem.getAddress());
             } catch (SerializationException ex) {
                 throw new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.", this.lastReadFrameSequence), ex);

@@ -299,7 +299,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Verify sequence number, as well as payload.
             val expected = expectedIterator.next();
             Assert.assertEquals("Unexpected sequence number.", expected.getKey().getSequence(), nextItem.getAddress().getSequence());
-            val actualPayload = StreamHelpers.readAll(nextItem.getPayload());
+            val actualPayload = StreamHelpers.readAll(nextItem.getPayload(), nextItem.getLength());
             Assert.assertArrayEquals("Unexpected payload for sequence number " + expected.getKey(), expected.getValue(), actualPayload);
         }
     }
