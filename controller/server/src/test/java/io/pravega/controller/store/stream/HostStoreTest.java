@@ -6,7 +6,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.common.cluster.Host;
-import io.pravega.testcommon.TestingServerStarter;
+import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.StoreClientFactory;

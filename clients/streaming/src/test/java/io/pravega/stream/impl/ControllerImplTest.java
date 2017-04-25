@@ -43,7 +43,7 @@ import io.pravega.stream.Segment;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.Transaction;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;

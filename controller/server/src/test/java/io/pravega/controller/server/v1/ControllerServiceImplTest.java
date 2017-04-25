@@ -20,7 +20,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.impl.ModelHelper;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 

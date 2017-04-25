@@ -12,9 +12,9 @@ import io.pravega.service.server.LogItemFactory;
 import io.pravega.service.server.TestDurableDataLog;
 import io.pravega.service.storage.DataLogNotAvailableException;
 import io.pravega.service.storage.DurableDataLog;
-import io.pravega.testcommon.AssertExtensions;
-import io.pravega.testcommon.ErrorInjector;
-import io.pravega.testcommon.ThreadPooledTestSuite;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ErrorInjector;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -10,7 +10,7 @@ import io.pravega.service.storage.SegmentHandle;
 import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.StorageNotPrimaryException;
 import io.pravega.service.storage.StorageTestBase;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;

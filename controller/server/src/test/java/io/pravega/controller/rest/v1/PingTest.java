@@ -6,7 +6,7 @@
 package io.pravega.controller.rest.v1;
 
 import io.pravega.controller.server.rest.resources.PingImpl;
-import io.pravega.testcommon.TestUtils;
+import io.pravega.test.common.TestUtils;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.glassfish.jersey.test.TestProperties;

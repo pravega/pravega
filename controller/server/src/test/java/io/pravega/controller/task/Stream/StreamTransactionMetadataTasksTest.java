@@ -29,7 +29,7 @@ import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.impl.netty.ConnectionFactory;
 import io.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import io.pravega.testcommon.TestingServerStarter;
+import io.pravega.test.common.TestingServerStarter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;

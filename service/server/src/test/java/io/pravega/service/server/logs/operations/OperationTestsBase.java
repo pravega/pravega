@@ -6,7 +6,7 @@
 package io.pravega.service.server.logs.operations;
 
 import io.pravega.common.MathHelpers;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;

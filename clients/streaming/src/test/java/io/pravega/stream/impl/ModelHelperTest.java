@@ -12,7 +12,7 @@ import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.Segment;
 import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.StreamConfiguration;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 

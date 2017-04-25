@@ -118,11 +118,11 @@ allprojects {
     }
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
+def pkgs = ['common', 'clients:streming', 'service:server', 'test:integration']
 
 project('common') {
     dependencies {
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
@@ -145,7 +145,7 @@ project('common') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         jar {
             from project.sourceSets.main.output
-            from project(":testcommon").sourceSets.main.output
+            from project(":test:common").sourceSets.main.output
         }
     }
     publishing {
@@ -200,7 +200,7 @@ project('clients:streaming') {
         compile project(':common')
         compile project(':shared')
         compile project(":controller:contract")
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
     publishing {
         publications {
@@ -221,7 +221,7 @@ project('clients:streaming') {
     }
 }
 
-project('testcommon') {
+project('test:common') {
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -237,7 +237,7 @@ project('testcommon') {
 project('service:contracts') {
     dependencies {
         compile project(':common')
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
     publishing {
         publications {
@@ -254,7 +254,7 @@ project('service:storage') {
         compile project(':common')
         compile project(':service:contracts')
         compile project(':shared')
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
     publishing {
         publications {
@@ -302,7 +302,7 @@ project('service:storage:impl') {
         compile project(':common')
         compile project(':service:storage')
         compile project(':shared')
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile files(project(':service:storage').sourceSets.test.output)
     }
     publishing {
@@ -321,7 +321,7 @@ project('service:server') {
         compile project(':service:contracts')
         compile project(':service:storage')
         compile project(':shared')
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
     publishing {
         publications {
@@ -362,7 +362,7 @@ project('service:server:host') {
         compile project(':service:storage:impl')
         compile project(':service:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile ('com.twitter:distributedlog-service:0.3.51-RC1') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -398,7 +398,7 @@ project('service:server:host') {
     }
 }
 
-project('integrationtests') {
+project('test:integration') {
     dependencies {
         compile project(':common')
         compile project(':clients:streaming')
@@ -406,7 +406,7 @@ project('integrationtests') {
         compile project(':service:server:host')
         compile project(':controller:server')
         compile project(':connectors:flink')
-        compile project(':testcommon')
+        compile project(':test:common')
         compile group: 'junit', name:'junit', version: junitVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -439,19 +439,19 @@ project('integrationtests') {
     }
 
     task startLocalService(type: JavaExec) {
-        main = "io.pravega.demo.StartLocalService"
+        main = "io.pravega.test.integration.demo.StartLocalService"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startWriter(type: JavaExec) {
-        main = "io.pravega.demo.StartWriter"
+        main = "io.pravega.test.integration.demo.StartWriter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startReader(type: JavaExec) {
-        main = "io.pravega.demo.StartReader"
+        main = "io.pravega.test.integration.demo.StartReader"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -463,19 +463,19 @@ project('integrationtests') {
     }
 
     task startScaleTest(type: JavaExec) {
-        main = "io.pravega.demo.ScaleTest"
+        main = "io.pravega.test.integration.demo.ScaleTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startEndToEndTransactionTest(type: JavaExec) {
-        main = "io.pravega.demo.EndToEndTransactionTest"
+        main = "io.pravega.test.integration.demo.EndToEndTransactionTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startEventProcessorTest(type: JavaExec) {
-        main = "io.pravega.demo.EventProcessorTest"
+        main = "io.pravega.test.integration.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -483,7 +483,7 @@ project('integrationtests') {
 
 project('controller') {
     dependencies {
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
     }
 }
 
@@ -588,7 +588,7 @@ project('controller:server') {
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: jerseyVersion
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
@@ -722,7 +722,7 @@ project('singlenode') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
 
-        testCompile project(':testcommon')
+        testCompile project(':test:common')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
@@ -747,14 +747,14 @@ project('singlenode') {
     }
 }
 
-project('systemtests:tests') {
+project('test:system') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
         compile project(':controller:server')
         compile project(":clients:streaming")
-        compile project(":testcommon")
+        compile project(":test:common")
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: jerseyVersion
@@ -804,13 +804,13 @@ project('systemtests:tests') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
         systemProperty "testVersion", project.property("pravegaVersion")
-        systemProperty "testArtifactUrl", project.property('repoUrl') + "/io/pravega/pravega-systemtests/" +
-                pravegaVersion+"/pravega-systemtests-"+ pravegaVersion + ".jar"
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/io/pravega/pravega-test-system/" +
+                pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-systemtests'
+                artifactId 'pravega-test-system'
                 from components.java
             }
         }
@@ -834,7 +834,7 @@ task publishAllJars() {
     dependsOn ':controller:server:publish'
     dependsOn ':connectors:flink:publish'
     dependsOn ':singlenode:publish'
-    dependsOn ':systemtests:tests:publish'
+    dependsOn ':test:system:publish'
 }
 
 task sourceCopy(type: Copy) {

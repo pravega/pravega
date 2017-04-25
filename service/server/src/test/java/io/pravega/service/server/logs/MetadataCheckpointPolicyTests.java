@@ -3,7 +3,7 @@
  */
 package io.pravega.service.server.logs;
 
-import io.pravega.testcommon.ThreadPooledTestSuite;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;

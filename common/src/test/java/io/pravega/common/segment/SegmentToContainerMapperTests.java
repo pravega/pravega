@@ -16,7 +16,7 @@ import java.util.function.Function;
 import org.junit.Assert;
 import org.junit.Test;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 
 /**
  * Unit tests for SegmentToContainerMapper.

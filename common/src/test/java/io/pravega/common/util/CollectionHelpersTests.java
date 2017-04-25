@@ -4,7 +4,7 @@
 
 package io.pravega.common.util;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;

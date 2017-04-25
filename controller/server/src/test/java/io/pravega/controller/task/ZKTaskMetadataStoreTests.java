@@ -3,7 +3,7 @@
  */
 package io.pravega.controller.task;
 
-import io.pravega.testcommon.TestingServerStarter;
+import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;

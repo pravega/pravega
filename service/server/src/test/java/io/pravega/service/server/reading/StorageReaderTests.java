@@ -13,9 +13,9 @@ import io.pravega.service.storage.ReadOnlyStorage;
 import io.pravega.service.storage.SegmentHandle;
 import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.mocks.InMemoryStorage;
-import io.pravega.testcommon.AssertExtensions;
-import io.pravega.testcommon.IntentionalException;
-import io.pravega.testcommon.ThreadPooledTestSuite;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.concurrent.TimeUnit;
 
 import lombok.Cleanup;
