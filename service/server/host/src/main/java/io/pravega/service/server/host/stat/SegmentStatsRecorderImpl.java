@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
+    private static final long TWENTY_MINUTES = Duration.ofMinutes(20).toMillis();
     private static final int INITIAL_CAPACITY = 1000;
     private static final int MAX_CACHE_SIZE = 100000; // 100k segment records in memory.
     // At 100k * with each aggregate approximately ~80 bytes = 8 Mb of memory foot print.
@@ -46,12 +47,13 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     SegmentStatsRecorderImpl(AutoScaleProcessor reporter, StreamSegmentStore store,
                              ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
-        this(reporter, store, TWO_MINUTES, executor, maintenanceExecutor);
+        this(reporter, store, TWO_MINUTES, TWENTY_MINUTES, TimeUnit.MINUTES, executor, maintenanceExecutor);
     }
 
     @VisibleForTesting
     SegmentStatsRecorderImpl(AutoScaleProcessor reporter, StreamSegmentStore store,
-                             long reportingDuration, ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
+                             long reportingDuration, long expiryDuration, TimeUnit timeUnit,
+                             ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
         Preconditions.checkNotNull(executor);
         Preconditions.checkNotNull(maintenanceExecutor);
         this.executor = executor;
@@ -60,7 +62,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         this.cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
                 .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterAccess(20, TimeUnit.MINUTES)
+                .expireAfterAccess(expiryDuration, timeUnit)
                 // We may want to store some traffic related information in attributes
                 // and reconstruct while loading from it for evicted segments.
                 // .removalListener((RemovalListener<String, SegmentAggregates>) notification -> {
@@ -85,7 +87,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         SegmentAggregates aggregates = cache.getIfPresent(streamSegmentName);
 
         if (aggregates == null &&
-                StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName) != null) {
+                StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName) == null) {
             loadAsynchronously(streamSegmentName);
         }
 
@@ -103,7 +105,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
                                 byte type = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).byteValue();
-                                int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).intValue();
+                                int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_RATE).intValue();
                                 cache.put(streamSegmentName, new SegmentAggregates(type, rate));
                             }
                             pendingCacheLoads.remove(streamSegmentName);
@@ -200,4 +202,8 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         });
     }
 
+    @VisibleForTesting
+    SegmentAggregates getIfPresent(String streamSegmentName) {
+        return cache.getIfPresent(streamSegmentName);
+    }
 }
