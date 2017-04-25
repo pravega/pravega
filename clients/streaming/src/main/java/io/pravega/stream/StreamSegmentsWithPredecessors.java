@@ -57,7 +57,7 @@ public class StreamSegmentsWithPredecessors {
     public Segment getSegmentForKey(double key) {
         Preconditions.checkArgument(key >= 0.0);
         Preconditions.checkArgument(key <= 1.0);
-        return segmentWithKeyRange.entrySet().stream().filter(segmentRangeEntry -> segmentRangeEntry.getValue()
+        return segmentWithKeyRange.entrySet().stream().filter(entry -> entry.getValue()
                 .containsDouble(key)).map(Map.Entry::getKey).findFirst().orElse(null);
     }
 }
