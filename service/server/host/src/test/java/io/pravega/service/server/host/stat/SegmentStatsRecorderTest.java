@@ -24,12 +24,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import static junit.framework.Assert.assertTrue;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SegmentStatsRecorderTest {
-    private final String STREAM = "test/test/0";
+    private final String STREAM_SEGMENT_NAME = "test/test/0";
 
     private SegmentStatsRecorderImpl statsRecorder;
     private final CompletableFuture<Void> latch = new CompletableFuture<>();
@@ -43,7 +43,7 @@ public class SegmentStatsRecorderTest {
         CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(new SegmentProperties() {
             @Override
             public String getName() {
-                return STREAM;
+                return STREAM_SEGMENT_NAME;
             }
 
             @Override
@@ -76,7 +76,7 @@ public class SegmentStatsRecorderTest {
             }
         });
 
-        when(store.getStreamSegmentInfo(STREAM, false, Duration.ofMinutes(1))).thenReturn(toBeReturned);
+        when(store.getStreamSegmentInfo(STREAM_SEGMENT_NAME, false, Duration.ofMinutes(1))).thenReturn(toBeReturned);
 
         statsRecorder = new SegmentStatsRecorderImpl(processor, store, 10000,
                 2, TimeUnit.SECONDS, executor, maintenanceExecutor);
@@ -90,39 +90,39 @@ public class SegmentStatsRecorderTest {
 
     @Test(timeout = 10000)
     public void testRecordTraffic() {
-        statsRecorder.createSegment(STREAM, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
+        statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
-        assertTrue(statsRecorder.getIfPresent(STREAM).getTwoMinuteRate() == 0);
+        assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME).getTwoMinuteRate() == 0);
         // record for over 5 seconds
         long startTime = System.currentTimeMillis();
         // after 10 seconds we should have written ~100 events.
         // Which means 2 minute rate at this point is 100 / 120 ~= 0.4 events per second
         while (System.currentTimeMillis() - startTime < Duration.ofSeconds(6).toMillis()) {
             for (int i = 0; i < 11; i++) {
-                statsRecorder.record(STREAM, 0, 1);
+                statsRecorder.record(STREAM_SEGMENT_NAME, 0, 1);
             }
         }
-        assertTrue(statsRecorder.getIfPresent(STREAM).getTwoMinuteRate() > 0);
+        assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME).getTwoMinuteRate() > 0);
     }
 
     @Test(timeout = 10000)
     public void testExpireSegment() throws InterruptedException, ExecutionException {
-        statsRecorder.createSegment(STREAM, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
+        statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
-        assertTrue(statsRecorder.getIfPresent(STREAM) != null);
+        assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) != null);
         ScheduledFuture future = maintenanceExecutor.schedule(() -> {
         }, 2500, TimeUnit.MILLISECONDS);
         future.get();
         // Verify that segment has been removed from the cache
 
-        assertTrue(statsRecorder.getIfPresent(STREAM) == null);
+        assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) == null);
 
-        // this should result in asynchronous loading of STREAM
-        statsRecorder.record(STREAM, 0, 1);
+        // this should result in asynchronous loading of STREAM_SEGMENT_NAME
+        statsRecorder.record(STREAM_SEGMENT_NAME, 0, 1);
         latch.get();
         future = maintenanceExecutor.schedule(() -> {
         }, 500, TimeUnit.MILLISECONDS);
         future.get();
-        assertTrue(statsRecorder.getIfPresent(STREAM) != null);
+        assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) != null);
     }
 }
