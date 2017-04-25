@@ -329,17 +329,6 @@ public class TaskTest {
         EventStreamWriterMock<CommitEvent> mockCommitWriter = new EventStreamWriterMock<>();
         EventStreamWriterMock<AbortEvent> mockAbortWriter = new EventStreamWriterMock<>();
 
-        // Create commit and abort event processors.
-        ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
-        BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
-        BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
-        createEventProcessor("commitRG", "commitStream", mockCommitWriter.getReader(), mockCommitWriter,
-                () -> new CommitEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedCommitEvents));
-        createEventProcessor("abortRG", "abortStream", mockAbortWriter.getReader(), mockAbortWriter,
-                () -> new AbortEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedAbortEvents));
-
         // Create task and sweeper objects
         StreamTransactionMetadataTasks mockTxnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 taskMetadataStore, segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class));
@@ -364,30 +353,46 @@ public class TaskTest {
         TxnStatus status = streamStore.getTransactionData(SCOPE, stream1, txId, null, executor).join().getStatus();
         assertEquals(TxnStatus.ABORTING, status);
 
+        // Create another transaction for committing.
+        completePartialTask(mockTxnTasks.createTxn(SCOPE, stream1, 10000, 10000, 10000, null), deadHost, sweeper);
+
+        // Ensure that a transaction is created.
+        map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
+        assertEquals(2, map.size());
+        Optional<UUID> txIdOpt = map.entrySet().stream()
+                .filter(e -> e.getValue().getTxnStatus() == TxnStatus.OPEN)
+                .map(Map.Entry::getKey)
+                .findAny();
+        Assert.assertTrue(txIdOpt.isPresent());
+
+        // Commit the transaction.
+        UUID txId2 = txIdOpt.get();
+        completePartialTask(mockTxnTasks.commitTxn(SCOPE, stream1, txId2, null), deadHost, sweeper);
+        // Ensure that transaction state is COMMITTING.
+        status = streamStore.getTransactionData(SCOPE, stream1, txId2, null, executor).join().getStatus();
+        assertEquals(TxnStatus.COMMITTING, status);
+
+        // Create commit and abort event processors.
+        ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
+        BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
+        BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
+        createEventProcessor("commitRG", "commitStream", mockCommitWriter.getReader(), mockCommitWriter,
+                () -> new CommitEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedCommitEvents));
+        createEventProcessor("abortRG", "abortStream", mockAbortWriter.getReader(), mockAbortWriter,
+                () -> new AbortEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedAbortEvents));
+
         // Wait until the abort event is processed and ensure that the txn state is ABORTED.
         AbortEvent abortEvent = processedAbortEvents.take();
         assertEquals(txId, abortEvent.getTxid());
         status = streamStore.transactionStatus(SCOPE, stream1, txId, null, executor).join();
         assertEquals(TxnStatus.ABORTED, status);
 
-        // Create another transaction for committing.
-        completePartialTask(mockTxnTasks.createTxn(SCOPE, stream1, 10000, 10000, 10000, null), deadHost, sweeper);
-
-        // Ensure that a transaction is created.
-        map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
-        assertEquals(1, map.size());
-        txId = map.keySet().iterator().next();
-
-        // Commit the transaction.
-        completePartialTask(mockTxnTasks.commitTxn(SCOPE, stream1, txId, null), deadHost, sweeper);
-        // Ensure that transaction state is COMMITTING.
-        status = streamStore.getTransactionData(SCOPE, stream1, txId, null, executor).join().getStatus();
-        assertEquals(TxnStatus.COMMITTING, status);
-
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
-        assertEquals(txId, commitEvent.getTxid());
-        status = streamStore.transactionStatus(SCOPE, stream1, txId, null, executor).join();
+        assertEquals(txId2, commitEvent.getTxid());
+        status = streamStore.transactionStatus(SCOPE, stream1, txId2, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, status);
     }
 
