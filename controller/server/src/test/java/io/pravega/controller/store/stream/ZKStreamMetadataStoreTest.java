@@ -5,10 +5,10 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.testcommon.TestingServerStarter;
+import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.stream.StreamConfiguration;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;

@@ -9,7 +9,7 @@ import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 
 import java.util.ArrayList;
 import java.util.Collection;

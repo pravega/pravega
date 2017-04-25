@@ -24,11 +24,15 @@ public interface AppendBatchSizeTracker {
 
     /**
      * Returns the size that should be used for the next append block.
+     *
+     * @return Integer indicating block size that should be used for the next append.
      */
     int getAppendBlockSize();
     
     /**
      * Returns the timeout that should be used for append blocks.
+     *
+     * @return Integer indicating the batch timeout.
      */
     int getBatchTimeout();
 

@@ -17,7 +17,7 @@ import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.StreamConfiguration;
-import io.pravega.testcommon.TestingServerStarter;
+import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;

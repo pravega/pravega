@@ -20,8 +20,6 @@ import io.pravega.service.server.store.StreamSegmentService;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsData;
-import io.pravega.testcommon.InlineExecutor;
-import io.pravega.testcommon.TestUtils;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;

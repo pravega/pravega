@@ -5,11 +5,11 @@
  */
 package io.pravega.service.server.logs.operations;
 
-import io.pravega.testcommon.IntentionalException;
+import io.pravega.test.common.IntentionalException;
 import org.junit.Assert;
 import org.junit.Test;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;

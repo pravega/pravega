@@ -10,6 +10,7 @@ import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.Segment;
 import io.pravega.stream.Stream;
 import io.pravega.stream.StreamConfiguration;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.Transaction;
 import io.pravega.stream.TxnFailedException;
 
@@ -171,8 +172,8 @@ public interface Controller {
     CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(final Stream stream, final long timestamp);
 
     /**
-     * Returns a Map containing each of the segments that are successors to the segment requested mapped to a
-     * list of their predecessors.
+     * Returns StreamSegmentsWithPredecessors containing each of the segments that are successors to the segment
+     * requested mapped to a list of their predecessors.
      * 
      * In the event of a scale up the newly created segments contain a subset of the keyspace of the original
      * segment and their only predecessor is the segment that was split. Example: If there are two segments A
@@ -192,7 +193,7 @@ public interface Controller {
      * @param segment The segment whose successors should be looked up.
      * @return A mapping from Successor to the list of all of the Successor's predecessors
      */
-    CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(final Segment segment);
+    CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(final Segment segment);
 
     // Controller Apis that are called by writers and readers
 

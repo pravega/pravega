@@ -48,6 +48,8 @@ public class TimeoutTimer {
     
     /**
      * Returns true if there is time remaining.
+     *
+     * @return False if there is no time remaining from the given timeout.
      */
     public boolean hasRemaining() {
         return (getNanos.get() - initialNanos) < timeout.toNanos();

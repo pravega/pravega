@@ -41,8 +41,6 @@ import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.mocks.InMemoryCacheFactory;
 import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.service.storage.mocks.InMemoryStorage;
-import io.pravega.testcommon.AssertExtensions;
-import io.pravega.testcommon.ErrorInjector;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;

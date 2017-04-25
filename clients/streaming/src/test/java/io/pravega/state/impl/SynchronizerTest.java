@@ -18,7 +18,7 @@ import io.pravega.stream.impl.JavaSerializer;
 import io.pravega.stream.impl.segment.EndOfSegmentException;
 import io.pravega.stream.mock.MockClientFactory;
 import io.pravega.stream.mock.MockSegmentStreamFactory;
-import io.pravega.testcommon.Async;
+import io.pravega.test.common.Async;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
