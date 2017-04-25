@@ -6,12 +6,12 @@ To learn more about Pravega, visit http://pravega.io
 
 ### Features 
 
--   Auto Scaling - Automatically scale data streams across storage
-    and processing resources to accommodate dynamically changing data ingestion
+-   Auto Scaling - Dynamically scale data streams across storage
+    and processing resources to accommodate ever changing data ingestion
     rate.
 
--   Infinite Retention - Ingest, process and retain events as streams.
-    Use same paradigm to access both real-time and historical events stored as stream.
+-   Infinite Retention - Automatically migrate old events in a stream to low-cost cloud-scale
+    storage system, thus using the same access paradigm for both real-time and historical analysis.
 
 -   Durability - Don't compromise between performance, durability and consistency.
     Pravega replicates and persists the ingested event before acknowledging while 
