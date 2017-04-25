@@ -21,9 +21,9 @@ import io.pravega.common.netty.WireCommands.TransactionCreated;
 import io.pravega.common.netty.WireCommands.WrongHost;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.Segment;
-import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.Stream;
 import io.pravega.stream.StreamConfiguration;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.Transaction;
 import io.pravega.stream.TxnFailedException;
 import io.pravega.stream.impl.ConnectionClosedException;
@@ -336,8 +336,8 @@ public class MockController implements Controller {
     }
     
     @Override
-    public CompletableFuture<Map<SegmentWithRange, List<Integer>>> getSuccessors(Segment segment) {
-        return CompletableFuture.completedFuture(Collections.emptyMap());
+    public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
+        return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(Collections.emptyMap()));
     }
 
     @Override

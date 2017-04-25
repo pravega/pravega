@@ -15,6 +15,7 @@ import io.pravega.stream.Segment;
 import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.Stream;
 import io.pravega.stream.StreamConfiguration;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.Transaction;
 import io.pravega.stream.impl.Controller;
 import io.pravega.stream.impl.ControllerFailureException;
@@ -245,12 +246,12 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<SegmentWithRange, List<Integer>>> getSuccessors(Segment segment) {
+    public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         return controller.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment))
                 .thenApply(x -> {
                     Map<SegmentWithRange, List<Integer>> map = new HashMap<>();
                     x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
-                    return map;
+                    return new StreamSegmentsWithPredecessors(map);
                 });
     }
 

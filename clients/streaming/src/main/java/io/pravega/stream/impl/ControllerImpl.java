@@ -38,6 +38,7 @@ import io.pravega.stream.Segment;
 import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.Stream;
 import io.pravega.stream.StreamConfiguration;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.Transaction;
 import io.pravega.stream.TxnFailedException;
 import com.google.common.annotations.VisibleForTesting;
@@ -320,7 +321,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<SegmentWithRange, List<Integer>>> getSuccessors(Segment segment) {
+    public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessors", segment);
 
         RPCAsyncCallback<SuccessorResponse> callback = new RPCAsyncCallback<>();
@@ -332,7 +333,7 @@ public class ControllerImpl implements Controller {
                            for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
                                result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList());
                            }
-                           return result;
+                           return new StreamSegmentsWithPredecessors(result);
                        })
                        .whenComplete((x, y) -> LoggerHelpers.traceLeave(log, "getSuccessors", traceId));
     }

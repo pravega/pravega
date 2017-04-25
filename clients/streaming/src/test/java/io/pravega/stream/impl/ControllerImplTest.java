@@ -40,8 +40,8 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 import io.pravega.stream.RetentionPolicy;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.Segment;
-import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.StreamConfiguration;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.Transaction;
 import io.pravega.testcommon.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
@@ -699,15 +699,17 @@ public class ControllerImplTest {
 
     @Test
     public void testGetSegmentsImmediatlyFollowing() throws Exception {
-        CompletableFuture<Map<SegmentWithRange, List<Integer>>> successors;
-        successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0));
+        CompletableFuture<Map<Segment, List<Integer>>> successors;
+        successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0))
+                .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         assertEquals(2, successors.get().size());
-        assertEquals(10, successors.get().get(new SegmentWithRange(new Segment("scope1", "stream1", 0), 0.0, 0.5))
+        assertEquals(10, successors.get().get(new Segment("scope1", "stream1", 0))
                 .get(0).longValue());
-        assertEquals(20, successors.get().get(new SegmentWithRange(new Segment("scope1", "stream1", 1), 0.5, 1.0))
+        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 1))
                 .get(0).longValue());
 
-        successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0));
+        successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0))
+                .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         AssertExtensions.assertThrows("Should throw Exception", successors, throwable -> true);
     }
 

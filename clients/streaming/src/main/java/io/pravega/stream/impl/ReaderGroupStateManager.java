@@ -144,8 +144,8 @@ public class ReaderGroupStateManager {
      */
     void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
         val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted)
-                        .thenApply(entry -> entry.entrySet().stream()
-                                .collect(Collectors.toMap(e -> e.getKey().getSegment(), Entry::getValue))),
+                        .thenApply(entry -> entry.getSegmentToPredecessor().entrySet().stream()
+                                .collect(Collectors.toMap(e -> e.getKey(), Entry::getValue))),
                 RuntimeException::new);
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
