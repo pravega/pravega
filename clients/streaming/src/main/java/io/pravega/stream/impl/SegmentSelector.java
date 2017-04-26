@@ -92,10 +92,10 @@ public class SegmentSelector {
     @Synchronized
     private List<PendingEvent> updateSegments(StreamSegments newSteamSegments) {
         currentSegments = newSteamSegments;
-        for (Segment segment : currentSegments.getSegments()) { 
+        for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
                 SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
-                writers.put(segment, out);                
+                writers.put(segment, out);
             }
         }
         List<PendingEvent> toResend = new ArrayList<>();
