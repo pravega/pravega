@@ -8,7 +8,7 @@ package io.pravega.service.server.containers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.service.server.SegmentMetadata;
 import io.pravega.service.server.SegmentMetadataComparer;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;

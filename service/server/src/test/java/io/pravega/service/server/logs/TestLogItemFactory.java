@@ -6,7 +6,7 @@
 package io.pravega.service.server.logs;
 
 import io.pravega.service.server.LogItemFactory;
-import io.pravega.testcommon.ErrorInjector;
+import io.pravega.test.common.ErrorInjector;
 
 import java.io.InputStream;
 

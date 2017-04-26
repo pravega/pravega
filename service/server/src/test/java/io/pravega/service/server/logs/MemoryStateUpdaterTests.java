@@ -22,7 +22,7 @@ import io.pravega.service.server.logs.operations.StorageOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.service.storage.mocks.InMemoryCache;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.AbstractMap;

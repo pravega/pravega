@@ -5,7 +5,7 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import lombok.Data;

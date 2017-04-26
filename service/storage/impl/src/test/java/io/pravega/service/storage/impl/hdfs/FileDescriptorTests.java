@@ -4,7 +4,7 @@
 
 package io.pravega.service.storage.impl.hdfs;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
 import org.junit.Test;

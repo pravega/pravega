@@ -9,7 +9,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.service.contracts.ReadResultEntry;
 import io.pravega.service.contracts.ReadResultEntryContents;
 import io.pravega.service.contracts.ReadResultEntryType;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 
 import lombok.Cleanup;
 import org.junit.Assert;

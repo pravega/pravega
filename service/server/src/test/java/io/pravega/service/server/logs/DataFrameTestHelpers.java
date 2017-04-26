@@ -7,7 +7,7 @@ package io.pravega.service.server.logs;
 
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 
 import org.junit.Assert;
 

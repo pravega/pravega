@@ -10,7 +10,7 @@ import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.LogAddress;
 import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.testcommon.ErrorInjector;
+import io.pravega.test.common.ErrorInjector;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;

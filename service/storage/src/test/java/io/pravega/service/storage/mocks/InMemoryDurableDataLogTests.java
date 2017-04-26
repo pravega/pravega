@@ -7,7 +7,7 @@ import io.pravega.service.storage.DataLogWriterNotPrimaryException;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogTestBase;
 import io.pravega.service.storage.LogAddress;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.util.TreeMap;

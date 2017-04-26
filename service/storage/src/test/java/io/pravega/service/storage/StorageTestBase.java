@@ -8,8 +8,8 @@ import io.pravega.service.contracts.SegmentProperties;
 import io.pravega.service.contracts.StreamSegmentExistsException;
 import io.pravega.service.contracts.StreamSegmentNotExistsException;
 import io.pravega.service.contracts.StreamSegmentSealedException;
-import io.pravega.testcommon.AssertExtensions;
-import io.pravega.testcommon.ThreadPooledTestSuite;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
@@ -21,7 +21,7 @@ import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static io.pravega.testcommon.AssertExtensions.assertThrows;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
  * Base class for testing any implementation of the Storage interface.
