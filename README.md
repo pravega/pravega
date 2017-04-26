@@ -6,33 +6,33 @@ To learn more about Pravega, visit http://pravega.io
 
 ### Features 
 
--   Auto Scaling - Dynamically scale data streams across storage
-    and processing resources to accommodate ever changing data ingestion
-    rate.
+-   Auto Scaling - Unlike systems with static partitioning, Pravega can automatically
+    scale individual data streams to accommodate changes in data ingestion rate.
 
--   Infinite Retention - Automatically migrate old events in a stream to low-cost cloud-scale
-    storage system, thus using the same access paradigm for both real-time and historical analysis.
+-   Infinite Retention - Unlike systems with static partitioning, Pravega can 
+    automatically scale individual data streams to accommodate changes in data
+    ingestion rate.
 
--   Durability - Don't compromise between performance, durability and consistency.
-    Pravega replicates and persists the ingested event before acknowledging while 
-    maintaining low latency and strong consistency.
+-   Durability - Don't comprise between performance, durability and consistency. 
+    Pravega persists and protects data before the write operation is acknowledged 
+    to the client.
     
--   Exactly-Once Semantics - Ensure that each message is delivered and processed
-    exactly once despite failures with retransmissions, idempotence and transactions.
+-   Exactly-Once Semantics - Despite failures, ensure that each event is delivered and 
+    processed exactly once with retransmissions, idempotence and transactions. 
     
--   Transaction Support - Use transactional data ingestion to guarantee that a set
-    of events are added to a stream atomically.
+-   Transaction Support - A developer uses a Pravega Transaction to ensure that 
+    a set of events are written to a stream atomically.
 
--   Multi-Protocol Access - With multi-protocol capability, Access and process
-    your streams not only via Pravega Streaming API, but via HDFS protocol.
+-   Multi-Protocol Access - Use Pravega to build pipelines of data processing, 
+    combining batch, real-time and other applications without duplicating data 
+    for every step of the pipeline.
 
--   Write Efficiency - Pravega shrinks to milliseconds the time it takes to write 
-    massive volumes durably by seamlessly scaling up to handle high throughput 
-    reads and writes from thousands of concurrent clients.
+-   Write Efficiency - Pravega shrinks write latency to milliseconds, and seamlessly 
+    scales to handle high throughput reads and writes from thousands of concurrent 
+    clients, making it ideal for IoT and other time sensitive applications.
 
--   Fault Tolerant - Pravega detects failures and
-    automatically recovers ensuring the continuous flow of data required for 
-    business continuity. 
+-   Fault Tolerant - Pravega detects failures and automatically recovers ensuring 
+    data availability.    
 
 ### Create stream
 
