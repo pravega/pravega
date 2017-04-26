@@ -33,7 +33,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.client.stream.RetentionPolicy;
 
-import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
