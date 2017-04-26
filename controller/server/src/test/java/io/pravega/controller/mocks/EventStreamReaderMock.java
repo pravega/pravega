@@ -28,7 +28,7 @@ public class EventStreamReaderMock<T> implements EventStreamReader<T> {
     }
 
     @Override
-    @SneakyThrows
+    @SneakyThrows(value = InterruptedException.class)
     public EventRead<T> readNextEvent(long timeout) throws ReinitializationRequiredException {
         T event = queue.poll(timeout, TimeUnit.MILLISECONDS);
         return new EventReadImpl<>(null, event, null, null, null);

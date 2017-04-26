@@ -511,10 +511,10 @@ public class TaskTest {
 
     private <T extends ControllerEvent>
     void createEventProcessor(final String readerGroupName,
-                                    final String streamName,
-                                    final EventStreamReader<T> reader,
-                                    final EventStreamWriter<T> writer,
-                                    Supplier<EventProcessor<T>> factory) throws CheckpointStoreException {
+                              final String streamName,
+                              final EventStreamReader<T> reader,
+                              final EventStreamWriter<T> writer,
+                              Supplier<EventProcessor<T>> factory) throws CheckpointStoreException {
         ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
         Mockito.when(clientFactory.<T>createReader(anyString(), anyString(), any(), any())).thenReturn(reader);
         Mockito.when(clientFactory.<T>createEventWriter(anyString(), any(), any())).thenReturn(writer);

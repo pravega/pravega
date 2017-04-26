@@ -3,6 +3,7 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
@@ -38,6 +39,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     private final SegmentHelper segmentHelper;
     private final BlockingQueue<CommitEvent> processedEvents;
 
+    @VisibleForTesting
     public CommitEventProcessor(final StreamMetadataStore streamMetadataStore,
                                 final HostControllerStore hostControllerStore,
                                 final ScheduledExecutorService executor,

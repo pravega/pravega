@@ -3,6 +3,7 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
@@ -37,6 +38,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     private final ConnectionFactory connectionFactory;
     private final BlockingQueue<AbortEvent> processedEvents;
 
+    @VisibleForTesting
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore,
                                final ScheduledExecutorService executor,
