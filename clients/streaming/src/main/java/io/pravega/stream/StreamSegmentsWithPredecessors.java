@@ -4,13 +4,14 @@
 
 package io.pravega.stream;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;
-import org.apache.commons.lang.math.DoubleRange;
 
 /**
  * The successor segments of a given segment.
@@ -18,15 +19,24 @@ import org.apache.commons.lang.math.DoubleRange;
 @EqualsAndHashCode
 public class StreamSegmentsWithPredecessors {
     private final Map<Segment, List<Integer>> segmentWithPredecessors;
-    private final Map<Segment, DoubleRange> segmentWithKeyRange;
+    private final Map<Integer, List<SegmentWithRange>> replacementRanges;
 
     public StreamSegmentsWithPredecessors(final Map<SegmentWithRange, List<Integer>> segments) {
         segmentWithPredecessors = Collections.unmodifiableMap(segments.entrySet().stream().collect(
                 Collectors.toMap(entry -> entry.getKey().getSegment(), Map.Entry::getValue)));
 
-        segmentWithKeyRange = Collections.unmodifiableMap(segments.entrySet().stream().collect(
-                Collectors.toMap(entry -> entry.getKey().getSegment(),
-                        entry -> new DoubleRange(entry.getKey().getLow(), entry.getKey().getHigh()))));
+        Map<Integer, List<SegmentWithRange>> replacementRanges = new HashMap<>();
+        for (Entry<SegmentWithRange, List<Integer>> entry : segments.entrySet()) {
+            for (Integer oldSegment : entry.getValue()) {
+                List<SegmentWithRange> newRanges = replacementRanges.get(oldSegment);
+                if (newRanges == null) {
+                    newRanges = new ArrayList<>(2);
+                    replacementRanges.put(oldSegment, newRanges);
+                }
+                newRanges.add(entry.getKey());
+            }
+        }
+        this.replacementRanges = Collections.unmodifiableMap(replacementRanges);
     }
 
     /**
@@ -39,28 +49,10 @@ public class StreamSegmentsWithPredecessors {
     }
     
     /**
-     * @return A set of the segment numbers that have been replaced by these.
+     * @return A map of the segment numbers that have been replaced mapped to their replacement segment/ranges
      */
-    public Set<Integer> getReplacedSegments() {
-        return segmentWithPredecessors.values().stream().flatMap(l -> l.stream()).collect(Collectors.toSet());
+    public Map<Integer, List<SegmentWithRange>> getReplacementRanges() {
+        return replacementRanges;
     }
 
-    /**
-     * Returns the range for a segment
-     * 
-     * @param segment the segment to get the range for.
-     * @return the range for the segment or null if it is not in this data structure.
-     */
-    public DoubleRange getRangeForSegment(Segment segment) {
-        return segmentWithKeyRange.get(segment);
-    }
-    
-    /**
-     * Get Segment to Key Range mapping.
-     *
-     * @return Map<Segment, Range> segment to range mapping.
-     */
-    public Map<Segment, DoubleRange> getSegmentToRange() {
-        return segmentWithKeyRange;
-    }
 }
