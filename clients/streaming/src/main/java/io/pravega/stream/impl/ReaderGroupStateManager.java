@@ -21,9 +21,6 @@ import io.pravega.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.stream.impl.ReaderGroupState.RemoveReader;
 import io.pravega.stream.impl.ReaderGroupState.SegmentCompleted;
 import io.pravega.stream.impl.ReaderGroupState.UpdateDistanceToTail;
-import lombok.Getter;
-import lombok.val;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,7 +33,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import lombok.Getter;
+import lombok.val;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -143,17 +141,14 @@ public class ReaderGroupStateManager {
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
     void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
-        val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted)
-                        .thenApply(entry -> entry.getSegmentToPredecessor().entrySet().stream()
-                                .collect(Collectors.toMap(e -> e.getKey(), Entry::getValue))),
-                RuntimeException::new);
+        val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
                 return null;
             }
-            return Collections.singletonList(new SegmentCompleted(readerId, segmentCompleted, successors));
+            return Collections.singletonList(new SegmentCompleted(readerId, segmentCompleted, successors.getSegmentToPredecessor()));
         });
         if (reinitRequired.get()) {
             throw new ReinitializationRequiredException();

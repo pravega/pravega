@@ -129,22 +129,25 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private void resend(List<PendingEvent> toResend) {
         while (!toResend.isEmpty()) {
             List<PendingEvent> unsent = new ArrayList<>();
+            boolean sendFailed = false;
             for (PendingEvent event : toResend) {
-                SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey());
-                if (segmentWriter == null) {
+                if (sendFailed) {
                     unsent.add(event);
                 } else {
+                    SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey());
+                    if (segmentWriter == null) {
+                        unsent.addAll(selector.refreshSegmentEventWriters());
+                        sendFailed = true;
+                    }
                     try {
                         segmentWriter.write(event);
                     } catch (SegmentSealedException e) {
                         log.info("Segment was sealed while handling seal: {}", segmentWriter);
-                        selector.removeWriter(segmentWriter);
-                        unsent.addAll(segmentWriter.getUnackedEvents());
+                        Segment segment = Segment.fromScopedName(segmentWriter.getSegmentName());
+                        unsent.addAll(selector.refreshSegmentEventWritersUponSealed(segment));
+                        sendFailed = true;
                     }
                 }
-            }
-            if (!unsent.isEmpty()) {
-                unsent.addAll(selector.refreshSegmentEventWriters());
             }
             toResend = unsent;
         }

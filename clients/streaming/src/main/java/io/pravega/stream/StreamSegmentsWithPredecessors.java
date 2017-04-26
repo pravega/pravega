@@ -4,15 +4,13 @@
 
 package io.pravega.stream;
 
-import com.google.common.base.Preconditions;
-import lombok.EqualsAndHashCode;
-import org.apache.commons.lang.math.DoubleRange;
-import org.apache.commons.lang.math.Range;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.EqualsAndHashCode;
+import org.apache.commons.lang.math.DoubleRange;
 
 /**
  * The successor segments of a given segment.
@@ -20,7 +18,7 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode
 public class StreamSegmentsWithPredecessors {
     private final Map<Segment, List<Integer>> segmentWithPredecessors;
-    private final Map<Segment, Range> segmentWithKeyRange;
+    private final Map<Segment, DoubleRange> segmentWithKeyRange;
 
     public StreamSegmentsWithPredecessors(final Map<SegmentWithRange, List<Integer>> segments) {
         segmentWithPredecessors = Collections.unmodifiableMap(segments.entrySet().stream().collect(
@@ -39,25 +37,30 @@ public class StreamSegmentsWithPredecessors {
     public Map<Segment, List<Integer>> getSegmentToPredecessor() {
         return segmentWithPredecessors;
     }
+    
+    /**
+     * @return A set of the segment numbers that have been replaced by these.
+     */
+    public Set<Integer> getReplacedSegments() {
+        return segmentWithPredecessors.values().stream().flatMap(l -> l.stream()).collect(Collectors.toSet());
+    }
 
+    /**
+     * Returns the range for a segment
+     * 
+     * @param segment the segment to get the range for.
+     * @return the range for the segment or null if it is not in this data structure.
+     */
+    public DoubleRange getRangeForSegment(Segment segment) {
+        return segmentWithKeyRange.get(segment);
+    }
+    
     /**
      * Get Segment to Key Range mapping.
      *
      * @return Map<Segment, Range> segment to range mapping.
      */
-    public Map<Segment, Range> getSegmentToRange() {
+    public Map<Segment, DoubleRange> getSegmentToRange() {
         return segmentWithKeyRange;
-    }
-
-    /**
-     * Get Segment given the key.
-     * @param key key value
-     * @return Segment which contains the key.
-     */
-    public Segment getSegmentForKey(double key) {
-        Preconditions.checkArgument(key >= 0.0);
-        Preconditions.checkArgument(key <= 1.0);
-        return segmentWithKeyRange.entrySet().stream().filter(entry -> entry.getValue()
-                .containsDouble(key)).map(Map.Entry::getKey).findFirst().orElse(null);
     }
 }
