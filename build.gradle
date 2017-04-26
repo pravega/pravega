@@ -673,6 +673,7 @@ project('connectors:flink') {
         relocate "io.grpc", "io.pravega.shaded.io.grpc"
         relocate "io.netty", "io.pravega.shaded.io.netty"
 
+        classifier = null
         mergeServiceFiles()
     }
 
