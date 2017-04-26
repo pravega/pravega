@@ -1,12 +1,11 @@
 package io.pravega.controller.util;
 
-import com.typesafe.config.ConfigException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Test class for the Config.
+ * Test class for Config.
  */
 public class ConfigTest {
 
