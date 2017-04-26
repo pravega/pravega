@@ -1,5 +1,4 @@
-Terminology
-===========
+# Terminology
 
 Here is a glossary of terms related to Pravega:
 
