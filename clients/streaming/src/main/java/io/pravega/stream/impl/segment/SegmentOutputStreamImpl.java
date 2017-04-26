@@ -5,6 +5,8 @@
  */
 package io.pravega.stream.impl.segment;
 
+import com.google.common.annotations.VisibleForTesting;
+import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.common.netty.Append;
 import io.pravega.common.netty.ConnectionFailedException;
@@ -25,29 +27,26 @@ import io.pravega.stream.impl.Controller;
 import io.pravega.stream.impl.PendingEvent;
 import io.pravega.stream.impl.netty.ClientConnection;
 import io.pravega.stream.impl.netty.ConnectionFactory;
-import com.google.common.annotations.VisibleForTesting;
-import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 import static com.google.common.base.Preconditions.checkState;
+import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * Tracks inflight events, and manages reconnects automatically.
@@ -262,12 +261,20 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void appendSetup(AppendSetup appendSetup) {
             long ackLevel = appendSetup.getLastEventNumber();
             ackUpTo(ackLevel);
-            try {
-                retransmitInflight();
-                state.connectionSetupComplete();
-            } catch (ConnectionFailedException e) {
-                state.failConnection(e);
-            }
+            List<Append> toRetransmit = state.getAllInflight()
+                                             .stream()
+                                             .map(entry -> new Append(segmentName, connectionId, entry.getKey(),
+                                                                      Unpooled.wrappedBuffer(entry.getValue()
+                                                                                                  .getData()),
+                                                                      entry.getValue().getExpectedOffset()))
+                                             .collect(Collectors.toList());
+            state.getConnection().sendAsync(toRetransmit, e -> {
+                if (e == null) {
+                    state.connectionSetupComplete();
+                } else {
+                    state.failConnection(e);
+                }
+            });
         }
 
         private void ackUpTo(long ackLevel) {
@@ -282,16 +289,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             PendingEvent toAck = state.removeSingleInflight(eventNumber);
             if (toAck != null) {
                 toAck.getAckFuture().complete(false);
-            }
-        }
-
-        private void retransmitInflight() throws ConnectionFailedException {
-            for (Entry<Long, PendingEvent> entry : state.getAllInflight()) {
-                state.connection.send(new Append(segmentName,
-                                                 connectionId,
-                                                 entry.getKey(),
-                                                 Unpooled.wrappedBuffer(entry.getValue().getData()),
-                                                 entry.getValue().getExpectedOffset()));
             }
         }
 
@@ -311,10 +308,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         ClientConnection connection = getConnection();
         long eventNumber = state.addToInflight(event);
         try {
-            connection.send(new Append(segmentName,
-                                       connectionId,
-                                       eventNumber,
-                                       Unpooled.wrappedBuffer(event.getData()),
+            connection.send(new Append(segmentName, connectionId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
                                        event.getExpectedOffset()));
         } catch (ConnectionFailedException e) {
             log.warn("Connection failed due to: ", e);
