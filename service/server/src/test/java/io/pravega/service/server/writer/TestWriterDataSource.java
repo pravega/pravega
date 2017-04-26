@@ -13,7 +13,7 @@ import io.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.service.server.logs.operations.Operation;
 import io.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.service.storage.LogAddress;
-import io.pravega.testcommon.ErrorInjector;
+import io.pravega.test.common.ErrorInjector;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import java.io.ByteArrayInputStream;

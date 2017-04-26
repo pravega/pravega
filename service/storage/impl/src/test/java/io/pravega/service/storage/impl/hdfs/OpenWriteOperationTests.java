@@ -5,7 +5,7 @@
 package io.pravega.service.storage.impl.hdfs;
 
 import io.pravega.service.storage.StorageNotPrimaryException;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import lombok.Cleanup;
 import lombok.val;

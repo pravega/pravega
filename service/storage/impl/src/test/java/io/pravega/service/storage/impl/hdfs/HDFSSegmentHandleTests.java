@@ -4,7 +4,7 @@
 
 package io.pravega.service.storage.impl.hdfs;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.val;

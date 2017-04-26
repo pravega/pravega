@@ -10,7 +10,7 @@ import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.service.contracts.StreamSegmentInformation;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.util.HashMap;

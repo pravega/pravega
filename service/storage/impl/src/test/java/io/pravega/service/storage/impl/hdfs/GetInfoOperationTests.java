@@ -5,7 +5,7 @@
 package io.pravega.service.storage.impl.hdfs;
 
 import io.pravega.service.contracts.SegmentProperties;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;

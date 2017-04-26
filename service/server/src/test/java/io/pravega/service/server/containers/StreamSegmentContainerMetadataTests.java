@@ -9,7 +9,7 @@ import io.pravega.service.server.SegmentMetadata;
 import io.pravega.service.server.UpdateableContainerMetadata;
 import io.pravega.service.server.UpdateableSegmentMetadata;
 import io.pravega.service.storage.LogAddress;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;

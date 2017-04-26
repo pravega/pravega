@@ -4,6 +4,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.requests.ScaleEvent;
 import io.pravega.controller.server.SegmentHelper;
@@ -20,7 +21,6 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import io.pravega.testcommon.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;

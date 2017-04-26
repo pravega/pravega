@@ -6,8 +6,8 @@
 package io.pravega.service.server.reading;
 
 import io.pravega.common.ObjectClosedException;
-import io.pravega.testcommon.AssertExtensions;
-import io.pravega.testcommon.ThreadPooledTestSuite;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;

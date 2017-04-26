@@ -32,7 +32,7 @@ import io.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.service.server.logs.operations.TransactionMapOperation;
 import io.pravega.service.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.service.storage.LogAddress;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
