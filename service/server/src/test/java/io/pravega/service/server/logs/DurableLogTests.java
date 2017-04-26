@@ -35,6 +35,7 @@ import io.pravega.service.server.reading.ContainerReadIndex;
 import io.pravega.service.server.reading.ReadIndexConfig;
 import io.pravega.service.storage.CacheFactory;
 import io.pravega.service.storage.DataLogNotAvailableException;
+import io.pravega.service.storage.DataLogWriterNotPrimaryException;
 import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.LogAddress;
 import io.pravega.service.storage.Storage;
@@ -55,6 +56,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -90,7 +92,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to process Operations in a failure-free environment.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testAddWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
         int transactionsPerStreamSegment = 2;
@@ -131,7 +133,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the operationProcessingBarrier() method.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testOperationProcessingBarrier() throws Exception {
         int streamSegmentCount = 1;
         int appendsPerStreamSegment = 20;
@@ -177,7 +179,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * * StreamSegmentSealedException
      * * General MetadataUpdateException.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testAddWithInvalidOperations() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 40;
@@ -250,7 +252,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to process Operations when Serialization errors happen.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testAddWithOperationSerializationFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
@@ -315,7 +317,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to process Operations when there are DataLog write failures.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testAddWithDataLogFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
@@ -362,10 +364,48 @@ public class DurableLogTests extends OperationLogTestBase {
     }
 
     /**
+     * Tests the ability of the DurableLog to handle a DataLogWriterNotPrimaryException.
+     */
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    public void testAddWithDataLogWriterNotPrimaryException() throws Exception {
+        int streamSegmentCount = 1;
+        int appendsPerStreamSegment = 1;
+
+        // Setup a DurableLog and start it.
+        @Cleanup
+        ContainerSetup setup = new ContainerSetup(executorService());
+        @Cleanup
+        DurableLog durableLog = setup.createDurableLog();
+        durableLog.startAsync().awaitRunning();
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
+                count -> true,
+                () -> new CompletionException(new DataLogWriterNotPrimaryException("intentional")));
+        setup.dataLog.get().setAppendErrorInjectors(null, aSyncErrorInjector);
+
+        // Process all generated operations.
+        List<OperationWithCompletion> completionFutures = processOperations(operations, durableLog);
+
+        // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
+        AssertExtensions.assertThrows(
+                "No operations failed.",
+                OperationWithCompletion.allOf(completionFutures)::join,
+                ex -> ex instanceof IOException || ex instanceof DataLogWriterNotPrimaryException);
+
+        // Verify that the OperationProcessor automatically shuts down and that it has the right failure cause.
+        ServiceShutdownListener.awaitShutdown(durableLog, TIMEOUT, false);
+        Assert.assertEquals("DurableLog is not in a failed state after fence-out detected.",
+                Service.State.FAILED, durableLog.state());
+        Assert.assertTrue("DurableLog did not fail with the correct exception.",
+                durableLog.failureCause() instanceof DataLogWriterNotPrimaryException);
+    }
+
+    /**
      * Tests the ability of the DurableLog to process Operations when a simulated DataCorruptionException
      * is generated.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testAddWithDataCorruptionFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
@@ -444,7 +484,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability to block reads if the read is at the tail and no more data is available (for now).
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testTailReads() throws Exception {
         final int operationCount = 10;
         final long segmentId = 1;
@@ -523,7 +563,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the ability to timeout tail reads. This does not actually test the functionality of tail reads - it just
      * tests that they will time out appropriately.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testTailReadsTimeout() {
         final long segmentId = 1;
         final String segmentName = Long.toString(segmentId);
@@ -555,7 +595,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to add MetadataCheckpointOperations triggered by the number of operations processed.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testMetadataCheckpointByCount() throws Exception {
         int checkpointEvery = 30;
         testMetadataCheckpoint(
@@ -566,7 +606,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to add MetadataCheckpointOperations triggered by the length of the operations processed.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testMetadataCheckpointByLength() throws Exception {
         int checkpointLengthThreshold = 257 * 1024;
         testMetadataCheckpoint(
