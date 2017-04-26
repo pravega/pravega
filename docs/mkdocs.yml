@@ -5,7 +5,7 @@ site_description: 'Documentation to help you get familiar with Pravega'
 repo_url: 'https://github.com/pravega/pravega'
 edit_uri: 'tree/master/docs/'
 
-theme: 'material'
+theme: 'cinder'
 
 pages:
   - Overview: 'overview.md'
