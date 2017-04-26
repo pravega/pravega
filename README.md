@@ -30,7 +30,7 @@ To learn more about Pravega, visit http://pravega.io
     massive volumes durably by seamlessly scaling up to handle high throughput 
     reads and writes from thousands of concurrent clients.
 
--   Fault Tolerant - Don't aim for availability only. Pravega detects failures and
+-   Fault Tolerant - Pravega detects failures and
     automatically recovers ensuring the continuous flow of data required for 
     business continuity. 
 
