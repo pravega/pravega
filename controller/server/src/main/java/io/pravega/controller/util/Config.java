@@ -42,11 +42,7 @@ public final class Config {
     public static final int SERVICE_PORT = CONFIG.getInt("config.controller.server.serviceHostPort");
 
     //Store configuration.
-    //Stream store configuration.
-    public static final String STREAM_STORE_TYPE = CONFIG.getString("config.controller.server.store.stream.type");
-
     //HostStore configuration.
-    public static final String HOST_STORE_TYPE = CONFIG.getString("config.controller.server.store.host.type");
     public static final int HOST_STORE_CONTAINER_COUNT = CONFIG.getInt("config.controller.server.store.host.containerCount");
 
     //Cluster configuration.
@@ -58,9 +54,6 @@ public final class Config {
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
     public static final int ZK_RETRY_SLEEP_MS = CONFIG.getInt("config.controller.server.zk.retryIntervalMS");
     public static final int ZK_MAX_RETRIES = CONFIG.getInt("config.controller.server.zk.maxRetries");
-
-    //TaskStore configuration.
-    public static final String STORE_TYPE = CONFIG.getString("config.controller.server.store.type");
 
     static {
         Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
