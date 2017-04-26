@@ -1,3 +1,6 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ */
 package io.pravega.controller.util;
 
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
