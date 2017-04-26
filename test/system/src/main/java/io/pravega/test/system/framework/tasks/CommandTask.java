@@ -2,12 +2,13 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package io.pravega.framework.tasks;
+package io.pravega.test.system.framework.tasks;
 
-import io.pravega.framework.TestFrameworkException;
-import io.pravega.framework.metronome.model.v1.Job;
-import io.pravega.framework.metronome.model.v1.Restart;
-import io.pravega.framework.metronome.model.v1.Run;
+
+import io.pravega.test.system.framework.TestFrameworkException;
+import io.pravega.test.system.framework.metronome.model.v1.Job;
+import io.pravega.test.system.framework.metronome.model.v1.Restart;
+import io.pravega.test.system.framework.metronome.model.v1.Run;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
@@ -17,7 +18,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static io.pravega.framework.TestFrameworkException.Type.InternalError;
+import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
 
 @Slf4j

@@ -2,7 +2,7 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package io.pravega.framework.tasks;
+package io.pravega.test.system.framework.tasks;
 
 /**
  * Task abstraction for the System test framework.

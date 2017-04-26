@@ -2,15 +2,15 @@
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package io.pravega.framework.tasks;
+package io.pravega.test.system.framework.tasks;
 
 import io.pravega.common.concurrent.FutureHelpers;
 import feign.Response;
-import io.pravega.framework.TestFrameworkException;
-import io.pravega.framework.metronome.AuthEnabledMetronomeClient;
-import io.pravega.framework.metronome.Metronome;
-import io.pravega.framework.metronome.MetronomeException;
-import io.pravega.framework.metronome.model.v1.Job;
+import io.pravega.test.system.framework.TestFrameworkException;
+import io.pravega.test.system.framework.metronome.AuthEnabledMetronomeClient;
+import io.pravega.test.system.framework.metronome.Metronome;
+import io.pravega.test.system.framework.metronome.MetronomeException;
+import io.pravega.test.system.framework.metronome.model.v1.Job;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -19,8 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
-import static io.pravega.framework.TestFrameworkException.*;
-
+import static io.pravega.test.system.framework.TestFrameworkException.Type;
 /**
  * Metronome based task implementation.
  */
