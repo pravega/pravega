@@ -679,14 +679,10 @@ project('connectors:flink') {
     // Publishing both shaded and non-shaded versions of the flink connector.
     publishing {
         publications {
-            maven(MavenPublication) {
-                artifactId 'pravega-connectors-flink_2.11'
-                from components.java
-            }
             shadow(MavenPublication) {
                 groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "io.pravega"
                 version = pravegaVersion
-                artifactId 'pravega-connectors-flink-shaded_2.11'
+                artifactId 'pravega-connectors-flink_2.11'
                 from components.shadow
             }
         }
