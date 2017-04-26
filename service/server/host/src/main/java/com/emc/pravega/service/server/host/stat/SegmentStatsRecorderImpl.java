@@ -85,7 +85,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         SegmentAggregates aggregates = cache.getIfPresent(streamSegmentName);
 
         if (aggregates == null &&
-                StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName) != null) {
+                StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName) == null) {
             loadAsynchronously(streamSegmentName);
         }
 
@@ -103,7 +103,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
                                 byte type = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).byteValue();
-                                int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).intValue();
+                                int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_RATE).intValue();
                                 cache.put(streamSegmentName, new SegmentAggregates(type, rate));
                             }
                             pendingCacheLoads.remove(streamSegmentName);
