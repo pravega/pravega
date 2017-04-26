@@ -82,7 +82,7 @@ Read [Getting Started](http://pravega.io/docs/Getting-Started/) page for more in
 Deployment Options 
 -------------------
 
-There are multiple ways to deploy your own Pravega Cluster. These  installation options currently include [manual](http://pravega.io/docs/Manual-Deployment-Pravega-Cluster/) and [docker based](http://pravega.io/docs/Docker-based-Deployment-Pravega-Cluster/). As we are enabling more options with help of the community, check out [Deploying Pravega Cluster](http://pravega.io/docs/Deploying-Pravega/) page for more. 
+There are multiple ways to deploy your own Pravega Cluster. These  installation options currently include [manual](http://pravega.io/docs/deployment-manual/) and [docker based](http://pravega.io/docs/deployment-docker/). As we are enabling more options with help of the community, check out [Deploying Pravega Cluster](http://pravega.io/docs/deployment/) page for more. 
 
 
 Support
