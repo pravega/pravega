@@ -1,7 +1,7 @@
 # Pravega Concepts
 
 This page is an overview of the key concepts in Pravega.
- See [Terminology](/display/NAUT/Terminology) for a concise definition for many
+ See [Terminology](http://pravega.io/docs/Terminology/index.html) for a concise definition for many
 Pravega concepts.
 
 ## Pravega Components
@@ -328,7 +328,7 @@ Checkpoint to reset all the Readers in the ReaderGroup to the known consistent
 state represented by the Checkpoint.
 
 For more details on working with ReaderGroups, see [Working with Pravega: Reader
-Groups](/display/NAUT/Working+with+Pravega%3A+Reader+Groups).
+Groups](http://pravega.io/docs/Reader-Groups/index.html).
 
 ## Transactions
 
@@ -364,7 +364,7 @@ Events published into a Transaction are never visible to the Reader until that
 Transaction is committed.
 
 For more details on working with Transactions, see [Working with Pravega:
-Transactions](/display/NAUT/Working+with+Pravega%3A+Transactions).
+Transactions](http://pravega.io/docs/Transactions/index.html).
 
 ## State Synchronizers
 
@@ -412,7 +412,7 @@ not at its best when many processes are all attempting to simultaneously update
 the same piece of data.
 
 For more details on working with State Synchronizers, see [Working with Pravega:
-State Synchronizer](/display/NAUT/Working+with+Pravega%3A+State+Synchronizer).
+State Synchronizer](http://pravega.io/docs/State-Synchronizer/index.html).
 
 ## Putting the Concepts Together
 
