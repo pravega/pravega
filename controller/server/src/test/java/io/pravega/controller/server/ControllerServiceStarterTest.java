@@ -127,8 +127,7 @@ public abstract class ControllerServiceStarterTest {
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.empty())
                 .requestHandlersEnabled(false)
-                .grpcServerConfig(Optional.of(GRPCServerConfigImpl.builder().port(grpcPort)
-                        .publishedRPCHost("localhost").publishedRPCPort(grpcPort).build()))
+                .grpcServerConfig(Optional.of(GRPCServerConfigImpl.builder().port(grpcPort).build()))
                 .restServerConfig(Optional.empty())
                 .build();
     }
