@@ -8,7 +8,7 @@ edit_uri: 'tree/master/docs/'
 theme: 'readthedocs'
 
 pages:
-  - Overview: 'overview.md'
+  - Home: 'overview.md'
   - Getting Started: 'getting-started.md'
   - Understanding Pravega:
       - 'Pravega Concepts': 'pravega-concepts.md'
