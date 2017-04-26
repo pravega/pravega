@@ -31,8 +31,8 @@ pages:
 #      - 'Wire Protocol': 'Streaming-Service-Wire-Protocol.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
-      - 'Issue Triaging': 'issues-triaging.md'
-      - 'Pull Request Reviews': 'pr-reviews.md'
+      - 'Issue Triaging': 'contributing.md'
+      - 'Pull Request Reviews': 'contributing.md'
       - 'Join the Community': 'join-community.md'
 extra:
     version: 0.1
