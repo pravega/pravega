@@ -2,8 +2,6 @@
 
 Pravega is an open source distributed storage service implementing **Streams**. It offers Stream as the main primitive for the foundation of reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
 
-To learn more about Pravega, visit http://pravega.io
-
 ### Features 
 
 -   Auto Scaling - Dynamically scale data streams across storage
