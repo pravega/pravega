@@ -7,7 +7,7 @@ import io.pravega.service.contracts.SegmentProperties;
 import io.pravega.service.storage.SegmentHandle;
 import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.mocks.InMemoryStorage;
-import io.pravega.testcommon.ErrorInjector;
+import io.pravega.test.common.ErrorInjector;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;

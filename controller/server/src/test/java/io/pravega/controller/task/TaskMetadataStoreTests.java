@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -50,7 +51,7 @@ public abstract class TaskMetadataStoreTests {
     @After
     public abstract void cleanupTaskStore() throws IOException;
 
-    @Test
+    @Test(timeout = 10000)
     public void testFolderOperations() throws ExecutionException, InterruptedException {
         final TaggedResource child1 = new TaggedResource(UUID.randomUUID().toString(), resource);
         final TaggedResource child2 = new TaggedResource(UUID.randomUUID().toString(), resource);
@@ -87,7 +88,7 @@ public abstract class TaskMetadataStoreTests {
         assertFalse(child.isPresent());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void lockUnlockTests() throws ExecutionException, InterruptedException {
 
         taskMetadataStore.lock(resource, taskData, host1, threadId1, null, null).get();
@@ -117,9 +118,12 @@ public abstract class TaskMetadataStoreTests {
 
         data = taskMetadataStore.getTask(resource, host1, threadId1).join();
         assertFalse(data.isPresent());
+
+        Void result = taskMetadataStore.unlock(resource, host1, threadId1).join();
+        assertNull(result);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void lockFailureTest() throws ExecutionException, InterruptedException {
 
         taskMetadataStore.lock(resource, taskData, host1, threadId1, null, null).get();

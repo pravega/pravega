@@ -16,11 +16,15 @@ public abstract class AbstractTimer {
 
     /**
      * Gets the elapsed time, in nanoseconds.
+     *
+     * @return Long indicating elapsed time, in nanoseconds.
      */
     public abstract long getElapsedNanos();
 
     /**
      * Gets the elapsed time, in milliseconds.
+     *
+     *  @return Long indicating elapsed time, in milliseconds.
      */
     public long getElapsedMillis() {
         return getElapsedNanos() / NANOS_TO_MILLIS;
@@ -28,6 +32,8 @@ public abstract class AbstractTimer {
 
     /**
      * Gets the elapsed time.
+     *
+     * @return Duration indicating elapsed time.
      */
     public Duration getElapsed() {
         return Duration.ofNanos(getElapsedNanos());

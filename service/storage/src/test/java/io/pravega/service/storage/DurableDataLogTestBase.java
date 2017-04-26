@@ -5,8 +5,8 @@
 package io.pravega.service.storage;
 
 import io.pravega.common.util.CloseableIterator;
-import io.pravega.testcommon.AssertExtensions;
-import io.pravega.testcommon.ThreadPooledTestSuite;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;

@@ -108,7 +108,8 @@ public abstract class TaskBase implements AutoCloseable {
         final CompletableFuture<T> result = new CompletableFuture<>();
         final TaggedResource taggedResource = new TaggedResource(tag, resource);
 
-        log.debug("Host={}, Tag={} starting to execute task on resource {}", context.hostId, tag, resource);
+        log.debug("Host={}, Tag={} starting to execute task {}-{} on resource {}", context.hostId, tag,
+                taskData.getMethodName(), taskData.getMethodVersion(), resource);
         if (createIndexOnlyMode) {
             return createIndexes(context.hostId, taggedResource, taskData);
         }

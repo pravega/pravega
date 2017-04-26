@@ -172,8 +172,9 @@ public class TaskSweeper {
     @SuppressWarnings("unchecked")
     private CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
 
-        log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
-                this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
+        log.debug("Host={} attempting to execute task {}-{} for child <{}, {}> of {}",
+                this.hostId, taskData.getMethodName(), taskData.getMethodVersion(), taggedResource.getResource(),
+                taggedResource.getTag(), oldHostId);
         try {
 
             String key = getKey(taskData.getMethodName(), taskData.getMethodVersion());

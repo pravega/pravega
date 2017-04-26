@@ -20,7 +20,7 @@ import io.pravega.common.netty.WireCommands;
 import io.pravega.stream.impl.PendingEvent;
 import io.pravega.stream.impl.netty.ClientConnection;
 import io.pravega.stream.mock.MockController;
-import io.pravega.testcommon.Async;
+import io.pravega.test.common.Async;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.InOrder;

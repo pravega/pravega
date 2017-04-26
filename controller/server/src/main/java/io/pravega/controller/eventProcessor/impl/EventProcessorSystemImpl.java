@@ -5,6 +5,7 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.ClientFactory;
 import io.pravega.ReaderGroupManager;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -53,6 +54,9 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
     public <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(
             final EventProcessorConfig<T> eventProcessorConfig,
             final CheckpointStore checkpointStore) throws CheckpointStoreException {
+        Preconditions.checkNotNull(eventProcessorConfig, "eventProcessorConfig");
+        Preconditions.checkNotNull(checkpointStore, "checkpointStore");
+
         EventProcessorGroupImpl<T> actorGroup;
 
         // Create event processor group.

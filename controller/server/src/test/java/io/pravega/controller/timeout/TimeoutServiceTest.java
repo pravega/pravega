@@ -6,7 +6,7 @@
 package io.pravega.controller.timeout;
 
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.testcommon.TestingServerStarter;
+import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;

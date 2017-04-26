@@ -123,7 +123,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                             ReaderConfig.builder().build());
 
             // Create event processor, and add it to the actors list.
-            EventProcessorCell<T> actorCell = new EventProcessorCell<>(eventProcessorConfig, reader,
+            EventProcessorCell<T> actorCell = new EventProcessorCell<>(eventProcessorConfig, reader, writer,
                     actorSystem.getProcess(), readerId, i, checkpointStore);
             log.info("Created event processor {}, id={}", i, actorCell.toString());
 
@@ -141,7 +141,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             log.info("Attempting to start all event processors in {}", this.toString());
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
             log.info("Waiting for all all event processors in {} to start", this.toString());
-            eventProcessorMap.entrySet().forEach(entry -> entry.getValue().awaitRunning());
+            eventProcessorMap.entrySet().forEach(entry -> entry.getValue().awaitStartupComplete());
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }

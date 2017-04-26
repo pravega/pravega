@@ -41,6 +41,7 @@ public final class FutureHelpers {
      *
      * @param f   The future to wait for.
      * @param <T> The Type of the future's result.
+     * @return True if the provided CompletableFuture is complete and successful.
      */
     public static <T> boolean await(CompletableFuture<T> f) {
         return await(f, Long.MAX_VALUE);
@@ -53,6 +54,7 @@ public final class FutureHelpers {
      * @param timeout The maximum number of milliseconds to block
      * @param f       The future to wait for.
      * @param <T>     The Type of the future's result.
+     * @return True if the given CompletableFuture is completed and successful within the given timeout.
      */
     public static <T> boolean await(CompletableFuture<T> f, long timeout) {
         Exceptions.handleInterrupted(() -> {
@@ -94,6 +96,7 @@ public final class FutureHelpers {
      *
      * @param f   The future to inspect.
      * @param <T> The Type of the future's result.
+     * @return True if the given CompletableFuture has completed successfully.
      */
     public static <T> boolean isSuccessful(CompletableFuture<T> f) {
         return f.isDone() && !f.isCompletedExceptionally() && !f.isCancelled();
@@ -139,6 +142,7 @@ public final class FutureHelpers {
      * @param <ExceptionT>         Type of the Exception.
      * @throws ExceptionT       If thrown by the future.
      * @throws TimeoutException If the timeout expired prior to the future completing.
+     * @return The result of calling future.get().
      */
     @SneakyThrows(InterruptedException.class)
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
@@ -163,6 +167,7 @@ public final class FutureHelpers {
      *
      * @param exception The exception to fail the CompletableFuture.
      * @param <T>       The Type of the future's result.
+     * @return A CompletableFuture that fails with the given exception.
      */
     public static <T> CompletableFuture<T> failedFuture(Throwable exception) {
         CompletableFuture<T> result = new CompletableFuture<>();
@@ -256,6 +261,7 @@ public final class FutureHelpers {
      *
      * @param futures A List of CompletableFutures to wait on.
      * @param <T>     The type of the results items.
+     * @return  A new CompletableFuture List that is completed when all of the given CompletableFutures complete.
      */
     public static <T> CompletableFuture<List<T>> allOfWithResults(List<CompletableFuture<T>> futures) {
         CompletableFuture<Void> allDoneFuture = CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
@@ -282,10 +288,29 @@ public final class FutureHelpers {
     }
 
     /**
+     * Similar to CompletableFuture.allOf(varargs), but that works on a Map and that returns another Map which has the
+     * results of the given CompletableFutures, with the same input keys.
+     *
+     * @param futureMap A Map of Keys to CompletableFutures to wait on.
+     * @param <K>       The type of the Keys.
+     * @param <V>       The Type of the Values.
+     * @return A CompletableFuture that will contain a Map of Keys to Values, where Values are the results of the Futures
+     * in the input map.
+     */
+    public static <K, V> CompletableFuture<Map<K, V>> keysAllOfWithResults(Map<CompletableFuture<K>, V> futureMap) {
+        return FutureHelpers
+                .allOf(futureMap.keySet())
+                .thenApply(ignored ->
+                        futureMap.entrySet().stream()
+                                .collect(Collectors.toMap(future -> future.getKey().join(), Map.Entry::getValue)));
+    }
+
+    /**
      * Similar implementation to CompletableFuture.allOf(vararg) but that works on a Collection.
      *
      * @param futures A Collection of CompletableFutures to wait on.
      * @param <T>     The type of the results items.
+     * @return A new CompletableFuture that is completed when all of the given CompletableFutures complete.
      */
     public static <T> CompletableFuture<Void> allOf(Collection<CompletableFuture<T>> futures) {
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
@@ -323,6 +348,7 @@ public final class FutureHelpers {
      * @param timeout         The timeout for the future.
      * @param executorService An ExecutorService that will be used to invoke the timeout on.
      * @param <T>             The Type argument for the CompletableFuture to create.
+     * @return A CompletableFuture with a timeout.
      */
     public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, ScheduledExecutorService executorService) {
         return futureWithTimeout(timeout, null, executorService);

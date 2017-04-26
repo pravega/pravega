@@ -19,7 +19,7 @@ import io.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.service.storage.impl.rocksdb.RocksDBConfig;
-import io.pravega.testcommon.TestUtils;
+import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicReference;

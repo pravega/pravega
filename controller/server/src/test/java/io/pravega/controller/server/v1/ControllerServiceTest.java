@@ -3,7 +3,7 @@
  */
 package io.pravega.controller.server.v1;
 
-import io.pravega.testcommon.TestingServerStarter;
+import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;

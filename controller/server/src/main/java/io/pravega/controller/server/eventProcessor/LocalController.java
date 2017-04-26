@@ -12,8 +12,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.stream.PingFailedException;
 import io.pravega.stream.Segment;
+import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.Stream;
 import io.pravega.stream.StreamConfiguration;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.Transaction;
 import io.pravega.stream.impl.Controller;
 import io.pravega.stream.impl.ControllerFailureException;
@@ -244,12 +246,12 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
+    public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         return controller.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment))
                 .thenApply(x -> {
-                    Map<Segment, List<Integer>> map = new HashMap<>();
+                    Map<SegmentWithRange, List<Integer>> map = new HashMap<>();
                     x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
-                    return map;
+                    return new StreamSegmentsWithPredecessors(map);
                 });
     }
 

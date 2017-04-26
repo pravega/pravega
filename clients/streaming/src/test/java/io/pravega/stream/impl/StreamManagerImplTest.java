@@ -11,7 +11,7 @@ import io.pravega.common.netty.PravegaNodeUri;
 import io.pravega.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.stream.mock.MockController;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

@@ -11,7 +11,7 @@ import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
 
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 
 /**
  * Unit tests for StreamSegmentNameUtils class.

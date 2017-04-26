@@ -5,7 +5,7 @@
 package io.pravega.service.server.store;
 
 import io.pravega.common.util.ConfigBuilder;
-import io.pravega.testcommon.AssertExtensions;
+import io.pravega.test.common.AssertExtensions;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.Map;

@@ -5,6 +5,7 @@
  */
 package io.pravega.stream.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.netty.PravegaNodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -18,9 +19,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.stream.ScalingPolicy;
 import io.pravega.stream.Segment;
+import io.pravega.stream.SegmentWithRange;
 import io.pravega.stream.StreamConfiguration;
 import io.pravega.stream.Transaction;
-import com.google.common.base.Preconditions;
 
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -150,6 +151,17 @@ public final class ModelHelper {
     }
 
     /**
+     * Helper to convert SegmentRange to SegmentWithRange.
+     *
+     * @param segmentRange segmentRange
+     * @return SegmentWithRange
+     */
+    public static final SegmentWithRange encode(final SegmentRange segmentRange) {
+        return new SegmentWithRange(encode(segmentRange.getSegmentId()), segmentRange.getMinKey(), segmentRange
+                .getMaxKey());
+    }
+
+    /**
      * Returns TxnId object instance for a given transaction with UUID.
      *
      * @param txnId UUID
@@ -261,14 +273,14 @@ public final class ModelHelper {
                 .build();
     }
 
-    public static final SuccessorResponse createSuccessorResponse(Map<SegmentId, List<Integer>> segments) {
+    public static final SuccessorResponse createSuccessorResponse(Map<SegmentRange, List<Integer>> segments) {
         Preconditions.checkNotNull(segments);
         return SuccessorResponse.newBuilder()
                 .addAllSegments(
                         segments.entrySet().stream().map(
-                                segmentIdListEntry -> SuccessorResponse.SegmentEntry.newBuilder()
-                                        .setSegmentId(segmentIdListEntry.getKey())
-                                        .addAllValue(segmentIdListEntry.getValue())
+                                segmentRangeListEntry -> SuccessorResponse.SegmentEntry.newBuilder()
+                                        .setSegment(segmentRangeListEntry.getKey())
+                                        .addAllValue(segmentRangeListEntry.getValue())
                                         .build())
                                 .collect(Collectors.toList()))
                 .build();
