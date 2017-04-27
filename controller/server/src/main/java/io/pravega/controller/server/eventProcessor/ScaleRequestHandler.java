@@ -212,7 +212,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleEvent> {
                         log.error("scale done for {}/{}/{}", request.getScope(), request.getStream(), request.getSegmentNumber());
                         result.complete(null);
 
-                        clearMarkers(request.getScope(), request.getStream(), segments, context);
+                        cclearMarkers(request.getScope(), request.getStream(), segments, context);
                     }
                 }, executor);
 

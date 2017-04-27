@@ -15,6 +15,7 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.test.common.AssertExtensions;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Optional;
@@ -31,20 +32,18 @@ public class ControllerServiceConfigTest {
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> GRPCServerConfigImpl.builder().build());
 
-        AssertExtensions.assertThrows(NullPointerException.class,
-                () -> GRPCServerConfigImpl.builder().publishedRPCHost(null).port(10).build());
+        // Published host/port can be empty.
+        Assert.assertNotNull(GRPCServerConfigImpl.builder().port(10).build());
 
+        // Published host cannot be empty.
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> GRPCServerConfigImpl.builder().publishedRPCHost("").port(10).build());
 
-        AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> GRPCServerConfigImpl.builder().publishedRPCHost("localhost").port(10).build());
-
-        // Port should be positive integer
+        // Port should be positive integer.
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> GRPCServerConfigImpl.builder().port(-10).build());
 
-        // Port should be positive integer
+        // Published port should be a positive integer.
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> GRPCServerConfigImpl.builder().port(10).publishedRPCHost("localhost")
                         .publishedRPCPort(-10).build());

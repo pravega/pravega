@@ -372,7 +372,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private String getHostName() {
         String hostName = null;
         if (serviceConfig.getGRPCServerConfig().isPresent()) {
-            hostName = serviceConfig.getGRPCServerConfig().get().getPublishedRPCHost();
+            hostName = serviceConfig.getGRPCServerConfig().get().getPublishedRPCHost().orElse(null);
         }
 
         if (StringUtils.isEmpty(hostName)) {
@@ -389,7 +389,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private int getPort() {
         int port = 0;
         if (serviceConfig.getGRPCServerConfig().isPresent()) {
-            port = serviceConfig.getGRPCServerConfig().get().getPublishedRPCPort();
+            port = serviceConfig.getGRPCServerConfig().get().getPublishedRPCPort().orElse(
+                    serviceConfig.getGRPCServerConfig().get().getPort());
         }
         return port;
     }
