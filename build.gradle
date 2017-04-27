@@ -163,9 +163,6 @@ project('common') {
         title = "Pravega Common Libraries"
         failOnError = false
         source  =  project(':common').sourceSets.main.java
-        def javadocs = new File(rootDir, "javadocs")
-        javadocs.mkdirs()
-        destinationDir = javadocs
     }
 }
 
@@ -823,6 +820,23 @@ task genJavaDocs(type: Javadoc) {
     dependsOn 'clients:streaming:javadoc'
 }
 
+task javadocs(type: Javadoc) {
+    description = "Generate main pravega javadoc"
+
+    // Include names of any project that is to be included in the javadoc distribution
+    ext.projects = [':clients:streaming', ':common']
+
+    title = "Pravega API"
+    source = files(projects.collect {
+        project(it).sourceSets.main.allJava
+    })
+    classpath = files(projects.collect {
+        project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
+    })
+    failOnError = false
+    exclude "**/impl/**"
+}
+
 apply plugin: 'distribution'
 distributions {
     main {
@@ -844,7 +858,7 @@ distributions {
             from (project(":singlenode").installDist)
         }
     }
-    clients {
+    client {
         baseName = "pravega-client"
         contents {
             from { project(":clients:streaming").configurations.runtime }
@@ -854,7 +868,7 @@ distributions {
     javadoc {
         baseName = "pravega-javadoc"
         contents {
-            from (project(':clients:streaming').javadoc)
+            from (javadocs)
         }
     }
 }
@@ -872,6 +886,7 @@ task buildPravegaImage(type: Exec, dependsOn: preparePravegaImage) {
     executable dockerExecutable
     args "build"
     args "-t", "${pravegaBaseTag}:${pravegaVersion}"
+    args "-t", "${pravegaBaseTag}:latest"
     args preparePravegaImage.destinationDir.absolutePath
 }
 
@@ -879,5 +894,14 @@ task buildBookkeeperImage(type: Exec) {
     executable dockerExecutable
     args "build"
     args "-t", "${bookkeeperBaseTag}:${pravegaVersion}"
+    args "-t", "${bookkeeperBaseTag}:latest"
     args "docker/bookkeeper"
+}
+
+task docker(dependsOn: [buildPravegaImage, buildBookkeeperImage]) {
+    description = "Builds all docker images"
+}
+
+task distribution(dependsOn: [assembleDist, assembleClientDist, assembleJavadocDist]) {
+    description = "Builds a distribution package"
 }
