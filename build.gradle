@@ -158,14 +158,12 @@ project ('shared') {
     dependencies {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        //compile project(':common')
-        //testCompile project(':test:common')
-         }
+    }
 }
 
 project ('shared:metrics') {
    dependencies {
-    compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+       compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
        compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
@@ -556,7 +554,7 @@ project('shared:controller') {
         }
     }
     javadoc {
-        exclude 'io/pravega/shared/*'
+        exclude  'io/pravega/controller/*'
     }
 }
 
@@ -845,6 +843,7 @@ subprojects {
 task publishAllJars() {
     dependsOn ':clients:streaming:publish'
     dependsOn ':common:publish'
+    dependsOn ':shared:protocol:publish'
     dependsOn ':service:contracts:publish'
     dependsOn ':service:storage:publish'
     dependsOn ':service:storage:impl:publish'
