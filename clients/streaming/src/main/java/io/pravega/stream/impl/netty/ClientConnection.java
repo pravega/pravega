@@ -37,12 +37,12 @@ public interface ClientConnection extends AutoCloseable {
     /**
      * Sends a wire command asynchronously.
      *
-     * @param cmd The wire comment to be sent.
+     * @param cmd The wire command to be sent.
      */
     void sendAsync(WireCommand cmd);
 
     /**
-     * Sends the provided append requests.
+     * Sends the provided append commands.
      *
      * @param appends A list of append command to send.
      * @param callback A callback to be invoked when the operation is complete
