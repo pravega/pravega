@@ -17,7 +17,7 @@ configure_controller() {
 }
 
 configure_segmentstore() {
-    add_system_property "pravegaservice.zkUrl" "${ZK_URL}"
+    add_system_property "pravegaservice.zkURL" "${ZK_URL}"
     add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
