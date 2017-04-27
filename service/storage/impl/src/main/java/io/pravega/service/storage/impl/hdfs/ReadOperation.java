@@ -12,7 +12,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -66,19 +65,19 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
         boolean needsRefresh = true;
         while (needsRefresh && attemptCount < MAX_ATTEMPT_COUNT) {
             attemptCount++;
-
             try {
                 // Read data.
                 read(handle, totalBytesRead);
                 needsRefresh = false;
             } catch (FileNotFoundException fnf) {
-                if (!handle.isReadOnly()) {
+                if (!handle.isReadOnly() || attemptCount >= MAX_ATTEMPT_COUNT) {
                     // FileNotFound is only expected in read-only handles, since another read-write handle may have compacted
                     // the files together. If this is indeed a read-write handle, there is no point in retrying.
+                    // Also throw this if we tried enough times.
                     throw fnf;
                 }
 
-                log.warn("Unable to read from file '{}' (attempt {}/{}). Refreshing and retrying.", fnf.getMessage(), attemptCount, MAX_ATTEMPT_COUNT);
+                log.info("Unable to read from file '{}' (attempt {}/{}). Refreshing and retrying.", fnf.getMessage(), attemptCount, MAX_ATTEMPT_COUNT);
                 refreshHandle(handle);
             }
         }

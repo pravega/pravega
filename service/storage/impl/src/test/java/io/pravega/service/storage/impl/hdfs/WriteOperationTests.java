@@ -28,7 +28,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal write across many epochs.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testNormalWrite() throws Exception {
         val rnd = new Random(0);
         @Cleanup
@@ -87,7 +87,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the current file (previously empty) has disappeared due to it being fenced out.
      * Expected behavior: StorageNotPrimaryException with no side effects.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testFenceOutMissingFile() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -111,7 +111,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the current file (non-empty) has been marked as read-only due to it being fenced out.
      * Expected behavior: StorageNotPrimaryException with no side effects.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testFenceOutReadOnlyFile() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

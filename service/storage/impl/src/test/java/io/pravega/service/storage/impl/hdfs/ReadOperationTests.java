@@ -27,7 +27,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a read scenario with no issues or failures.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testNormalRead() throws Exception {
         // Write data.
         val rnd = new Random(0);
@@ -68,7 +68,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the handle has become stale and needs refreshing (triggered by call to offset+length beyond
      * current known limits).
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testRefreshHandleOffset() throws Exception {
         val rnd = new Random(0);
         @Cleanup
@@ -110,7 +110,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the handle has become stale due to the segment having been compacted externally. The read operation
      * should refresh the handle and continue working as expected.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testRefreshHandleMissingFile() throws Exception {
         val rnd = new Random(0);
         @Cleanup

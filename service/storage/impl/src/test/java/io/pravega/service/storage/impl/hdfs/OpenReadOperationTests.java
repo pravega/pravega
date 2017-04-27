@@ -23,7 +23,7 @@ public class OpenReadOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests the OpenReadOperation.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testOpenRead() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

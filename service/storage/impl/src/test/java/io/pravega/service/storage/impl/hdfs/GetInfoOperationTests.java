@@ -23,7 +23,7 @@ public class GetInfoOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests general GetInfoOperation behavior.
      */
-    @Test(timeout = 10000)
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testGetInfo() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -59,7 +59,7 @@ public class GetInfoOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests the behavior of the GetInfoOperation on a segment that is missing the first file.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testCorruptedSegment() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

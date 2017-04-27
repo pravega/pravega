@@ -27,7 +27,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests various combinations of bad input to the Concat command.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testInvalidInput() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -68,7 +68,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal concatenation for single-file sources.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testConcatSingleFile() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -94,7 +94,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal concatenation for empty source segment.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testConcatEmptySource() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -114,7 +114,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal concatenation for empty target segment (files).
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testConcatEmptyTarget() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -133,7 +133,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal concatenation for multi-file sources.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testConcatMultipleFiles() throws Exception {
         final int epochs = 50;
         @Cleanup

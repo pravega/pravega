@@ -21,7 +21,7 @@ public class ExistsOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests the ExistsOperation in various scenarios.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testExists() throws Exception {
         final int epoch = 1;
         final int offset = 0;
