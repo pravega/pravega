@@ -49,8 +49,10 @@ public class StreamSegmentsWithPredecessors {
     }
 
     /**
-     * Returns a map of the segment numbers that have been replaced mapped to their replacement
-     *         segment/ranges.
+     * Returns a map of the segment numbers to segment/ranges. The segment numbers (keys) comprise
+     * the predecessor segments, while the segment/ranges comprise the successor segments and their
+     * corresponding ranges.
+     * 
      * @return Predecessors mapped to successors.
      */
     public Map<Integer, List<SegmentWithRange>> getReplacementRanges() {

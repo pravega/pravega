@@ -60,9 +60,9 @@ public class StreamSegments {
         return segments.values();
     }
     
-    public StreamSegments withReplacementRange(StreamSegmentsWithPredecessors replacments) {
+    public StreamSegments withReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
         NavigableMap<Double, Segment> result = new TreeMap<>();
-        Map<Integer, List<SegmentWithRange>> replacedRanges = replacments.getReplacementRanges();
+        Map<Integer, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
         for (Entry<Double, Segment> exitingSegment : segments.entrySet()) {
             List<SegmentWithRange> replacements = replacedRanges.get(exitingSegment.getValue().getSegmentNumber());
             if (replacements == null || replacements.isEmpty()) {
@@ -72,7 +72,6 @@ public class StreamSegments {
                     result.put(replacement.getHigh(), replacement.getSegment());
                 }
             }
-          
         }
         return new StreamSegments(result);
     }

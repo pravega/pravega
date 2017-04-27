@@ -48,7 +48,7 @@ public class StreamSegmentsTest {
     }
     
     @Test
-    public void testRangeReplacmentSplit() {
+    public void testRangeReplacementSplit() {
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.5, new Segment(scope, streamName, 0));
         segments.put(1.0, new Segment(scope, streamName, 1));
@@ -78,7 +78,7 @@ public class StreamSegmentsTest {
     }
     
     @Test
-    public void testRangeReplacmentMerge() {
+    public void testRangeReplacementMerge() {
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
