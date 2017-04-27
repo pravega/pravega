@@ -19,8 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.assertTrue;
 
 public class RetryHelperTest {
-    class TestException extends RuntimeException implements RetryableException {
-
+    private static class TestException extends RuntimeException implements RetryableException {
     }
 
     ScheduledExecutorService executor;

@@ -110,5 +110,6 @@ public class ConcurrentEventProcessorTest {
         });
         result.get();
         assertTrue(FutureHelpers.await(result));
+        processor.afterStop();
     }
 }
