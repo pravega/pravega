@@ -34,28 +34,27 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class ControllerImplLBTest {
-    private static final int SERVER_PORT1 = TestUtils.getAvailableListenPort();
-    private static final int SERVER_PORT2 = TestUtils.getAvailableListenPort();
-    private static final int SERVER_PORT3 = TestUtils.getAvailableListenPort();
-
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
-    private Server fakeServer1 = null;
-    private Server fakeServer2 = null;
-    private Server fakeServer3 = null;
+    private Server testRPCServer1 = null;
+    private Server testRPCServer2 = null;
+    private Server testRPCServer3 = null;
 
     @Before
     public void setup() throws IOException {
+        final int serverPort1 = TestUtils.getAvailableListenPort();
+        final int serverPort2 = TestUtils.getAvailableListenPort();
+        final int serverPort3 = TestUtils.getAvailableListenPort();
 
         // Setup fake servers for simulating multiple controllers with discovery info.
         ControllerServiceImplBase fakeServerImpl1 = new ControllerServiceImplBase() {
             @Override
             public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
                 responseObserver.onNext(ServerResponse.newBuilder()
-                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVER_PORT1).build())
-                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVER_PORT2).build())
-                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVER_PORT3).build())
+                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(serverPort1).build())
+                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(serverPort2).build())
+                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(serverPort3).build())
                         .build());
                 responseObserver.onCompleted();
             }
@@ -71,9 +70,9 @@ public class ControllerImplLBTest {
             @Override
             public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
                 responseObserver.onNext(ServerResponse.newBuilder()
-                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVER_PORT1).build())
-                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVER_PORT2).build())
-                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVER_PORT3).build())
+                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(serverPort1).build())
+                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(serverPort2).build())
+                        .addNodeURI(NodeUri.newBuilder().setEndpoint("localhost").setPort(serverPort3).build())
                         .build());
                 responseObserver.onCompleted();
             }
@@ -93,24 +92,26 @@ public class ControllerImplLBTest {
             }
         };
 
-        fakeServer1 = InProcessServerBuilder.forPort(SERVER_PORT1).addService(fakeServerImpl1).build().start();
-        fakeServer2 = InProcessServerBuilder.forPort(SERVER_PORT2).addService(fakeServerImpl2).build().start();
-        fakeServer3 = InProcessServerBuilder.forPort(SERVER_PORT3).addService(fakeServerImpl3).build().start();
+        testRPCServer1 = InProcessServerBuilder.forPort(serverPort1).addService(fakeServerImpl1).build().start();
+        testRPCServer2 = InProcessServerBuilder.forPort(serverPort2).addService(fakeServerImpl2).build().start();
+        testRPCServer3 = InProcessServerBuilder.forPort(serverPort3).addService(fakeServerImpl3).build().start();
     }
 
     @After
     public void tearDown() throws IOException {
-        fakeServer1.shutdownNow();
-        fakeServer2.shutdownNow();
-        fakeServer3.shutdownNow();
+        testRPCServer1.shutdownNow();
+        testRPCServer2.shutdownNow();
+        testRPCServer3.shutdownNow();
     }
 
     @Test
     public void testDiscoverySuccess() throws Exception {
+        final int serverPort1 = testRPCServer1.getPort();
+        final int serverPort2 = testRPCServer2.getPort();
 
         // Use 2 servers to discover all the servers.
         ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("pravega://localhost:" + SERVER_PORT1 + ",localhost:" + SERVER_PORT2));
+                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient);
 
         // Verify we could reach all 3 controllers.
@@ -119,13 +120,15 @@ public class ControllerImplLBTest {
 
     @Test
     public void testDiscoveryFailover() throws Exception {
+        final int serverPort1 = testRPCServer1.getPort();
+        final int serverPort2 = testRPCServer2.getPort();
 
         // Use 2 servers for discovery. Bring down the first server and ensure discovery happens using the other one.
-        fakeServer1.shutdownNow();
-        fakeServer1.awaitTermination();
-        Assert.assertTrue(fakeServer1.isTerminated());
+        testRPCServer1.shutdownNow();
+        testRPCServer1.awaitTermination();
+        Assert.assertTrue(testRPCServer1.isTerminated());
         ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("pravega://localhost:" + SERVER_PORT1 + ",localhost:" + SERVER_PORT2));
+                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
 
         // Verify that we can read from the 2 live servers.
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient);
@@ -133,58 +136,64 @@ public class ControllerImplLBTest {
         Assert.assertFalse(uris.contains(new PravegaNodeUri("localhost1", 1)));
 
         // Bring down another one and verify.
-        fakeServer2.shutdownNow();
-        fakeServer2.awaitTermination();
-        Assert.assertTrue(fakeServer2.isTerminated());
+        testRPCServer2.shutdownNow();
+        testRPCServer2.awaitTermination();
+        Assert.assertTrue(testRPCServer2.isTerminated());
         uris = fetchFromServers(controllerClient);
         Assert.assertEquals(1, uris.size());
         Assert.assertTrue(uris.contains(new PravegaNodeUri("localhost3", 3)));
 
         // Bring down all and verify.
-        fakeServer3.shutdownNow();
-        fakeServer3.awaitTermination();
-        Assert.assertTrue(fakeServer3.isTerminated());
+        testRPCServer3.shutdownNow();
+        testRPCServer3.awaitTermination();
+        Assert.assertTrue(testRPCServer3.isTerminated());
         controllerClient = new ControllerImpl(
-                URI.create("pravega://localhost:" + SERVER_PORT1 + ",localhost:" + SERVER_PORT2));
+                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
         uris = fetchFromServers(controllerClient);
         Assert.assertEquals(0, uris.size());
     }
 
     @Test
     public void testDirectSuccess() throws Exception {
+        final int serverPort1 = testRPCServer1.getPort();
+        final int serverPort2 = testRPCServer2.getPort();
+        final int serverPort3 = testRPCServer3.getPort();
 
         // Directly use all 3 servers and verify.
         ControllerImpl controllerClient = new ControllerImpl(URI.create(
-                "tcp://localhost:" + SERVER_PORT1 + ",localhost:" + SERVER_PORT2 + ",localhost:" + SERVER_PORT3));
+                "tcp://localhost:" + serverPort1 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3));
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient);
         Assert.assertEquals(3, uris.size());
     }
 
     @Test
     public void testDirectFailover() throws Exception {
+        final int serverPort1 = testRPCServer1.getPort();
+        final int serverPort2 = testRPCServer2.getPort();
+        final int serverPort3 = testRPCServer3.getPort();
 
         // Bring down the first server and verify we can fallback to the remaining 2 servers.
-        fakeServer1.shutdownNow();
-        fakeServer1.awaitTermination();
-        Assert.assertTrue(fakeServer1.isTerminated());
+        testRPCServer1.shutdownNow();
+        testRPCServer1.awaitTermination();
+        Assert.assertTrue(testRPCServer1.isTerminated());
         ControllerImpl controllerClient = new ControllerImpl(URI.create(
-                "tcp://localhost:" + SERVER_PORT1 + ",localhost:" + SERVER_PORT2 + ",localhost:" + SERVER_PORT3));
+                "tcp://localhost:" + serverPort1 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3));
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient);
         Assert.assertEquals(2, uris.size());
         Assert.assertFalse(uris.contains(new PravegaNodeUri("localhost1", 1)));
 
         // Bring down another one and verify.
-        fakeServer2.shutdownNow();
-        fakeServer2.awaitTermination();
-        Assert.assertTrue(fakeServer2.isTerminated());
+        testRPCServer2.shutdownNow();
+        testRPCServer2.awaitTermination();
+        Assert.assertTrue(testRPCServer2.isTerminated());
         uris = fetchFromServers(controllerClient);
         Assert.assertEquals(1, uris.size());
         Assert.assertTrue(uris.contains(new PravegaNodeUri("localhost3", 3)));
 
         // Bring down all and verify.
-        fakeServer3.shutdownNow();
-        fakeServer3.awaitTermination();
-        Assert.assertTrue(fakeServer3.isTerminated());
+        testRPCServer3.shutdownNow();
+        testRPCServer3.awaitTermination();
+        Assert.assertTrue(testRPCServer3.isTerminated());
         uris = fetchFromServers(controllerClient);
         Assert.assertEquals(0, uris.size());
     }
