@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -287,6 +288,45 @@ public class ZkStreamTest {
         assertEquals(segments.size(), 5);
         assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0, 6, 9, 10, 11).contains(x.getNumber())));
 
+        Map<Integer, List<Integer>> successors = store.getSuccessors(SCOPE, streamName, 0, context, executor).get();
+        assertTrue(successors.isEmpty());
+        successors = store.getSuccessors(SCOPE, streamName, 1, context, executor).get();
+        assertTrue(successors.size() == 2 &&
+                successors.containsKey(6) && successors.get(6).containsAll(Collections.singleton(1)) &&
+                successors.containsKey(7) && successors.get(7).containsAll(Collections.singleton(1)));
+
+        successors = store.getSuccessors(SCOPE, streamName, 2, context, executor).get();
+        assertTrue(successors.size() == 1 &&
+                successors.containsKey(8) && successors.get(8).containsAll(Lists.newArrayList(2, 5)));
+
+        successors = store.getSuccessors(SCOPE, streamName, 3, context, executor).get();
+        assertTrue(successors.size() == 1 &&
+                successors.containsKey(5) && successors.get(5).containsAll(Lists.newArrayList(3, 4)));
+
+        successors = store.getSuccessors(SCOPE, streamName, 4, context, executor).get();
+        assertTrue(successors.size() == 1 &&
+                successors.containsKey(5) && successors.get(5).containsAll(Lists.newArrayList(3, 4)));
+
+        successors = store.getSuccessors(SCOPE, streamName, 5, context, executor).get();
+        assertTrue(successors.size() == 1 &&
+                successors.containsKey(8) && successors.get(8).containsAll(Lists.newArrayList(2, 5)));
+
+        successors = store.getSuccessors(SCOPE, streamName, 6, context, executor).get();
+        assertTrue(successors.isEmpty());
+        successors = store.getSuccessors(SCOPE, streamName, 7, context, executor).get();
+        assertTrue(successors.size() == 2 &&
+                successors.containsKey(9) && successors.get(9).containsAll(Collections.singleton(7)) &&
+                successors.containsKey(10) && successors.get(10).containsAll(Lists.newArrayList(7, 8)));
+        successors = store.getSuccessors(SCOPE, streamName, 8, context, executor).get();
+        assertTrue(successors.size() == 2 &&
+                successors.containsKey(11) && successors.get(11).containsAll(Collections.singleton(8)) &&
+                successors.containsKey(10) && successors.get(10).containsAll(Lists.newArrayList(7, 8)));
+        successors = store.getSuccessors(SCOPE, streamName, 9, context, executor).get();
+        assertTrue(successors.isEmpty());
+        successors = store.getSuccessors(SCOPE, streamName, 10, context, executor).get();
+        assertTrue(successors.isEmpty());
+        successors = store.getSuccessors(SCOPE, streamName, 11, context, executor).get();
+        assertTrue(successors.isEmpty());
         // start -1
         List<Integer> historicalSegments = store.getActiveSegments(SCOPE, streamName, start - 1, context, executor).get();
         assertEquals(historicalSegments.size(), 5);
