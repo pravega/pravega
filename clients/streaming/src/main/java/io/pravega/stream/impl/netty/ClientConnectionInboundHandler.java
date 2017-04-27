@@ -7,7 +7,6 @@ package io.pravega.stream.impl.netty;
 
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
@@ -92,13 +91,6 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
     @Override
-    public void sendAsync(WireCommand cmd) {
-        recentMessage.set(true);
-        Channel channel = getChannel();
-        channel.writeAndFlush(cmd, channel.voidPromise());
-    }
-
-    @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
         recentMessage.set(true);
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
@@ -109,6 +101,13 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         recentMessage.set(true);
         batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
+    }
+
+    @Override
+    public void sendAsync(WireCommand cmd) {
+        recentMessage.set(true);
+        Channel channel = getChannel();
+        channel.writeAndFlush(cmd, channel.voidPromise());
     }
     
     @Override

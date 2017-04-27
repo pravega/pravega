@@ -17,13 +17,6 @@ import java.util.List;
 public interface ClientConnection extends AutoCloseable {
 
     /**
-     * Sends a wire command asynchronously.
-     *
-     * @param cmd The wire comment to be sent.
-     */
-    void sendAsync(WireCommand cmd);
-
-    /**
      * Sends the provided command. This operation may block. (Though buffering is used to try to
      * prevent it)
      *
@@ -40,6 +33,13 @@ public interface ClientConnection extends AutoCloseable {
      * @throws ConnectionFailedException The connection has died, and can no longer be used.
      */
     void send(Append append) throws ConnectionFailedException;
+    
+    /**
+     * Sends a wire command asynchronously.
+     *
+     * @param cmd The wire comment to be sent.
+     */
+    void sendAsync(WireCommand cmd);
 
     /**
      * Sends the provided append requests.

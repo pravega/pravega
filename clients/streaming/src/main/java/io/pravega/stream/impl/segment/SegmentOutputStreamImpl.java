@@ -268,13 +268,17 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                                                                                   .getData()),
                                                                       entry.getValue().getExpectedOffset()))
                                              .collect(Collectors.toList());
-            state.getConnection().sendAsync(toRetransmit, e -> {
-                if (e == null) {
-                    state.connectionSetupComplete();
-                } else {
-                    state.failConnection(e);
-                }
-            });
+            if (toRetransmit == null || toRetransmit.isEmpty()) {
+                state.connectionSetupComplete();
+            } else {
+                state.getConnection().sendAsync(toRetransmit, e -> {
+                    if (e == null) {
+                        state.connectionSetupComplete();
+                    } else {
+                        state.failConnection(e);
+                    }
+                });
+            }
         }
 
         private void ackUpTo(long ackLevel) {
