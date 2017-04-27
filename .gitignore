@@ -5,6 +5,7 @@
 .project
 build
 .classpath
+.DS_Store
 bin/
 classes/
 .settings
