@@ -13,6 +13,7 @@ add_system_property() {
 configure_controller() {
     add_system_property "config.controller.server.zk.url" "${ZK_URL}"
     add_system_property "config.controller.server.store.host.type" "Zookeeper"
+    echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
 configure_segmentstore() {
@@ -23,6 +24,7 @@ configure_segmentstore() {
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
     add_system_property "dlog.hostname" "${ZK_URL%:*}"
     add_system_property "dlog.port" "${ZK_URL#*:}"
+    echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
 configure_singlenode() {
@@ -30,6 +32,7 @@ configure_singlenode() {
     add_system_property "pravegaservice.listeningIPAddress" "0.0.0.0"
     add_system_property "log.dir" "/opt/pravega/logs"
     add_system_property "logback.configurationFile" "/opt/pravega/conf/logback.xml"
+    echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
 case $1 in
