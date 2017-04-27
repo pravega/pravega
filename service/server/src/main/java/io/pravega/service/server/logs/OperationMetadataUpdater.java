@@ -1274,9 +1274,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.lastUsed = value;
         }
 
-        //endregion
-
-        //region Operations
 
         /**
          * Applies all the outstanding changes to the base StreamSegmentMetadata object.

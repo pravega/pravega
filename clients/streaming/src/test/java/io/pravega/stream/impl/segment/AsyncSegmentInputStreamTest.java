@@ -5,9 +5,9 @@
  */
 package io.pravega.stream.impl.segment;
 
-import io.pravega.common.netty.ConnectionFailedException;
-import io.pravega.common.netty.PravegaNodeUri;
-import io.pravega.common.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.stream.Segment;
 import io.pravega.stream.impl.netty.ClientConnection;
 import io.pravega.stream.mock.MockConnectionFactoryImpl;
@@ -16,7 +16,7 @@ import io.pravega.test.common.Async;
 
 import java.nio.ByteBuffer;
 
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 
 import org.junit.Test;

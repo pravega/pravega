@@ -4,7 +4,7 @@
 package io.pravega.controller.requesthandler;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.requests.ControllerRequest;
+import io.pravega.shared.controller.requests.ControllerRequest;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.stream.EventRead;

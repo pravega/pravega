@@ -6,12 +6,12 @@
 package io.pravega.stream.impl.netty;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.Append;
-import io.pravega.common.netty.AppendBatchSizeTracker;
-import io.pravega.common.netty.ConnectionFailedException;
-import io.pravega.common.netty.Reply;
-import io.pravega.common.netty.ReplyProcessor;
-import io.pravega.common.netty.WireCommand;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommand;
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

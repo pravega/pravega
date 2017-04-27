@@ -6,8 +6,8 @@
 package io.pravega.test.integration;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.WireCommands.ReadSegment;
-import io.pravega.common.netty.WireCommands.SegmentRead;
+import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.service.contracts.ReadResult;
 import io.pravega.service.contracts.ReadResultEntry;
 import io.pravega.service.contracts.ReadResultEntryContents;

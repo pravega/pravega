@@ -1,0 +1,8 @@
+{
+"sourceFolder" : "src/main/java",
+"implFolder" : "src/main/java",
+"modelPackage" : "io.pravega.controller.server.rest.generated.model",
+"apiPackage" : "io.pravega.controller.server.rest.generated.api",
+"library" : "jersey2",
+"hideGenerationTimestamp" : true
+}
