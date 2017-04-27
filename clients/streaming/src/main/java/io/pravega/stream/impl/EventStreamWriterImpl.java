@@ -138,14 +138,15 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     if (segmentWriter == null) {
                         unsent.addAll(selector.refreshSegmentEventWriters());
                         sendFailed = true;
-                    }
-                    try {
-                        segmentWriter.write(event);
-                    } catch (SegmentSealedException e) {
-                        log.info("Segment was sealed while handling seal: {}", segmentWriter);
-                        Segment segment = Segment.fromScopedName(segmentWriter.getSegmentName());
-                        unsent.addAll(selector.refreshSegmentEventWritersUponSealed(segment));
-                        sendFailed = true;
+                    } else {
+                        try {
+                            segmentWriter.write(event);
+                        } catch (SegmentSealedException e) {
+                            log.info("Segment was sealed while handling seal: {}", segmentWriter);
+                            Segment segment = Segment.fromScopedName(segmentWriter.getSegmentName());
+                            unsent.addAll(selector.refreshSegmentEventWritersUponSealed(segment));
+                            sendFailed = true;
+                        }
                     }
                 }
             }
