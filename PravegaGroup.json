@@ -117,7 +117,7 @@
                   },
                   {
                     "key": "env",
-                    "value": "HOST_OPTS=\"-Dpravegaservice.zkURL=master.mesos:2181\" \"-Ddlog.hostname=master.mesos\" \"-Ddlog.port=2181\" \"-Dhdfs.hdfsUrl=namenode-0.hdfs.mesos:9001\" \"-DautoScale.muteInSeconds=120\" \"-DautoScale.cooldownInSeconds=120\"  \"-DautoScale.cacheExpiryInSeconds=120\" \"-DautoScale.cacheCleanUpInSeconds=120\" \"-DautoScale.controllerUri=tcp://controller.pravega.marathon.mesos:9090\" \"-Dlog.level=INFO\""
+                    "value": "HOST_OPTS=\"-Dpravegaservice.zkURL=master.mesos:2181\" \"-Ddlog.hostname=master.mesos\" \"-Ddlog.port=2181\" \"-Dhdfs.hdfsUrl=hdfs.marathon.containerip.dcos.thisdcos.directory:8020\" \"-DautoScale.muteInSeconds=120\" \"-DautoScale.cooldownInSeconds=120\"  \"-DautoScale.cacheExpiryInSeconds=120\" \"-DautoScale.cacheCleanUpInSeconds=120\" \"-DautoScale.controllerUri=tcp://controller.pravega.marathon.mesos:9090\" \"-Dlog.level=INFO\""
                   }
                   ],
 		  "forcePullImage": true
