@@ -193,7 +193,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 map = checkpointStore.sealReaderGroup(process, readerGroup.getGroupName());
             } catch (CheckpointStoreException e) {
                 if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
-                    map = Collections.emptyMap();
+                    return;
                 } else {
                     throw e;
                 }
