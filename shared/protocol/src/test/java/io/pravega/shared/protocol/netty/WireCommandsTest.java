@@ -30,6 +30,11 @@ public class WireCommandsTest {
     private final long l = 7L;
 
     @Test
+    public void testHello() throws IOException {
+        testCommand(new WireCommands.Hello(i, length));
+    }
+    
+    @Test
     public void testPadding() throws IOException {
         testCommand(new WireCommands.Padding(length));
     }

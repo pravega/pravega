@@ -18,6 +18,8 @@ import java.io.IOException;
  * (Types below that are grouped into pairs where there is a corresponding request and reply.)
  */
 public enum WireCommandType {
+    HELLO(-127, WireCommands.Hello::readFrom),
+    
     PADDING(-1, WireCommands.Padding::readFrom),
 
     PARTIAL_EVENT(-2, WireCommands.PartialEvent::readFrom),

@@ -12,6 +12,7 @@ import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
@@ -22,6 +23,8 @@ import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
  * A class that handles each type of Request. (Visitor pattern)
  */
 public interface RequestProcessor {
+    void hello(Hello hello);
+    
     void setupAppend(SetupAppend setupAppend);
 
     void append(Append append);

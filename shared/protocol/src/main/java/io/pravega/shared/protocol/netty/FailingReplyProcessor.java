@@ -8,6 +8,7 @@ package io.pravega.shared.protocol.netty;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchTransaction;
@@ -15,22 +16,29 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentPolicyUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentPolicyUpdated;
+import lombok.extern.slf4j.Slf4j;
 
 
 /**
  * A ReplyProcessor that throws on every method. (Useful to subclass)
  */
+@Slf4j
 public abstract class FailingReplyProcessor implements ReplyProcessor {
 
+    @Override
+    public void hello(Hello hello) {
+        log.info("Received hello: {}", hello);
+    }
+    
     @Override
     public void wrongHost(WrongHost wrongHost) {
         throw new IllegalStateException("Wrong host. Segment: " + wrongHost.segment + " is on "

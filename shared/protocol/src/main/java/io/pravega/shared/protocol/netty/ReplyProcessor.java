@@ -5,10 +5,14 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
+
 /**
  * A class that handles each type of reply. (Visitor pattern)
  */
 public interface ReplyProcessor {
+    void hello(Hello hello);
+    
     void wrongHost(WireCommands.WrongHost wrongHost);
 
     void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists);
