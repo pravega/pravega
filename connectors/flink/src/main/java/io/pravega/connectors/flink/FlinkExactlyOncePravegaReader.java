@@ -111,6 +111,8 @@ public class FlinkExactlyOncePravegaReader<T>
      * @param startTime             The start time from when to read events from.
      *                              Use 0 to read all stream events from the beginning.
      * @param deserializationSchema The implementation to deserialize events from pravega streams.
+     * @param readerName            The name of the reader, used to store state and resume existing state from
+     *                              savepoints.
      */
     public FlinkExactlyOncePravegaReader(final URI controllerURI, final String scope, final Set<String> streamNames,
                                          final long startTime, final DeserializationSchema<T> deserializationSchema,
@@ -155,8 +157,7 @@ public class FlinkExactlyOncePravegaReader<T>
         
         // build the reader
         try (EventStreamReader<T> pravegaReader =  ClientFactory.withScope(this.scopeName, this.controllerURI)
-                .createReader(readerId, this.readerGroupName, deserializer, ReaderConfig.builder().build()))
-        {
+                .createReader(readerId, this.readerGroupName, deserializer, ReaderConfig.builder().build())) {
 
             log.info("Starting Pravega reader '{}' for controller URI {}: " + readerId, this.controllerURI);
 
@@ -225,8 +226,7 @@ public class FlinkExactlyOncePravegaReader<T>
         final long checkpointId;
         try {
             checkpointId = ReaderCheckpointHook.parseCheckpointId(checkpointIdentifier);
-        }
-        catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             throw new FlinkException("Cannot trigger checkpoint due to invalid Pravega checkpoint name", e.getCause());
         }
 
