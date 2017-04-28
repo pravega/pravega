@@ -34,7 +34,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
     public void setupCheckpointStore() throws Exception {
         zkServer = new TestingServerStarter().start();
         zkServer.start();
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10, 10, new RetryOneTime(10));
         cli.start();
         checkpointStore = CheckpointStoreFactory.createZKStore(cli);
     }
