@@ -113,7 +113,7 @@ public class FlinkExactlyOncePravegaReaderTest extends StreamingMultiplePrograms
             // has gone through. Rather than implementing a complicated observer that polls the status
             // from Flink, we simply forward the 'checkpoint complete' notification from the user functions
             // the thr throttler, via a static variable
-            NotifyingMapper.TO_CALL_ON_CHECKPOINT_COMPLETION = producer::unthrottle;
+            NotifyingMapper.TO_CALL_ON_CHECKPOINT_COMPLETION.set(producer::unthrottle);
         
             final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             
