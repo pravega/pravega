@@ -144,7 +144,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(setup.getSegment(), new Session(setup.getConnectionId()));
         } else if (msg instanceof Flush) {
-           Flush flush = (Flush) msg;
+            Flush flush = (Flush) msg;
             if (currentBlockSize == flush.getBlockSize()) {
                 breakFromAppend(out);
             }

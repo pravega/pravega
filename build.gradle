@@ -162,6 +162,14 @@ project ('shared') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-shared'
+                from components.java
+            }
+        }
+    }
     javadoc {
         exclude 'io/pravega/shared/*'
     }
@@ -854,6 +862,7 @@ subprojects {
 task publishAllJars() {
     dependsOn ':clients:streaming:publish'
     dependsOn ':common:publish'
+    dependsOn ':shared:publish'
     dependsOn ':shared:protocol:publish'
     dependsOn ':service:contracts:publish'
     dependsOn ':service:storage:publish'
