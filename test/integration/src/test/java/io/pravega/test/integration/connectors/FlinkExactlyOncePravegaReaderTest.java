@@ -5,7 +5,7 @@
  */
 package io.pravega.test.integration.connectors;
 
-import io.pravega.connectors.flink.FlinkPravegaReader2;
+import io.pravega.connectors.flink.FlinkExactlyOncePravegaReader;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.test.integration.connectors.utils.*;
 import io.pravega.test.integration.utils.SetupUtils;
@@ -32,10 +32,10 @@ import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Automated tests for {@link FlinkPravegaReader2}.
+ * Automated tests for {@link FlinkExactlyOncePravegaReader}.
  */
 @Slf4j
-public class FlinkPravegaReader2Test extends StreamingMultipleProgramsTestBase {
+public class FlinkExactlyOncePravegaReaderTest extends StreamingMultipleProgramsTestBase {
 
     // Number of events to produce into the test stream.
     private static final int NUM_STREAM_ELEMENTS = 10000;
@@ -67,9 +67,7 @@ public class FlinkPravegaReader2Test extends StreamingMultipleProgramsTestBase {
         runTest(1, 4, NUM_STREAM_ELEMENTS);
     }
 
-    // this test currently does ot work - is it possible that readers without a
-    // segment never get the checkpoint event? if yes, how do we guard against
-    // that case?
+    // this test currently does ot work, see https://github.com/pravega/pravega/issues/1152
 //    @Test
 //    public void testMultipleSourcesOneSegment() throws Exception {
 //        runTest(4, 1, NUM_STREAM_ELEMENTS);
@@ -120,7 +118,7 @@ public class FlinkPravegaReader2Test extends StreamingMultipleProgramsTestBase {
             env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 0L));
 
             // the Pravega reader
-            final FlinkPravegaReader2<Integer> pravegaSource = new FlinkPravegaReader2<>(
+            final FlinkExactlyOncePravegaReader<Integer> pravegaSource = new FlinkExactlyOncePravegaReader<>(
                     SETUP_UTILS.getControllerUri(),
                     SETUP_UTILS.getScope(),
                     Collections.singleton(streamName),
@@ -154,6 +152,7 @@ public class FlinkPravegaReader2Test extends StreamingMultipleProgramsTestBase {
                 }
             }
 
+            // this method forwards exception thrown in the data generator thread
             producer.sync();
 
             final long executeEnd = System.nanoTime();

@@ -23,6 +23,10 @@ import org.apache.flink.streaming.api.checkpoint.ListCheckpointed;
 
 import java.util.List;
 
+/**
+ * An identity mapper that throws an exception at a specified element.
+ * The exception is only thrown during the first execution, prior to the first recovery.
+ */
 public class FailingMapper<T> implements MapFunction<T, T>, ListCheckpointed<Integer> {
 
     private final int failAtElement;

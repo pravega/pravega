@@ -18,6 +18,9 @@
 
 package io.pravega.test.integration.connectors.utils;
 
+/**
+ * Simple function interface for {@code () -> void }
+ */
 @FunctionalInterface
 public interface ExecuteFunction {
 

@@ -21,6 +21,14 @@ package io.pravega.test.integration.connectors.utils;
 import io.pravega.stream.EventStreamWriter;
 import org.apache.flink.core.testutils.CheckedThread;
 
+/**
+ * A data generator thread that generates an ordered sequence of integers.
+ * 
+ * <p>The thread starts throttled (sleeping a certain time per emitted element)
+ * and will eventually block and not continue emitting further elements until
+ * is is un-throttled. The purpose of that is to make sure that certain actions
+ * can happen before all elements have been produced.
+ */
 public class ThrottledIntegerWriter extends CheckedThread implements AutoCloseable {
 
     private final EventStreamWriter<Integer> eventWriter;

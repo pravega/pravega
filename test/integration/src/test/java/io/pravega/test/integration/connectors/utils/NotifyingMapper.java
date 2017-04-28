@@ -20,10 +20,11 @@ package io.pravega.test.integration.connectors.utils;
 
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.runtime.state.CheckpointListener;
-import org.apache.flink.streaming.api.checkpoint.ListCheckpointed;
 
-import java.util.List;
-
+/**
+ * An identity MapFunction that calls an interface once it receives a notification
+ * that a checkpoint has been completed.
+ */
 public class NotifyingMapper<T> implements MapFunction<T, T>, CheckpointListener {
 
     public static volatile ExecuteFunction toCallOnCheckpointCompletion;

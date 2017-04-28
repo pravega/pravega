@@ -42,7 +42,7 @@ import java.util.UUID;
  * @param <T> The type of the event to be written.
  */
 @Slf4j
-public class FlinkPravegaReader2<T>
+public class FlinkExactlyOncePravegaReader<T>
         extends RichParallelSourceFunction<T> 
         implements ResultTypeQueryable<T>, StoppableFunction, ExternallyInducedSource<T, Checkpoint> {
 
@@ -88,8 +88,8 @@ public class FlinkPravegaReader2<T>
      *                              Use 0 to read all stream events from the beginning.
      * @param deserializationSchema The implementation to deserialize events from pravega streams.
      */
-    public FlinkPravegaReader2(final URI controllerURI, final String scope, final Set<String> streamNames,
-                               final long startTime, final DeserializationSchema<T> deserializationSchema) {
+    public FlinkExactlyOncePravegaReader(final URI controllerURI, final String scope, final Set<String> streamNames,
+                                         final long startTime, final DeserializationSchema<T> deserializationSchema) {
 
         this(controllerURI, scope, streamNames, startTime, deserializationSchema, UUID.randomUUID().toString());
     }
@@ -112,9 +112,9 @@ public class FlinkPravegaReader2<T>
      *                              Use 0 to read all stream events from the beginning.
      * @param deserializationSchema The implementation to deserialize events from pravega streams.
      */
-    public FlinkPravegaReader2(final URI controllerURI, final String scope, final Set<String> streamNames,
-                               final long startTime, final DeserializationSchema<T> deserializationSchema,
-                               final String readerName) {
+    public FlinkExactlyOncePravegaReader(final URI controllerURI, final String scope, final Set<String> streamNames,
+                                         final long startTime, final DeserializationSchema<T> deserializationSchema,
+                                         final String readerName) {
 
         Preconditions.checkNotNull(controllerURI);
         Preconditions.checkNotNull(scope);
