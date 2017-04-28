@@ -9,7 +9,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import io.pravega.ClientFactory;
-import io.pravega.common.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.state.StateSynchronizer;
 import io.pravega.state.SynchronizerConfig;
 import io.pravega.stream.ReaderGroupConfig;

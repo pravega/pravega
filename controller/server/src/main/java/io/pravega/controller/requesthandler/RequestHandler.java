@@ -3,7 +3,7 @@
  */
 package io.pravega.controller.requesthandler;
 
-import io.pravega.controller.requests.ControllerRequest;
+import io.pravega.shared.controller.requests.ControllerRequest;
 
 import java.util.concurrent.CompletableFuture;
 

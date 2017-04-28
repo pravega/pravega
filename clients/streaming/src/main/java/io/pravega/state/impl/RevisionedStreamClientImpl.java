@@ -6,7 +6,7 @@
 package io.pravega.state.impl;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.state.Revision;
 import io.pravega.state.RevisionedStreamClient;
 import io.pravega.stream.Segment;
