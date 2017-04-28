@@ -234,7 +234,7 @@ public class ReaderGroupStateManagerTest {
         AssertExtensions.assertThrows(ReinitializationRequiredException.class,
                 () -> readerState2.releaseSegment(new Segment(scope, stream, 0), 711L, 0L));
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
         newSegments = readerState1.acquireNewSegmentsIfNeeded(0);
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 0)));
@@ -295,11 +295,11 @@ public class ReaderGroupStateManagerTest {
 
         assertTrue(Sets.intersection(segments1.keySet(), segments2.keySet()).isEmpty());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertFalse(reader1.releaseSegment(new Segment(scope, stream, 0), 0, 0));
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertTrue(reader1.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader1.findSegmentToReleaseIfRequired());
@@ -368,28 +368,28 @@ public class ReaderGroupStateManagerTest {
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertNotNull(reader1.findSegmentToReleaseIfRequired());
         reader1.releaseSegment(new Segment(scope, stream, 3), 3, 0);
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertNotNull(reader1.findSegmentToReleaseIfRequired());
         reader1.releaseSegment(new Segment(scope, stream, 4), 4, 0);
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertNotNull(reader1.findSegmentToReleaseIfRequired());
         reader1.releaseSegment(new Segment(scope, stream, 5), 5, 0);
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
@@ -414,7 +414,7 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments3 = reader3.acquireNewSegmentsIfNeeded(0);
         assertEquals(2, segments3.size());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertTrue(reader3.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader1.findSegmentToReleaseIfRequired());
