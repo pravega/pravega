@@ -126,7 +126,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 } else {
                     byte[] serializedMessage = serializeMessage(new Event(data));
                     int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
-                    ByteBuf dataInsideBlock =wrappedBuffer(serializedMessage, 0, bytesInBlock);
+                    ByteBuf dataInsideBlock = wrappedBuffer(serializedMessage, 0, bytesInBlock);
                     ByteBuf dataRemainging = wrappedBuffer(serializedMessage,
                                                            bytesInBlock,
                                                            serializedMessage.length - bytesInBlock);
