@@ -204,6 +204,13 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         }
 
         try {
+            checkpointStore.removeReader(process1, readerGroup1, reader1);
+            Assert.fail();
+        } catch (CheckpointStoreException e) {
+            assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
+        }
+
+        try {
             checkpointStore.removeReaderGroup(process1, readerGroup1);
             Assert.fail();
         } catch (CheckpointStoreException e) {
