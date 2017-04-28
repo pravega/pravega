@@ -5,33 +5,46 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import io.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
+import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
+import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
+import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
+import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
+import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
+import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
+import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
+import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
+import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
+
 /**
  * A class that handles each type of Request. (Visitor pattern)
  */
 public interface RequestProcessor {
-    void setupAppend(WireCommands.SetupAppend setupAppend);
+    void setupAppend(SetupAppend setupAppend);
 
     void append(Append append);
 
-    void readSegment(WireCommands.ReadSegment readSegment);
+    void readSegment(ReadSegment readSegment);
 
-    void getStreamSegmentInfo(WireCommands.GetStreamSegmentInfo getStreamInfo);
+    void getStreamSegmentInfo(GetStreamSegmentInfo getStreamInfo);
 
-    void getTransactionInfo(WireCommands.GetTransactionInfo getTransactionInfo);
+    void getTransactionInfo(GetTransactionInfo getTransactionInfo);
 
-    void createSegment(WireCommands.CreateSegment createSegment);
+    void createSegment(CreateSegment createSegment);
 
-    void createTransaction(WireCommands.CreateTransaction createTransaction);
+    void createTransaction(CreateTransaction createTransaction);
 
-    void commitTransaction(WireCommands.CommitTransaction commitTransaction);
+    void commitTransaction(CommitTransaction commitTransaction);
     
-    void abortTransaction(WireCommands.AbortTransaction abortTransaction);
+    void abortTransaction(AbortTransaction abortTransaction);
 
-    void sealSegment(WireCommands.SealSegment sealSegment);
+    void sealSegment(SealSegment sealSegment);
 
-    void deleteSegment(WireCommands.DeleteSegment deleteSegment);
+    void deleteSegment(DeleteSegment deleteSegment);
 
-    void keepAlive(WireCommands.KeepAlive keepAlive);
+    void keepAlive(KeepAlive keepAlive);
 
-    void updateSegmentPolicy(WireCommands.UpdateSegmentPolicy updateSegmentPolicy);
+    void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy);
 }

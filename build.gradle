@@ -147,7 +147,10 @@ project('common') {
     javadoc {
         title = "Pravega Common Libraries"
         failOnError = false
-        source  =  project(':common').sourceSets.main.java
+        source {
+            project(':common').sourceSets.main.java
+            project(':shared:protocol').sourceSets.main.java
+        }
         def javadocs = new File(rootDir, "javadocs")
         javadocs.mkdirs()
         destinationDir = javadocs
@@ -158,6 +161,9 @@ project ('shared') {
     dependencies {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+    }
+    javadoc {
+        exclude 'io/pravega/shared/*'
     }
 }
 
@@ -177,7 +183,6 @@ project ('shared:metrics') {
        compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
        compile project(':common')
    }
-
    publishing {
         publications {
             maven(MavenPublication) {
@@ -204,8 +209,15 @@ project('shared:protocol') {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-shared-protocol'
+                from components.java
+            }
+        }
+    }
 }
-
 
 project('clients:streaming') {
     dependencies {

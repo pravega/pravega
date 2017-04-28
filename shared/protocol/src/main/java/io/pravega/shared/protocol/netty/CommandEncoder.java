@@ -5,8 +5,15 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
+import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
+import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.shared.protocol.netty.WireCommands.Flush;
+import io.pravega.shared.protocol.netty.WireCommands.Padding;
+import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
+import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import com.google.common.base.Preconditions;
-
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -14,12 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.concurrent.NotThreadSafe;
 
+import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
@@ -85,22 +93,22 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             }
             if (append.isConditional()) {
                 breakFromAppend(out);
-                WireCommands.ConditionalAppend ca = new WireCommands.ConditionalAppend(append.connectionId,
+                ConditionalAppend ca = new ConditionalAppend(append.connectionId,
                         append.eventNumber,
                         append.getExpectedLength(),
-                        Unpooled.wrappedBuffer(serializeMessage(new WireCommands.Event(append.getData()))));
+                        wrappedBuffer(serializeMessage(new Event(append.getData()))));
                 writeMessage(ca, out);
             } else {
-                Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > WireCommands.TYPE_PLUS_LENGTH_SIZE,
+                Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
                         "Bug in CommandEncoder.encode, block is too small.");
                 if (append.segment != segmentBeingAppendedTo) {
                     breakFromAppend(out);
                 }
                 if (bytesLeftInBlock == 0) {
-                    currentBlockSize = Math.max(WireCommands.TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
+                    currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
                     bytesLeftInBlock = currentBlockSize;
                     segmentBeingAppendedTo = append.segment;
-                    writeMessage(new WireCommands.AppendBlock(session.id), out);
+                    writeMessage(new AppendBlock(session.id), out);
                     if (ctx != null) {
                         ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
                                                 blockSizeSupplier.getBatchTimeout(),
@@ -111,32 +119,32 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 session.lastEventNumber = append.getEventNumber();
 
                 ByteBuf data = append.getData();
-                int msgSize = WireCommands.TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
+                int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
                 // Is there enough space for a subsequent message after this one?
-                if (bytesLeftInBlock - msgSize > WireCommands.TYPE_PLUS_LENGTH_SIZE) {
-                    bytesLeftInBlock -= writeMessage(new WireCommands.Event(data), out);
+                if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {
+                    bytesLeftInBlock -= writeMessage(new Event(data), out);
                 } else {
-                    byte[] serializedMessage = serializeMessage(new WireCommands.Event(data));
-                    int bytesInBlock = bytesLeftInBlock - WireCommands.TYPE_PLUS_LENGTH_SIZE;
-                    ByteBuf dataInsideBlock = Unpooled.wrappedBuffer(serializedMessage, 0, bytesInBlock);
-                    ByteBuf dataRemainging = Unpooled.wrappedBuffer(serializedMessage,
+                    byte[] serializedMessage = serializeMessage(new Event(data));
+                    int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
+                    ByteBuf dataInsideBlock =wrappedBuffer(serializedMessage, 0, bytesInBlock);
+                    ByteBuf dataRemainging = wrappedBuffer(serializedMessage,
                                                            bytesInBlock,
                                                            serializedMessage.length - bytesInBlock);
-                    writeMessage(new WireCommands.PartialEvent(dataInsideBlock), out);
-                    writeMessage(new WireCommands.AppendBlockEnd(session.id,
+                    writeMessage(new PartialEvent(dataInsideBlock), out);
+                    writeMessage(new AppendBlockEnd(session.id,
                                                     session.lastEventNumber,
                                                     currentBlockSize - bytesLeftInBlock,
                                                     dataRemainging), out);
                     bytesLeftInBlock = 0;
                 }
             }
-        } else if (msg instanceof WireCommands.SetupAppend) {
+        } else if (msg instanceof SetupAppend) {
             breakFromAppend(out);
-            writeMessage((WireCommands.SetupAppend) msg, out);
-            WireCommands.SetupAppend setup = (WireCommands.SetupAppend) msg;
+            writeMessage((SetupAppend) msg, out);
+            SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(setup.getSegment(), new Session(setup.getConnectionId()));
-        } else if (msg instanceof WireCommands.Flush) {
-            WireCommands.Flush flush = (WireCommands.Flush) msg;
+        } else if (msg instanceof Flush) {
+           Flush flush = (Flush) msg;
             if (currentBlockSize == flush.getBlockSize()) {
                 breakFromAppend(out);
             }
@@ -150,9 +158,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     private void breakFromAppend(ByteBuf out) {
         if (bytesLeftInBlock != 0) {
-            writeMessage(new WireCommands.Padding(bytesLeftInBlock - WireCommands.TYPE_PLUS_LENGTH_SIZE), out);
+            writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
             Session session = setupSegments.get(segmentBeingAppendedTo);
-            writeMessage(new WireCommands.AppendBlockEnd(session.id,
+            writeMessage(new AppendBlockEnd(session.id,
                     session.lastEventNumber,
                     currentBlockSize - bytesLeftInBlock,
                     null), out);
@@ -173,12 +181,12 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         out.close();
         byte[] result = bout.toByteArray();
         ByteBuffer asBuffer = ByteBuffer.wrap(result);
-        asBuffer.putInt(WireCommands.TYPE_SIZE, result.length - WireCommands.TYPE_PLUS_LENGTH_SIZE);
+        asBuffer.putInt(TYPE_SIZE, result.length - TYPE_PLUS_LENGTH_SIZE);
         return result;
     }
 
     @SneakyThrows(IOException.class)
-    private void writeMessage(WireCommands.AppendBlock block, ByteBuf out) {
+    private void writeMessage(AppendBlock block, ByteBuf out) {
         int startIdx = out.writerIndex();
         ByteBufOutputStream bout = new ByteBufOutputStream(out);
         bout.writeInt(block.getType().getCode());
@@ -187,8 +195,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         bout.flush();
         bout.close();
         int endIdx = out.writerIndex();
-        int fieldsSize = endIdx - startIdx - WireCommands.TYPE_PLUS_LENGTH_SIZE;
-        out.setInt(startIdx + WireCommands.TYPE_SIZE, fieldsSize + currentBlockSize);
+        int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
+        out.setInt(startIdx + TYPE_SIZE, fieldsSize + currentBlockSize);
     }
     
     @SneakyThrows(IOException.class)
@@ -201,8 +209,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         bout.flush();
         bout.close();
         int endIdx = out.writerIndex();
-        int fieldsSize = endIdx - startIdx - WireCommands.TYPE_PLUS_LENGTH_SIZE;
-        out.setInt(startIdx + WireCommands.TYPE_SIZE, fieldsSize);
+        int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
+        out.setInt(startIdx + TYPE_SIZE, fieldsSize);
         return endIdx - startIdx;
     }
     
@@ -213,7 +221,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
   
         @Override
         public void run() {
-            channel.writeAndFlush(new WireCommands.Flush(blockSize));
+            channel.writeAndFlush(new Flush(blockSize));
         }
     }
     

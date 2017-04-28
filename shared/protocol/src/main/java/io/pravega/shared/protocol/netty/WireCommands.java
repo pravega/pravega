@@ -5,7 +5,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
-
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -243,7 +243,7 @@ public final class WireCommands {
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             byte[] msg = new byte[length];
             in.readFully(msg);
-            return new PartialEvent(Unpooled.wrappedBuffer(msg));
+            return new PartialEvent(wrappedBuffer(msg));
         }
     }
 
@@ -260,7 +260,7 @@ public final class WireCommands {
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             byte[] msg = new byte[length];
             in.readFully(msg);
-            return new Event(Unpooled.wrappedBuffer(msg));
+            return new Event(wrappedBuffer(msg));
         }
     }
 
@@ -319,7 +319,7 @@ public final class WireCommands {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
             byte[] data = new byte[length - 16];
             in.readFully(data);
-            return new AppendBlock(connectionId, Unpooled.wrappedBuffer(data));
+            return new AppendBlock(connectionId, wrappedBuffer(data));
         }
     }
 
@@ -357,7 +357,7 @@ public final class WireCommands {
             } else {
                 data = new byte[0];
             }
-            return new AppendBlockEnd(connectionId, lastEventNumber, sizeOfHeaderlessAppends, Unpooled.wrappedBuffer(data));
+            return new AppendBlockEnd(connectionId, lastEventNumber, sizeOfHeaderlessAppends, wrappedBuffer(data));
         }
     }
     
@@ -396,7 +396,7 @@ public final class WireCommands {
             } else {
                 data = new byte[0];
             }
-            return new ConditionalAppend(connectionId, eventNumber, expectedOffset, Unpooled.wrappedBuffer(data));
+            return new ConditionalAppend(connectionId, eventNumber, expectedOffset, wrappedBuffer(data));
         }
     }
     

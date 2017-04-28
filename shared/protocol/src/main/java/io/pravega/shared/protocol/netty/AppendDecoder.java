@@ -5,7 +5,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
-
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -14,7 +14,6 @@ import java.util.UUID;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import lombok.Data;
@@ -134,9 +133,9 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 // See https://github.com/netty/netty/issues/5597
                 if (appendDataBuf.readableBytes() == 0) {
                     appendDataBuf.release();
-                    return Unpooled.wrappedBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
+                    return wrappedBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 } else {
-                    return Unpooled.wrappedBuffer(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
+                    return wrappedBuffer(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 }
             }
         }
