@@ -120,35 +120,38 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.executor = executor;
     }
 
-    public void notifyProcessFailure(String process) {
+    public CompletableFuture<Void> notifyProcessFailure(String process) {
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
         if (commitEventProcessors != null) {
-            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+            futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     commitEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
+            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
         }
 
         if (abortEventProcessors != null) {
-            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+            futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     abortEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
+            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
         }
         if (scaleEventProcessors != null) {
-            withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+            futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     scaleEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
-            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
+            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
         }
+        return FutureHelpers.allOf(futures);
     }
 
     @Override

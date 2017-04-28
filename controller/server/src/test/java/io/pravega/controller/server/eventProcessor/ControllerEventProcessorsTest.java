@@ -144,5 +144,6 @@ public class ControllerEventProcessorsTest {
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(FutureHelpers.await(processors.handleOrphanedReaders(() -> Sets.newHashSet("host1"))));
+        assertTrue(FutureHelpers.await(processors.notifyProcessFailure("host1")));
     }
 }
