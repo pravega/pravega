@@ -850,10 +850,10 @@ distributions {
                 into "conf"
             }
             from (project(":controller:server").installDist) {
-                exclude "conf/**"
+                exclude "logback.xml"
             }
             from (project(":service:server:host").installDist) {
-                exclude "conf/**"
+                exclude "logback.xml"
             }
             from (project(":singlenode").installDist)
         }
