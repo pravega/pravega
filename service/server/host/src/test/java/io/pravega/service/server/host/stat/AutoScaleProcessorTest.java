@@ -34,7 +34,6 @@ public class AutoScaleProcessorTest {
     private static final String STREAM3 = "stream3";
     ExecutorService executor;
     ScheduledExecutorService maintenanceExecutor;
-    EventStreamWriter<ScaleEvent> writer;
 
     @Before
     public void setup() {
@@ -46,9 +45,6 @@ public class AutoScaleProcessorTest {
     public void teardown() {
         executor.shutdown();
         maintenanceExecutor.shutdown();
-        if (writer != null) {
-            writer.close();
-        }
     }
 
     @Test (timeout = 10000)
@@ -56,8 +52,7 @@ public class AutoScaleProcessorTest {
         CompletableFuture<Void> result = new CompletableFuture<>();
         CompletableFuture<Void> result2 = new CompletableFuture<>();
         CompletableFuture<Void> result3 = new CompletableFuture<>();
-
-        writer = createWriter(event -> {
+        EventStreamWriter<ScaleEvent> writer = createWriter(event -> {
             if (event.getScope().equals(SCOPE) &&
                     event.getStream().equals(STREAM1) &&
                     event.getDirection() == ScaleEvent.UP) {

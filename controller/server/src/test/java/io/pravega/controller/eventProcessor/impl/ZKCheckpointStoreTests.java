@@ -20,6 +20,8 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.junit.Assert.assertEquals;
+
 /**
  * Tests for Zookeeper based checkpoint store.
  */
@@ -115,4 +117,49 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
             Assert.assertEquals(IllegalStateException.class, e.getCause().getClass());
         }
     }
+
+    @Test
+    public void connectivityFailureTests() throws IOException {
+        final String process1 = "process1";
+        final String readerGroup1 = "rg1";
+        final String reader1 = "reader1";
+        zkServer.close();
+
+        try {
+            checkpointStore.getProcesses();
+            Assert.fail();
+        } catch (CheckpointStoreException e) {
+            assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
+        }
+
+        try {
+            checkpointStore.addReaderGroup(process1, readerGroup1);
+            Assert.fail();
+        } catch (CheckpointStoreException e) {
+            assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
+        }
+
+        try {
+            checkpointStore.getPositions(process1, readerGroup1);
+            Assert.fail();
+        } catch (CheckpointStoreException e) {
+            assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
+        }
+
+        Position position = new PositionImpl(Collections.emptyMap());
+        try {
+            checkpointStore.setPosition(process1, readerGroup1, reader1, position);
+            Assert.fail();
+        } catch (CheckpointStoreException e) {
+            assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
+        }
+
+        try {
+            checkpointStore.removeReaderGroup(process1, readerGroup1);
+            Assert.fail();
+        } catch (CheckpointStoreException e) {
+            assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
+        }
+    }
 }
+
