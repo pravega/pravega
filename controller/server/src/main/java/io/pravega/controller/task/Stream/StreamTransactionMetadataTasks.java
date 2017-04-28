@@ -294,6 +294,10 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                         context,
                         connectionFactory);
         if (this.isReady()) {
+            transactionMetadataTasks.commitStreamName = this.commitStreamName;
+            transactionMetadataTasks.commitEventEventStreamWriter = this.commitEventEventStreamWriter;
+            transactionMetadataTasks.abortStreamName = this.abortStreamName;
+            transactionMetadataTasks.abortEventEventStreamWriter = this.abortEventEventStreamWriter;
             transactionMetadataTasks.setReady();
         }
         return transactionMetadataTasks;

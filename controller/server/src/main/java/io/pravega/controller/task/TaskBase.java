@@ -111,7 +111,7 @@ public abstract class TaskBase implements AutoCloseable {
         log.debug("Host={}, Tag={} starting to execute task {}-{} on resource {}", context.hostId, tag,
                 taskData.getMethodName(), taskData.getMethodVersion(), resource);
         if (createIndexOnlyMode) {
-            return createIndexes(context.hostId, taggedResource, taskData);
+            return createIndexes(taggedResource, taskData);
         }
         // PutChild (HostId, resource)
         // Initially store the fact that I am about the update the resource.
@@ -124,20 +124,20 @@ public abstract class TaskBase implements AutoCloseable {
                 // finally delete the resource child created under the controller's HostId
                 .whenCompleteAsync((value, e) ->
                                 taskMetadataStore.removeChild(context.hostId, taggedResource, true)
-                                        .whenComplete((innerValue, innerE) -> {
+                                        .whenCompleteAsync((innerValue, innerE) -> {
                                             // ignore the result of removeChile operations, since it is an optimization
                                             if (e != null) {
                                                 result.completeExceptionally(e);
                                             } else {
                                                 result.complete(value);
                                             }
-                                        }),
+                                        }, executor),
                         executor);
 
         return result;
     }
 
-    private <T> CompletableFuture<T> createIndexes(String hostId, TaggedResource taggedResource, TaskData taskData) {
+    private <T> CompletableFuture<T> createIndexes(TaggedResource taggedResource, TaskData taskData) {
         return taskMetadataStore.putChild(context.hostId, taggedResource)
                 .thenComposeAsync(x -> taskMetadataStore.lock(taggedResource.getResource(), taskData, context.hostId,
                             taggedResource.getTag(), context.oldHostId, context.oldTag), executor)
@@ -185,7 +185,7 @@ public abstract class TaskBase implements AutoCloseable {
                 // fact can be used in case current controller instance crashes.
                 // Invariant 3. Any other controller that had created resource child under its HostId, can now be safely
                 // deleted, since that information is redundant and is not useful during that HostId's fail over.
-                .whenComplete((value, e) -> {
+                .whenCompleteAsync((value, e) -> {
                     // Once I acquire the lock, safe to delete context.oldResource from oldHost, if available
                     if (e != null) {
 
@@ -195,16 +195,16 @@ public abstract class TaskBase implements AutoCloseable {
                     } else {
 
                         log.debug("Host={}, Tag={} acquired lock on resource {}", context.hostId, tag, resource);
-                        removeOldHostChild(tag).whenComplete((x, y) -> lockResult.complete(value));
+                        removeOldHostChild(tag).whenCompleteAsync((x, y) -> lockResult.complete(value), executor);
                     }
-                });
+                }, executor);
 
         lockResult
                 // Exclusively execute the update task on the resource
-                .thenCompose(y -> operation.apply())
+                .thenComposeAsync(y -> operation.apply(), executor)
 
                 // If lock had been obtained, unlock it before completing the task.
-                .whenComplete((T value, Throwable e) -> {
+                .whenCompleteAsync((T value, Throwable e) -> {
                     if (lockResult.isCompletedExceptionally()) {
                         // If lock was not obtained, complete the operation with error
                         result.completeExceptionally(e);
@@ -214,7 +214,7 @@ public abstract class TaskBase implements AutoCloseable {
                         // release lock before completing operation.
                         log.debug("Host={}, Tag={} completed executing task on resource {}", context.hostId, tag, resource);
                         taskMetadataStore.unlock(resource, context.hostId, tag)
-                                .whenComplete((innerValue, innerE) -> {
+                                .whenCompleteAsync((innerValue, innerE) -> {
                                     log.debug("Host={}, Tag={} unlock attempt completed on resource {}", context.hostId, tag, resource);
                                     // If lock was acquired above, unlock operation retries until it is released.
                                     // It throws exception only if non-lock holder tries to release it.
@@ -224,9 +224,9 @@ public abstract class TaskBase implements AutoCloseable {
                                     } else {
                                         result.complete(value);
                                     }
-                                });
+                                }, executor);
                     }
-                });
+                }, executor);
         return result;
     }
 

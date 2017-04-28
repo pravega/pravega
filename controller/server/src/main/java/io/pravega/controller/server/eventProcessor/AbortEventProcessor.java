@@ -3,6 +3,7 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
@@ -17,6 +18,7 @@ import io.pravega.stream.impl.netty.ConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -34,6 +36,22 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     private final ScheduledExecutorService executor;
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
+    private final BlockingQueue<AbortEvent> processedEvents;
+
+    @VisibleForTesting
+    public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
+                               final HostControllerStore hostControllerStore,
+                               final ScheduledExecutorService executor,
+                               final SegmentHelper segmentHelper,
+                               final ConnectionFactory connectionFactory,
+                               final BlockingQueue<AbortEvent> queue) {
+        this.streamMetadataStore = streamMetadataStore;
+        this.hostControllerStore = hostControllerStore;
+        this.segmentHelper = segmentHelper;
+        this.executor = executor;
+        this.connectionFactory = connectionFactory;
+        this.processedEvents = queue;
+    }
 
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore,
@@ -45,6 +63,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
         this.connectionFactory = connectionFactory;
+        this.processedEvents = null;
     }
 
     @Override
@@ -70,6 +89,9 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
                     } else {
                         log.debug("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
+                        if (processedEvents != null) {
+                            processedEvents.offer(event);
+                        }
                     }
                 }).join();
     }
