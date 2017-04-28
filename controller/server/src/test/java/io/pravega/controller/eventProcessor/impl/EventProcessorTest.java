@@ -441,7 +441,7 @@ public class EventProcessorTest {
     private EventProcessorSystemImpl createMockSystem(final String name, final String processId, final String scope,
                                                       final SequenceAnswer<EventStreamReader<TestEvent>> readers,
                                                       final EventStreamWriter<TestEvent> writer,
-                                                  String readerGroupName) {
+                                                      final String readerGroupName) {
         ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
         Mockito.when(clientFactory.createReader(anyString(), anyString(), any(), any()))
                 .thenAnswer(readers);

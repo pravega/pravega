@@ -23,7 +23,7 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
      * Tests CreateOperation with no fencing involved. Verifies basic segment creation works, as well as rejection in
      * case the segment already exists.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testNormalCall() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -48,7 +48,7 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests CreateOperation with fencing resolution for lower-epoch creation.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testLowerEpochFencedOut() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -68,7 +68,7 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests CreateOperation with fencing resolution for concurrent operations.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testConcurrentFencedOut() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

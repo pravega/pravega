@@ -6,6 +6,7 @@ package io.pravega.service.storage.impl.hdfs;
 
 import java.io.IOException;
 import java.util.List;
+import lombok.val;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -16,6 +17,8 @@ import org.apache.hadoop.fs.permission.FsPermission;
  * Base class for all tests for derived classes from FileSystemOperation.
  */
 abstract class FileSystemOperationTestBase {
+    protected static final int TEST_TIMEOUT_MILLIS = 30 * 1000;
+
     static TestContext newContext(long epoch, MockFileSystem fileSystem) {
         return new TestContext(epoch, fileSystem);
     }
@@ -44,14 +47,10 @@ abstract class FileSystemOperationTestBase {
             return this.operation.makeReadOnly(file);
         }
 
-        void setConcatNext(FileDescriptor file, FileDescriptor nextFile) throws IOException {
-            this.operation.setConcatNext(file, nextFile);
-        }
-
         Path createEmptyFile(String segmentName, long offset) throws IOException {
-            Path result = this.operation.getFilePath(segmentName, offset, this.epoch);
+            val path = this.operation.getFilePath(segmentName, offset, this.epoch);
             this.fileSystem
-                    .create(result,
+                    .create(path,
                             new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                             false,
                             0,
@@ -59,7 +58,7 @@ abstract class FileSystemOperationTestBase {
                             this.config.getBlockSize(),
                             null)
                     .close();
-            return result;
+            return path;
         }
 
         List<FileDescriptor> findAllFiles(String segmentName) throws IOException {
