@@ -1,0 +1,38 @@
+plugins.withId('maven') {
+    uploadArchives {
+        repositories {
+            mavenDeployer {
+                // Only configure publishing if a URL was provided
+                if (project.hasProperty("publishUrl")) {
+                    repository(url: publishUrl) {
+                        // Only configure credentials if they are provided (allows publishing to the filesystem)
+                        if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
+                            authentication(userName: publishUsername, password: publishPassword)
+                        }
+                    }
+                }
+                pom.artifactId = "pravega" + project.path.replace(':', '-')
+                pom.groupId = "io.pravega"
+
+                // Sign the POM when the signing plugin is present
+                plugins.withId('signing') {
+                    if (project.hasProperty('doSigning')) {
+                        beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+                    }
+                }
+            }
+        }
+    }
+
+    install {
+        repositories {
+            mavenInstaller {
+                pom.artifactId = "pravega" + project.path.replace(':', '-')
+                pom.groupId = "io.pravega"
+            }
+        }
+    }
+
+    task publish(dependsOn:'uploadArchives') {
+    }
+}

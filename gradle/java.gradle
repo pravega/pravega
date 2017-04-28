@@ -4,9 +4,9 @@ plugins.withId('java') {
     apply plugin: 'jacoco'
     apply plugin: 'signing'
 
-    // Apply maven-publish plugin to all non-test projects
+    // Only publish non-test projects by default
     if (!project.path.startsWith(":test")) {
-        apply plugin: 'maven-publish'
+        apply plugin: 'maven'
     }
 
     compileJava {
@@ -34,6 +34,12 @@ plugins.withId('java') {
         from sourceSets.test.output
     }
     artifacts { testRuntime testJar }
+
+    if (project.hasProperty("doSigning")) {
+        signing {
+            sign configurations.archives
+        }
+    }
 
     tasks.withType(Test) {
         systemProperties 'logback.configurationFile' : new File(buildDir,'resources/test/logback.xml').absolutePath
