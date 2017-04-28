@@ -201,10 +201,8 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
             for (Map.Entry<String, Position> entry : map.entrySet()) {
                 // 1. Notify reader group about failed readers
-                if (readerGroup.getOnlineReaders().contains(entry.getKey())) {
-                    log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
-                    readerGroup.readerOffline(entry.getKey(), entry.getValue());
-                }
+                log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
+                readerGroup.readerOffline(entry.getKey(), entry.getValue());
 
                 // 2. Clean up reader from checkpoint store
                 log.info("{} removing reader={} from checkpoint store", this.objectId, entry.getKey());
@@ -213,13 +211,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
             // finally, remove reader group from checkpoint store
             log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
-            try {
-                checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
-            } catch (CheckpointStoreException e) {
-                if (!e.getType().equals(CheckpointStoreException.Type.NoNode)) {
-                    throw e;
-                }
-            }
+            checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
         } finally {
             LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, process);
         }

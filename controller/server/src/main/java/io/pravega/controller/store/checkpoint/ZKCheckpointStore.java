@@ -105,7 +105,17 @@ class ZKCheckpointStore implements CheckpointStore {
     @Override
     public void removeReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         String path = getReaderGroupPath(process, readerGroup);
-        byte[] data = getData(path);
+
+        byte[] data;
+        try {
+            data = getData(path);
+        } catch (CheckpointStoreException e) {
+            if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                return;
+            } else {
+                throw e;
+            }
+        }
 
         ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
 
