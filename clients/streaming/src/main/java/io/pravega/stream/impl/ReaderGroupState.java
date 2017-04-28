@@ -187,6 +187,21 @@ class ReaderGroupState implements Revisioned {
         return checkpointState.getPositionsForCompletedCheckpoint(checkpointId);
     }
     
+    @Override
+    @Synchronized
+    public String toString() {
+        StringBuffer sb = new StringBuffer("ReaderGroupState{ ");
+        sb.append(checkpointState.toString());
+        sb.append(" futureSegments: ");
+        sb.append(futureSegments);
+        sb.append(" assignedSegments: ");
+        sb.append(assignedSegments);
+        sb.append(" unassignedSegments: ");
+        sb.append(unassignedSegments);
+        sb.append(" }");
+        return sb.toString();
+    }
+    
     @RequiredArgsConstructor
     static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
         private static final long serialVersionUID = 1L;
