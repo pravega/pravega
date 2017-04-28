@@ -42,7 +42,7 @@ public class StreamSegmentsWithPredecessors {
     /**
      * Get Segment to Predecessor mapping.
      *
-     * @return Map<Segment, List<Integer>> Segment to Predecessor mapping.
+     * @return A {@link Map} with {@link Segment} as key and {@link List} of {@link Integer} as value.
      */
     public Map<Segment, List<Integer>> getSegmentToPredecessor() {
         return segmentWithPredecessors;

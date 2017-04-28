@@ -204,7 +204,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         indexTableFuture.getNow(null).getData(),
                         historyTableFuture.getNow(null).getData());
                 resultFutures.add(findOverlapping(successor, candidates).thenApply(
-                        list -> new SimpleImmutableEntry<>(successor, candidates)));
+                        list -> new SimpleImmutableEntry<>(successor, list.stream().map(Segment::getNumber).collect(Collectors.toList()))));
             }
             return FutureHelpers.allOfWithResults(resultFutures);
         }).thenApply(list -> list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), Map.Entry::getValue)));

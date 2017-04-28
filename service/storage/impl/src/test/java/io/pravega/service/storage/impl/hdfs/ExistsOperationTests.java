@@ -21,7 +21,7 @@ public class ExistsOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests the ExistsOperation in various scenarios.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testExists() throws Exception {
         final int epoch = 1;
         final int offset = 0;
@@ -67,14 +67,10 @@ public class ExistsOperationTests extends FileSystemOperationTestBase {
 
         // Exists but corrupted (i.e., missing first file)
         fs.clear();
-        final Path filePath = context.createEmptyFile(SEGMENT_NAME, 1);
+        context.createEmptyFile(SEGMENT_NAME, 1);
         AssertExtensions.assertThrows(
                 "Exists did not fail when segment with corrupted files was encountered.",
                 new ExistsOperation(SEGMENT_NAME, context)::call,
                 ex -> ex instanceof SegmentFilesCorruptedException);
-
-        // Missing first file, but it's actually a concat target. This should not throw, but return false.
-        fs.setXAttr(filePath, FileSystemOperation.CONCAT_ATTRIBUTE, new byte[]{(byte) 255});
-        Assert.assertFalse("Unexpected result for segment with missing first file as a concat source.", new ExistsOperation(SEGMENT_NAME, context).call());
     }
 }

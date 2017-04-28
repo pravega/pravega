@@ -18,7 +18,7 @@ public class HDFSSegmentHandleTests {
     /**
      * Tests the ability to replace files in a handle.
      */
-    @Test
+    @Test(timeout = 10000)
     public void testReplaceFiles() {
         val handle = HDFSSegmentHandle.write("foo", createFiles(0, 10));
         val newFiles = createFiles(11, 11);
@@ -29,7 +29,7 @@ public class HDFSSegmentHandleTests {
     /**
      * Tests the ability to remove the last file in the sequence in a handle.
      */
-    @Test
+    @Test(timeout = 10000)
     public void testRemoveLastFile() {
         val expectedFiles = createFiles(0, 10);
         val handle = HDFSSegmentHandle.write("foo", new ArrayList<>(expectedFiles));
@@ -51,7 +51,7 @@ public class HDFSSegmentHandleTests {
     /**
      * Tests the replaceLastFile method.
      */
-    @Test
+    @Test(timeout = 10000)
     public void testReplaceLastFile() {
         val expectedFiles = createFiles(0, 10);
         val lastFile = expectedFiles.get(expectedFiles.size() - 1);
