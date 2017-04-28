@@ -10,6 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class LocalPravegaEmulator implements AutoCloseable {
 
+    private static final int DEFAULT_ZK_PORT = 4000;
+    private static final int DEFAULT_CONTROLLER_PORT = 9090;
+    private static final int DEFAULT_SEGMENTSTORE_PORT = 6000;
+
     private final InProcPravegaCluster inProcPravegaCluster;
 
     @Builder
@@ -50,12 +54,12 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
     public static void main(String[] args) {
         try {
-            final int zkPort = intArg(args, 0, 4000);
-            final int controllerPort = intArg(args, 1, 9090);
-            final int hostPort = intArg(args, 2, 6000);
+            final int zkPort = intArg(args, 0, DEFAULT_ZK_PORT);
+            final int controllerPort = intArg(args, 1, DEFAULT_CONTROLLER_PORT);
+            final int segmentstorePort = intArg(args, 2, DEFAULT_SEGMENTSTORE_PORT);
 
             final LocalPravegaEmulator localPravega = LocalPravegaEmulator.builder().controllerPort(
-                    controllerPort).hostPort(hostPort).zkPort(zkPort).build();
+                    controllerPort).hostPort(segmentstorePort).zkPort(zkPort).build();
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
@@ -75,8 +79,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     String.format("Pravega Sandbox is running locally now. You could access it at %s:%d", "127.0.0.1",
                             controllerPort));
         } catch (Exception ex) {
-            System.out.println("Exception occurred running emulator " + ex);
-            ex.printStackTrace();
+            log.error("Exception occurred running emulator", ex);
             System.exit(1);
         }
     }
