@@ -8,9 +8,10 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.util.CollectionHelpers;
 import java.io.EOFException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.Callable;
-
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -20,6 +21,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
  */
 @Slf4j
 public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implements Callable<Integer> {
+    private static final int MAX_ATTEMPT_COUNT = 3;
     private final long offset;
     private final byte[] buffer;
     private final int bufferOffset;
@@ -58,20 +60,47 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
         // Make sure arguments are valid. Refresh the handle if needed (and allowed).
         validateOffsetAndRefresh(handle);
 
-        // Read data.
-        int totalBytesRead = 0;
+        int attemptCount = 0;
+        AtomicInteger totalBytesRead = new AtomicInteger();
+        boolean needsRefresh = true;
+        while (needsRefresh && attemptCount < MAX_ATTEMPT_COUNT) {
+            attemptCount++;
+            try {
+                // Read data.
+                read(handle, totalBytesRead);
+                needsRefresh = false;
+            } catch (FileNotFoundException fnf) {
+                if (!handle.isReadOnly() || attemptCount >= MAX_ATTEMPT_COUNT) {
+                    // FileNotFound is only expected in read-only handles, since another read-write handle may have compacted
+                    // the files together. If this is indeed a read-write handle, there is no point in retrying.
+                    // Also throw this if we tried enough times.
+                    throw fnf;
+                }
+
+                log.info("Unable to read from file '{}' (attempt {}/{}). Refreshing and retrying.", fnf.getMessage(), attemptCount, MAX_ATTEMPT_COUNT);
+                refreshHandle(handle);
+            }
+        }
+
+        Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+        Metrics.READ_BYTES.add(totalBytesRead.get());
+        LoggerHelpers.traceLeave(log, "read", traceId, handle, this.offset, totalBytesRead);
+        return totalBytesRead.get();
+    }
+
+    private void read(HDFSSegmentHandle handle, AtomicInteger totalBytesRead) throws IOException {
         val handleFiles = handle.getFiles();
         int currentFileIndex = CollectionHelpers.binarySearch(handleFiles, this::compareToStartOffset);
         assert currentFileIndex >= 0 : "unable to locate first file index.";
-        while (totalBytesRead < this.length && currentFileIndex < handleFiles.size()) {
+        while (totalBytesRead.get() < this.length && currentFileIndex < handleFiles.size()) {
             FileDescriptor currentFile = handleFiles.get(currentFileIndex);
-            long fileOffset = this.offset + totalBytesRead - currentFile.getOffset();
-            int fileReadLength = (int) Math.min(this.length - totalBytesRead, currentFile.getLength() - fileOffset);
+            long fileOffset = this.offset + totalBytesRead.get() - currentFile.getOffset();
+            int fileReadLength = (int) Math.min(this.length - totalBytesRead.get(), currentFile.getLength() - fileOffset);
             assert fileOffset >= 0 && fileReadLength >= 0 : "negative file read offset or length";
 
             try (FSDataInputStream stream = this.context.fileSystem.open(currentFile.getPath())) {
-                stream.readFully(fileOffset, this.buffer, this.bufferOffset + totalBytesRead, fileReadLength);
-                totalBytesRead += fileReadLength;
+                stream.readFully(fileOffset, this.buffer, this.bufferOffset + totalBytesRead.get(), fileReadLength);
+                totalBytesRead.addAndGet(fileReadLength);
             } catch (EOFException ex) {
                 throw new IOException(
                         String.format("Internal error while reading segment file. Attempted to read file '%s' at offset %d, length %d.",
@@ -81,11 +110,6 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
 
             currentFileIndex++;
         }
-
-        Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-        Metrics.READ_BYTES.add(totalBytesRead);
-        LoggerHelpers.traceLeave(log, "read", traceId, handle, this.offset, totalBytesRead);
-        return totalBytesRead;
     }
 
     private void validateOffsetAndRefresh(HDFSSegmentHandle handle) throws IOException {
@@ -94,8 +118,7 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
         while (this.offset + this.length > lastFileOffset) {
             if (!refreshed && handle.isReadOnly()) {
                 //Read-only handles are not updated internally; they require a refresh.
-                val systemFiles = findAll(handle.getSegmentName(), true);
-                handle.replaceFiles(systemFiles);
+                refreshHandle(handle);
                 lastFileOffset = handle.getLastFile().getLastOffset();
                 refreshed = true;
             } else {
@@ -105,6 +128,11 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
                                 this.offset, this.length, lastFileOffset));
             }
         }
+    }
+
+    private void refreshHandle(HDFSSegmentHandle handle) throws IOException {
+        val systemFiles = findAll(handle.getSegmentName(), true);
+        handle.replaceFiles(systemFiles);
     }
 
     private int compareToStartOffset(FileDescriptor fi) {

@@ -8,9 +8,9 @@ package io.pravega.stream.impl.segment;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.ConnectionFailedException;
-import io.pravega.common.netty.FailingReplyProcessor;
-import io.pravega.common.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.FailingReplyProcessor;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.stream.Segment;
@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 

@@ -7,7 +7,7 @@
 package io.pravega.stream.impl;
 
 import io.pravega.StreamManager;
-import io.pravega.common.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.stream.mock.MockController;
 

@@ -8,7 +8,7 @@ import io.pravega.ReaderGroupManager;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.requests.ScaleRequest;
+import io.pravega.shared.controller.requests.ScaleRequest;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.DataNotFoundException;

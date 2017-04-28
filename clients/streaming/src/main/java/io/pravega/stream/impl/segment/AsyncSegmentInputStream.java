@@ -5,8 +5,8 @@
  */
 package io.pravega.stream.impl.segment;
 
-import io.pravega.common.netty.WireCommands.SegmentRead;
-import io.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.stream.Segment;
 
 import java.util.concurrent.CompletableFuture;

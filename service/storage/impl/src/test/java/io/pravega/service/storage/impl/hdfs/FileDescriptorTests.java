@@ -16,7 +16,7 @@ public class FileDescriptorTests {
     /**
      * Tests the ability to change read-only status and lengths.
      */
-    @Test
+    @Test(timeout = 10000)
     public void testMutators() {
         FileDescriptor fd = new FileDescriptor(new Path("foo"), 1, 2, 3, false);
 

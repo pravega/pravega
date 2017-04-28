@@ -6,7 +6,7 @@
 package io.pravega.stream.impl.segment;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.InvalidMessageException;
+import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.common.util.CircularBuffer;
 import io.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
@@ -15,8 +15,8 @@ import java.nio.ByteBuffer;
 
 import javax.annotation.concurrent.GuardedBy;
 
-import io.pravega.common.netty.WireCommandType;
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;

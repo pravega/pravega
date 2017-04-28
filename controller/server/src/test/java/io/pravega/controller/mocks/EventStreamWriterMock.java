@@ -6,22 +6,24 @@
 package io.pravega.controller.mocks;
 
 import io.pravega.stream.AckFuture;
+import io.pravega.stream.EventStreamReader;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.EventWriterConfig;
 import io.pravega.stream.Transaction;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Mock EventStreamWriter.
  */
 public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
-    List<T> eventList = new ArrayList<>();
+    BlockingQueue<T> eventList = new LinkedBlockingQueue<>();
 
     @Override
     public AckFuture writeEvent(T event) {
@@ -61,6 +63,12 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     }
 
     public List<T> getEventList() {
-        return Collections.unmodifiableList(eventList);
+        List<T> list = new ArrayList<>();
+        eventList.drainTo(list);
+        return list;
+    }
+
+    public EventStreamReader<T> getReader() {
+        return new EventStreamReaderMock<>(eventList);
     }
 }

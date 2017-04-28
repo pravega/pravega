@@ -5,9 +5,9 @@
  */
 package io.pravega.stream.impl.netty;
 
-import io.pravega.common.netty.Append;
-import io.pravega.common.netty.ConnectionFailedException;
-import io.pravega.common.netty.WireCommand;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
 
 /**

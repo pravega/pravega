@@ -5,12 +5,13 @@
  */
 package io.pravega.stream.impl.segment;
 
+
 import com.google.common.collect.ImmutableList;
 import io.netty.buffer.Unpooled;
-import io.pravega.common.netty.Append;
-import io.pravega.common.netty.ConnectionFailedException;
-import io.pravega.common.netty.PravegaNodeUri;
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.stream.impl.PendingEvent;
 import io.pravega.stream.impl.netty.ClientConnection;
 import io.pravega.stream.impl.netty.ClientConnection.CompletedCallback;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+
 
 public class SegmentOutputStreamTest {
 

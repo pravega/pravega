@@ -7,9 +7,9 @@ package io.pravega.service.server.host.handler;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.pravega.common.netty.Request;
-import io.pravega.common.netty.RequestProcessor;
-import io.pravega.common.netty.WireCommand;
+import io.pravega.shared.protocol.netty.Request;
+import io.pravega.shared.protocol.netty.RequestProcessor;
+import io.pravega.shared.protocol.netty.WireCommand;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;

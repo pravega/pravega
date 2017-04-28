@@ -7,6 +7,7 @@ package io.pravega.service.storage.impl.hdfs;
 import io.pravega.service.storage.StorageNotPrimaryException;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
+import java.util.Arrays;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.hadoop.fs.Path;
@@ -23,7 +24,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file has en epoch larger than ours.
      * Expected outcome: StorageNotPrimaryException and no side effects.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testLargerEpoch() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -45,7 +46,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file is read-only and sealed.
      * Expected outcome: Return a read-only handle and no side effects.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testReadOnlySealed() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -68,7 +69,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file is read only but not sealed.
      * Expected outcome: Create new read-write file; don't touch other files.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testReadOnlyNotSealed() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -90,7 +91,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file is not read only, but it has the same epoch as us.
      * Expected outcome: reuse last file and no side effects.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testNotReadOnlySameEpoch() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -110,7 +111,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file is not read-only, and it has lower epoch than us.
      * Expected outcome: Make last file read-only and create new one.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testNotReadOnlySmallerEpoch() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -125,7 +126,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * it was beaten to it by a higher epoch instance.
      * Expected outcome: StorageNotPrimaryException and no side effects (it should back off).
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testConcurrentFenceOutLower() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -153,7 +154,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * that a lower-epoch file was also created.
      * Expected outcome: succeed and delete the file.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testConcurrentFenceOutHigher() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -170,6 +171,42 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
         Assert.assertTrue("Higher epoch file was deleted.", fs.exists(survivingFile));
         Assert.assertEquals("Unexpected number of files in the handle.", 1, handle.getFiles().size());
         Assert.assertEquals("Unexpected file in the handle.", survivingFile, handle.getLastFile().getPath());
+    }
+
+    /**
+     * Tests the case when the OpenWriteOperation needs to consolidate multiple files of the same segment into fewer by
+     * means of concatenation.
+     */
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    public void testMultiFileCoalescing() throws Exception {
+        final int iterations = Byte.MAX_VALUE;
+        final int emptyFileEvery = 10;
+        val fs = new MockFileSystem();
+        new CreateOperation(SEGMENT_NAME, newContext(0, fs)).call();
+        byte[] expectedData = new byte[iterations];
+        Arrays.fill(expectedData, (byte) -1);
+        int epoch = 0;
+        for (int iteration = 0; iteration < iterations; iteration++) {
+            val context = newContext(epoch++, fs);
+            val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
+            byte toWrite = (byte) iteration;
+            new WriteOperation(handle, iteration, new ByteArrayInputStream(new byte[]{toWrite}), 1, context).run();
+            expectedData[iteration] = toWrite;
+            if (epoch % emptyFileEvery == 0) {
+                // Every now and then, just open the file without writing anything. The next time OpenWrite is called
+                // it will be forced to concat an empty file.
+                new OpenWriteOperation(SEGMENT_NAME, newContext(epoch++, fs)).call();
+            }
+        }
+
+        Assert.assertEquals("Unexpected number of files in the file system.", 2, fs.getFileCount());
+        val readContext = newContext(iterations, fs);
+        val readHandle = new OpenReadOperation(SEGMENT_NAME, readContext).call();
+        Assert.assertEquals("Unexpected total segment length in the file system.", expectedData.length, readHandle.getLastFile().getLastOffset());
+        byte[] actualData = new byte[expectedData.length];
+        new ReadOperation(readHandle, 0, actualData, 0, actualData.length, readContext).call();
+        Assert.assertArrayEquals("Unexpected data read back from the file system.", expectedData, actualData);
+        Assert.assertTrue("First file in the chain is not read-only.", readHandle.getFiles().get(0).isReadOnly());
     }
 
     private void checkFenceLowerEpochFile(HDFSSegmentHandle originalHandle, MockFileSystem fs) throws Exception {
