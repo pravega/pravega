@@ -47,12 +47,12 @@ public final class MetricsNames {
     }
 
     public static String nameFromStream(String metric, String scope, String stream) {
-        String name = scope + "" + stream + "." + metric;
+        String name = scope + "." + stream + "." + metric;
         return escapeSpecialChar(name);
     }
 
     public static String nameFromSegment(String metric, String segmentName) {
-        String name = segmentName + "" + metric;
+        String name = segmentName + "." + metric;
         return escapeSpecialChar(name);
     }
 }
