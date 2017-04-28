@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /**
  * Tests for Zookeeper based checkpoint store.
@@ -43,6 +44,33 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
     public void cleanupCheckpointStore() throws IOException {
         cli.close();
         zkServer.close();
+    }
+
+    @Test
+    public void testIdempotency() {
+        final String process1 = "process1";
+        final String readerGroup1 = "rg1";
+        final String reader = "reader";
+
+        try {
+            checkpointStore.addReaderGroup(process1, readerGroup1);
+            checkpointStore.addReader(process1, readerGroup1, reader);
+            checkpointStore.removeReader(process1, readerGroup1, reader);
+            checkpointStore.removeReader(process1, readerGroup1, reader);
+            checkpointStore.sealReaderGroup(process1, readerGroup1);
+            checkpointStore.sealReaderGroup(process1, readerGroup1);
+            checkpointStore.removeReaderGroup(process1, readerGroup1);
+
+            try {
+                checkpointStore.sealReaderGroup(process1, readerGroup1);
+            } catch (CheckpointStoreException e) {
+                assertEquals(e.getType(), CheckpointStoreException.Type.NoNode);
+            }
+
+            checkpointStore.removeReaderGroup(process1, readerGroup1);
+        } catch (CheckpointStoreException e) {
+            fail();
+        }
     }
 
     @Test
@@ -134,6 +162,27 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
 
         try {
             checkpointStore.addReaderGroup(process1, readerGroup1);
+            Assert.fail();
+        } catch (CheckpointStoreException e) {
+            assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
+        }
+
+        try {
+            checkpointStore.addReader(process1, readerGroup1, reader1);
+            Assert.fail();
+        } catch (CheckpointStoreException e) {
+            assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
+        }
+
+        try {
+            checkpointStore.sealReaderGroup(process1, readerGroup1);
+            Assert.fail();
+        } catch (CheckpointStoreException e) {
+            assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
+        }
+
+        try {
+            checkpointStore.removeReader(process1, readerGroup1, reader1);
             Assert.fail();
         } catch (CheckpointStoreException e) {
             assertEquals(e.getType(), CheckpointStoreException.Type.Connectivity);
