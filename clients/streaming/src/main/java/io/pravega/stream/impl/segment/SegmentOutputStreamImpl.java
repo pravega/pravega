@@ -100,6 +100,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             synchronized (lock) {
                 if (emptyInflightFuture == null) {
                     emptyInflightFuture = new CompletableFuture<Void>();
+                    if (inflight.isEmpty()) {
+                        emptyInflightFuture.complete(null);
+                    }
                 }
                 return emptyInflightFuture;
             }
