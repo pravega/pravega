@@ -3,13 +3,12 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.ClientFactory;
-import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.requests.ControllerEvent;
-import io.pravega.controller.requests.ScaleEvent;
-import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -17,7 +16,10 @@ import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import io.pravega.controller.requests.ControllerEvent;
+import io.pravega.controller.requests.ScaleEvent;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -32,7 +34,6 @@ import io.pravega.stream.impl.Controller;
 import io.pravega.stream.impl.JavaSerializer;
 import io.pravega.stream.impl.ReaderGroupManagerImpl;
 import io.pravega.stream.impl.netty.ConnectionFactory;
-import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -87,6 +88,22 @@ public class ControllerEventProcessors extends AbstractIdleService {
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final ScheduledExecutorService executor) {
+        this(host, config, controller, checkpointStore, streamMetadataStore, hostControllerStore, segmentHelper, connectionFactory,
+                streamMetadataTasks, null, executor);
+    }
+
+    @VisibleForTesting
+    ControllerEventProcessors(final String host,
+                                     final ControllerEventProcessorConfig config,
+                                     final Controller controller,
+                                     final CheckpointStore checkpointStore,
+                                     final StreamMetadataStore streamMetadataStore,
+                                     final HostControllerStore hostControllerStore,
+                                     final SegmentHelper segmentHelper,
+                                     final ConnectionFactory connectionFactory,
+                                     final StreamMetadataTasks streamMetadataTasks,
+                                     final EventProcessorSystem system,
+                                     final ScheduledExecutorService executor) {
         this.objectId = "ControllerEventProcessors";
         this.config = config;
         this.checkpointStore = checkpointStore;
@@ -96,8 +113,8 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.controller = controller;
         this.connectionFactory = connectionFactory;
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
-        this.system = new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
-                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory));
+        this.system = system == null ? new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
+                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory)) : system;
         this.scaleRequestHandler = new ScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor);
 
         this.executor = executor;
@@ -209,21 +226,24 @@ public class ControllerEventProcessors extends AbstractIdleService {
                 streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config), executor);
     }
 
-    public void handleOrphanedReaders(final Supplier<Set<String>> processes) {
+    public CompletableFuture<Void> handleOrphanedReaders(final Supplier<Set<String>> processes) {
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
         if (this.commitEventProcessors != null) {
-            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.commitEventProcessors, processes), executor);
+            futures.add(handleOrphanedReaders(this.commitEventProcessors, processes));
         }
         if (this.abortEventProcessors != null) {
-            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.abortEventProcessors, processes), executor);
+            futures.add(handleOrphanedReaders(this.abortEventProcessors, processes));
         }
         if (this.scaleEventProcessors != null) {
-            CompletableFuture.runAsync(() -> handleOrphanedReaders(this.scaleEventProcessors, processes), executor);
+            futures.add(handleOrphanedReaders(this.scaleEventProcessors, processes));
         }
+        return FutureHelpers.allOf(futures);
     }
 
-    private void handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
+    private CompletableFuture<Void> handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
                                        final Supplier<Set<String>> processes) {
-        withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
+        return withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             try {
                 return group.getProcesses();
             } catch (CheckpointStoreException e) {
@@ -242,8 +262,8 @@ public class ControllerEventProcessors extends AbstractIdleService {
                     }
                 }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor))
                 .thenComposeAsync(pair -> {
-                    Set<String> registeredProcesses = pair.getLeft();
-                    Set<String> activeProcesses = pair.getRight();
+                    Set<String> activeProcesses = pair.getLeft();
+                    Set<String> registeredProcesses = pair.getRight();
 
                     if (registeredProcesses == null || registeredProcesses.isEmpty()) {
                         return CompletableFuture.completedFuture(null);

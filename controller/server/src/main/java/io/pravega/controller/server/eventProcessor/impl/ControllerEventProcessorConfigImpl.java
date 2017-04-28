@@ -90,6 +90,7 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
                 .abortStreamName(NameUtils.getInternalNameForStream("abortStream"))
                 .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
                 .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
+                .scaleStreamScalingPolicy(ScalingPolicy.fixed(2))
                 .commitReaderGroupName("commitStreamReaders")
                 .commitReaderGroupSize(1)
                 .abortReaderGroupName("abortStreamReaders")
