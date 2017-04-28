@@ -5,17 +5,17 @@
  */
 package io.pravega.service.server.host.handler;
 
-import static io.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 import java.security.cert.CertificateException;
 
 import javax.net.ssl.SSLException;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.netty.AppendDecoder;
-import io.pravega.common.netty.CommandDecoder;
-import io.pravega.common.netty.CommandEncoder;
-import io.pravega.common.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.AppendDecoder;
+import io.pravega.shared.protocol.netty.CommandDecoder;
+import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.service.contracts.StreamSegmentStore;
 
 import io.pravega.service.server.host.stat.SegmentStatsRecorder;

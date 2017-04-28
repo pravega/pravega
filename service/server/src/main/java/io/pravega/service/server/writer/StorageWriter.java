@@ -3,6 +3,7 @@
  */
 package io.pravega.service.server.writer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.MathHelpers;
@@ -17,7 +18,6 @@ import io.pravega.service.server.logs.operations.MetadataOperation;
 import io.pravega.service.server.logs.operations.Operation;
 import io.pravega.service.server.logs.operations.StorageOperation;
 import io.pravega.service.storage.Storage;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -27,7 +27,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -350,10 +349,16 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                 throw new DataCorruptionException(String.format("No StreamSegment with id '%d' is registered in the metadata.", streamSegmentId));
             }
 
-            // Then create the aggregator.
+            // Then create the aggregator, and only register it after a successful initialization. Otherwise we risk
+            // having a registered aggregator that is not initialized.
             result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer);
-            this.aggregators.put(streamSegmentId, result);
-            result.initialize(this.config.getFlushTimeout(), this.executor).join(); // TODO: get rid of this join() at one point.
+            try {
+                result.initialize(this.config.getFlushTimeout(), this.executor).join(); // TODO: get rid of this join() at one point.
+                this.aggregators.put(streamSegmentId, result);
+            } catch (Exception ex) {
+                result.close();
+                throw ex;
+            }
         }
 
         return result;
@@ -413,9 +418,9 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private void logError(Throwable ex, boolean critical) {
         ex = ExceptionHelpers.getRealException(ex);
         if (critical) {
-            log.error("{}: Iteration[{}].CriticalError. {}", this.traceObjectId, this.state.getIterationId(), ex);
+            log.error("{}: Iteration[{}].CriticalError.", this.traceObjectId, this.state.getIterationId(), ex);
         } else {
-            log.error("{}: Iteration[{}].Error. {}", this.traceObjectId, this.state.getIterationId(), ex);
+            log.error("{}: Iteration[{}].Error.", this.traceObjectId, this.state.getIterationId(), ex);
         }
         //System.out.println(String.format("%s: Iteration[%s].Error. %s", this.traceObjectId, this.state.getIterationId(), ex));
     }

@@ -7,9 +7,9 @@ package io.pravega.stream.impl.netty;
 
 import java.util.concurrent.Future;
 
-import io.pravega.common.netty.Append;
-import io.pravega.common.netty.ConnectionFailedException;
-import io.pravega.common.netty.WireCommand;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.WireCommand;
 
 /**
  * A connection object. Represents the TCP connection in the client process that connects to the server.

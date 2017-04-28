@@ -6,7 +6,7 @@ package io.pravega.controller.requesthandler;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.requests.ScaleRequest;
+import io.pravega.shared.controller.requests.ScaleRequest;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;

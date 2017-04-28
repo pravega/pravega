@@ -6,12 +6,12 @@
 package io.pravega.service.server.host.handler;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.Append;
-import io.pravega.common.netty.FailingRequestProcessor;
-import io.pravega.common.netty.WireCommands.AppendSetup;
-import io.pravega.common.netty.WireCommands.ConditionalCheckFailed;
-import io.pravega.common.netty.WireCommands.DataAppended;
-import io.pravega.common.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.FailingRequestProcessor;
+import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
+import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.service.contracts.AttributeUpdate;
 import io.pravega.service.contracts.AttributeUpdateType;

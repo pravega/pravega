@@ -9,11 +9,10 @@ import io.pravega.service.storage.StorageNotPrimaryException;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
-import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -29,7 +28,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal write across many epochs.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testNormalWrite() throws Exception {
         val rnd = new Random(0);
         @Cleanup
@@ -37,11 +36,11 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
         new CreateOperation(SEGMENT_NAME, newContext(0, fs)).call();
         int offset = 0;
         val writtenData = new ByteArrayOutputStream();
-        ArrayList<Path> files = new ArrayList<>();
+        List<FileDescriptor> files = null;
         for (int fileId = 0; fileId < FILE_COUNT; fileId++) {
             val context = newContext(fileId, fs);
             val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
-            files.add(handle.getLastFile().getPath());
+            files = handle.getFiles();
             for (int writeId = 0; writeId < WRITES_PER_FILE; writeId++) {
                 byte[] data = new byte[WRITE_SIZE];
                 rnd.nextBytes(data);
@@ -65,14 +64,21 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
         // Check written data via file system reads. ReadOperationTests verifies the same using ReadOperations.
         byte[] expectedData = writtenData.toByteArray();
         int expectedDataOffset = 0;
-        for (Path p : files) {
-            int len = (int) fs.getFileStatus(p).getLen();
-            Assert.assertEquals("Unexpected length for file " + p, WRITE_SIZE * WRITES_PER_FILE, len);
+        for (int i = 0; i < files.size(); i++) {
+            FileDescriptor f = files.get(i);
+            int len = (int) fs.getFileStatus(f.getPath()).getLen();
+            int expectedLen = WRITE_SIZE * WRITES_PER_FILE;
+            if (i < files.size() - 1) {
+                // This is because OpenWrite combines previous files into one.
+                expectedLen *= FILE_COUNT - 1;
+            }
+
+            Assert.assertEquals("Unexpected length for file " + f, expectedLen, len);
             @Cleanup
-            val inputStream = fs.open(p, WRITE_SIZE);
+            val inputStream = fs.open(f.getPath(), WRITE_SIZE);
             byte[] fileReadBuffer = new byte[len];
             inputStream.readFully(0, fileReadBuffer);
-            AssertExtensions.assertArrayEquals("Unexpected contents for file " + p, expectedData, expectedDataOffset, fileReadBuffer, 0, len);
+            AssertExtensions.assertArrayEquals("Unexpected contents for file " + f, expectedData, expectedDataOffset, fileReadBuffer, 0, len);
             expectedDataOffset += len;
         }
     }
@@ -81,7 +87,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the current file (previously empty) has disappeared due to it being fenced out.
      * Expected behavior: StorageNotPrimaryException with no side effects.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testFenceOutMissingFile() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -105,7 +111,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the current file (non-empty) has been marked as read-only due to it being fenced out.
      * Expected behavior: StorageNotPrimaryException with no side effects.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testFenceOutReadOnlyFile() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

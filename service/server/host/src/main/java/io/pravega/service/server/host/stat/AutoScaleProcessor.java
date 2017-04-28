@@ -4,9 +4,9 @@
 package io.pravega.service.server.host.stat;
 
 import io.pravega.ClientFactory;
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.requests.ScaleRequest;
+import io.pravega.shared.controller.requests.ScaleRequest;
 import io.pravega.shared.NameUtils;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.EventWriterConfig;
