@@ -18,7 +18,6 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -86,8 +85,9 @@ public class TaskSweeper {
         log.info("Sweeping orphaned tasks for host {}", oldHostId);
         return withRetriesAsync(() -> FutureHelpers.doWhileLoop(
                 () -> executeHostTask(oldHostId),
-                Objects::nonNull, executor)
-                .whenCompleteAsync((result, ex) -> log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor),
+                x -> x != null, executor)
+                .whenCompleteAsync((result, ex) ->
+                        log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor),
                 RETRYABLE_PREDICATE.and(e -> !(ExceptionHelpers.getRealException(e) instanceof LockFailedException)),
                 Integer.MAX_VALUE, executor);
     }
