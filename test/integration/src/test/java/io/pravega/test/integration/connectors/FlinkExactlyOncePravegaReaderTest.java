@@ -7,7 +7,11 @@ package io.pravega.test.integration.connectors;
 
 import io.pravega.connectors.flink.FlinkExactlyOncePravegaReader;
 import io.pravega.stream.EventStreamWriter;
-import io.pravega.test.integration.connectors.utils.*;
+import io.pravega.test.integration.connectors.utils.FailingMapper;
+import io.pravega.test.integration.connectors.utils.IntSequenceExactlyOnceValidator;
+import io.pravega.test.integration.connectors.utils.NotifyingMapper;
+import io.pravega.test.integration.connectors.utils.SuccessException;
+import io.pravega.test.integration.connectors.utils.ThrottledIntegerWriter;
 import io.pravega.test.integration.utils.SetupUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -67,11 +71,11 @@ public class FlinkExactlyOncePravegaReaderTest extends StreamingMultiplePrograms
         runTest(1, 4, NUM_STREAM_ELEMENTS);
     }
 
-    // this test currently does ot work, see https://github.com/pravega/pravega/issues/1152
-//    @Test
-//    public void testMultipleSourcesOneSegment() throws Exception {
-//        runTest(4, 1, NUM_STREAM_ELEMENTS);
-//    }
+    // this test currently does not work, see https://github.com/pravega/pravega/issues/1152
+    //    @Test
+    //    public void testMultipleSourcesOneSegment() throws Exception {
+    //        runTest(4, 1, NUM_STREAM_ELEMENTS);
+    //    }
 
     @Test
     public void testMultipleSourcesMultipleSegments() throws Exception {
@@ -109,7 +113,7 @@ public class FlinkExactlyOncePravegaReaderTest extends StreamingMultiplePrograms
             // has gone through. Rather than implementing a complicated observer that polls the status
             // from Flink, we simply forward the 'checkpoint complete' notification from the user functions
             // the thr throttler, via a static variable
-            NotifyingMapper.toCallOnCheckpointCompletion = producer::unthrottle;
+            NotifyingMapper.TO_CALL_ON_CHECKPOINT_COMPLETION = producer::unthrottle;
         
             final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             
@@ -145,8 +149,7 @@ public class FlinkExactlyOncePravegaReaderTest extends StreamingMultiplePrograms
             // if these calls complete without exception, then the test passes
             try {
                 env.execute();
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 if (!(ExceptionUtils.getRootCause(e) instanceof SuccessException)) {
                     throw e;
                 }
