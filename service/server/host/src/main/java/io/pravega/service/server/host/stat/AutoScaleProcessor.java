@@ -87,6 +87,7 @@ public class AutoScaleProcessor {
         this(configuration, executor, maintenanceExecutor);
         this.writer.set(writer);
         this.initialized.set(true);
+        maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
     }
 
     @VisibleForTesting
