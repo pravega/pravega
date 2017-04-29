@@ -40,26 +40,25 @@ public class ControllerWrapper implements AutoCloseable {
     private final ControllerServiceMain controllerServiceMain;
 
     public ControllerWrapper(final String connectionString, final int servicePort) throws Exception {
-        this(connectionString, false, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, servicePort,
+        this(connectionString, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final int servicePort,
             final boolean disableEventProcessor) throws Exception {
-        this(connectionString, disableEventProcessor, false, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, servicePort,
+        this(connectionString, disableEventProcessor, Config.RPC_SERVER_PORT, Config.SERVICE_HOST, servicePort,
              Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
-                             final boolean disableRequestHandler,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) {
-        this(connectionString, disableEventProcessor, disableRequestHandler, true, controllerPort, serviceHost,
+        this(connectionString, disableEventProcessor, true, controllerPort, serviceHost,
                 servicePort, containerCount, -1);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
-                             final boolean disableRequestHandler, final boolean disableControllerCluster,
+                             final boolean disableControllerCluster,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount, int restPort) {
 
@@ -103,9 +102,10 @@ public class ControllerWrapper implements AutoCloseable {
                     .abortStreamName(NameUtils.getInternalNameForStream("abortStream"))
                     .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
                     .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
+                    .scaleStreamScalingPolicy(ScalingPolicy.fixed(2))
                     .commitReaderGroupName("commitStreamReaders")
                     .commitReaderGroupSize(1)
-                    .abortReaderGrouopName("abortStreamReaders")
+                    .abortReaderGroupName("abortStreamReaders")
                     .abortReaderGroupSize(1)
                     .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
                     .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
@@ -132,7 +132,6 @@ public class ControllerWrapper implements AutoCloseable {
                 .hostMonitorConfig(hostMonitorConfig)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(eventProcessorConfig)
-                .requestHandlersEnabled(!disableRequestHandler)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(restServerConfig)
                 .build();

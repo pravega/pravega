@@ -13,7 +13,7 @@ import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
-import io.pravega.controller.eventProcessor.ControllerEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

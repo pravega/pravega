@@ -5,8 +5,8 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
-import io.pravega.controller.eventProcessor.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.stream.Position;
 
 import java.util.concurrent.Future;

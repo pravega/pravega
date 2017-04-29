@@ -67,6 +67,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     statsRecorder);
             server.startListening();
 
+            controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();
 
             controller.createStream(CONFIG).get();
