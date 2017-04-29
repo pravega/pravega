@@ -18,22 +18,34 @@
 
 package io.pravega.test.integration.connectors.utils;
 
-import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.streaming.api.checkpoint.ListCheckpointed;
+import org.junit.Assert;
 
 import java.util.List;
 
 /**
  * An identity mapper that throws an exception at a specified element.
  * The exception is only thrown during the first execution, prior to the first recovery.
+ * 
+ * <p>The function also fails, if the program terminates cleanly before the
+ * function would throw an exception. That way, it guards against the case
+ * where a failure is never triggered (for example because of a too high value for
+ * the number of elements to pass before failing).
  */
-public class FailingMapper<T> implements MapFunction<T, T>, ListCheckpointed<Integer> {
+public class FailingMapper<T> extends RichMapFunction<T, T> implements ListCheckpointed<Integer> {
 
+    /** The number of elements to wait for, before failing */
     private final int failAtElement;
 
     private int elementCount;
     private boolean restored;
 
+    /**
+     * Creates a mapper that fails after processing the given number of elements.
+     * 
+     * @param failAtElement The number of elements to wait for, before failing.
+     */
     public FailingMapper(int failAtElement) {
         this.failAtElement = failAtElement;
     }
@@ -45,6 +57,13 @@ public class FailingMapper<T> implements MapFunction<T, T>, ListCheckpointed<Int
         }
 
         return element;
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (!restored) {
+            Assert.fail("program finished without ever triggering a failure");
+        }
     }
 
     @Override
