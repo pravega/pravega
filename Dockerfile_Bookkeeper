@@ -3,27 +3,30 @@
 #
 
 FROM java:8
-MAINTAINER Jia Zhai <jia.zhai@emc.com>
+MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
 
 RUN apt-get update \
 &&  apt-get install -y wget unzip \
 &&  mkdir -p /opt \
 &&  cd /opt
 
-RUN wget https://github.com/twitter/distributedlog/releases/download/0.3.51-RC1/distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip \
-&& unzip distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip \
-&& mkdir -p /opt/dl_all \
-&& mv distributedlog-service /opt/dl_all/
+RUN wget http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-4.4.0-src.tar.gz \
+&& tar xvzf  bookkeeper-server-4.4.0-bin.tar.gz \
+&& mkdir -p /opt/bk_all \
+&& mv bookkeeper-server-4.4.0/ /opt/bk_all/
+
+RUN wget http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz \
+&& tar xvzf  zookeeper-3.5.1-alpha.tar.gz \
+&& mkdir -p /opt/zk \
+&& mv zookeeper-3.5.1-alpha/ /opt/zk/
 
 ENV bookiePort 3181
 
 EXPOSE $bookiePort
 
-# all execute-able bin, download from distributed_log
-WORKDIR /opt/dl_all
+# all execute-able bin, download from apache BK and ZK
+WORKDIR /opt/bk_all
 
 # After container up, Following instructions to build bookie cluster
-# http://distributedlog.incubator.apache.org/docs/latest/deployment/cluster.html
-COPY /entry_point.sh /opt/dl_all/entry_point.sh
-ENTRYPOINT /opt/dl_all/entry_point.sh
-
+COPY /entry_point.sh /opt/bk_all/entry_point.sh
+ENTRYPOINT /opt/bk_all/entry_point.sh
