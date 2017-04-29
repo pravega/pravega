@@ -3,7 +3,7 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.controller.requests.ControllerEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
 
 import java.util.concurrent.CompletableFuture;
 

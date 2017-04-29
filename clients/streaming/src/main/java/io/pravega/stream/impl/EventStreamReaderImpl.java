@@ -7,7 +7,7 @@ package io.pravega.stream.impl;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.stream.EventPointer;
 import io.pravega.stream.EventRead;
 import io.pravega.stream.EventStreamReader;

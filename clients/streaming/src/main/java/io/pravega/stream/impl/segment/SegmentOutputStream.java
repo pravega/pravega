@@ -16,6 +16,13 @@ import java.util.Collection;
 public interface SegmentOutputStream extends AutoCloseable {
 
     /**
+     * Returns the name of the segment associated to this output stream.
+     *
+     * @return The name of the segment associated to this output stream.
+     */
+    public abstract String getSegmentName();
+    
+    /**
      * Writes the provided data to the SegmentOutputStream. If
      * {@link PendingEvent#getExpectedOffset()} the data will be written only if the
      * SegmentOutputStream is currently of expectedLength.

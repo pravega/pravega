@@ -7,11 +7,11 @@ package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.ReaderGroupManager;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.controller.requests.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.stream.EventStreamReader;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.EventWriterConfig;

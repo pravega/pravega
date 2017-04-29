@@ -5,7 +5,7 @@
  */
 package io.pravega.stream.impl;
 
-import io.pravega.common.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;

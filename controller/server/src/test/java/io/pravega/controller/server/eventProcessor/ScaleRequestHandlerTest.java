@@ -6,7 +6,7 @@ package io.pravega.controller.server.eventProcessor;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.mocks.SegmentHelperMock;
-import io.pravega.controller.requests.ScaleEvent;
+import io.pravega.shared.controller.event.ScaleEvent;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;

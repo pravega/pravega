@@ -3,7 +3,7 @@
  */
 package io.pravega.service.server.host.stat;
 
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import org.junit.Test;
 
 import java.time.Duration;

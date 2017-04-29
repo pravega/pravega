@@ -7,8 +7,8 @@ package io.pravega.stream.impl.netty;
 
 import java.util.concurrent.CompletableFuture;
 
-import io.pravega.common.netty.PravegaNodeUri;
-import io.pravega.common.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
 
 /**
  * A factory that establishes connections to Prevaga servers.

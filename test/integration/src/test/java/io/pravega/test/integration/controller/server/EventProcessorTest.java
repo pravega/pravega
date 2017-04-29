@@ -4,7 +4,7 @@
 package io.pravega.test.integration.controller.server;
 
 import io.pravega.ClientFactory;
-import io.pravega.controller.requests.ControllerEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.stream.Position;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.eventProcessor.CheckpointConfig;

@@ -5,14 +5,19 @@
  */
 package io.pravega.stream.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.stream.Segment;
-import com.google.common.base.Preconditions;
-import lombok.EqualsAndHashCode;
-
+import io.pravega.stream.SegmentWithRange;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NavigableMap;
+import java.util.TreeMap;
+import lombok.EqualsAndHashCode;
 
 /**
  * The segments that within a stream at a particular point in time.
@@ -53,5 +58,21 @@ public class StreamSegments {
 
     public Collection<Segment> getSegments() {
         return segments.values();
+    }
+    
+    public StreamSegments withReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
+        NavigableMap<Double, Segment> result = new TreeMap<>();
+        Map<Integer, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
+        for (Entry<Double, Segment> exitingSegment : segments.entrySet()) {
+            List<SegmentWithRange> replacements = replacedRanges.get(exitingSegment.getValue().getSegmentNumber());
+            if (replacements == null || replacements.isEmpty()) {
+                result.put(exitingSegment.getKey(), exitingSegment.getValue());
+            } else {
+                for (SegmentWithRange replacement : replacements) {
+                    result.put(replacement.getHigh(), replacement.getSegment());
+                }
+            }
+        }
+        return new StreamSegments(result);
     }
 }

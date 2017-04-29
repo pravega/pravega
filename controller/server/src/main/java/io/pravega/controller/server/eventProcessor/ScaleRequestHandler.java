@@ -6,7 +6,7 @@ package io.pravega.controller.server.eventProcessor;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.requests.ScaleEvent;
+import io.pravega.shared.controller.event.ScaleEvent;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import io.pravega.controller.retryable.RetryableException;

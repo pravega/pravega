@@ -9,8 +9,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-import io.pravega.common.netty.PravegaNodeUri;
-import io.pravega.common.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.stream.impl.netty.ClientConnection;
 import io.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;

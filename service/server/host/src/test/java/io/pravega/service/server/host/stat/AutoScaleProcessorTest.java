@@ -4,8 +4,8 @@
 package io.pravega.service.server.host.stat;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.WireCommands;
-import io.pravega.controller.requests.ScaleEvent;
+import io.pravega.shared.controller.event.ScaleEvent;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.stream.AckFuture;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.EventWriterConfig;
