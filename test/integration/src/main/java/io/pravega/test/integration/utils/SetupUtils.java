@@ -61,6 +61,16 @@ public final class SetupUtils {
      * @throws Exception on any errors.
      */
     public void startAllServices() throws Exception {
+        startAllServices(false);
+    }
+
+    /**
+     * Start all pravega related services required for the test deployment.
+     * 
+     * @param enableEventProcessor Whether to enable the event processor
+     * @throws Exception on any errors.
+     */
+    public void startAllServices(boolean enableEventProcessor) throws Exception {
         if (!this.started.compareAndSet(false, true)) {
             log.warn("Services already started, not attempting to start again");
             return;
@@ -83,7 +93,7 @@ public final class SetupUtils {
         // Start Controller.
         int controllerPort = TestUtils.getAvailableListenPort();
         this.controllerWrapper = new ControllerWrapper(
-                this.zkTestServer.getConnectString(), true, true, controllerPort, "localhost", servicePort,
+                this.zkTestServer.getConnectString(), !enableEventProcessor, true, controllerPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT);
         this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(this.scope).get();
