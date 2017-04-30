@@ -5,7 +5,6 @@ package io.pravega.service.server.host.handler;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.WireCommands;
 import io.pravega.service.contracts.ReadResult;
 import io.pravega.service.contracts.ReadResultEntry;
 import io.pravega.service.contracts.ReadResultEntryContents;
@@ -20,6 +19,7 @@ import io.pravega.service.server.store.StreamSegmentService;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsData;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import java.io.ByteArrayInputStream;
@@ -28,9 +28,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-
-import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
