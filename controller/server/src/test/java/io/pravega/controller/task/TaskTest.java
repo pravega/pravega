@@ -372,6 +372,11 @@ public class TaskTest {
         status = streamStore.getTransactionData(SCOPE, stream1, txId2, null, executor).join().getStatus();
         assertEquals(TxnStatus.COMMITTING, status);
 
+        // Ensure that commit (resp. abort) transaction tasks are idempotent
+        // when transaction is in COMMITTING state (resp. ABORTING state).
+        assertEquals(TxnStatus.ABORTING, txnTasks.abortTxn(SCOPE, stream1, txId, null, null).join());
+        assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, stream1, txId2, null).join());
+
         // Create commit and abort event processors.
         ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
@@ -394,6 +399,11 @@ public class TaskTest {
         assertEquals(txId2, commitEvent.getTxid());
         status = streamStore.transactionStatus(SCOPE, stream1, txId2, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, status);
+
+        // Ensure that commit (resp. abort) transaction tasks are idempotent
+        // even after transaction is committed (resp. aborted)
+        assertEquals(TxnStatus.ABORTED, txnTasks.abortTxn(SCOPE, stream1, txId, null, null).join());
+        assertEquals(TxnStatus.COMMITTED, txnTasks.commitTxn(SCOPE, stream1, txId2, null).join());
     }
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {

@@ -393,6 +393,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
+    @SuppressWarnings("ReturnCount")
     public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit,
                                                         final Optional<Integer> version) {
         return verifyLegalState(checkTransactionStatus(txId)
@@ -403,9 +404,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 return CompletableFuture.completedFuture(TxnStatus.COMMITTING);
                             case OPEN:
                                 return sealActiveTx(txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
+                            case COMMITTED:
+                                return CompletableFuture.completedFuture(TxnStatus.COMMITTED);
                             case ABORTING:
                             case ABORTED:
-                            case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
                             default:
                                 throw new TransactionNotFoundException(txId.toString());
@@ -417,6 +419,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             case OPEN:
                                 return sealActiveTx(txId, false, version).thenApply(y -> TxnStatus.ABORTING);
                             case ABORTED:
+                                return CompletableFuture.completedFuture(TxnStatus.ABORTED);
                             case COMMITTING:
                             case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
