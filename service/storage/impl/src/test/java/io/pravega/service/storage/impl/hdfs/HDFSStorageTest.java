@@ -156,7 +156,7 @@ public class HDFSStorageTest extends StorageTestBase {
         storage.seal(concatHandle, TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "Concat was not fenced out.",
-                () -> storage.concat(handle, si.getLength() + data.length, concatHandle.getSegmentName(), TIMEOUT),
+                () -> storage.concat(handle, si.getLength(), concatHandle.getSegmentName(), TIMEOUT),
                 ex -> ex instanceof StorageNotPrimaryException);
         storage.delete(concatHandle, TIMEOUT).join();
     }
@@ -203,6 +203,8 @@ public class HDFSStorageTest extends StorageTestBase {
         return new TestHDFSStorage(this.adapterConfig, executorService());
     }
 
+    //region TestHDFSStorage
+
     /**
      * Special HDFSStorage that uses a modified version of the MiniHDFSCluster DistributedFileSystem which fixes the
      * 'read-only' permission issues observed with that one.
@@ -234,8 +236,19 @@ public class HDFSStorageTest extends StorageTestBase {
         }
 
         @Override
-        public void concat(final Path trg, final Path[] psrcs) throws IOException {
-            throw new UnsupportedOperationException("Operation disallowed.");
+        public void concat(Path targetPath, Path[] sourcePaths) throws IOException {
+            if (getFileStatus(targetPath).getPermission().getUserAction() == FsAction.READ) {
+                throw new AclException(targetPath.getName());
+            }
+
+            super.concat(targetPath, sourcePaths);
+        }
+
+        @Override
+        public boolean rename(final Path source, final Path target) throws IOException {
+            throw new UnsupportedOperationException("Rename operation disallowed.");
         }
     }
+
+    //endregion
 }

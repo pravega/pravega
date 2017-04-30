@@ -4,7 +4,7 @@
 
 package io.pravega.service.server.host.stat;
 
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.service.contracts.Attributes;
 import io.pravega.service.contracts.StreamSegmentStore;

@@ -6,7 +6,7 @@
 package io.pravega.state.impl;
 
 import io.pravega.ClientFactory;
-import io.pravega.common.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.state.Revision;
 import io.pravega.state.RevisionedStreamClient;
 import io.pravega.state.SynchronizerConfig;

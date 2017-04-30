@@ -4,8 +4,9 @@
  *
  */
 package io.pravega.controller.task;
-
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaggedResource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import com.google.common.base.Preconditions;
@@ -20,7 +21,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
+import static io.pravega.controller.util.RetryHelper.UNCONDITIONAL_PREDICATE;
+import static io.pravega.controller.util.RetryHelper.withRetries;
+import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 @Slf4j
 public class TaskSweeper {
@@ -54,11 +61,11 @@ public class TaskSweeper {
         initializeMappingTable();
     }
 
-    public CompletableFuture<Void> sweepOrphanedTasks(final Set<String> activeHosts) {
-        return taskMetadataStore.getHosts()
+    public CompletableFuture<Void> sweepOrphanedTasks(final Supplier<Set<String>> runningProcesses) {
+        return withRetriesAsync(taskMetadataStore::getHosts, RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor)
                 .thenComposeAsync(registeredHosts -> {
                     log.info("Hosts {} have ongoing tasks", registeredHosts);
-                    registeredHosts.removeAll(activeHosts);
+                    registeredHosts.removeAll(withRetries(runningProcesses, UNCONDITIONAL_PREDICATE, Integer.MAX_VALUE));
                     log.info("Failed hosts {} have orphaned tasks", registeredHosts);
                     return FutureHelpers.allOf(registeredHosts.stream()
                             .map(this::sweepOrphanedTasks).collect(Collectors.toList()));
@@ -76,18 +83,20 @@ public class TaskSweeper {
     public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
         log.info("Sweeping orphaned tasks for host {}", oldHostId);
-        return FutureHelpers.doWhileLoop(
+        return withRetriesAsync(() -> FutureHelpers.doWhileLoop(
                 () -> executeHostTask(oldHostId),
                 x -> x != null, executor)
                 .whenCompleteAsync((result, ex) ->
-                        log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor);
+                        log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor),
+                RETRYABLE_PREDICATE.and(e -> !(ExceptionHelpers.getRealException(e) instanceof LockFailedException)),
+                Integer.MAX_VALUE, executor);
     }
 
     private CompletableFuture<Result> executeHostTask(final String oldHostId) {
 
         // Get a random child TaggedResource of oldHostId node and attempt to execute corresponding task
         return taskMetadataStore.getRandomChild(oldHostId)
-                .thenCompose(taggedResourceOption -> {
+                .thenComposeAsync(taggedResourceOption -> {
 
                     if (!taggedResourceOption.isPresent()) {
 
@@ -95,7 +104,7 @@ public class TaskSweeper {
                         // Invariant: If no taggedResources were found, it is safe to delete oldHostId node.
                         // Moreover, no need to get any more children, hence return null.
                         return taskMetadataStore.removeNode(oldHostId)
-                                .thenApply(x -> null);
+                                .thenApplyAsync(x -> null, executor);
 
                     } else {
 
@@ -107,7 +116,7 @@ public class TaskSweeper {
                         return executeResourceTask(oldHostId, taggedResource);
 
                     }
-                });
+                }, executor);
     }
 
     private CompletableFuture<Result> executeResourceTask(final String oldHostId, final TaggedResource taggedResource) {
@@ -122,13 +131,14 @@ public class TaskSweeper {
         //     It is safe to delete the taggedResource child under oldHostId, since there is no pending task on
         //     resource taggedResource.resource and owned by (oldHostId, taggedResource.threadId).
         taskMetadataStore.getTask(taggedResource.getResource(), oldHostId, taggedResource.getTag())
-                .whenComplete((taskData, ex) -> {
+                .whenCompleteAsync((taskData, ex) -> {
                     if (taskData != null && taskData.isPresent()) {
 
                         log.debug("Host={} found task for child <{}, {}> of {}",
                                 this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
                         execute(oldHostId, taskData.get(), taggedResource)
-                                .whenComplete((value, e) -> result.complete(new Result(taggedResource, value, e)));
+                                .whenCompleteAsync((value, e) -> result.complete(new Result(taggedResource, value, e)),
+                                        executor);
 
                     } else {
 
@@ -143,11 +153,11 @@ public class TaskSweeper {
                             // 2. Some host grabbed the task owned by (oldHostId, taggedResource.threadId).
                             // Invariant: In either case it is safe to delete taggedResource under oldHostId node.
                             taskMetadataStore.removeChild(oldHostId, taggedResource, true)
-                                    .whenComplete((value, e) -> {
+                                    .whenCompleteAsync((value, e) -> {
                                         // Ignore the result of remove child operation.
                                         // Even if it fails, ignore it, as it is an optimization anyways.
                                         result.complete(new Result(taggedResource, null, ex));
-                                    });
+                                    }, executor);
 
                         } else {
 
@@ -157,7 +167,7 @@ public class TaskSweeper {
                         }
 
                     }
-                });
+                }, executor);
         return result;
     }
 

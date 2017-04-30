@@ -3,6 +3,8 @@
  */
 package io.pravega.controller.server.rpc.grpc;
 
+import java.util.Optional;
+
 /**
  * Configuration of controller gRPC server.
  */
@@ -19,12 +21,12 @@ public interface GRPCServerConfig {
      *
      * @return The RPC address which has to be registered with the cluster used for external access.
      */
-    String getPublishedRPCHost();
+    Optional<String> getPublishedRPCHost();
 
     /**
      * Fetches the RPC port which has to be registered with the cluster used for external access.
      *
      * @return The RPC port which has to be registered with the cluster used for external access.
      */
-    int getPublishedRPCPort();
+    Optional<Integer> getPublishedRPCPort();
 }

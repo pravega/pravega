@@ -16,7 +16,7 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.stream.impl.PendingEvent;
 import io.pravega.stream.impl.netty.ClientConnection;
 import io.pravega.stream.mock.MockController;
@@ -25,9 +25,9 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.InOrder;
 
-import io.pravega.common.netty.Append;
-import io.pravega.common.netty.ConnectionFailedException;
-import io.pravega.common.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.stream.mock.MockConnectionFactoryImpl;
 
 import io.netty.buffer.Unpooled;

@@ -12,7 +12,6 @@ import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
@@ -69,11 +68,7 @@ public class Main {
 
         ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
-        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
-                .port(Config.RPC_SERVER_PORT)
-                .publishedRPCHost(Config.RPC_PUBLISHED_SERVER_HOST)
-                .publishedRPCPort(Config.RPC_PUBLISHED_SERVER_PORT)
-                .build();
+        GRPCServerConfig grpcServerConfig = Config.getGRPCServerConfig();
 
         RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
                 .host(Config.REST_SERVER_IP)
@@ -91,7 +86,6 @@ public class Main {
                 .controllerClusterListenerConfig(Optional.of(controllerClusterListenerConfig))
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
-                .requestHandlersEnabled(true)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.of(restServerConfig))
                 .build();

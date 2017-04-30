@@ -52,6 +52,8 @@ public class EndToEndTransactionTest {
         ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
         Controller controller = controllerWrapper.getController();
 
+        controllerWrapper.awaitRunning();
+
         final String testScope = "testScope";
         final String testStream = "testStream";
 

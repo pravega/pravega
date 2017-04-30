@@ -8,6 +8,7 @@ package io.pravega.stream.impl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.stream.Segment;
 import io.pravega.stream.Stream;
+import io.pravega.stream.StreamSegmentsWithPredecessors;
 import io.pravega.stream.impl.segment.SegmentOutputStream;
 import io.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import io.pravega.stream.impl.segment.SegmentSealedException;
@@ -71,9 +72,10 @@ public class SegmentSelector {
         return currentSegments.getSegmentForKey(routingKey);
     }
 
-    @Synchronized
-    public void removeWriter(SegmentOutputStream outputStream) {
-        writers.values().remove(outputStream);
+    public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment) {
+        StreamSegmentsWithPredecessors successors = FutureHelpers.getAndHandleExceptions(
+                controller.getSuccessors(sealedSegment), RuntimeException::new);
+        return updateSegments(currentSegments.withReplacementRange(successors));
     }
 
     /**
@@ -82,18 +84,21 @@ public class SegmentSelector {
      * @return A list of events that were sent to old segments and never acked. These should be
      *         re-sent.
      */
-    @Synchronized
     public List<PendingEvent> refreshSegmentEventWriters() {
-        List<PendingEvent> toResend = new ArrayList<>();
-        currentSegments = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
-                                                                                             stream.getStreamName()),
-                                                               RuntimeException::new);
+        return updateSegments(FutureHelpers.getAndHandleExceptions(
+                controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new));
+    }
+
+    @Synchronized
+    private List<PendingEvent> updateSegments(StreamSegments newSteamSegments) {
+        currentSegments = newSteamSegments;
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
                 SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
                 writers.put(segment, out);
             }
         }
+        List<PendingEvent> toResend = new ArrayList<>();
         Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
         while (iter.hasNext()) {
             Entry<Segment, SegmentOutputStream> entry = iter.next();
@@ -123,4 +128,5 @@ public class SegmentSelector {
     public List<SegmentOutputStream> getWriters() {
         return new ArrayList<>(writers.values());
     }
+
 }

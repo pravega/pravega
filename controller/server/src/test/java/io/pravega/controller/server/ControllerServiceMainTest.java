@@ -128,7 +128,6 @@ public abstract class ControllerServiceMainTest {
                 .hostMonitorConfig(hostMonitorConfig)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.empty())
-                .requestHandlersEnabled(false)
                 .grpcServerConfig(Optional.empty())
                 .restServerConfig(Optional.empty())
                 .build();

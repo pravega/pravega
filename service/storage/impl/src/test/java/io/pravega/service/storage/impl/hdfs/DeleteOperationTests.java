@@ -23,7 +23,7 @@ public class DeleteOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests the ability to delete segments without outside interference.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testNormalDelete() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -44,7 +44,7 @@ public class DeleteOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests the ability to delete segment when an outside interference happens.
      */
-    @Test
+    @Test (timeout = TEST_TIMEOUT_MILLIS)
     public void testConcurrentDelete() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
