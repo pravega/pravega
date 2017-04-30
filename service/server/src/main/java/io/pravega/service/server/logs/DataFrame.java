@@ -25,7 +25,7 @@ public class DataFrame {
     //region Members
 
     private static final byte CURRENT_VERSION = 0;
-    private static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
+    static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
     private final ByteArraySegment data;
     private FrameHeader header;
     private ByteArraySegment contents;

@@ -62,12 +62,6 @@ allprojects {
         jcenter()
         mavenCentral()
         mavenLocal()
-        maven {
-            url "https://raw.github.com/twitter/bookkeeper/mvn-repo/"+ mvnRepoVersion
-        }
-        maven {
-            url "http://maven.twttr.com"
-        }
     }
 
     checkstyle {

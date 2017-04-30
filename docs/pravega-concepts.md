@@ -479,9 +479,9 @@ keep all of the history?
 
 Tier 1 Storage is used to make writing to Streams fast and durable and to make
 sure reading from the tail of a Stream is as fast as possible.  Tier 1 Storage
-is based on the open sourced Distributed Log implementation from Twitter, which
-encapsulates Apache Bookkeeper. Though not essential, we presume that the Tier 1
-Storage will be typically implemented on faster SSDs or even non-volatile RAM.
+is based on the open source Apache BookKeeper Project. Though not essential, we
+presume that the Tier 1 Storage will be typically implemented on faster SSDs or
+even non-volatile RAM.
 
 Tier 2 Storage provides a highly-scalable, high-throughput cost-effective
 storage. We expect this tier to be typically deployed on spinning disks. Pravega
