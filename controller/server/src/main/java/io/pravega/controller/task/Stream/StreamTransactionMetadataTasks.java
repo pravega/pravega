@@ -238,6 +238,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                         abortStreamName, txid.toString(), new AbortEvent(scope, stream, txid), txid, status),
                                 executor);
                     } else {
+                        // Status is ABORTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
                 }, executor);
@@ -252,6 +253,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                 commitStreamName, scope + stream, new CommitEvent(scope, stream, txid), txid, status),
                                 executor);
                     } else {
+                        // Status is COMMITTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
                 }, executor);

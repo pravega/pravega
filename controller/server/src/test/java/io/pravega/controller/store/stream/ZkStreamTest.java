@@ -444,7 +444,7 @@ public class ZkStreamTest {
 
     }
 
-    @Test(timeout = 1000000)
+    @Test(timeout = 10000)
     public void testTransaction() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 

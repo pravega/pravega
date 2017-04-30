@@ -393,19 +393,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    @SuppressWarnings("ReturnCount")
     public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit,
                                                         final Optional<Integer> version) {
         return verifyLegalState(checkTransactionStatus(txId)
                 .thenCompose(x -> {
                     if (commit) {
                         switch (x) {
-                            case COMMITTING:
-                                return CompletableFuture.completedFuture(TxnStatus.COMMITTING);
                             case OPEN:
                                 return sealActiveTx(txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
+                            case COMMITTING:
                             case COMMITTED:
-                                return CompletableFuture.completedFuture(TxnStatus.COMMITTED);
+                                return CompletableFuture.completedFuture(x);
                             case ABORTING:
                             case ABORTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
@@ -414,12 +412,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         }
                     } else {
                         switch (x) {
-                            case ABORTING:
-                                return CompletableFuture.completedFuture(TxnStatus.ABORTING);
                             case OPEN:
                                 return sealActiveTx(txId, false, version).thenApply(y -> TxnStatus.ABORTING);
+                            case ABORTING:
                             case ABORTED:
-                                return CompletableFuture.completedFuture(TxnStatus.ABORTED);
+                                return CompletableFuture.completedFuture(x);
                             case COMMITTING:
                             case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
