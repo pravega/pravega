@@ -691,12 +691,7 @@ project('singlenode') {
     apply plugin: 'application'
     applicationName = "pravega-singlenode"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
-    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dpravega.configurationFile=PRAVEGA_APP_HOME/conf/singlenode.properties"]
-    applicationDistribution.from('config.properties') {
-        into "conf"
-        rename "config.properties", "singlenode.properties"
-    }
+    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError"]
     startScripts {
         doLast {
             unixScript.text = unixScript.text.replace('PRAVEGA_APP_HOME', '\$APP_HOME')
