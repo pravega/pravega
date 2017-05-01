@@ -27,11 +27,9 @@ configure_segmentstore() {
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
-configure_singlenode() {
+configure_standalone() {
     add_system_property "pravegaservice.publishedIPAddress" "${HOST_IP}"
     add_system_property "pravegaservice.listeningIPAddress" "0.0.0.0"
-    add_system_property "log.dir" "/opt/pravega/logs"
-    add_system_property "logback.configurationFile" "/opt/pravega/conf/logback.xml"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
@@ -44,12 +42,12 @@ segmentstore)
     configure_segmentstore
     exec /opt/pravega/bin/pravega-segmentstore
     ;;
-singlenode)
-    configure_singlenode
-    exec /opt/pravega/bin/pravega-singlenode 2181 9090 12345
+standalone)
+    configure_standalone
+    exec /opt/pravega/bin/pravega-standalone 2181 9090 12345
     ;;
 *)
-    echo "Usage: $0 (controller|segmentstore|singlenode)"
+    echo "Usage: $0 (controller|segmentstore|standalone)"
     exit 1
     ;;
 esac

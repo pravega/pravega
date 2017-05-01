@@ -689,9 +689,12 @@ project('connectors:flink') {
 
 project('singlenode') {
     apply plugin: 'application'
-    applicationName = "pravega-singlenode"
+    applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
-    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError"]
+    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=pravega"]
     startScripts {
         doLast {
             unixScript.text = unixScript.text.replace('PRAVEGA_APP_HOME', '\$APP_HOME')
