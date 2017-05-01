@@ -164,7 +164,8 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<VersionedTransactionData> createTransaction(final long lease,
+        public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txId,
+                                                                             final long lease,
                                                                              final long maxExecutionTime,
                                                                              final long scaleGracePeriod) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
@@ -424,7 +425,8 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> createTransaction(final long lease, final long maxExecutionTime,
+    public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txId,
+                                                                         final long lease, final long maxExecutionTime,
                                                                          final long scaleGracePeriod) {
         throw new NotImplementedException();
     }

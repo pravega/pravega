@@ -79,10 +79,11 @@ public class ControllerEventProcessorTest {
 
     @Test(timeout = 10000)
     public void testCommitEventProcessor() {
-        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, 10000, 10000, 10000, null,
-                executor).join();
+        UUID txnId = UUID.randomUUID();
+        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
+                null, executor).join();
         Assert.assertNotNull(txnData);
-        checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.OPEN);
+        checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
 
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
@@ -95,10 +96,11 @@ public class ControllerEventProcessorTest {
 
     @Test(timeout = 10000)
     public void testAbortEventProcessor() {
-        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, 10000, 10000, 10000, null,
-                executor).join();
+        UUID txnId = UUID.randomUUID();
+        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
+                null, executor).join();
         Assert.assertNotNull(txnData);
-        checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.OPEN);
+        checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
 
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), false, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTING);

@@ -344,13 +344,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName,
                                                                          final String streamName,
+                                                                         final UUID txnId,
                                                                          final long lease,
                                                                          final long maxExecutionTime,
                                                                          final long scaleGracePeriod,
                                                                          final OperationContext context,
                                                                          final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
-        return withCompletion(stream.createTransaction(lease, maxExecutionTime, scaleGracePeriod), executor)
+        return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime, scaleGracePeriod), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count -> {
                         DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);

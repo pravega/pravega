@@ -16,6 +16,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -462,11 +463,15 @@ public class ZkStreamTest {
 
         OperationContext context = store.createContext(ZkStreamTest.SCOPE, streamName);
 
-        VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, 10000, 600000, 30000,
+        UUID txnId1 = UUID.randomUUID();
+        VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000, 30000,
                 context, executor).get();
+        Assert.assertEquals(txnId1, tx.getId());
 
-        VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, 10000, 600000, 30000,
+        UUID txnId2 = UUID.randomUUID();
+        VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, txnId2, 10000, 600000, 30000,
                 context, executor).get();
+        Assert.assertEquals(txnId2, tx2.getId());
 
         store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.<Integer>empty(),
                 context, executor).get();

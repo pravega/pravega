@@ -271,6 +271,7 @@ public interface StreamMetadataStore {
      *
      * @param scopeName        Scope
      * @param streamName       Stream
+     * @param txnId            Transaction identifier.
      * @param lease            Time for which transaction shall remain open with sending any heartbeat.
      * @param maxExecutionTime Maximum time for which client may extend txn lease.
      * @param scaleGracePeriod Maximum time for which client may extend txn lease once
@@ -280,6 +281,7 @@ public interface StreamMetadataStore {
      * @return Transaction data along with version information.
      */
     CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName, final String streamName,
+                                                                  final UUID txnId,
                                                                   final long lease, final long maxExecutionTime,
                                                                   final long scaleGracePeriod,
                                                                   final OperationContext context,

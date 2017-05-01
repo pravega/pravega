@@ -28,7 +28,7 @@ public class ZKStoreHelper {
     
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
-    static final String ACTIVE_TX_PATH = ACTIVE_TX_ROOT_PATH + "/%s";
+    static final String STREAM_TX_ROOT = ACTIVE_TX_ROOT_PATH + "/%s";
     private static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
     static final String COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
     
@@ -244,6 +244,18 @@ public class ZKStoreHelper {
                     }
                 });
 
+        return result;
+    }
+
+    CompletableFuture<Void> createZNodeIfParentExists(final String path, final byte[] data) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            client.create()
+                    .inBackground(callback(x -> result.complete(null), result::completeExceptionally), executor)
+                    .forPath(path, data);
+        } catch (Exception e) {
+            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+        }
         return result;
     }
 

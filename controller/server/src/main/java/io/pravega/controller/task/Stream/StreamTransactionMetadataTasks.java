@@ -208,7 +208,8 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                                                       final long lease, final long maxExecutionPeriod,
                                                                       final long scaleGracePeriod,
                                                                       final OperationContext context) {
-        return streamMetadataStore.createTransaction(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, context, executor)
+        UUID txnId = UUID.randomUUID();
+        return streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod, scaleGracePeriod, context, executor)
                 .thenCompose(txData ->
                         streamMetadataStore.getActiveSegments(scope, stream, context, executor)
                                 .thenCompose(activeSegments ->
