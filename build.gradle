@@ -67,6 +67,9 @@ allprojects {
         maven {
             url "http://maven.twttr.com"
         }
+        maven {
+            url "https://repository.apache.org/content/repositories/snapshots/"
+        }
     }
 
     checkstyle {
