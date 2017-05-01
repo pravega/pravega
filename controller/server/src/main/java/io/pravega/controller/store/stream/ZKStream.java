@@ -277,10 +277,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
             return store.createZNodeIfNotExist(activePath, txnRecord)
                     .thenApply(x -> cache.invalidateCache(activePath))
                     .thenApply(y -> pair.getKey());
-            // TODO: replace the previous create version with `createZNodeIfParentExists` method
-//            return store.createZNodeIfParentExists(activePath, txnRecord)
-//                    .thenApply(x -> cache.invalidateCache(activePath))
-//                    .thenApply(y -> pair.getKey());
+            // TODO: replace the previous create version with `createZNodeIfParentExists` method, once scale operation
+            // creates epoch nodes
+            //  return store.createZNodeIfParentExists(activePath, txnRecord)
+            //          .thenApply(x -> cache.invalidateCache(activePath))
+            //          .thenApply(y -> pair.getKey());
         });
     }
 
