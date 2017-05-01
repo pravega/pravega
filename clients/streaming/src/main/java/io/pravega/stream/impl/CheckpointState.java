@@ -110,4 +110,16 @@ public class CheckpointState {
         }
     }
 
+    @Override
+    @Synchronized
+    public String toString() {
+        StringBuffer sb = new StringBuffer();
+        sb.append("CheckpointState { ongoingCheckpoints: ");
+        sb.append(checkpoints.toString());
+        sb.append(",  readersBlockingEachCheckpoint: ");
+        sb.append(uncheckpointedHosts.toString());
+        sb.append(" }");
+        return sb.toString();
+    }
+    
 }
