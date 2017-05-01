@@ -35,7 +35,6 @@ public class ConfigTest {
         Assert.assertEquals(30000, Config.MAX_SCALE_GRACE_PERIOD);
         Assert.assertEquals("_requeststream", Config.SCALE_STREAM_NAME);
         Assert.assertEquals("scaleGroup", Config.SCALE_READER_GROUP);
-        Assert.assertEquals("1", Config.SCALE_READER_ID);
     }
 
     @Test

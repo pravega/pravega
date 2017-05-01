@@ -146,7 +146,6 @@ public class ControllerServiceConfigTest {
                         .hostMonitorConfig(hostMonitorConfig)
                         .timeoutServiceConfig(timeoutServiceConfig)
                         .eventProcessorConfig(Optional.of(null))
-                        .requestHandlersEnabled(false)
                         .grpcServerConfig(Optional.empty())
                         .restServerConfig(Optional.empty())
                         .build());
@@ -163,7 +162,6 @@ public class ControllerServiceConfigTest {
                         .hostMonitorConfig(hostMonitorConfig)
                         .timeoutServiceConfig(timeoutServiceConfig)
                         .eventProcessorConfig(Optional.empty())
-                        .requestHandlersEnabled(false)
                         .grpcServerConfig(Optional.of(null))
                         .restServerConfig(Optional.empty())
                         .build());
@@ -180,7 +178,6 @@ public class ControllerServiceConfigTest {
                         .hostMonitorConfig(hostMonitorConfig)
                         .timeoutServiceConfig(timeoutServiceConfig)
                         .eventProcessorConfig(Optional.empty())
-                        .requestHandlersEnabled(false)
                         .grpcServerConfig(Optional.empty())
                         .restServerConfig(Optional.of(null))
                         .build());
@@ -202,7 +199,6 @@ public class ControllerServiceConfigTest {
                         .controllerClusterListenerConfig(Optional.of(clusterListenerConfig))
                         .timeoutServiceConfig(timeoutServiceConfig)
                         .eventProcessorConfig(Optional.empty())
-                        .requestHandlersEnabled(false)
                         .grpcServerConfig(Optional.empty())
                         .restServerConfig(Optional.empty())
                         .build());

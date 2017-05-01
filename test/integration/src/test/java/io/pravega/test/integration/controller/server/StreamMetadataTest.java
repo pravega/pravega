@@ -46,7 +46,6 @@ public class StreamMetadataTest {
         ControllerWrapper controllerWrapper = new ControllerWrapper(
                 zkTestServer.getConnectString(),
                 true,
-                true,
                 controllerPort,
                 "localhost",
                 servicePort,

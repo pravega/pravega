@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.ToString;
@@ -59,6 +60,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
+    @Getter
     private final String segmentName;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
@@ -86,15 +88,26 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @GuardedBy("lock")
         private long eventNumber = 0;
         private final ReusableLatch connectionSetup = new ReusableLatch();
-        private final ReusableLatch inflightEmpty = new ReusableLatch(true);
+        @GuardedBy("lock")
+        private CompletableFuture<Void> emptyInflightFuture = null;
 
         /**
-         * Blocks until there are no more messages inflight. (No locking required)
+         * Returns a future that will complete successfully once all the inflight events are acked
+         * and will fail if that is not possible for some reason. IE: because the connection
+         * dropped, or the segment was sealed.
          */
-        private void waitForEmptyInflight() {
-            Exceptions.handleInterrupted(() -> inflightEmpty.await());
+        private CompletableFuture<Void> getEmptyInflightFuture() {
+            synchronized (lock) {
+                if (emptyInflightFuture == null) {
+                    emptyInflightFuture = new CompletableFuture<Void>();
+                    if (inflight.isEmpty()) {
+                        emptyInflightFuture.complete(null);
+                    }
+                }
+                return emptyInflightFuture;
+            }
         }
-        
+
         private boolean isInflightEmpty() {
             synchronized (lock) {
                 return inflight.isEmpty();
@@ -139,6 +152,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 if (!closed) {
                     log.warn("Connection failed due to: {}", e.getMessage());
                 }
+                if (emptyInflightFuture != null) {
+                    emptyInflightFuture.completeExceptionally(e);
+                }
             }
             connectionSetupComplete();
             if (oldConnection != null) {
@@ -172,7 +188,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private long addToInflight(PendingEvent event) {
             synchronized (lock) {
                 eventNumber++;
-                inflightEmpty.reset();
                 inflight.put(eventNumber, event);
                 return eventNumber;
             }
@@ -192,8 +207,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 ConcurrentNavigableMap<Long, PendingEvent> acked = inflight.headMap(ackLevel, true);
                 List<PendingEvent> result = new ArrayList<>(acked.values());
                 acked.clear();
-                if (inflight.isEmpty()) {
-                    inflightEmpty.release();
+                if (emptyInflightFuture != null && inflight.isEmpty()) {
+                    emptyInflightFuture.complete(null);
                 }
                 return result;
             }
@@ -370,14 +385,15 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Override
     @Synchronized
     public void flush() throws SegmentSealedException {
-        try {
-            if (!state.isInflightEmpty()) {
-                ClientConnection connection = getConnection();
-                connection.send(new KeepAlive());
-                state.waitForEmptyInflight();
-            }
-        } catch (ConnectionFailedException e) {
-            state.failConnection(e);
+        if (!state.isInflightEmpty()) {
+            RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+                          .throwingOn(SegmentSealedException.class)
+                          .run(() -> {
+                              ClientConnection connection = getConnection();
+                              connection.send(new KeepAlive());
+                              state.getEmptyInflightFuture().get();
+                              return null;
+                          });
         }
     }
 

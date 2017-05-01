@@ -88,7 +88,6 @@ class ZKCheckpointStore implements CheckpointStore {
         String path = getReaderGroupPath(process, readerGroup);
 
         try {
-
             updateReaderGroupData(path, groupData ->
                     new ReaderGroupData(ReaderGroupData.State.Sealed, groupData.getReaderIds()));
 
@@ -96,6 +95,8 @@ class ZKCheckpointStore implements CheckpointStore {
 
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
         }
@@ -104,7 +105,17 @@ class ZKCheckpointStore implements CheckpointStore {
     @Override
     public void removeReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         String path = getReaderGroupPath(process, readerGroup);
-        byte[] data = getData(path);
+
+        byte[] data;
+        try {
+            data = getData(path);
+        } catch (CheckpointStoreException e) {
+            if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                return;
+            } else {
+                throw e;
+            }
+        }
 
         ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
 
@@ -147,12 +158,13 @@ class ZKCheckpointStore implements CheckpointStore {
 
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (CheckpointStoreException e) {
             throw e;
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
         }
-
     }
 
     @Override
@@ -174,6 +186,8 @@ class ZKCheckpointStore implements CheckpointStore {
 
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (CheckpointStoreException e) {
             throw e;
         } catch (Exception e) {
@@ -249,6 +263,8 @@ class ZKCheckpointStore implements CheckpointStore {
 
         } catch (KeeperException.NodeExistsException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NodeExists, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
         }
@@ -263,6 +279,8 @@ class ZKCheckpointStore implements CheckpointStore {
             // Its ok if the node is already deleted, mask this exception.
         } catch (KeeperException.NotEmptyException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NodeNotEmpty, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
         }
@@ -275,6 +293,8 @@ class ZKCheckpointStore implements CheckpointStore {
 
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
         }
@@ -288,6 +308,8 @@ class ZKCheckpointStore implements CheckpointStore {
         } catch (KeeperException.NoNodeException e) {
             // Return empty list for KeeperException.NoNodeException.
             return Collections.emptyList();
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
         }
@@ -300,6 +322,8 @@ class ZKCheckpointStore implements CheckpointStore {
 
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
         }
