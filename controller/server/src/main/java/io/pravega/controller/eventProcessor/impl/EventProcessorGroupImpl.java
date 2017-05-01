@@ -11,7 +11,7 @@ import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
-import io.pravega.controller.eventProcessor.ControllerEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.stream.EventStreamReader;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.EventWriterConfig;
@@ -96,12 +96,6 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                                           final ReaderGroupConfig groupConfig,
                                           final Set<String> streamNanes) {
         return readerGroupManager.createReaderGroup(groupName, groupConfig, streamNanes);
-        // todo: getReaderGroup currently throws NotImplementedException
-        //ReaderGroup readerGroup = streamManager.getReaderGroup(groupName);
-        //if (readerGroup == null) {
-        //    readerGroup = streamManager.createReaderGroup(groupName, groupConfig, streamNanes);
-        //}
-        //return  readerGroup;
     }
 
     private List<String> createEventProcessors(final int count) throws CheckpointStoreException {
@@ -194,10 +188,18 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "notifyProcessFailure", process);
         log.info("Notifying failure of process {} participating in reader group {}", process, this.objectId);
         try {
-            Map<String, Position> map = checkpointStore.sealReaderGroup(process, readerGroup.getGroupName());
+            Map<String, Position> map;
+            try {
+                map = checkpointStore.sealReaderGroup(process, readerGroup.getGroupName());
+            } catch (CheckpointStoreException e) {
+                if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                    return;
+                } else {
+                    throw e;
+                }
+            }
 
             for (Map.Entry<String, Position> entry : map.entrySet()) {
-
                 // 1. Notify reader group about failed readers
                 log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
                 readerGroup.readerOffline(entry.getKey(), entry.getValue());
@@ -205,8 +207,8 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 // 2. Clean up reader from checkpoint store
                 log.info("{} removing reader={} from checkpoint store", this.objectId, entry.getKey());
                 checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
-
             }
+
             // finally, remove reader group from checkpoint store
             log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
             checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());

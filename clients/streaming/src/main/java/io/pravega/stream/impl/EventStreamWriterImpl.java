@@ -91,17 +91,27 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             while (segmentWriter == null) {
                 log.info("Don't have a writer for segment: {}", selector.getSegmentForEvent(routingKey));
-                handleLogSealed();
+                handleMissingLog();
                 segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             }
             try {
                 segmentWriter.write(new PendingEvent(routingKey, data, result));
             } catch (SegmentSealedException e) {
                 log.info("Segment was sealed: {}", segmentWriter);
-                handleLogSealed();
+                handleLogSealed(Segment.fromScopedName(segmentWriter.getSegmentName()));
             }
         }
-        return new AckFutureImpl(result);
+        return new AckFutureImpl(result, () -> {
+            if (!closed.get()) {
+                flushInternal();
+            }
+        });
+    }
+    
+    @GuardedBy("lock")
+    private void handleMissingLog() {
+        List<PendingEvent> toResend = selector.refreshSegmentEventWriters();
+        resend(toResend);
     }
 
     /**
@@ -110,26 +120,35 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * over very quickly.
      */
     @GuardedBy("lock")
-    private void handleLogSealed() {
-        List<PendingEvent> toResend = selector.refreshSegmentEventWriters();
+    private void handleLogSealed(Segment segment) {
+        List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment);
+        resend(toResend);
+    }
+
+    @GuardedBy("lock")
+    private void resend(List<PendingEvent> toResend) {
         while (!toResend.isEmpty()) {
             List<PendingEvent> unsent = new ArrayList<>();
+            boolean sendFailed = false;
             for (PendingEvent event : toResend) {
-                SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey());
-                if (segmentWriter == null) {
+                if (sendFailed) {
                     unsent.add(event);
                 } else {
-                    try {
-                        segmentWriter.write(event);
-                    } catch (SegmentSealedException e) {
-                        log.info("Segment was sealed while handling seal: {}", segmentWriter);
-                        selector.removeWriter(segmentWriter);
-                        unsent.addAll(segmentWriter.getUnackedEvents());
+                    SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey());
+                    if (segmentWriter == null) {
+                        unsent.addAll(selector.refreshSegmentEventWriters());
+                        sendFailed = true;
+                    } else {
+                        try {
+                            segmentWriter.write(event);
+                        } catch (SegmentSealedException e) {
+                            log.info("Segment was sealed while handling seal: {}", segmentWriter);
+                            Segment segment = Segment.fromScopedName(segmentWriter.getSegmentName());
+                            unsent.addAll(selector.refreshSegmentEventWritersUponSealed(segment));
+                            sendFailed = true;
+                        }
                     }
                 }
-            }
-            if (!unsent.isEmpty()) {
-                unsent.addAll(selector.refreshSegmentEventWriters());
             }
             toResend = unsent;
         }
@@ -276,7 +295,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     @Override
     public void flush() {
         Preconditions.checkState(!closed.get());
+        flushInternal();
+    }
+    
+    private void flushInternal() {
         boolean success = false;
+        String sealedSegment = null;
         while (!success) {
             success = true;
             synchronized (lock) {
@@ -286,10 +310,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     } catch (SegmentSealedException e) {
                         log.info("Segment was sealed during flush: {}", writer);
                         success = false;
+                        sealedSegment = writer.getSegmentName();
+                        break;
                     }
                 }
                 if (!success) {
-                    handleLogSealed();
+                    handleLogSealed(Segment.fromScopedName(sealedSegment));
                 }
             }
         }
@@ -302,6 +328,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
         synchronized (lock) {
             boolean success = false;
+            String sealedSegment = null;
             while (!success) {
                 success = true;
                 for (SegmentOutputStream writer : selector.getWriters()) {
@@ -310,10 +337,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     } catch (SegmentSealedException e) {
                         log.info("Segment was sealed during close: {}", writer);
                         success = false;
+                        sealedSegment = writer.getSegmentName();
+                        break;
                     }
                 }
                 if (!success) {
-                    handleLogSealed();
+                    handleLogSealed(Segment.fromScopedName(sealedSegment));
                 }
             }
         }

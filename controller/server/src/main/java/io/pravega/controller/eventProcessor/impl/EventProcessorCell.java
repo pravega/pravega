@@ -13,7 +13,7 @@ import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.EventProcessorInitException;
 import io.pravega.controller.eventProcessor.EventProcessorReinitException;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
-import io.pravega.controller.eventProcessor.ControllerEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.stream.EventRead;
 import io.pravega.stream.EventStreamReader;
 import io.pravega.stream.EventStreamWriter;

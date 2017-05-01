@@ -7,6 +7,7 @@ package io.pravega.controller.eventProcessor;
 
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.shared.controller.event.ControllerEvent;
 
 /**
  * It acts as the manager and wrapper around EventProcessor groups

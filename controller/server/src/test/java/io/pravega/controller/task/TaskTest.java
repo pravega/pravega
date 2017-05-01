@@ -7,7 +7,6 @@ import io.pravega.ClientFactory;
 import io.pravega.ReaderGroupManager;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
-import io.pravega.controller.eventProcessor.ControllerEvent;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
@@ -25,6 +24,7 @@ import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.stream.EventStreamReader;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.ReaderGroup;
@@ -498,7 +498,7 @@ public class TaskTest {
 
         @Override
         public void run() {
-            taskSweeper.sweepOrphanedTasks(Collections.singleton(hostId))
+            taskSweeper.sweepOrphanedTasks(() -> Collections.singleton(hostId))
                     .whenComplete((value, e) -> {
                         if (e != null) {
                             result.completeExceptionally(e);

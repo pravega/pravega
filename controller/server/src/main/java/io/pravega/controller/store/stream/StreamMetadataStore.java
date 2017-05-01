@@ -9,7 +9,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.stream.StreamConfiguration;
 
-import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
@@ -425,8 +424,4 @@ public interface StreamMetadataStore {
      * @return Completable Future
      */
     CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number, final OperationContext context, final Executor executor);
-
-    CompletableFuture<Void> checkpoint(final String readerGroup, final String readerId, final ByteBuffer checkpointBlob);
-
-    CompletableFuture<ByteBuffer> readCheckpoint(final String readerGroup, final String readerId);
 }

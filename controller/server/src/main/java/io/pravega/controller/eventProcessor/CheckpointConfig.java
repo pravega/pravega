@@ -50,4 +50,9 @@ public class CheckpointConfig {
     public static CheckpointConfig periodic(final int numEvents, final int numSeconds) {
         return new CheckpointConfig(Type.Periodic, new CheckpointPeriod(numEvents, numSeconds));
     }
+
+    public static CheckpointConfig none() {
+        return new CheckpointConfig(Type.None, null);
+    }
+
 }

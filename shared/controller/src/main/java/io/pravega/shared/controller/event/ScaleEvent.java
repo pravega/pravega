@@ -3,12 +3,12 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
-package io.pravega.shared.controller.requests;
+package io.pravega.shared.controller.event;
 
 import lombok.Data;
 
 @Data
-public class ScaleRequest implements ControllerRequest {
+public class ScaleEvent implements ControllerEvent {
     public static final byte UP = (byte) 0;
     public static final byte DOWN = (byte) 1;
     private static final long serialVersionUID = 1L;
@@ -20,11 +20,6 @@ public class ScaleRequest implements ControllerRequest {
     private final long timestamp;
     private final int numOfSplits;
     private final boolean silent;
-
-    @Override
-    public RequestType getType() {
-        return RequestType.ScaleRequest;
-    }
 
     @Override
     public String getKey() {

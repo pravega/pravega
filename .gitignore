@@ -14,6 +14,7 @@ output
 .idea
 target
 log/
+out/
 .metadata/
 .recommenders/
 *.log
