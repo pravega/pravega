@@ -32,13 +32,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -276,11 +276,23 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void appendSetup(AppendSetup appendSetup) {
             long ackLevel = appendSetup.getLastEventNumber();
             ackUpTo(ackLevel);
-            try {
-                retransmitInflight();
+            List<Append> toRetransmit = state.getAllInflight()
+                                             .stream()
+                                             .map(entry -> new Append(segmentName, connectionId, entry.getKey(),
+                                                                      Unpooled.wrappedBuffer(entry.getValue()
+                                                                                                  .getData()),
+                                                                      entry.getValue().getExpectedOffset()))
+                                             .collect(Collectors.toList());
+            if (toRetransmit == null || toRetransmit.isEmpty()) {
                 state.connectionSetupComplete();
-            } catch (ConnectionFailedException e) {
-                state.failConnection(e);
+            } else {
+                state.getConnection().sendAsync(toRetransmit, e -> {
+                    if (e == null) {
+                        state.connectionSetupComplete();
+                    } else {
+                        state.failConnection(e);
+                    }
+                });
             }
         }
 
@@ -296,16 +308,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             PendingEvent toAck = state.removeSingleInflight(eventNumber);
             if (toAck != null) {
                 toAck.getAckFuture().complete(false);
-            }
-        }
-
-        private void retransmitInflight() throws ConnectionFailedException {
-            for (Entry<Long, PendingEvent> entry : state.getAllInflight()) {
-                state.connection.send(new Append(segmentName,
-                                                 connectionId,
-                                                 entry.getKey(),
-                                                 Unpooled.wrappedBuffer(entry.getValue().getData()),
-                                                 entry.getValue().getExpectedOffset()));
             }
         }
 
@@ -325,10 +327,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         ClientConnection connection = getConnection();
         long eventNumber = state.addToInflight(event);
         try {
-            connection.send(new Append(segmentName,
-                                       connectionId,
-                                       eventNumber,
-                                       Unpooled.wrappedBuffer(event.getData()),
+            connection.send(new Append(segmentName, connectionId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
                                        event.getExpectedOffset()));
         } catch (ConnectionFailedException e) {
             log.warn("Connection failed due to: ", e);

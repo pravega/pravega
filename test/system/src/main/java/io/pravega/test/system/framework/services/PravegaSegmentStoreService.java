@@ -40,14 +40,14 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri) {
         // if SkipserviceInstallation flag is enabled used the default id.
-        super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/host" : id);
+        super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/segmentstore" : id);
         this.zkUri = zkUri;
         this.conUri = conUri;
     }
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri, int instances, double cpu, double mem) {
         // if SkipserviceInstallation flag is enabled used the default id.
-        super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/host" : id);
+        super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/segmentstore" : id);
         this.zkUri = zkUri;
         this.instances = instances;
         this.cpu = cpu;
@@ -57,7 +57,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
-        deleteApp("/pravega/host");
+        deleteApp("/pravega/segmentstore");
         log.info("Starting Pravega SegmentStore Service: {}", getID());
         try {
             marathonClient.createApp(createPravegaSegmentStoreApp());
@@ -104,7 +104,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         volumeCollection.add(createVolume("/tmp/logs", "/mnt/logs", "RW"));
         app.getContainer().setVolumes(volumeCollection);
         //set the image and network
-        app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega-host:" + PRAVEGA_VERSION);
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         List<Parameter> parameterList = new ArrayList<>();
@@ -133,8 +133,9 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                 setSystemProperty("log.level", "DEBUG");
 
         Map<String, String> map = new HashMap<>();
-        map.put("HOST_OPTS", hostSystemProperties);
+        map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);
         app.setEnv(map);
+        app.setArgs(Arrays.asList("segmentstore"));
 
         return app;
     }

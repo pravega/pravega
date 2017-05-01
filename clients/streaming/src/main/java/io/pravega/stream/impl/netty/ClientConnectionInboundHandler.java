@@ -5,6 +5,14 @@
  */
 package io.pravega.stream.impl.netty;
 
+import com.google.common.base.Preconditions;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -12,17 +20,11 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
-import com.google.common.base.Preconditions;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Future;
+import io.pravega.shared.protocol.netty.WireCommands;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
-import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -89,12 +91,6 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
     @Override
-    public Future<Void> sendAsync(WireCommand cmd) {
-        recentMessage.set(true);
-        return getChannel().writeAndFlush(cmd);
-    }
-
-    @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
         recentMessage.set(true);
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
@@ -105,6 +101,31 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         recentMessage.set(true);
         batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
+    }
+
+    @Override
+    public void sendAsync(WireCommand cmd) {
+        recentMessage.set(true);
+        Channel channel = getChannel();
+        channel.writeAndFlush(cmd, channel.voidPromise());
+    }
+    
+    @Override
+    public void sendAsync(List<Append> appends, CompletedCallback callback) {
+        recentMessage.set(true);
+        Channel channel = getChannel();
+        ChannelPromise promise = channel.newPromise();
+        for (Append append : appends) {
+            batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
+            channel.write(append, promise);
+        }
+        channel.flush();
+        promise.addListener(new GenericFutureListener<Future<? super Void>>() {
+            @Override
+            public void operationComplete(Future<? super Void> future) throws Exception {
+                callback.complete(new ConnectionFailedException(future.cause()));
+            }
+        });
     }
     
     @Override
