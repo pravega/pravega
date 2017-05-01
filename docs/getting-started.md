@@ -10,37 +10,31 @@ application.
 **Verify the following prerequisite**:
 
 ```
-JDK version 1.8
+Java 8
 ```
 
 **Download Pravega**
 
+Download the pravega release from the [github releases page](https://github.com/pravega/pravega/releases).
+If you prefer to build pravega yourself, you can download the code and run `./gradlew distribution`.
+
 ```
-$ mkdir pravega
-$ cd pravega
-$ git clone https://github.com/pravega/pravega
+$ tar xfvz pravega-0.1.0.tgz
 ```
 
-
-**Launch Pravega in a single node**
+**Run Pravega in standalone mode**
 
 This launches all the components of Pravega on your local machine.
-NOTE: this is for testing/demo purposes only, *do not* use this mode of
-  deployment in Production! We talk about multi-node production quality deployment of Pravega
-            [elsewhere](http://pravega.io/docs//Deploying-and-Managing-Pravega/index.html).
-             
+NOTE: this is for testing/demo purposes only, *do not* use this mode of deployment 
+in Production! More options for [Running Pravega](deployment/deployment.md) are
+covered in the running pravega guide.           
 
 ```
 $ cd pravega 
-$ ./gradlew startSingleNode
+$ bin/pravega-standalone
 ```
 
-Thats it.  Pravega should be up and running very soon.  Look for the
-  "Pravega Sandbox is running locally now." message on the console to be sure
-  Pravega has launched successfully:
-```
-Pravega Sandbox is running locally now. You could access it at 127.0.0.1:9090
-```
+Thats it.  Pravega should be up and running very soon.
 
 ## Running a sample Pravega App is simple too
 
