@@ -911,6 +911,10 @@ distributions {
     }
 }
 
+tasks.withType(Tar) {
+    compression = Compression.GZIP
+}
+
 task preparePravegaImage(type: Copy) {
     into "${buildDir}/docker/pravega"
     from "docker/pravega"
