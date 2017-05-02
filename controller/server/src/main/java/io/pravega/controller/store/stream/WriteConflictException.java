@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.pravega.controller.store.stream;
 
 import io.pravega.controller.retryable.RetryableException;

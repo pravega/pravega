@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.pravega.test.system.framework.metronome;
 
 import com.google.gson.Gson;
