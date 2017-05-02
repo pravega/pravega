@@ -87,10 +87,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         return readyLatch.await(timeout, timeUnit);
     }
 
-    public void awaitInitialization() throws InterruptedException {
-        readyLatch.await();
-    }
-
     /**
      * Initializes stream writers for commit and abort streams.
      * This method should be called immediately after creating StreamTransactionMetadataTasks object.

@@ -7,8 +7,8 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -84,8 +84,10 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory);
 
-        streamTransactionMetadataTasks = new MockStreamTransactionMetadataTasks(
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory);
+        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
+                "abortStream", new EventStreamWriterMock<>());
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 
