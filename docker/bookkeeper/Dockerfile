@@ -10,7 +10,7 @@ RUN apt-get update \
 &&  mkdir -p /opt \
 &&  cd /opt
 
-RUN wget http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-4.4.0-src.tar.gz \
+RUN wget http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz \
 && tar xvzf  bookkeeper-server-4.4.0-bin.tar.gz \
 && mkdir -p /opt/bk_all \
 && mv bookkeeper-server-4.4.0/ /opt/bk_all/
@@ -28,5 +28,5 @@ EXPOSE $bookiePort
 WORKDIR /opt/bk_all
 
 # After container up, Following instructions to build bookie cluster
-COPY /entry_point.sh /opt/bk_all/entry_point.sh
-ENTRYPOINT /opt/bk_all/entry_point.sh
+COPY entrypoint.sh /opt/bk_all/entrypoint.sh
+ENTRYPOINT /opt/bk_all/entrypoint.sh
