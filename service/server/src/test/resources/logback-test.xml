@@ -13,6 +13,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
+
 <configuration>
     <!-- This config is valid for all unit tests in this module. We are turning off all logging for unit tests -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
