@@ -329,34 +329,36 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease) {
-        return getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId).thenCompose(data -> {
-            ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
-            if (activeTxnRecord.getTxnStatus() == TxnStatus.OPEN) {
-                // Update txn record with new lease value and return versioned tx data.
-                ActiveTxnRecord newData = new ActiveTxnRecord(activeTxnRecord.getTxCreationTimestamp(),
-                        System.currentTimeMillis() + lease, activeTxnRecord.getMaxExecutionExpiryTime(),
-                        activeTxnRecord.getScaleGracePeriod(), activeTxnRecord.getTxnStatus());
+        return getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId)
+                .thenCompose(data -> {
+                    ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
+                    if (activeTxnRecord.getTxnStatus() == TxnStatus.OPEN) {
+                        // Update txn record with new lease value and return versioned tx data.
+                        ActiveTxnRecord newData = new ActiveTxnRecord(activeTxnRecord.getTxCreationTimestamp(),
+                                System.currentTimeMillis() + lease, activeTxnRecord.getMaxExecutionExpiryTime(),
+                                activeTxnRecord.getScaleGracePeriod(), activeTxnRecord.getTxnStatus());
 
-                return updateActiveTx(epoch, txId, newData.toByteArray())
-                        .thenApply(x ->
-                                new VersionedTransactionData(epoch, txId, data.getVersion() + 1,
-                                        TxnStatus.OPEN, activeTxnRecord.getTxCreationTimestamp(),
-                                        activeTxnRecord.getMaxExecutionExpiryTime(),
-                                        activeTxnRecord.getScaleGracePeriod()));
-            } else {
-                return FutureHelpers.failedFuture(new IllegalStateException(txId.toString()));
-            }
-        }));
+                        return updateActiveTx(epoch, txId, newData.toByteArray())
+                                .thenApply(x ->
+                                        new VersionedTransactionData(epoch, txId, data.getVersion() + 1,
+                                                TxnStatus.OPEN, activeTxnRecord.getTxCreationTimestamp(),
+                                                activeTxnRecord.getMaxExecutionExpiryTime(),
+                                                activeTxnRecord.getScaleGracePeriod()));
+                    } else {
+                        return FutureHelpers.failedFuture(new IllegalStateException(txId.toString()));
+                    }
+                }));
     }
 
     @Override
     public CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId) {
-        return getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId).thenApply(data -> {
-            ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
-            return new VersionedTransactionData(epoch, txId, data.getVersion(),
-                    activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
-                    activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getScaleGracePeriod());
-        }));
+        return getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId)
+                .thenApply(data -> {
+                    ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
+                    return new VersionedTransactionData(epoch, txId, data.getVersion(),
+                            activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
+                            activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getScaleGracePeriod());
+                }));
     }
 
     @Override
@@ -418,8 +420,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit,
                                                         final Optional<Integer> version) {
-        return verifyLegalState(getTransactionEpoch(txId)
-                .thenCompose(epoch -> checkTransactionStatus(epoch, txId)
+        return verifyLegalState(getTransactionEpoch(txId).thenCompose(epoch -> checkTransactionStatus(epoch, txId)
                 .thenCompose(x -> {
                     if (commit) {
                         switch (x) {
@@ -469,13 +470,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         default:
                             throw new TransactionNotFoundException(txId.toString());
                     }
-                }).thenCompose(x -> {
+                })
+                .thenCompose(x -> {
                     if (x.equals(TxnStatus.COMMITTING)) {
                         return createCompletedTxEntry(txId, TxnStatus.COMMITTED, System.currentTimeMillis());
                     } else {
                         return CompletableFuture.completedFuture(null); // already committed, do nothing
                     }
-                }).thenCompose(x -> removeActiveTxEntry(epoch, txId)).thenApply(x -> TxnStatus.COMMITTED)));
+                })
+                .thenCompose(x -> removeActiveTxEntry(epoch, txId))
+                .thenApply(x -> TxnStatus.COMMITTED)));
     }
 
     @Override
@@ -494,13 +498,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         default:
                             throw new TransactionNotFoundException(txId.toString());
                     }
-                }).thenCompose(x -> {
+                })
+                .thenCompose(x -> {
                     if (x.equals(TxnStatus.ABORTING)) {
                         return createCompletedTxEntry(txId, TxnStatus.ABORTED, System.currentTimeMillis());
                     } else {
                         return CompletableFuture.completedFuture(null); // already committed, do nothing
                     }
-                }).thenCompose(y -> removeActiveTxEntry(epoch, txId)).thenApply(y -> TxnStatus.ABORTED)));
+                })
+                .thenCompose(y -> removeActiveTxEntry(epoch, txId))
+                .thenApply(y -> TxnStatus.ABORTED)));
     }
 
     @Override
