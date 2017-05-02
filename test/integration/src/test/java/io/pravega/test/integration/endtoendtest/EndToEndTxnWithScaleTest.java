@@ -58,7 +58,7 @@ public class EndToEndTxnWithScaleTest {
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
         server = new PravegaConnectionListener(false, servicePort, store);

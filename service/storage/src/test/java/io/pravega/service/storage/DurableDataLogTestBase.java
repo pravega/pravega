@@ -4,18 +4,18 @@
 
 package io.pravega.service.storage;
 
+import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.SortedMap;
+import java.util.Random;
 import java.util.TreeMap;
-
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -25,7 +25,11 @@ import org.junit.Test;
  * Base class for all tests for implementations of DurableDataLog.
  */
 public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final int TIMEOUT_MILLIS = 60 * 1000;
+    protected static final Duration TIMEOUT = Duration.ofMillis(TIMEOUT_MILLIS);
+    protected static final int WRITE_MIN_LENGTH = 20;
+    protected static final int WRITE_MAX_LENGTH = 200;
+    private final Random random = new Random(0);
 
     //region General DurableDataLog Tests
 
@@ -34,22 +38,22 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testAppend() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(
                     "append() worked before initialize()",
-                    () -> log.append(new ByteArrayInputStream("h".getBytes()), TIMEOUT),
+                    () -> log.append(new ByteArraySegment("h".getBytes()), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
 
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
             LogAddress prevAddress = null;
-            int writeCount = getWriteCountForWrites();
+            int writeCount = getWriteCount();
             for (int i = 0; i < writeCount; i++) {
-                LogAddress address = log.append(new ByteArrayInputStream(String.format("Write_%s", i).getBytes()), TIMEOUT).join();
+                LogAddress address = log.append(new ByteArraySegment(getWriteData()), TIMEOUT).join();
                 Assert.assertNotNull("No address returned from append().", address);
                 if (prevAddress != null) {
                     AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevAddress.getSequence(), address.getSequence());
@@ -65,28 +69,25 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testRead() throws Exception {
-        try (DurableDataLog log = createDurableDataLog()) {
+        TreeMap<LogAddress, byte[]> writeData;
+        Object context = createSharedContext();
+        try (DurableDataLog log = createDurableDataLog(context)) {
             // Check Read pre-initialization.
             AssertExtensions.assertThrows(
                     "read() worked before initialize()",
-                    () -> log.getReader(0),
+                    log::getReader,
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
-            val writeData = populate(log, getWriteCountForReads());
+            writeData = populate(log, getWriteCount());
+        }
 
-            // Test reading after each sequence number that we got back.
-            for (LogAddress address : writeData.keySet()) {
-                verifyReads(log, address, writeData);
-            }
-
-            // Test reading from a sequence number before the first one.
-            verifyReads(log, createLogAddress(writeData.firstKey().getSequence() - 1), writeData);
-
-            // Test reading from a sequence number way beyond the last one.
-            verifyReads(log, createLogAddress(writeData.lastKey().getSequence() * 2), writeData);
+        // Simulate Container recovery: we always read only upon recovery; never while writing.
+        try (DurableDataLog log = createDurableDataLog(context)) {
+            log.initialize(TIMEOUT);
+            verifyReads(log, writeData);
         }
     }
 
@@ -95,9 +96,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testTruncate() throws Exception {
-        try (DurableDataLog log = createDurableDataLog()) {
+        TreeMap<LogAddress, byte[]> writeData;
+        ArrayList<LogAddress> addresses;
+        Object context = createSharedContext();
+        try (DurableDataLog log = createDurableDataLog(context)) {
             // Check Read pre-initialization.
             AssertExtensions.assertThrows(
                     "truncate() worked before initialize()",
@@ -105,14 +109,17 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
-            TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForReads());
-            ArrayList<LogAddress> addresses = new ArrayList<>(writeData.keySet());
+            writeData = populate(log, getWriteCount());
+            addresses = new ArrayList<>(writeData.keySet());
+        }
 
+        try (DurableDataLog log = createDurableDataLog(context)) {
+            log.initialize(TIMEOUT);
             // Test truncating after each sequence number that we got back.
             for (LogAddress address : addresses) {
                 log.truncate(address, TIMEOUT).join();
                 writeData.headMap(address, true).clear();
-                verifyReads(log, createLogAddress(-1), writeData);
+                verifyReads(log, writeData);
             }
         }
     }
@@ -122,20 +129,20 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testConcurrentIterator() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
-            populate(log, getWriteCountForWrites());
+            populate(log, getWriteCount());
 
             // Create a reader and read one item.
             @Cleanup
-            CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(-1);
+            CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader();
             DurableDataLog.ReadItem firstItem = reader.getNext();
             Assert.assertNotNull("Nothing read before modification.", firstItem);
 
             // Make a modification.
-            log.append(new ByteArrayInputStream("foo".getBytes()), TIMEOUT).join();
+            log.append(new ByteArraySegment("foo".getBytes()), TIMEOUT).join();
 
             // Try to get a new item.
             DurableDataLog.ReadItem secondItem = reader.getNext();
@@ -149,7 +156,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testOpenCloseClient() throws Exception {
         // This is a very repetitive test; and we only care about "recovery" from no client; all else is already tested.
         final int writeCount = 10;
@@ -163,7 +170,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             try (DurableDataLog log = createDurableDataLog(context)) {
                 log.initialize(TIMEOUT);
                 byte[] writeData = String.format("Write_%s", i).getBytes();
-                currentAddress = log.append(new ByteArrayInputStream(writeData), TIMEOUT).join();
+                currentAddress = log.append(new ByteArraySegment(writeData), TIMEOUT).join();
                 writtenData.put(currentAddress, writeData);
             }
 
@@ -179,16 +186,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Verify reads.
             try (DurableDataLog log = createDurableDataLog(context)) {
                 log.initialize(TIMEOUT);
-                verifyReads(log, createLogAddress(-1), writtenData);
+                verifyReads(log, writtenData);
             }
 
             previousAddress = currentAddress;
         }
     }
-
-    //endregion
-
-    //region Implementation-specific tests
 
     /**
      * Tests the ability of the DurableDataLog to enforce an exclusive writer, by only allowing one client at a time
@@ -197,7 +200,40 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      * @throws Exception If one got thrown.
      */
     @Test
-    public abstract void testExclusiveWriteLock() throws Exception;
+    public void testExclusiveWriteLock() throws Exception {
+        final long initialEpoch;
+        final long secondEpoch;
+        TreeMap<LogAddress, byte[]> writeData;
+        Object context = createSharedContext();
+        try (DurableDataLog log1 = createDurableDataLog(context)) {
+            log1.initialize(TIMEOUT);
+            initialEpoch = log1.getEpoch();
+            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", 0, initialEpoch);
+
+            // 1. No two logs can use the same EntryCollection.
+            try (DurableDataLog log2 = createDurableDataLog(context)) {
+                log2.initialize(TIMEOUT);
+                secondEpoch = log2.getEpoch();
+                AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", initialEpoch, secondEpoch);
+
+                // Verify we cannot write to the first log.
+                AssertExtensions.assertThrows(
+                        "The first log was not fenced out.",
+                        () -> log1.append(new ByteArraySegment(new byte[1]), TIMEOUT),
+                        ex -> ex instanceof DataLogWriterNotPrimaryException);
+
+                // Verify we can write to the second log.
+                writeData = populate(log2, getWriteCount());
+            }
+        }
+
+        try (DurableDataLog log = createDurableDataLog(context)) {
+            log.initialize(TIMEOUT);
+            long thirdEpoch = log.getEpoch();
+            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on non-empty log initialization.", secondEpoch, thirdEpoch);
+            verifyReads(log, writeData);
+        }
+    }
 
     //endregion
 
@@ -221,35 +257,36 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
     protected abstract LogAddress createLogAddress(long seqNo);
 
     /**
-     * Gets a value indicating how many writes to perform for a Write test.
+     * Gets a value indicating how many writes to perform in any test.
      */
-    protected abstract int getWriteCountForWrites();
-
-    /**
-     * Gets a value indicating how many writes to perform for a Read test.
-     */
-    protected abstract int getWriteCountForReads();
+    protected abstract int getWriteCount();
 
     //endregion
 
     //region Helpers
 
+    private byte[] getWriteData() {
+        int length = WRITE_MIN_LENGTH + random.nextInt(WRITE_MAX_LENGTH - WRITE_MIN_LENGTH);
+        byte[] data = new byte[length];
+        this.random.nextBytes(data);
+        return data;
+    }
+
     protected TreeMap<LogAddress, byte[]> populate(DurableDataLog log, int writeCount) {
         TreeMap<LogAddress, byte[]> writtenData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
         for (int i = 0; i < writeCount; i++) {
-            byte[] writeData = String.format("Write_%s", i).getBytes();
-            LogAddress address = log.append(new ByteArrayInputStream(writeData), TIMEOUT).join();
+            byte[] writeData = getWriteData();
+            LogAddress address = log.append(new ByteArraySegment(writeData), TIMEOUT).join();
             writtenData.put(address, writeData);
         }
 
         return writtenData;
     }
 
-    protected void verifyReads(DurableDataLog log, LogAddress afterAddress, TreeMap<LogAddress, byte[]> writeData) throws Exception {
+    protected void verifyReads(DurableDataLog log, TreeMap<LogAddress, byte[]> writeData) throws Exception {
         @Cleanup
-        CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(afterAddress.getSequence());
-        SortedMap<LogAddress, byte[]> expectedData = writeData.tailMap(afterAddress, false);
-        Iterator<Map.Entry<LogAddress, byte[]>> expectedIterator = expectedData.entrySet().iterator();
+        CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader();
+        Iterator<Map.Entry<LogAddress, byte[]>> expectedIterator = writeData.entrySet().iterator();
         while (true) {
             DurableDataLog.ReadItem nextItem = reader.getNext();
             if (nextItem == null) {
@@ -262,7 +299,8 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Verify sequence number, as well as payload.
             val expected = expectedIterator.next();
             Assert.assertEquals("Unexpected sequence number.", expected.getKey().getSequence(), nextItem.getAddress().getSequence());
-            Assert.assertArrayEquals("Unexpected payload for sequence number " + expected.getKey(), expected.getValue(), nextItem.getPayload());
+            val actualPayload = StreamHelpers.readAll(nextItem.getPayload(), nextItem.getLength());
+            Assert.assertArrayEquals("Unexpected payload for sequence number " + expected.getKey(), expected.getValue(), actualPayload);
         }
     }
 

@@ -7,13 +7,11 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.service.server.store.ServiceBuilder;
 import io.pravega.service.server.store.ServiceBuilderConfig;
 import io.pravega.service.server.store.StreamSegmentStoreTestBase;
-import io.pravega.service.storage.DurableDataLogException;
-import io.pravega.service.storage.DurableDataLogFactory;
 import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.StorageFactory;
-import io.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
-import io.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
-import io.pravega.service.storage.impl.distributedlog.DistributedLogStarter;
+import io.pravega.service.storage.impl.bookkeeper.BookKeeperConfig;
+import io.pravega.service.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.service.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.service.storage.impl.hdfs.HDFSClusterHelpers;
 import io.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
@@ -22,10 +20,12 @@ import io.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-
-import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
@@ -36,28 +36,48 @@ import org.junit.Before;
 public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
-    private static final String DLOG_NAMESPACE = "pravegae2e";
-
+    private static final int BOOKIE_COUNT = 3;
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
-    private Process dlogProcess;
+    private BookKeeperServiceRunner bkRunner;
+    private CuratorFramework zkClient;
 
     /**
-     * Starts DistributedLog and HDFS MiniCluster.
+     * Starts BookKeeper and HDFS MiniCluster.
      */
     @Before
     public void setUp() throws Exception {
-        // DistributedLog
-        // Pick a random port to reduce chances of collisions during concurrent test executions.
-        int dlogPort = TestUtils.getAvailableListenPort();
-        this.dlogProcess = DistributedLogStarter.startOutOfProcess(dlogPort);
-        DistributedLogStarter.createNamespace(DLOG_NAMESPACE, dlogPort);
+        // BookKeeper
+        // Pick random ports to reduce chances of collisions during concurrent test executions.
+        int zkPort = TestUtils.getAvailableListenPort();
+        val bookiePorts = new ArrayList<Integer>();
+        for (int i = 0; i < BOOKIE_COUNT; i++) {
+            bookiePorts.add(TestUtils.getAvailableListenPort());
+        }
 
-        this.configBuilder.include(DistributedLogConfig
+        this.bkRunner = BookKeeperServiceRunner.builder()
+                                               .startZk(true)
+                                               .zkPort(zkPort)
+                                               .bookiePorts(bookiePorts)
+                                               .build();
+        this.bkRunner.start();
+
+        // Create a ZKClient with a base namespace.
+        String baseNamespace = "pravega/" + Long.toHexString(System.nanoTime());
+        this.zkClient = CuratorFrameworkFactory
                 .builder()
-                .with(DistributedLogConfig.HOSTNAME, DistributedLogStarter.DLOG_HOST)
-                .with(DistributedLogConfig.PORT, dlogPort)
-                .with(DistributedLogConfig.NAMESPACE, DLOG_NAMESPACE));
+                .connectString("localhost:" + zkPort)
+                .namespace(baseNamespace)
+                .retryPolicy(new ExponentialBackoffRetry(1000, 5))
+                .build();
+        this.zkClient.start();
+
+        // Attach a sub-namespace for the Container Metadata.
+        String logMetaNamespace = "segmentstore/containers";
+        this.configBuilder.include(BookKeeperConfig
+                .builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + zkPort)
+                .with(BookKeeperConfig.ZK_NAMESPACE, logMetaNamespace));
 
         // HDFS
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
@@ -70,15 +90,21 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     }
 
     /**
-     * Shuts down DistributedLog and HDFS MiniCluster.
+     * Shuts down BookKeeper and HDFS MiniCluster.
      */
     @After
     public void tearDown() throws Exception {
-        // DistributedLog
-        val process = this.dlogProcess;
-        if (process != null) {
-            process.destroy();
-            this.dlogProcess = null;
+        // BookKeeper
+        val bk = this.bkRunner;
+        if (bk != null) {
+            bk.close();
+            this.bkRunner = null;
+        }
+
+        val zk = this.zkClient;
+        if (zk != null) {
+            zk.close();
+            this.zkClient = null;
         }
 
         // HDFS
@@ -104,15 +130,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
                     StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
                     return new ListenableStorageFactory(f, storage::set);
                 })
-                .withDataLogFactory(this::createDistributedLogDataLogFactory);
-    }
-
-    @SneakyThrows(DurableDataLogException.class)
-    private DurableDataLogFactory createDistributedLogDataLogFactory(ServiceBuilder.ComponentSetup setup) {
-        DistributedLogDataLogFactory f = new DistributedLogDataLogFactory("End2End",
-                setup.getConfig(DistributedLogConfig::builder), setup.getExecutor());
-        f.initialize();
-        return f;
+                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
     }
 
     //endregion

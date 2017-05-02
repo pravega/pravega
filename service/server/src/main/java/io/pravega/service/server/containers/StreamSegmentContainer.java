@@ -44,6 +44,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -69,7 +70,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final StreamSegmentMapper segmentMapper;
     private final ScheduledExecutorService executor;
     private final MetadataCleaner metadataCleaner;
-    private boolean closed;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -110,6 +111,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 this.executor, this.traceObjectId);
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.metadataCleaner::runOnce,
                 this.storage, this.executor);
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -118,7 +120,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @Override
     public void close() {
-        if (!this.closed) {
+        if (this.closed.compareAndSet(false, true)) {
             stopAsync();
             ServiceShutdownListener.awaitShutdown(this, false);
 
@@ -127,7 +129,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.durableLog.close();
             this.readIndex.close();
             log.info("{}: Closed.", this.traceObjectId);
-            this.closed = true;
         }
     }
 
@@ -397,7 +398,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private void ensureRunning() {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         if (state() != State.RUNNING) {
             throw new IllegalContainerStateException(this.getId(), state(), State.RUNNING);
         }

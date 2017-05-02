@@ -23,7 +23,6 @@
     <allow pkg="org.ietf.jgss"/>
     <allow pkg="com.google"/>
     <allow pkg="io.pravega"/>
-    <allow pkg="com.twitter"/>
     <allow pkg="lombok"/>
     <allow pkg="ch.qos.logback"/>
     <allow pkg="io.netty"/>

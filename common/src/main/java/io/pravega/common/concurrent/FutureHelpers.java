@@ -446,7 +446,7 @@ public final class FutureHelpers {
      * @param <T>      The type of the future.
      * @param <R>      The return type of the callable.
      * @param callable The function to invoke.
-     * @param future   The future to fail if the fuction fails.
+     * @param future   The future to fail if the function fails.
      * @return The return value of the function.
      */
     @SneakyThrows(Exception.class)

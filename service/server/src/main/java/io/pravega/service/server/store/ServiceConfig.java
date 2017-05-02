@@ -3,14 +3,13 @@
  */
 package io.pravega.service.server.store;
 
+import com.google.common.base.Strings;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
-
-import com.google.common.base.Strings;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -59,7 +58,6 @@ public class ServiceConfig {
      */
     @Getter
     private final String listeningIPAddress;
-
 
     /**
      * Pravega segment store allows a configuration in which it connects to an IP address:port pair on the node and a
@@ -121,7 +119,7 @@ public class ServiceConfig {
         int publishedPort;
         try {
             publishedPort = properties.getInt(PUBLISHED_PORT);
-        }  catch (ConfigurationException e) {
+        } catch (ConfigurationException e) {
             publishedPort = this.listeningPort;
         }
         this.publishedPort = publishedPort;

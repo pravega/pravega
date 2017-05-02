@@ -1,25 +1,23 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.service.server;
 
+import com.google.common.base.Preconditions;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.LogAddress;
 import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.test.common.ErrorInjector;
-import com.google.common.base.Preconditions;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
-
+import java.util.function.Function;
 import lombok.Cleanup;
 
 /**
@@ -34,7 +32,7 @@ public class TestDurableDataLog implements DurableDataLog {
     private ErrorInjector<Exception> appendAsyncErrorInjector;
     private ErrorInjector<Exception> getReaderInitialErrorInjector;
     private ErrorInjector<Exception> readSyncErrorInjector;
-    private Consumer<ReadItem> readInterceptor;
+    private Function<ReadItem, ReadItem> readInterceptor;
     private Consumer<LogAddress> truncateCallback;
 
     //endregion
@@ -65,7 +63,7 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.appendSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector)
                             .thenCompose(v -> this.wrappedLog.append(data, timeout));
@@ -84,9 +82,9 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
         ErrorInjector.throwSyncExceptionIfNeeded(this.getReaderInitialErrorInjector);
-        return new CloseableIteratorWrapper(this.wrappedLog.getReader(afterSequence), this.readSyncErrorInjector, this.readInterceptor);
+        return new CloseableIteratorWrapper(this.wrappedLog.getReader(), this.readSyncErrorInjector, this.readInterceptor);
     }
 
     @Override
@@ -147,7 +145,7 @@ public class TestDurableDataLog implements DurableDataLog {
      *
      * @param interceptor The read interceptor to set.
      */
-    public void setReadInterceptor(Consumer<ReadItem> interceptor) {
+    public void setReadInterceptor(Function<ReadItem, ReadItem> interceptor) {
         this.readInterceptor = interceptor;
     }
 
@@ -161,7 +159,7 @@ public class TestDurableDataLog implements DurableDataLog {
     public <T> List<T> getAllEntries(FunctionWithException<ReadItem, T> converter) throws Exception {
         ArrayList<T> result = new ArrayList<>();
         @Cleanup
-        CloseableIterator<ReadItem, DurableDataLogException> reader = this.wrappedLog.getReader(-1);
+        CloseableIterator<ReadItem, DurableDataLogException> reader = this.wrappedLog.getReader();
         while (true) {
             DurableDataLog.ReadItem readItem = reader.getNext();
             if (readItem == null) {
@@ -211,9 +209,9 @@ public class TestDurableDataLog implements DurableDataLog {
     private static class CloseableIteratorWrapper implements CloseableIterator<ReadItem, DurableDataLogException> {
         private final CloseableIterator<ReadItem, DurableDataLogException> innerIterator;
         private final ErrorInjector<Exception> getNextErrorInjector;
-        private final Consumer<ReadItem> readInterceptor;
+        private final Function<ReadItem, ReadItem> readInterceptor;
 
-        CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> getNextErrorInjector, Consumer<ReadItem> readInterceptor) {
+        CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> getNextErrorInjector, Function<ReadItem, ReadItem> readInterceptor) {
             assert innerIterator != null;
             this.innerIterator = innerIterator;
             this.getNextErrorInjector = getNextErrorInjector;
@@ -225,7 +223,7 @@ public class TestDurableDataLog implements DurableDataLog {
             ErrorInjector.throwSyncExceptionIfNeeded(getNextErrorInjector);
             ReadItem readItem = this.innerIterator.getNext();
             if (this.readInterceptor != null) {
-                this.readInterceptor.accept(readItem);
+                return this.readInterceptor.apply(readItem);
             }
 
             return readItem;

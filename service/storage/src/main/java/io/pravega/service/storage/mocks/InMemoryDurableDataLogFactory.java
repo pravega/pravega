@@ -1,20 +1,18 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.service.storage.mocks;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.service.storage.DurableDataLog;
+import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.DurableDataLogFactory;
-import com.google.common.base.Preconditions;
-import lombok.Setter;
-
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
+import lombok.Setter;
 
 /**
  * In-memory mock for DurableDataLogFactory. Contents is destroyed when object is garbage collected.
@@ -51,6 +49,11 @@ public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
         }
 
         return new InMemoryDurableDataLog(entries, this.appendDelayProvider, this.executorService);
+    }
+
+    @Override
+    public void initialize() throws DurableDataLogException {
+        // Nothing to do.
     }
 
     @Override

@@ -3,6 +3,7 @@
  */
 package io.pravega.service.server.mocks;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -10,7 +11,6 @@ import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.service.server.ContainerHandle;
 import io.pravega.service.server.SegmentContainerManager;
 import io.pravega.service.server.SegmentContainerRegistry;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,7 +18,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -92,7 +91,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     //region SegmentContainerManager Implementation
 
     @Override
-    public CompletableFuture<Void> initialize() {
+    public void initialize() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         long containerCount = this.segmentToContainerMapper.getTotalContainerCount();
@@ -102,8 +101,8 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
                                      .thenAccept(this::registerHandle));
         }
 
-        return FutureHelpers.allOf(futures)
-                            .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+        FutureHelpers.allOf(futures).join();
+        LoggerHelpers.traceLeave(log, "initialize", traceId);
     }
 
     //endregion
