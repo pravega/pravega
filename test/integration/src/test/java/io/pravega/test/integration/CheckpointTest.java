@@ -1,6 +1,6 @@
 /**
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
 package io.pravega.test.integration;
@@ -60,7 +60,8 @@ public class CheckpointTest {
     }
 
     @Test(timeout = 20000)
-    public void testCheckpointAndRestore() throws ReinitializationRequiredException, InterruptedException, ExecutionException, TimeoutException {
+    public void testCheckpointAndRestore() throws ReinitializationRequiredException, InterruptedException,
+                                           ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
         String readerName = "reader";
@@ -77,18 +78,15 @@ public class CheckpointTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
         streamManager.createScope(scope);
-        streamManager.createStream(scope, streamName,
-                                   StreamConfiguration.builder()
-                                                      .scope(scope)
-                                                      .streamName(streamName)
-                                                      .scalingPolicy(ScalingPolicy.fixed(1))
-                                                      .build());
-        ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName,
-                                                                  groupConfig,
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                                                                         .scope(scope)
+                                                                         .streamName(streamName)
+                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                         .build());
+        ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName, groupConfig,
                                                                   Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName,
-                                                                             serializer,
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                                                                              EventWriterConfig.builder().build());
         producer.writeEvent(testString);
         producer.writeEvent(testString);
@@ -97,11 +95,8 @@ public class CheckpointTest {
 
         AtomicLong clock = new AtomicLong();
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader(readerName,
-                                                                      readerGroupName,
-                                                                      serializer,
-                                                                      ReaderConfig.builder().build(),
-                                                                      clock::get,
+        EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroupName, serializer,
+                                                                      ReaderConfig.builder().build(), clock::get,
                                                                       clock::get);
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         EventRead<String> read = reader.readNextEvent(60000);
@@ -135,7 +130,7 @@ public class CheckpointTest {
             reader.readNextEvent(60000);
             fail();
         } catch (ReinitializationRequiredException e) {
-            //Expected
+            // Expected
         }
         reader.close();
         reader = clientFactory.createReader(readerName, readerGroupName, serializer, ReaderConfig.builder().build());
@@ -150,4 +145,62 @@ public class CheckpointTest {
         assertFalse(read.isCheckpoint());
     }
 
+    @Test(timeout = 20000)
+    public void testMoreReadersThanSegments() throws ReinitializationRequiredException, InterruptedException,
+                                              ExecutionException, TimeoutException {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        String readerGroupName = "group";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        String scope = "Scope1";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                                                                         .scope(scope)
+                                                                         .streamName(streamName)
+                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                         .build());
+        ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName, groupConfig,
+                                                                  Collections.singleton(streamName));
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                                                                             EventWriterConfig.builder().build());
+        producer.writeEvent(testString);
+        producer.writeEvent(testString);
+        producer.writeEvent(testString);
+        producer.flush();
+
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", readerGroupName, serializer,
+                                                                       ReaderConfig.builder().build(), clock::get,
+                                                                       clock::get);
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", readerGroupName, serializer,
+                                                                       ReaderConfig.builder().build(), clock::get,
+                                                                       clock::get);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("Checkpoint", new InlineExecutor());
+        assertFalse(checkpoint.isDone());
+        EventRead<String> read = reader1.readNextEvent(60000);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint", read.getCheckpointName());
+        assertNull(read.getEvent());
+        read = reader2.readNextEvent(60000);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint", read.getCheckpointName());
+        assertNull(read.getEvent());
+        
+        Checkpoint cpResult = checkpoint.get(5, TimeUnit.SECONDS);
+        assertTrue(checkpoint.isDone());
+        assertEquals("Checkpoint", cpResult.getName());
+    }
 }
