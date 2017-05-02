@@ -1,11 +1,7 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.service.server;
-
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Manages the lifecycle of all SegmentContainers within a SegmentContainerRegistry.
@@ -16,10 +12,8 @@ public interface SegmentContainerManager extends AutoCloseable {
     /**
      * Initializes the SegmentContainerManager.
      *
-     * @return A CompletableFuture that, when completed, indicates that this operation completed. If the operation failed,
-     * the Future will contain the Exception that caused the failure.
      */
-    CompletableFuture<Void> initialize();
+    void initialize();
 
     @Override
     void close();

@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -91,9 +90,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     //endregion
 
     /**
-     * Tests an end-to-end scenario using real adapters for Cache (RocksDB) and Storage (HDFS).
-     * Currently this does not use a real adapter for DurableDataLog due to difficulties in getting DistributedLog
-     * to run in-process.
+     * Tests an end-to-end scenario for the SegmentStore.
+     * * Appends
+     * * Reads
+     * * Segment and transaction creation
+     * * Transaction mergers
+     * * Recovery
      *
      * @throws Exception If an exception occurred.
      */
@@ -160,10 +162,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private ServiceBuilder createBuilder(AtomicReference<Storage> storage) {
+    private ServiceBuilder createBuilder(AtomicReference<Storage> storage) throws Exception {
         val builderConfig = this.configBuilder.build();
         val builder = createBuilder(builderConfig, storage);
-        builder.initialize().join();
+        builder.initialize();
         return builder;
     }
 

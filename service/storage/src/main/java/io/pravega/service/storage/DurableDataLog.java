@@ -3,6 +3,7 @@
  */
 package io.pravega.service.storage;
 
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import java.io.InputStream;
 import java.time.Duration;
@@ -35,14 +36,12 @@ public interface DurableDataLog extends AutoCloseable {
      * <li>WriteTooLongException - When a write that is greater than getMaxAppendLength() is given.
      * </ul>
      *
-     * @param data    An InputStream representing the data to append. The InputStream must be positioned at the first byte
-     *                where the data should be read from. The InputStream's available() method must also specify the number
-     *                of bytes to append.
+     * @param data    An ArrayView representing the data to append.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the LogAddress within the log for the entry. If the entry
      * failed to be added, this Future will complete with the appropriate exception.
      */
-    CompletableFuture<LogAddress> append(InputStream data, Duration timeout);
+    CompletableFuture<LogAddress> append(ArrayView data, Duration timeout);
 
     /**
      * Truncates the log up to the given sequence.
@@ -62,15 +61,14 @@ public interface DurableDataLog extends AutoCloseable {
     CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout);
 
     /**
-     * Reads a number of entries from the log.
+     * Reads all the entries in the log.
      *
-     * @param afterSequence The Sequence of the last entry before the first one to read.
      * @return A CloseableIterator with the result.
-     * @throws DurableDataLogException If an exception occurred:
-     *                                 DataLogNotAvailableException: is not possible to reach the DataLog at the current time;
-     *                                 DurableDataLogException: the operation was unable to open a reader.
+     * @throws DataLogNotAvailableException: is not possible to reach the DataLog at the current time;
+     * @throws DurableDataLogException:      the operation was unable to open a reader.
+     * @throws DurableDataLogException       If another kind of exception occurred.
      */
-    CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException;
+    CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException;
 
     /**
      * Gets the maximum number of bytes allowed for a single append.
@@ -112,9 +110,14 @@ public interface DurableDataLog extends AutoCloseable {
      */
     interface ReadItem {
         /**
-         * Gets the payload associated with this ReadItem.
+         * Gets an InputStream representing the payload associated with this ReadItem.
          */
-        byte[] getPayload();
+        InputStream getPayload();
+
+        /**
+         * Gets a value representing the Length of this ReadItem.
+         */
+        int getLength();
 
         /**
          * Gets a value indicating the Address within the Log that this ReadItem exists at.

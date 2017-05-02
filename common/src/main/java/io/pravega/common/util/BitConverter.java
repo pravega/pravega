@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.common.util;
 
@@ -18,13 +16,7 @@ public final class BitConverter {
      * @return The number of bytes written.
      */
     public static int writeInt(ArrayView target, int offset, int value) {
-        target.setSequence(
-                offset,
-                (byte) (value >>> 24),
-                (byte) (value >>> 16),
-                (byte) (value >>> 8),
-                (byte) value);
-        return Integer.BYTES;
+        return writeInt(target.array(), target.arrayOffset() + offset, value);
     }
 
     /**
@@ -80,17 +72,7 @@ public final class BitConverter {
      * @return The number of bytes written.
      */
     public static int writeLong(ArrayView target, int offset, long value) {
-        target.setSequence(
-                offset,
-                (byte) (value >>> 56),
-                (byte) (value >>> 48),
-                (byte) (value >>> 40),
-                (byte) (value >>> 32),
-                (byte) (value >>> 24),
-                (byte) (value >>> 16),
-                (byte) (value >>> 8),
-                (byte) value);
-        return Long.BYTES;
+        return writeLong(target.array(), target.arrayOffset() + offset, value);
     }
 
     /**

@@ -444,7 +444,7 @@ public class ZkStreamTest {
 
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testTransaction() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
@@ -478,12 +478,20 @@ public class ZkStreamTest {
         assert store.transactionStatus(SCOPE, streamName, tx.getId(), context, executor)
                 .get().equals(TxnStatus.COMMITTING);
 
+        // Test to ensure that sealTransaction is idempotent.
+        Assert.assertEquals(TxnStatus.COMMITTING,
+                store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.empty(), context, executor).join());
+
         CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor);
 
         store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.<Integer>empty(),
                 context, executor).get();
         assert store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
                 .get().equals(TxnStatus.ABORTING);
+
+        // Test to ensure that sealTransaction is idempotent.
+        Assert.assertEquals(TxnStatus.ABORTING,
+                store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.empty(), context, executor).join());
 
         CompletableFuture<TxnStatus> f2 = store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor);
 
@@ -493,6 +501,22 @@ public class ZkStreamTest {
                 .get().equals(TxnStatus.COMMITTED);
         assert store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
                 .get().equals(TxnStatus.ABORTED);
+
+        // Test to ensure that sealTransaction, to commit it, on committed transaction does not throw an error.
+        Assert.assertEquals(TxnStatus.COMMITTED,
+                store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.empty(), context, executor).join());
+
+        // Test to ensure that commitTransaction is idempotent.
+        Assert.assertEquals(TxnStatus.COMMITTED,
+                store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor).join());
+
+        // Test to ensure that sealTransaction, to abort it, on aborted transaction does not throw an error.
+        Assert.assertEquals(TxnStatus.ABORTED,
+                store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.empty(), context, executor).join());
+
+        // Test to ensure that commitTransaction is idempotent.
+        Assert.assertEquals(TxnStatus.ABORTED,
+                store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor).join());
 
         assert store.commitTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {

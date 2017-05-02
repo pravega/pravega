@@ -72,18 +72,18 @@ class TruncateableArray implements ArrayView {
     }
 
     @Override
-    public void set(int index, byte value) {
-        throw new IllegalStateException("set() not supported.");
-    }
-
-    @Override
-    public void setSequence(int index, byte... values) {
-        throw new IllegalStateException("setSequence() not supported.");
-    }
-
-    @Override
     public int getLength() {
         return this.length;
+    }
+
+    @Override
+    public byte[] array() {
+        throw new IllegalStateException("array() not supported.");
+    }
+
+    @Override
+    public int arrayOffset() {
+        throw new IllegalStateException("arrayOffset() not supported.");
     }
 
     @Override

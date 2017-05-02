@@ -424,24 +424,24 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(x -> {
                     if (commit) {
                         switch (x) {
-                            case COMMITTING:
-                                return CompletableFuture.completedFuture(TxnStatus.COMMITTING);
                             case OPEN:
                                 return sealActiveTx(epoch, txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
+                            case COMMITTING:
+                            case COMMITTED:
+                                return CompletableFuture.completedFuture(x);
                             case ABORTING:
                             case ABORTED:
-                            case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
                             default:
                                 throw new TransactionNotFoundException(txId.toString());
                         }
                     } else {
                         switch (x) {
-                            case ABORTING:
-                                return CompletableFuture.completedFuture(TxnStatus.ABORTING);
                             case OPEN:
                                 return sealActiveTx(epoch, txId, false, version).thenApply(y -> TxnStatus.ABORTING);
+                            case ABORTING:
                             case ABORTED:
+                                return CompletableFuture.completedFuture(x);
                             case COMMITTING:
                             case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");

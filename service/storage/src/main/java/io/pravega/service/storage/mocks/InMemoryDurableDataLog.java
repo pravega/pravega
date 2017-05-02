@@ -5,7 +5,7 @@ package io.pravega.service.storage.mocks;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.service.storage.DataLogWriterNotPrimaryException;
@@ -13,6 +13,7 @@ import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -125,7 +126,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ensurePreconditions();
         Duration delay = this.appendDelayProvider.get();
         if (delay.compareTo(Duration.ZERO) <= 0) {
@@ -152,14 +153,14 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
         ensurePreconditions();
-        return new ReadResultIterator(this.entries.iterator(), afterSequence);
+        return new ReadResultIterator(this.entries.iterator());
     }
 
     //endregion
 
-    private LogAddress appendInternal(InputStream data) {
+    private LogAddress appendInternal(ArrayView data) {
         Entry entry;
         try {
             entry = new Entry(data);
@@ -188,17 +189,11 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @RequiredArgsConstructor
     private static class ReadResultIterator implements CloseableIterator<ReadItem, DurableDataLogException> {
         private final Iterator<Entry> entryIterator;
-        private final long afterSequence;
 
         @Override
         public ReadItem getNext() throws DurableDataLogException {
-            while (this.entryIterator.hasNext()) {
-                Entry e = this.entryIterator.next();
-                if (e.sequenceNumber <= afterSequence) {
-                    continue;
-                }
-
-                return new ReadResultItem(e);
+            if (this.entryIterator.hasNext()) {
+                return new ReadResultItem(this.entryIterator.next());
             }
 
             return null;
@@ -215,24 +210,23 @@ class InMemoryDurableDataLog implements DurableDataLog {
     //region ReadResultItem
 
     private static class ReadResultItem implements DurableDataLog.ReadItem {
-
         private final byte[] payload;
+        @Getter
         private final LogAddress address;
 
         ReadResultItem(Entry entry) {
-            this.payload = new byte[entry.data.length];
-            System.arraycopy(entry.data, 0, this.payload, 0, this.payload.length);
+            this.payload = entry.data;
             this.address = new InMemoryLogAddress(entry.sequenceNumber);
         }
 
         @Override
-        public byte[] getPayload() {
-            return this.payload;
+        public InputStream getPayload() {
+            return new ByteArrayInputStream(this.payload);
         }
 
         @Override
-        public LogAddress getAddress() {
-            return this.address;
+        public int getLength() {
+            return this.payload.length;
         }
 
         @Override
@@ -286,14 +280,6 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
         long acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
-            if (!this.writeLock.compareAndSet(null, clientId)) {
-                throw new DataLogWriterNotPrimaryException("Unable to acquire exclusive write lock because is already owned by " + clientId);
-            }
-            return this.epoch.incrementAndGet();
-        }
-
-        long forceAcquireLock(String clientId) {
-            Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             this.writeLock.set(clientId);
             return this.epoch.incrementAndGet();
         }
@@ -325,9 +311,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
         long sequenceNumber = -1;
         final byte[] data;
 
-        Entry(InputStream inputData) throws IOException {
-            this.data = new byte[inputData.available()];
-            StreamHelpers.readAll(inputData, this.data, 0, this.data.length);
+        Entry(ArrayView inputData) throws IOException {
+            this.data = new byte[inputData.getLength()];
+            System.arraycopy(inputData.array(), inputData.arrayOffset(), this.data, 0, this.data.length);
         }
 
         @Override

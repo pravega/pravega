@@ -159,7 +159,6 @@ The _Segment Store_ was not designed with particular implementations for Tier-1 
 
 Possible candidates for Tier-1 storage:
 - Apache BookKeeper
-- Twitter DistributedLog
 - Non-durable, non-replicated solutions:
  - Local File System (Single node deployment only - Pravega becomes a semi-durable buffer for Tier-2 storage; data loss is unavoidable and unrecoverable from in the case of complete node failure)
  - In-Memory (Single node deployment only - Pravega becomes a volatile buffer for Tier-2 storage; data loss is unavoidable and unrecoverable from in the case of process crash or system restart).

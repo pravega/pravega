@@ -10,6 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class LocalPravegaEmulator implements AutoCloseable {
 
+    private static final int DEFAULT_ZK_PORT = 4000;
+    private static final int DEFAULT_CONTROLLER_PORT = 9090;
+    private static final int DEFAULT_SEGMENTSTORE_PORT = 6000;
+
     private final InProcPravegaCluster inProcPravegaCluster;
 
     @Builder
@@ -30,19 +34,32 @@ public class LocalPravegaEmulator implements AutoCloseable {
         inProcPravegaCluster.setSegmentStorePorts(new int[] {hostPort});
     }
 
+    /**
+     * Gets an integer argument from the args array, or returns the default value if the argument was not provided.
+     *
+     * @param args the arguments.
+     * @param pos the position of the argument to retrieve.
+     * @param defaultValue the default value if the argument was not provided.
+     * @return the integer value of the argument, or the default value if the argument was not provided.
+     *
+     * @throws NumberFormatException if the argument is provided and is not a valid integer.
+     */
+    private static int intArg(String[] args, int pos, int defaultValue) {
+        if (args.length > pos) {
+            return Integer.parseInt(args[pos]);
+        } else {
+            return defaultValue;
+        }
+    }
+
     public static void main(String[] args) {
         try {
-            if (args.length < 3) {
-                log.warn("Usage: LocalPravegaEmulator <zk_port> <controller_port> <host_port>");
-                System.exit(-1);
-            }
-
-            int zkPort = Integer.parseInt(args[0]);
-            final int controllerPort = Integer.parseInt(args[1]);
-            final int hostPort = Integer.parseInt(args[2]);
+            final int zkPort = intArg(args, 0, DEFAULT_ZK_PORT);
+            final int controllerPort = intArg(args, 1, DEFAULT_CONTROLLER_PORT);
+            final int segmentstorePort = intArg(args, 2, DEFAULT_SEGMENTSTORE_PORT);
 
             final LocalPravegaEmulator localPravega = LocalPravegaEmulator.builder().controllerPort(
-                    controllerPort).hostPort(hostPort).zkPort(zkPort).build();
+                    controllerPort).hostPort(segmentstorePort).zkPort(zkPort).build();
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
@@ -62,8 +79,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     String.format("Pravega Sandbox is running locally now. You could access it at %s:%d", "127.0.0.1",
                             controllerPort));
         } catch (Exception ex) {
-            System.out.println("Exception occurred running emulator " + ex);
-            ex.printStackTrace();
+            log.error("Exception occurred running emulator", ex);
+            System.exit(1);
         }
     }
 
@@ -71,7 +88,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
      * Stop controller and host.
      */
     @Override
-    public void close() {
+    public void close() throws Exception {
        inProcPravegaCluster.close();
     }
 

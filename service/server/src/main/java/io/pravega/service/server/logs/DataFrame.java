@@ -1,17 +1,17 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.service.storage.LogAddress;
-import com.google.common.base.Preconditions;
-
+import java.io.IOException;
 import java.io.InputStream;
 
 import static io.pravega.common.util.BitConverter.readInt;
@@ -24,8 +24,8 @@ import static io.pravega.common.util.BitConverter.writeInt;
 public class DataFrame {
     //region Members
 
+    static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
     private static final byte CURRENT_VERSION = 0;
-    private static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
     private final ByteArraySegment data;
     private FrameHeader header;
     private ByteArraySegment contents;
@@ -60,14 +60,16 @@ public class DataFrame {
     }
 
     /**
-     * Creates a new instance of the DataFrame class using the given byte array as serialization source.
+     * Creates a new instance of the DataFrame class using the given InputStream as serialization source.
      *
-     * @param source The source byte array.
+     * @param source An InputStream containing the serialization for this DataFrame.
+     * @param length The length of the serialization in the given InputStream.
+     * @throws IOException            If the given InputStream could not be read.
      * @throws SerializationException If the source cannot be deserialized into a DataFrame.
      * @throws NullPointerException   If the source is null.
      */
-    public DataFrame(byte[] source) throws SerializationException {
-        this(new ByteArraySegment(source, 0, source.length));
+    public DataFrame(InputStream source, int length) throws IOException, SerializationException {
+        this(new ByteArraySegment(StreamHelpers.readAll(source, length)));
     }
 
     /**
@@ -129,14 +131,14 @@ public class DataFrame {
     }
 
     /**
-     * Returns a new InputStream representing the serialized form of this frame.
+     * Returns an ArrayView representing the serialized form of this frame.
      */
-    InputStream getData() {
+    ArrayView getData() {
         if (this.data.isReadOnly()) {
-            return this.data.getReader();
+            return this.data;
         } else {
             // We have just created this frame. Only return the segment of the buffer that contains data.
-            return this.data.getReader(0, this.header.getSerializationLength() + this.header.getContentLength());
+            return this.data.subSegment(0, this.header.getSerializationLength() + this.header.getContentLength());
         }
     }
 

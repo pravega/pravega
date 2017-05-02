@@ -111,7 +111,7 @@ public class PravegaControllerService extends MarathonBasedService {
         Collection<Volume> volumeCollection = new ArrayList<Volume>();
         volumeCollection.add(createVolume("/tmp/logs", "/mnt/logs", "RW"));
         app.getContainer().setVolumes(volumeCollection);
-        app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega-controller:" + PRAVEGA_VERSION);
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         //set docker container parameters
@@ -134,8 +134,9 @@ public class PravegaControllerService extends MarathonBasedService {
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG");
         Map<String, String> map = new HashMap<>();
-        map.put("SERVER_OPTS", controllerSystemProperties);
+        map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);
+        app.setArgs(Arrays.asList("controller"));
 
         return app;
     }

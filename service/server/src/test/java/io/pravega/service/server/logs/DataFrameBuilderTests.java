@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package io.pravega.service.server.logs;
 
@@ -12,9 +10,6 @@ import io.pravega.service.server.TestDurableDataLog;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -22,6 +17,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for DataFrameBuilder class.
@@ -69,7 +66,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             }
 
             //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload()));
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
             DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
         }
@@ -114,7 +111,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             AssertExtensions.assertGreaterThan("Not enough LogItems were failed.", records.size() / failEvery, failedIndices.size());
 
             // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload()));
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
 
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
             DataFrameTestHelpers.checkReadRecords(frames, records, failedIndices, r -> new ByteArraySegment(r.getFullSerialization()));
@@ -191,7 +188,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             AssertExtensions.assertGreaterThan("Not enough LogItems were failed.", records.size() / Math.max(failAsyncEvery, failSyncEvery), failedIndices.size());
 
             // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload()));
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
 
             Assert.assertEquals("Unexpected number of frames generated.", successCommits.size(), frames.size());
             DataFrameTestHelpers.checkReadRecords(frames, records, failedIndices, r -> new ByteArraySegment(r.getFullSerialization()));
@@ -224,7 +221,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Exactly one Data Frame was expected so far.", 1, commitFrames.size());
 
             //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload()));
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
             DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
         }

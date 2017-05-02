@@ -3,6 +3,8 @@
  */
 package io.pravega.service.server.store;
 
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.service.contracts.StreamSegmentStore;
@@ -22,20 +24,17 @@ import io.pravega.service.server.reading.ReadIndexConfig;
 import io.pravega.service.server.writer.StorageWriterFactory;
 import io.pravega.service.server.writer.WriterConfig;
 import io.pravega.service.storage.CacheFactory;
+import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.DurableDataLogFactory;
 import io.pravega.service.storage.StorageFactory;
 import io.pravega.service.storage.mocks.InMemoryCacheFactory;
 import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.service.storage.mocks.InMemoryStorageFactory;
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -219,10 +218,12 @@ public final class ServiceBuilder implements AutoCloseable {
 
     /**
      * Initializes the ServiceBuilder.
+     *
+     * @throws DurableDataLogException If unable to initialize DurableDataLogFactory.
      */
-    public CompletableFuture<Void> initialize() {
-        return getSingleton(this.containerManager, this.segmentContainerManagerCreator)
-                .initialize();
+    public void initialize() throws DurableDataLogException {
+        getSingleton(this.dataLogFactory, this.dataLogFactoryCreator).initialize();
+        getSingleton(this.containerManager, this.segmentContainerManagerCreator).initialize();
     }
 
     /**
