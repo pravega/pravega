@@ -20,6 +20,13 @@ import static org.junit.Assert.assertTrue;
 public class CheckpointStateTest {
 
     @Test
+    public void testCheckpointNoReaders() {
+        CheckpointState state = new CheckpointState();
+        state.beginNewCheckpoint("foo", ImmutableSet.of());
+        assertTrue(state.isCheckpointComplete("foo"));
+    }
+    
+    @Test
     public void testCheckpointCompletes() {
         CheckpointState state = new CheckpointState();
         state.beginNewCheckpoint("foo", ImmutableSet.of("a", "b"));
