@@ -1,13 +1,13 @@
 # Installing Pravega
 
-Prior to installing pravega, install the required [prerequisites](deployment.md) from the deployment guide. For non-production systems, you can use the containers provided by the [docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
+Prior to installing Pravega, install the required [prerequisites](deployment.md) from the deployment guide. For non-production systems, you can use the containers provided by the [docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
 
-There are two key components to pravega that need to be run:
+There are two key components to Pravega that need to be run:
 
-- Controller - Control plane for pravega. Installation requires at least one controller. Two or more are recommended for HA.
-- Segment Store - Storage node for pravega. Installation requires at least one segment store.
+- Controller - Control plane for Pravega. Installation requires at least one controller. Two or more are recommended for HA.
+- Segment Store - Storage node for Pravega. Installation requires at least one segment store.
 
-Before you start, you need to download the latest pravega release. You can find the latest pravega release on the [github releases page](https://github.com/pravega/pravega/releases).
+Before you start, you need to download the latest Pravega release. You can find the latest Pravega release on the [github releases page](https://github.com/pravega/pravega/releases).
 
 ## Recommendations
 
@@ -58,13 +58,11 @@ Edit the `conf/config.properties` file. The following properies need to be chang
 
 ```
 pravegaservice.zkURL=<zk-ip>:2181
+bookkeeper.zkAddress=<zk-ip>:2181
 autoScale.controllerUri=tcp://<controller-ip>:9090
-dlog.hostname=<zk-ip>
 
 # Settings required for HDFS
 hdfs.hdfsUrl=<hdfs-ip>:8020
-hdfs.hdfsRoot=/testing
-hdfs.replication=1
 ```
 
 Once the configuration changes have been made you can start the segment store with:

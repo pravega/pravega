@@ -1,6 +1,6 @@
 # Deploying on DC/OS
 
-DC/OS is one of the target runtime environments for Pravega. There is a DC/OS framework available for running pravega. This is a work in progress and will be submitted to the DC/OS universe when it is complete.
+DC/OS is one of the target runtime environments for Pravega. There is a DC/OS framework available for running Pravega. This is a work in progress and will be submitted to the DC/OS universe when it is complete.
 
 Pravega can also be run on DC/OS by running each docker container in marathon.
 
