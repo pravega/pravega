@@ -100,7 +100,6 @@ public class ControllerServiceWithZKStreamTest {
 
         public StreamTransactionTasksMock(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
-                                          final TaskMetadataStore taskMetadataStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
@@ -108,6 +107,7 @@ public class ControllerServiceWithZKStreamTest {
             super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory);
         }
 
+        @SuppressWarnings("unchecked")
         public void initializeWriters(final List<AckFuture> commitWriterResponses,
                                       final List<AckFuture> abortWriterResponses) {
             EventStreamWriter<CommitEvent> mockCommitWriter = Mockito.mock(EventStreamWriter.class);
@@ -145,7 +145,7 @@ public class ControllerServiceWithZKStreamTest {
         connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory);
-        streamTransactionMetadataTasks = new StreamTransactionTasksMock(streamStore, hostStore, taskMetadataStore,
+        streamTransactionMetadataTasks = new StreamTransactionTasksMock(streamStore, hostStore,
                 segmentHelperMock, executor, "host", connectionFactory);
         streamTransactionMetadataTasks.initializeWriters(getWriteResultSequence(5), getWriteResultSequence(5));
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,

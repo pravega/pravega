@@ -420,39 +420,76 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit,
                                                         final Optional<Integer> version) {
-        return verifyLegalState(getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId)
-                .thenCompose(data -> {
-                    ActiveTxnRecord txnRecord = ActiveTxnRecord.parse(data.getData());
-                    int dataVersion = version.isPresent() ? version.get() : data.getVersion();
-                    TxnStatus status = txnRecord.getTxnStatus();
-                    if (commit) {
-                        switch (status) {
-                            case OPEN:
-                                return sealActiveTx(epoch, txId, true, txnRecord, dataVersion).thenApply(y -> TxnStatus.COMMITTING);
-                            case COMMITTING:
-                            case COMMITTED:
-                                return CompletableFuture.completedFuture(status);
-                            case ABORTING:
-                            case ABORTED:
-                                throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
-                            default:
-                                throw new TransactionNotFoundException(txId.toString());
-                        }
+        return verifyLegalState(getTransactionEpoch(txId).thenCompose(epoch -> {
+                    if (epoch == null) {
+                        return checkTransactionStatus(null, txId).thenApply(status -> {
+                            if (commit) {
+                                switch (status) {
+                                    case COMMITTED:
+                                        return status;
+                                    case ABORTED:
+                                        throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                                    case OPEN:
+                                    case ABORTING:
+                                    case COMMITTING:
+                                        // Control cannot reach this point, as epoch will not be null if txn is
+                                        // OPEN, ABORTING, or COMMITTING.
+                                        throw new IllegalStateException(txId.toString());
+                                    default:
+                                        throw new TransactionNotFoundException(txId.toString());
+                                }
+                            } else {
+                                switch (status) {
+                                    case ABORTED:
+                                        return status;
+                                    case COMMITTED:
+                                        throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                                    case OPEN:
+                                    case ABORTING:
+                                    case COMMITTING:
+                                        // Control cannot reach this point, as epoch will not be null if txn is
+                                        // OPEN, ABORTING, or COMMITTING.
+                                        throw new IllegalStateException(txId.toString());
+                                    default:
+                                        throw new TransactionNotFoundException(txId.toString());
+                                }
+                            }
+                        });
                     } else {
-                        switch (status) {
-                            case OPEN:
-                                return sealActiveTx(epoch, txId, false, txnRecord, dataVersion).thenApply(y -> TxnStatus.ABORTING);
-                            case ABORTING:
-                            case ABORTED:
-                                return CompletableFuture.completedFuture(status);
-                            case COMMITTING:
-                            case COMMITTED:
-                                throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
-                            default:
-                                throw new TransactionNotFoundException(txId.toString());
-                        }
+                        return getActiveTx(epoch, txId).thenCompose(data -> {
+                            ActiveTxnRecord txnRecord = ActiveTxnRecord.parse(data.getData());
+                            int dataVersion = version.isPresent() ? version.get() : data.getVersion();
+                            TxnStatus status = txnRecord.getTxnStatus();
+                            if (commit) {
+                                switch (status) {
+                                    case OPEN:
+                                        return sealActiveTx(epoch, txId, true, txnRecord, dataVersion).thenApply(y -> TxnStatus.COMMITTING);
+                                    case COMMITTING:
+                                    case COMMITTED:
+                                        return CompletableFuture.completedFuture(status);
+                                    case ABORTING:
+                                    case ABORTED:
+                                        throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                                    default:
+                                        throw new TransactionNotFoundException(txId.toString());
+                                }
+                            } else {
+                                switch (status) {
+                                    case OPEN:
+                                        return sealActiveTx(epoch, txId, false, txnRecord, dataVersion).thenApply(y -> TxnStatus.ABORTING);
+                                    case ABORTING:
+                                    case ABORTED:
+                                        return CompletableFuture.completedFuture(status);
+                                    case COMMITTING:
+                                    case COMMITTED:
+                                        throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                                    default:
+                                        throw new TransactionNotFoundException(txId.toString());
+                                }
+                            }
+                        });
                     }
-                })));
+                }));
     }
 
     @Override

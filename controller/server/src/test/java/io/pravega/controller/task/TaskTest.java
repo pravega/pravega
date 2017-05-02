@@ -3,33 +3,7 @@
  */
 package io.pravega.controller.task;
 
-import io.pravega.ClientFactory;
-import io.pravega.ReaderGroupManager;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.eventProcessor.CheckpointConfig;
-import io.pravega.controller.eventProcessor.EventProcessorConfig;
-import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
-import io.pravega.controller.eventProcessor.ExceptionHandler;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
-import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
-import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import io.pravega.controller.mocks.EventStreamWriterMock;
-import io.pravega.controller.server.eventProcessor.AbortEvent;
-import io.pravega.controller.server.eventProcessor.AbortEventProcessor;
-import io.pravega.controller.server.eventProcessor.CommitEvent;
-import io.pravega.controller.server.eventProcessor.CommitEventProcessor;
-import io.pravega.controller.store.checkpoint.CheckpointStoreException;
-import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
-import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.stream.EventStreamReader;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.ReaderGroup;
-import io.pravega.stream.ReaderGroupConfig;
-import io.pravega.stream.impl.JavaSerializer;
 import io.pravega.stream.impl.netty.ConnectionFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -72,24 +46,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 
 /**
  * Task test cases.
@@ -226,54 +193,6 @@ public class TaskTest {
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
 
-    @Test(timeout = 5000)
-    public void testTaskSweeperNotReady() throws ExecutionException, InterruptedException {
-        final String deadHost = "deadHost";
-        final String deadThreadId = UUID.randomUUID().toString();
-
-        final Resource resource = new Resource(SCOPE, stream1);
-        final TaskData taskData = new TaskData("createTransaction", "1.0",
-                new Serializable[]{SCOPE, stream1, 10000, 10000, 10000, null});
-        final TaggedResource taggedResource = new TaggedResource(deadThreadId, resource);
-
-        // Create entries for partial task execution on failed host in task metadata store.
-        taskMetadataStore.putChild(deadHost, taggedResource).join();
-        taskMetadataStore.lock(resource, taskData, deadHost, deadThreadId, null, null).join();
-
-        // Create TaskSweeper instance.
-        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                taskMetadataStore, segmentHelperMock, executor, HOSTNAME, Mockito.mock(ConnectionFactory.class));
-        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, txnTasks);
-
-        // Start sweeping tasks. This should not complete, since mockTxnTasks object is not yet ready.
-        CompletableFuture<Void> future = taskSweeper.sweepOrphanedTasks(deadHost);
-
-        // Timeout should kick in.
-        try {
-            FutureHelpers.getAndHandleExceptions(future, RuntimeException::new, 500);
-            Assert.fail("Failed, task sweeping complete, when timeout exception is expected");
-        } catch (TimeoutException e) {
-            Assert.assertTrue("Timeout exception expected", true);
-        }
-
-        // Now, set mockTxnTasks to ready.
-        txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
-                "abortStream", new EventStreamWriterMock<>());
-
-        // Task sweeping should now complete, wait for it.
-        future.join();
-
-        // Ensure that a transaction is created, and task store entries are cleaned up.
-        Map<UUID, ActiveTxnRecord> map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
-        assertEquals(1, map.size());
-
-        Optional<TaskData> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
-        assertFalse(data.isPresent());
-
-        Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
-        assertFalse(child.isPresent());
-    }
-
     @Test(timeout = 10000)
     public void testStreamTaskSweeping() {
         final String stream = "testPartialCreationStream";
@@ -316,94 +235,6 @@ public class TaskTest {
         completePartialTask(mockStreamTasks.deleteStream(SCOPE, stream, null), deadHost, sweeper);
         List<StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
         Assert.assertTrue(streams.stream().allMatch(x -> !x.getStreamName().equals(stream)));
-    }
-
-    @Test(timeout = 10000)
-    @SuppressWarnings("unchecked")
-    public void testTransactionTaskSweeping() throws CheckpointStoreException, InterruptedException {
-        final String deadHost = "deadHost";
-        final String commitStream = "commitStream";
-        final String abortStream = "abortStream";
-
-        // Create mock writer objects.
-        EventStreamWriterMock<CommitEvent> mockCommitWriter = new EventStreamWriterMock<>();
-        EventStreamWriterMock<AbortEvent> mockAbortWriter = new EventStreamWriterMock<>();
-
-        // Create task and sweeper objects
-        StreamTransactionMetadataTasks mockTxnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                taskMetadataStore, segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class));
-        mockTxnTasks.setCreateIndexOnlyMode();
-        mockTxnTasks.initializeStreamWriters(commitStream, mockCommitWriter, abortStream, mockAbortWriter);
-        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                taskMetadataStore, segmentHelperMock, executor, HOSTNAME, Mockito.mock(ConnectionFactory.class));
-        txnTasks.initializeStreamWriters(commitStream, mockCommitWriter, abortStream, mockAbortWriter);
-        TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, txnTasks);
-
-        // Create transaction.
-        completePartialTask(mockTxnTasks.createTxn(SCOPE, stream1, 10000, 10000, 10000, null), deadHost, sweeper);
-
-        // Ensure that a transaction is created.
-        Map<UUID, ActiveTxnRecord> map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
-        assertEquals(1, map.size());
-        UUID txId = map.keySet().iterator().next();
-
-        // Abort the transaction
-        completePartialTask(mockTxnTasks.abortTxn(SCOPE, stream1, txId, null, null), deadHost, sweeper);
-        // Ensure that transactions state is ABORTING.
-        TxnStatus status = streamStore.getTransactionData(SCOPE, stream1, txId, null, executor).join().getStatus();
-        assertEquals(TxnStatus.ABORTING, status);
-
-        // Create another transaction for committing.
-        completePartialTask(mockTxnTasks.createTxn(SCOPE, stream1, 10000, 10000, 10000, null), deadHost, sweeper);
-
-        // Ensure that a transaction is created.
-        map = streamStore.getActiveTxns(SCOPE, stream1, null, executor).join();
-        assertEquals(2, map.size());
-        Optional<UUID> txIdOpt = map.entrySet().stream()
-                .filter(e -> e.getValue().getTxnStatus() == TxnStatus.OPEN)
-                .map(Map.Entry::getKey)
-                .findAny();
-        Assert.assertTrue(txIdOpt.isPresent());
-
-        // Commit the transaction.
-        UUID txId2 = txIdOpt.get();
-        completePartialTask(mockTxnTasks.commitTxn(SCOPE, stream1, txId2, null), deadHost, sweeper);
-        // Ensure that transaction state is COMMITTING.
-        status = streamStore.getTransactionData(SCOPE, stream1, txId2, null, executor).join().getStatus();
-        assertEquals(TxnStatus.COMMITTING, status);
-
-        // Ensure that commit (resp. abort) transaction tasks are idempotent
-        // when transaction is in COMMITTING state (resp. ABORTING state).
-        assertEquals(TxnStatus.ABORTING, txnTasks.abortTxn(SCOPE, stream1, txId, null, null).join());
-        assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, stream1, txId2, null).join());
-
-        // Create commit and abort event processors.
-        ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
-        BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
-        BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
-        createEventProcessor("commitRG", "commitStream", mockCommitWriter.getReader(), mockCommitWriter,
-                () -> new CommitEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedCommitEvents));
-        createEventProcessor("abortRG", "abortStream", mockAbortWriter.getReader(), mockAbortWriter,
-                () -> new AbortEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedAbortEvents));
-
-        // Wait until the abort event is processed and ensure that the txn state is ABORTED.
-        AbortEvent abortEvent = processedAbortEvents.take();
-        assertEquals(txId, abortEvent.getTxid());
-        status = streamStore.transactionStatus(SCOPE, stream1, txId, null, executor).join();
-        assertEquals(TxnStatus.ABORTED, status);
-
-        // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
-        CommitEvent commitEvent = processedCommitEvents.take();
-        assertEquals(txId2, commitEvent.getTxid());
-        status = streamStore.transactionStatus(SCOPE, stream1, txId2, null, executor).join();
-        assertEquals(TxnStatus.COMMITTED, status);
-
-        // Ensure that commit (resp. abort) transaction tasks are idempotent
-        // even after transaction is committed (resp. aborted)
-        assertEquals(TxnStatus.ABORTED, txnTasks.abortTxn(SCOPE, stream1, txId, null, null).join());
-        assertEquals(TxnStatus.COMMITTED, txnTasks.commitTxn(SCOPE, stream1, txId2, null).join());
     }
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
@@ -517,42 +348,6 @@ public class TaskTest {
                         }
                     });
         }
-    }
-
-    private <T extends ControllerEvent>
-    void createEventProcessor(final String readerGroupName,
-                              final String streamName,
-                              final EventStreamReader<T> reader,
-                              final EventStreamWriter<T> writer,
-                              Supplier<EventProcessor<T>> factory) throws CheckpointStoreException {
-        ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
-        Mockito.when(clientFactory.<T>createReader(anyString(), anyString(), any(), any())).thenReturn(reader);
-        Mockito.when(clientFactory.<T>createEventWriter(anyString(), any(), any())).thenReturn(writer);
-
-        ReaderGroup readerGroup = Mockito.mock(ReaderGroup.class);
-        Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
-
-        ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
-        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class), any()))
-                .then(invocation -> readerGroup);
-
-        EventProcessorSystemImpl system = new EventProcessorSystemImpl("system", HOSTNAME, SCOPE, clientFactory, readerGroupManager);
-
-        EventProcessorGroupConfig eventProcessorConfig = EventProcessorGroupConfigImpl.builder()
-                .eventProcessorCount(1)
-                .readerGroupName(readerGroupName)
-                .streamName(streamName)
-                .checkpointConfig(CheckpointConfig.periodic(1, 1))
-                .build();
-
-        EventProcessorConfig<T> config = EventProcessorConfig.<T>builder()
-                .config(eventProcessorConfig)
-                .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
-                .serializer(new JavaSerializer<>())
-                .supplier(factory)
-                .build();
-
-        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore());
     }
 }
 

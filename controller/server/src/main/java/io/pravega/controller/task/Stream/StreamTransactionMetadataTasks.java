@@ -34,6 +34,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -79,10 +80,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     protected void setReady() {
         ready = true;
         readyLatch.countDown();
-    }
-
-    public boolean isReady() {
-        return ready;
     }
 
     @VisibleForTesting
@@ -146,7 +143,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                       final long maxExecutionTime, final long scaleGracePeriod, final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        return createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context);
+        return execute(() -> createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context));
     }
 
     /**
@@ -164,7 +161,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        return pingTxnBody(scope, stream, txId, lease, context);
+        return execute(() -> pingTxnBody(scope, stream, txId, lease, context));
     }
 
     /**
@@ -180,7 +177,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
                                                  final Integer version, final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        return abortTxnBody(scope, stream, txId, version, context);
+        return execute(() -> abortTxnBody(scope, stream, txId, version, context));
     }
 
     /**
@@ -195,7 +192,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        return commitTxnBody(scope, stream, txId, context);
+        return execute(() -> commitTxnBody(scope, stream, txId, context));
+    }
+
+    private <T> CompletableFuture<T> execute(final Supplier<CompletableFuture<T>> operation) {
+        if (!ready) {
+            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
+        } else {
+            return operation.get();
+        }
     }
 
     private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope, final String stream,
