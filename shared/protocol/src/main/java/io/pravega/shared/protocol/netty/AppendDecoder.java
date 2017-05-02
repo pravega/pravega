@@ -35,7 +35,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
     @Data
     private static final class Segment {
         private final String name;
-        private long lastEventNumber;
+        private AppendSequence lastEventNumber;
     }
     
     @Override
@@ -65,24 +65,24 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             break;
         case SETUP_APPEND:
             WireCommands.SetupAppend append = (WireCommands.SetupAppend) command;
-            appendingSegments.put(append.getConnectionId(), new Segment(append.getSegment()));
+            appendingSegments.put(append.getWriterId(), new Segment(append.getSegment()));
             result = append;
             break;
         case CONDITIONAL_APPEND:
             WireCommands.ConditionalAppend ca = (WireCommands.ConditionalAppend) command;
-            segment = getSegment(ca.getConnectionId());
-            if (ca.getEventNumber() < segment.lastEventNumber) {
+            segment = getSegment(ca.getWriterId());
+            if (ca.getEventNumber().compareTo(segment.lastEventNumber) < 0) {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
             segment.lastEventNumber = ca.getEventNumber();
             result = new Append(segment.getName(),
-                    ca.getConnectionId(),
+                    ca.getWriterId(),
                     ca.getEventNumber(),
                     ca.getData(),
                     ca.getExpectedOffset());
             break;
         case APPEND_BLOCK:
-            getSegment(((WireCommands.AppendBlock) command).getConnectionId());
+            getSegment(((WireCommands.AppendBlock) command).getWriterId());
             currentBlock = (WireCommands.AppendBlock) command;
             result = null;
             break;
@@ -92,11 +92,11 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 throw new InvalidMessageException("AppendBlockEnd without AppendBlock.");
             }
             UUID connectionId = blockEnd.getConnectionId();
-            if (!connectionId.equals(currentBlock.getConnectionId())) {
+            if (!connectionId.equals(currentBlock.getWriterId())) {
                 throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
             }
             segment = getSegment(connectionId);
-            if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
+            if (blockEnd.getLastEventNumber().compareTo(segment.lastEventNumber) < 0) {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
             int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
@@ -142,8 +142,8 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         return appendDataBuf;
     }
     
-    private Segment getSegment(UUID connectionId) {
-        Segment segment = appendingSegments.get(connectionId);
+    private Segment getSegment(UUID writerId) {
+        Segment segment = appendingSegments.get(writerId);
         if (segment == null) {
             throw new InvalidMessageException("ConnectionID refrenced before SetupAppend");
         }

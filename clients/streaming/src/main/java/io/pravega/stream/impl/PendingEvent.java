@@ -5,6 +5,7 @@
  */
 package io.pravega.stream.impl;
 
+import io.pravega.stream.Sequence;
 import io.pravega.stream.Serializer;
 import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
@@ -28,6 +29,10 @@ public class PendingEvent {
      */
     private final ByteBuffer data;
     /**
+     * The sequence for this event. (The sequence must only increase.)
+     */
+    private final Sequence sequence;
+    /**
      * Callback to be invoked when the data is written.
      */
     private final CompletableFuture<Boolean> ackFuture;
@@ -36,15 +41,17 @@ public class PendingEvent {
      */
     private final Long expectedOffset;
     
-    public PendingEvent(String routingKey, ByteBuffer data, CompletableFuture<Boolean> ackFuture) {
-        this(routingKey, data, ackFuture, null);
+    public PendingEvent(String routingKey, Sequence sequence, ByteBuffer data, CompletableFuture<Boolean> ackFuture) {
+        this(routingKey, sequence, data, ackFuture, null);
     }
     
-    public PendingEvent(String routingKey, ByteBuffer data, CompletableFuture<Boolean> ackFuture, Long expectedOffset) {
+    public PendingEvent(String routingKey, Sequence sequence, ByteBuffer data, CompletableFuture<Boolean> ackFuture, Long expectedOffset) {
         Preconditions.checkNotNull(data);
+        Preconditions.checkNotNull(sequence);
         Preconditions.checkNotNull(ackFuture);
         Preconditions.checkArgument(data.remaining() <= MAX_WRITE_SIZE, "Write size too large: %s", data.remaining());
         this.routingKey = routingKey;
+        this.sequence = sequence;
         this.data = data;
         this.ackFuture = ackFuture;
         this.expectedOffset = expectedOffset;

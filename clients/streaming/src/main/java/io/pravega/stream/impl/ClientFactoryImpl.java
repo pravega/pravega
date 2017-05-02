@@ -5,6 +5,8 @@
  */
 package io.pravega.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.ClientFactory;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
@@ -35,10 +37,8 @@ import io.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
 import io.pravega.stream.impl.segment.SegmentOutputStream;
 import io.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import io.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
+import java.util.UUID;
 import java.util.function.Supplier;
-
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -96,13 +96,14 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         Stream stream = new StreamImpl(scope, streamName);
-        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config);
+        return new EventStreamWriterImpl<T>(stream, UUID.randomUUID(), controller, outFactory, s, config);
     }
 
     @Override
-    public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
-                                                                          EventWriterConfig config) {
-        throw new NotImplementedException();
+    public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, UUID writerId,
+                                                                          Serializer<T> s, EventWriterConfig config) {
+        Stream stream = new StreamImpl(scope, streamName);
+        return new IdempotentEventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config);
     }
 
     @Override
@@ -136,7 +137,7 @@ public class ClientFactoryImpl implements ClientFactory {
                                                                       SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
-        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment);
+        SegmentOutputStream out = outFactory.createOutputStreamForSegment(UUID.randomUUID(), segment);
         return new RevisionedStreamClientImpl<>(segment, in, out, serializer);
     }
 

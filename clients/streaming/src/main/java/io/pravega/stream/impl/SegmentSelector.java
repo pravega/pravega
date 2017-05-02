@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.UUID;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -36,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 public class SegmentSelector {
 
     private final Stream stream;
+    private final UUID writerId;
     private final Controller controller;
     private final SegmentOutputStreamFactory outputStreamFactory;
     @GuardedBy("$lock")
@@ -94,7 +96,7 @@ public class SegmentSelector {
         currentSegments = newSteamSegments;
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
-                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
+                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(writerId, segment);
                 writers.put(segment, out);
             }
         }

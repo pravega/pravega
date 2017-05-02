@@ -74,8 +74,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     
     @Data
     private static final class Session {
-        private final UUID id;
-        private long lastEventNumber = -1L;
+        private final UUID writerId;
+        private AppendSequence lastEventNumber = AppendSequence.MIN_VALUE;
     }    
 
     @Override
@@ -84,16 +84,16 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (msg instanceof Append) {
             Append append = (Append) msg;
             Session session = setupSegments.get(append.segment);
-            if (session == null || !session.id.equals(append.getConnectionId())) {
+            if (session == null || !session.writerId.equals(append.getWriterId())) {
                 throw new InvalidMessageException("Sending appends without setting up the append.");
             }
-            if (append.getEventNumber() <= session.lastEventNumber) {
+            if (append.getEventNumber().compareTo(session.lastEventNumber) <= 0) {
                 throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
                 + " following: " + session.lastEventNumber);
             }
             if (append.isConditional()) {
                 breakFromAppend(out);
-                ConditionalAppend ca = new ConditionalAppend(append.connectionId,
+                ConditionalAppend ca = new ConditionalAppend(append.writerId,
                         append.eventNumber,
                         append.getExpectedLength(),
                         wrappedBuffer(serializeMessage(new Event(append.getData()))));
@@ -108,7 +108,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
                     bytesLeftInBlock = currentBlockSize;
                     segmentBeingAppendedTo = append.segment;
-                    writeMessage(new AppendBlock(session.id), out);
+                    writeMessage(new AppendBlock(session.writerId), out);
                     if (ctx != null) {
                         ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
                                                 blockSizeSupplier.getBatchTimeout(),
@@ -131,7 +131,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                                                            bytesInBlock,
                                                            serializedMessage.length - bytesInBlock);
                     writeMessage(new PartialEvent(dataInsideBlock), out);
-                    writeMessage(new AppendBlockEnd(session.id,
+                    writeMessage(new AppendBlockEnd(session.writerId,
                                                     session.lastEventNumber,
                                                     currentBlockSize - bytesLeftInBlock,
                                                     dataRemainging), out);
@@ -142,7 +142,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             breakFromAppend(out);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
-            setupSegments.put(setup.getSegment(), new Session(setup.getConnectionId()));
+            setupSegments.put(setup.getSegment(), new Session(setup.getWriterId()));
         } else if (msg instanceof Flush) {
             Flush flush = (Flush) msg;
             if (currentBlockSize == flush.getBlockSize()) {
@@ -160,7 +160,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (bytesLeftInBlock != 0) {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
             Session session = setupSegments.get(segmentBeingAppendedTo);
-            writeMessage(new AppendBlockEnd(session.id,
+            writeMessage(new AppendBlockEnd(session.writerId,
                     session.lastEventNumber,
                     currentBlockSize - bytesLeftInBlock,
                     null), out);

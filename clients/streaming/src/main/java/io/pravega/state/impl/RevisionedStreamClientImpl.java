@@ -10,13 +10,13 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.state.Revision;
 import io.pravega.state.RevisionedStreamClient;
 import io.pravega.stream.Segment;
+import io.pravega.stream.Sequence;
 import io.pravega.stream.Serializer;
 import io.pravega.stream.impl.PendingEvent;
 import io.pravega.stream.impl.segment.EndOfSegmentException;
 import io.pravega.stream.impl.segment.SegmentInputStream;
 import io.pravega.stream.impl.segment.SegmentOutputStream;
 import io.pravega.stream.impl.segment.SegmentSealedException;
-
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Iterator;
@@ -24,9 +24,7 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,6 +38,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final SegmentOutputStream out;
     private final Serializer<T> serializer;
+    private final AtomicLong sequenceNumber = new AtomicLong(0);
     private final Object lock = new Object();
 
     @Override
@@ -49,8 +48,9 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         ByteBuffer serialized = serializer.serialize(value);
         int size = serialized.remaining();
         try {
-            PendingEvent event = new PendingEvent(null, serialized, wasWritten, offset);
             synchronized (lock) {
+                Sequence seq = Sequence.create(0, sequenceNumber.incrementAndGet());
+                PendingEvent event = new PendingEvent(null, seq, serialized, wasWritten, offset);
                 out.write(event);
             }
         } catch (SegmentSealedException e) {
@@ -75,9 +75,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
         try {
-            PendingEvent event = new PendingEvent(null, serialized, wasWritten);
             log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
+                Sequence seq = Sequence.create(0, sequenceNumber.incrementAndGet());
+                PendingEvent event = new PendingEvent(null, seq, serialized, wasWritten);
                 out.write(event);
             }
         } catch (SegmentSealedException e) {

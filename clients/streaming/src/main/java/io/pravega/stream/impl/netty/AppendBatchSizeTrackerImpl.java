@@ -8,8 +8,9 @@ package io.pravega.stream.impl.netty;
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-
+import io.pravega.shared.protocol.netty.AppendSequence;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -29,31 +30,31 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_SIZE = 32 * 1024;
 
     private final Supplier<Long> clock;
-    private final AtomicLong lastAppendNumber;
+    private final AtomicReference<AppendSequence> lastAppend;
     private final AtomicLong lastAppendTime;
-    private final AtomicLong lastAckNumber;
+    private final AtomicReference<AppendSequence> lastAcked;
     private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.1, true);
     private final ExponentialMovingAverage millisBetweenAppends = new ExponentialMovingAverage(10, 0.1, false);
 
     AppendBatchSizeTrackerImpl() {
         clock = System::currentTimeMillis;
         lastAppendTime = new AtomicLong(clock.get());
-        lastAckNumber = new AtomicLong(0);
-        lastAppendNumber = new AtomicLong(0);
+        lastAppend = new AtomicReference<AppendSequence>(null);
+        lastAcked = new AtomicReference<AppendSequence>(null);
     }
 
     @Override
-    public void recordAppend(long eventNumber, int size) {
+    public void recordAppend(AppendSequence eventSequence, int size) {
         long now = Math.max(lastAppendTime.get(), clock.get());
         long last = lastAppendTime.getAndSet(now);
-        lastAppendNumber.set(eventNumber);
+        lastAppend.set(eventSequence);
         millisBetweenAppends.addNewSample(now - last);
         eventSize.addNewSample(size);
     }
 
     @Override
-    public void recordAck(long eventNumber) {
-        lastAckNumber.getAndSet(eventNumber);
+    public void recordAck(AppendSequence ackLevel) {
+        lastAcked.set(ackLevel);
     }
 
     /**
@@ -61,8 +62,8 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
      */
     @Override
     public int getAppendBlockSize() {
-        long numInflight = lastAppendNumber.get() - lastAckNumber.get();
-        if (numInflight <= 1) {
+        AppendSequence last = lastAppend.get();
+        if (last == null || last.equals(lastAcked.get())) {
             return 0;
         }
         return (int) MathHelpers.minMax((long) (TARGET_BATCH_TIME_MILLIS / millisBetweenAppends.getCurrentValue()

@@ -5,8 +5,6 @@
  */
 package io.pravega.stream;
 
-import java.util.concurrent.Future;
-
 /**
  * A writer can write events to a stream. Similar to {@link EventStreamWriter} but with the
  * ability to provide a {@link Sequence} on {@link #writeEvent(String, Sequence, Object)} to prevent
@@ -45,7 +43,7 @@ public interface IdempotentEventStreamWriter<Type> extends AutoCloseable {
      *         handled internally with multiple retires and exponential backoff. So there is no need
      *         to attempt to retry in the event of an exception.
      */
-    Future<Void> writeEvent(String routingKey, Sequence sequence, Type event);
+    AckFuture writeEvent(String routingKey, Sequence sequence, Type event);
 
     
     /**

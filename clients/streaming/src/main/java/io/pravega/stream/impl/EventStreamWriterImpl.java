@@ -5,7 +5,7 @@
  */
 package io.pravega.stream.impl;
 
-import io.pravega.common.Exceptions;
+import com.google.common.base.Preconditions;
 import io.pravega.stream.AckFuture;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.EventWriterConfig;
@@ -18,19 +18,12 @@ import io.pravega.stream.Transaction.Status;
 import io.pravega.stream.TxnFailedException;
 import io.pravega.stream.impl.segment.SegmentOutputStream;
 import io.pravega.stream.impl.segment.SegmentOutputStreamFactory;
-import io.pravega.stream.impl.segment.SegmentSealedException;
-import com.google.common.base.Preconditions;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import io.pravega.stream.impl.segment.SequenceImpl;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.annotation.concurrent.GuardedBy;
-
-import lombok.ToString;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
@@ -42,118 +35,43 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
  * @param <Type> The type of event that is sent
  */
 @Slf4j
-@ToString(of = { "stream", "closed" })
-public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
+public class EventStreamWriterImpl<Type> extends IdempotentEventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
-    private final Object lock = new Object();
     private final Stream stream;
+    private final UUID writerId;
     private final Serializer<Type> serializer;
     private final SegmentOutputStreamFactory outputStreamFactory;
     private final Controller controller;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final EventWriterConfig config;
-    @GuardedBy("lock")
-    private final SegmentSelector selector;
+    private final Object lock = new Object();
+    private final AtomicLong sequenceGenerator = new AtomicLong();
 
-    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
+    EventStreamWriterImpl(Stream stream, UUID writerId, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
             Serializer<Type> serializer, EventWriterConfig config) {
-        Preconditions.checkNotNull(stream);
-        Preconditions.checkNotNull(controller);
-        Preconditions.checkNotNull(outputStreamFactory);
-        Preconditions.checkNotNull(serializer);
+        super(stream, writerId, controller, outputStreamFactory, serializer, config);
         this.stream = stream;
+        this.writerId = writerId;
         this.controller = controller;
         this.outputStreamFactory = outputStreamFactory;
-        this.selector = new SegmentSelector(stream, controller, outputStreamFactory);
         this.serializer = serializer;
-        this.config = config;
-        List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters();
-        assert failedEvents.isEmpty() : "There should not be any events to have failed";
     }
 
     @Override
     public AckFuture writeEvent(Type event) {
-        return writeEventInternal(null, event);
+        synchronized (lock) {
+            long sequence = sequenceGenerator.incrementAndGet();
+            return writeEventInternal(null, SequenceImpl.create(0, sequence), event);
+        }
     }
 
     @Override
     public AckFuture writeEvent(String routingKey, Type event) {
         Preconditions.checkNotNull(routingKey);
-        return writeEventInternal(routingKey, event);
-    }
-    
-    private AckFuture writeEventInternal(String routingKey, Type event) {
-        Preconditions.checkNotNull(event);
-        Exceptions.checkNotClosed(closed.get(), this);
-        ByteBuffer data = serializer.serialize(event);
-        CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         synchronized (lock) {
-            SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
-            while (segmentWriter == null) {
-                log.info("Don't have a writer for segment: {}", selector.getSegmentForEvent(routingKey));
-                handleMissingLog();
-                segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
-            }
-            try {
-                segmentWriter.write(new PendingEvent(routingKey, data, result));
-            } catch (SegmentSealedException e) {
-                log.info("Segment was sealed: {}", segmentWriter);
-                handleLogSealed(Segment.fromScopedName(segmentWriter.getSegmentName()));
-            }
+            long sequence = sequenceGenerator.incrementAndGet();
+            return writeEventInternal(routingKey, SequenceImpl.create(0, sequence), event);
         }
-        return new AckFutureImpl(result, () -> {
-            if (!closed.get()) {
-                flushInternal();
-            }
-        });
     }
     
-    @GuardedBy("lock")
-    private void handleMissingLog() {
-        List<PendingEvent> toResend = selector.refreshSegmentEventWriters();
-        resend(toResend);
-    }
-
-    /**
-     * If a log sealed is encountered, we need to 1. Find the new segments to write to. 2. For each outstanding
-     * message find which new segment it should go to and send it there. This can happen recursively if segments turn
-     * over very quickly.
-     */
-    @GuardedBy("lock")
-    private void handleLogSealed(Segment segment) {
-        List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment);
-        resend(toResend);
-    }
-
-    @GuardedBy("lock")
-    private void resend(List<PendingEvent> toResend) {
-        while (!toResend.isEmpty()) {
-            List<PendingEvent> unsent = new ArrayList<>();
-            boolean sendFailed = false;
-            for (PendingEvent event : toResend) {
-                if (sendFailed) {
-                    unsent.add(event);
-                } else {
-                    SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey());
-                    if (segmentWriter == null) {
-                        unsent.addAll(selector.refreshSegmentEventWriters());
-                        sendFailed = true;
-                    } else {
-                        try {
-                            segmentWriter.write(event);
-                        } catch (SegmentSealedException e) {
-                            log.info("Segment was sealed while handling seal: {}", segmentWriter);
-                            Segment segment = Segment.fromScopedName(segmentWriter.getSegmentName());
-                            unsent.addAll(selector.refreshSegmentEventWritersUponSealed(segment));
-                            sendFailed = true;
-                        }
-                    }
-                }
-            }
-            toResend = unsent;
-        }
-    }
-
     private static class TransactionImpl<Type> implements Transaction<Type> {
 
         private final Map<Segment, SegmentTransaction<Type>> inner;
@@ -291,66 +209,4 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         return new TransactionImpl<Type>(txId, transactions, segments, controller, stream);
         
     }
-
-    @Override
-    public void flush() {
-        Preconditions.checkState(!closed.get());
-        flushInternal();
-    }
-    
-    private void flushInternal() {
-        boolean success = false;
-        String sealedSegment = null;
-        while (!success) {
-            success = true;
-            synchronized (lock) {
-                for (SegmentOutputStream writer : selector.getWriters()) {
-                    try {
-                        writer.flush();
-                    } catch (SegmentSealedException e) {
-                        log.info("Segment was sealed during flush: {}", writer);
-                        success = false;
-                        sealedSegment = writer.getSegmentName();
-                        break;
-                    }
-                }
-                if (!success) {
-                    handleLogSealed(Segment.fromScopedName(sealedSegment));
-                }
-            }
-        }
-    }
-
-    @Override
-    public void close() {
-        if (closed.getAndSet(true)) {
-            return;
-        }
-        synchronized (lock) {
-            boolean success = false;
-            String sealedSegment = null;
-            while (!success) {
-                success = true;
-                for (SegmentOutputStream writer : selector.getWriters()) {
-                    try {
-                        writer.close();
-                    } catch (SegmentSealedException e) {
-                        log.info("Segment was sealed during close: {}", writer);
-                        success = false;
-                        sealedSegment = writer.getSegmentName();
-                        break;
-                    }
-                }
-                if (!success) {
-                    handleLogSealed(Segment.fromScopedName(sealedSegment));
-                }
-            }
-        }
-    }
-
-    @Override
-    public EventWriterConfig getConfig() {
-        return config;
-    }
-
 }

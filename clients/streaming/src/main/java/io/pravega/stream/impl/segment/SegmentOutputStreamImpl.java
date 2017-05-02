@@ -9,6 +9,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.AppendSequence;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -23,6 +24,7 @@ import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableLatch;
+import io.pravega.stream.Sequence;
 import io.pravega.stream.impl.Controller;
 import io.pravega.stream.impl.PendingEvent;
 import io.pravega.stream.impl.netty.ClientConnection;
@@ -65,7 +67,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final Supplier<Long> requestIdGenerator = new AtomicLong(0)::incrementAndGet;
-    private final UUID connectionId;
+    private final UUID writerId;
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
@@ -84,9 +86,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @GuardedBy("lock")
         private Exception exception = null;
         @GuardedBy("lock")
-        private final ConcurrentSkipListMap<Long, PendingEvent> inflight = new ConcurrentSkipListMap<>();
+        private final ConcurrentSkipListMap<Sequence, PendingEvent> inflight = new ConcurrentSkipListMap<>();
         @GuardedBy("lock")
-        private long eventNumber = 0;
+        private Sequence eventNumber = Sequence.MIN_VALUE;
         private final ReusableLatch connectionSetup = new ReusableLatch();
         @GuardedBy("lock")
         private CompletableFuture<Void> emptyInflightFuture = null;
@@ -185,9 +187,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * Add event to the infight
          * @return The EventNumber for the event.
          */
-        private long addToInflight(PendingEvent event) {
+        private Sequence addToInflight(PendingEvent event) {
             synchronized (lock) {
-                eventNumber++;
+                if (eventNumber.compareTo(event.getSequence()) >= 0) {
+                    throw new IllegalStateException("Events written out of order. Perviously received " + eventNumber
+                            + " and now received " + event.getSequence());
+                }
+                eventNumber = event.getSequence();
                 inflight.put(eventNumber, event);
                 return eventNumber;
             }
@@ -202,9 +208,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         /**
          * Remove all events with event numbers below the provided level from inflight and return them.
          */
-        private List<PendingEvent> removeInflightBelow(long ackLevel) {
+        private List<PendingEvent> removeInflightBelow(Sequence ackLevel) {
             synchronized (lock) {
-                ConcurrentNavigableMap<Long, PendingEvent> acked = inflight.headMap(ackLevel, true);
+                ConcurrentNavigableMap<Sequence, PendingEvent> acked = inflight.headMap(ackLevel, true);
                 List<PendingEvent> result = new ArrayList<>(acked.values());
                 acked.clear();
                 if (emptyInflightFuture != null && inflight.isEmpty()) {
@@ -214,7 +220,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
 
-        private List<Map.Entry<Long, PendingEvent>> getAllInflight() {
+        private List<Map.Entry<Sequence, PendingEvent>> getAllInflight() {
             synchronized (lock) {
                 return new ArrayList<>(inflight.entrySet());
             }
@@ -262,7 +268,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         
         @Override
         public void dataAppended(DataAppended dataAppended) {
-            long ackLevel = dataAppended.getEventNumber();
+            AppendSequence ackLevel = dataAppended.getEventNumber();
             ackUpTo(ackLevel);
         }
         
@@ -274,7 +280,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void appendSetup(AppendSetup appendSetup) {
-            long ackLevel = appendSetup.getLastEventNumber();
+            AppendSequence ackLevel = appendSetup.getLastEventNumber();
             ackUpTo(ackLevel);
             try {
                 retransmitInflight();
@@ -284,8 +290,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
 
-        private void ackUpTo(long ackLevel) {
-            for (PendingEvent toAck : state.removeInflightBelow(ackLevel)) {
+        private void ackUpTo(AppendSequence ackLevel) {
+            for (PendingEvent toAck : state.removeInflightBelow(SequenceImpl.fromWire(ackLevel))) {
                 if (toAck != null) {
                     toAck.getAckFuture().complete(true);
                 }
@@ -300,10 +306,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         private void retransmitInflight() throws ConnectionFailedException {
-            for (Entry<Long, PendingEvent> entry : state.getAllInflight()) {
+            for (Entry<Sequence, PendingEvent> entry : state.getAllInflight()) {
                 state.connection.send(new Append(segmentName,
-                                                 connectionId,
-                                                 entry.getKey(),
+                                                 writerId,
+                                                 entry.getKey().asImpl().toWire(),
                                                  Unpooled.wrappedBuffer(entry.getValue().getData()),
                                                  entry.getValue().getExpectedOffset()));
             }
@@ -323,10 +329,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Synchronized
     public void write(PendingEvent event) throws SegmentSealedException {
         ClientConnection connection = getConnection();
-        long eventNumber = state.addToInflight(event);
+        AppendSequence eventNumber = state.addToInflight(event).asImpl().toWire();
         try {
             connection.send(new Append(segmentName,
-                                       connectionId,
+                                       writerId,
                                        eventNumber,
                                        Unpooled.wrappedBuffer(event.getData()),
                                        event.getExpectedOffset()));
@@ -358,7 +364,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 });
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
-            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), connectionId, segmentName);
+            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
             connection.send(cmd);
         }
     }

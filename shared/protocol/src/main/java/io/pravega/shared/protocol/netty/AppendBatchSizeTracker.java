@@ -10,17 +10,17 @@ public interface AppendBatchSizeTracker {
     /**
      * Records that an append has been sent.
      * 
-     * @param eventNumber the number of the event
+     * @param eventSequence the number of the event
      * @param size the size of the event
      */
-    void recordAppend(long eventNumber, int size);
+    void recordAppend(AppendSequence eventSequence, int size);
 
     /**
      * Records that one or more events have been acked.
      * 
-     * @param eventNumber the number of the last event
+     * @param ackLevel the number of the last event that has been acked.
      */
-    void recordAck(long eventNumber);
+    void recordAck(AppendSequence ackLevel);
 
     /**
      * Returns the size that should be used for the next append block.

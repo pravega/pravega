@@ -103,8 +103,8 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void send(Append append) throws ConnectionFailedException {
         recentMessage.set(true);
-        batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
+        batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
     }
     
     @Override

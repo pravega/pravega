@@ -30,8 +30,9 @@ public interface SegmentOutputStreamFactory {
      * same or different clients (i.e., there can be concurrent Stream Writers
      * in the same process space).
      *
+     * @param writerId The id of the writer.
      * @param segment The segment.
      * @return New instance of SegmentOutputStream for writing.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment);
+    SegmentOutputStream createOutputStreamForSegment(UUID writerId, Segment segment);
 }

@@ -268,7 +268,7 @@ public final class WireCommands {
     public static final class SetupAppend implements Request, WireCommand {
         final WireCommandType type = WireCommandType.SETUP_APPEND;
         final long requestId;
-        final UUID connectionId;
+        final UUID writerId;
         final String segment;
 
         @Override
@@ -279,8 +279,8 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeLong(connectionId.getMostSignificantBits());
-            out.writeLong(connectionId.getLeastSignificantBits());
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
             out.writeUTF(segment);
         }
 
@@ -295,31 +295,31 @@ public final class WireCommands {
     @Data
     public static final class AppendBlock implements WireCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK;
-        final UUID connectionId;
+        final UUID writerId;
         final ByteBuf data;
 
         AppendBlock(UUID connectionId) {
-            this.connectionId = connectionId;
+            this.writerId = connectionId;
             this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
         }
 
         AppendBlock(UUID connectionId, ByteBuf data) {
-            this.connectionId = connectionId;
+            this.writerId = connectionId;
             this.data = data;
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(connectionId.getMostSignificantBits());
-            out.writeLong(connectionId.getLeastSignificantBits());
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
             // Data not written, as it should be null.
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            UUID connectionId = new UUID(in.readLong(), in.readLong());
+            UUID writerId = new UUID(in.readLong(), in.readLong());
             byte[] data = new byte[length - 16];
             in.readFully(data);
-            return new AppendBlock(connectionId, wrappedBuffer(data));
+            return new AppendBlock(writerId, wrappedBuffer(data));
         }
     }
 
@@ -327,7 +327,7 @@ public final class WireCommands {
     public static final class AppendBlockEnd implements WireCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK_END;
         final UUID connectionId;
-        final long lastEventNumber;
+        final AppendSequence lastEventNumber;
         final int sizeOfWholeEvents;
         final ByteBuf data;
 
@@ -335,7 +335,8 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(connectionId.getMostSignificantBits());
             out.writeLong(connectionId.getLeastSignificantBits());
-            out.writeLong(lastEventNumber);
+            out.writeLong(lastEventNumber.getHighOrder());
+            out.writeLong(lastEventNumber.getLowOrder());
             out.writeInt(sizeOfWholeEvents);
             if (data == null) {
                 out.writeInt(0);
@@ -347,7 +348,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
-            long lastEventNumber = in.readLong();
+            AppendSequence lastEventNumber = AppendSequence.create(in.readLong(), in.readLong());
             int sizeOfHeaderlessAppends = in.readInt();
             int dataLength = in.readInt();
             byte[] data;
@@ -364,17 +365,18 @@ public final class WireCommands {
     @Data
     public static final class ConditionalAppend implements WireCommand {
         final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
-        final UUID connectionId;
-        final long eventNumber;
+        final UUID writerId;
+        final AppendSequence eventNumber;
         final long expectedOffset;
         final ByteBuf data;
         
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(connectionId.getMostSignificantBits());
-            out.writeLong(connectionId.getLeastSignificantBits());
-            out.writeLong(eventNumber);
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber.getHighOrder());
+            out.writeLong(eventNumber.getLowOrder());
             out.writeLong(expectedOffset);
             if (data == null) {
                 out.writeInt(0);
@@ -385,8 +387,8 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            UUID connectionId = new UUID(in.readLong(), in.readLong());
-            long eventNumber = in.readLong();
+            UUID writerId = new UUID(in.readLong(), in.readLong());
+            AppendSequence eventNumber = AppendSequence.create(in.readLong(), in.readLong());
             long expectedOffset = in.readLong();
             int dataLength = in.readInt();
             byte[] data;
@@ -396,7 +398,7 @@ public final class WireCommands {
             } else {
                 data = new byte[0];
             }
-            return new ConditionalAppend(connectionId, eventNumber, expectedOffset, wrappedBuffer(data));
+            return new ConditionalAppend(writerId, eventNumber, expectedOffset, wrappedBuffer(data));
         }
     }
     
@@ -405,8 +407,8 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.APPEND_SETUP;
         final long requestId;
         final String segment;
-        final UUID connectionId;
-        final long lastEventNumber;
+        final UUID writerId;
+        final AppendSequence lastEventNumber;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -417,16 +419,17 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeLong(connectionId.getMostSignificantBits());
-            out.writeLong(connectionId.getLeastSignificantBits());
-            out.writeLong(lastEventNumber);
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(lastEventNumber.getHighOrder());
+            out.writeLong(lastEventNumber.getLowOrder());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             UUID connectionId = new UUID(in.readLong(), in.readLong());
-            long lastEventNumber = in.readLong();
+            AppendSequence lastEventNumber = AppendSequence.create(in.readLong(), in.readLong());
             return new AppendSetup(requestId, segment, connectionId, lastEventNumber);
         }
     }
@@ -435,7 +438,7 @@ public final class WireCommands {
     public static final class DataAppended implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.DATA_APPENDED;
         final UUID connectionId;
-        final long eventNumber;
+        final AppendSequence eventNumber;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -446,13 +449,14 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(connectionId.getMostSignificantBits());
             out.writeLong(connectionId.getLeastSignificantBits());
-            out.writeLong(eventNumber);
+            out.writeLong(eventNumber.getHighOrder());
+            out.writeLong(eventNumber.getLowOrder());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
-            long offset = in.readLong();
-            return new DataAppended(connectionId, offset);
+            AppendSequence eventNumber = AppendSequence.create(in.readLong(), in.readLong());
+            return new DataAppended(connectionId, eventNumber);
         }
     }
     

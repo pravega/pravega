@@ -101,23 +101,23 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @Override
     public void setupAppend(SetupAppend setupAppend) {
         String newSegment = setupAppend.getSegment();
-        UUID newConnection = setupAppend.getConnectionId();
+        UUID writer = setupAppend.getWriterId();
         store.getStreamSegmentInfo(newSegment, true, TIMEOUT)
                 .whenComplete((info, u) -> {
                     try {
                         if (u != null) {
                             handleException(setupAppend.getRequestId(), newSegment, "setting up append", u);
                         } else {
-                            long eventNumber = info.getAttributes().getOrDefault(newConnection, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                            long eventNumber = info.getAttributes().getOrDefault(writer, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
                             if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
                                 // First append to this segment.
                                 eventNumber = 0;
                             }
 
                             synchronized (lock) {
-                                latestEventNumbers.putIfAbsent(newConnection, eventNumber);
+                                latestEventNumbers.putIfAbsent(writer, eventNumber);
                             }
-                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, newConnection, eventNumber));
+                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
                         }
                     } catch (Throwable e) {
                         handleException(setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);

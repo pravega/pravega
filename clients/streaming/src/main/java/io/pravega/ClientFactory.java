@@ -11,21 +11,21 @@ import io.pravega.state.RevisionedStreamClient;
 import io.pravega.state.StateSynchronizer;
 import io.pravega.state.SynchronizerConfig;
 import io.pravega.state.Update;
-import io.pravega.stream.EventStreamReader;
-import io.pravega.stream.ReaderConfig;
-import io.pravega.stream.ReaderGroup;
 import io.pravega.stream.EventRead;
-import io.pravega.stream.IdempotentEventStreamWriter;
-import io.pravega.stream.Position;
+import io.pravega.stream.EventStreamReader;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.EventWriterConfig;
+import io.pravega.stream.IdempotentEventStreamWriter;
+import io.pravega.stream.Position;
+import io.pravega.stream.ReaderConfig;
+import io.pravega.stream.ReaderGroup;
 import io.pravega.stream.Serializer;
 import io.pravega.stream.impl.ClientFactoryImpl;
 import io.pravega.stream.impl.Controller;
 import io.pravega.stream.impl.ControllerImpl;
 import io.pravega.stream.impl.RebalancerUtils;
-
 import java.net.URI;
+import java.util.UUID;
 
 /**
  * Used to create Writers, Readers, and Synchronizers operating on a stream.
@@ -84,12 +84,13 @@ public interface ClientFactory extends AutoCloseable {
      * sequence associated with each one.
      *
      * @param streamName The name of the stream to write to.
+     * @param writerId The name of this writer (to distinguish it from others)
      * @param config The writer configuration.
      * @param s The Serializer.
      * @param <T> The type of events.
      * @return Newly created idempotent writer object
      */
-    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
+    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, UUID writerId, Serializer<T> s,
                                                                    EventWriterConfig config);
 
     /**
