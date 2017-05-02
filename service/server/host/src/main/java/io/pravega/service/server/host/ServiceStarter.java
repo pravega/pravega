@@ -191,7 +191,7 @@ public final class ServiceStarter {
             // 2. System Properties overrides (these will be passed in via the command line or inherited from the JVM)
             ServiceBuilderConfig config = ServiceBuilderConfig
                     .builder()
-                    .include("config.properties")
+                    .include(System.getProperty("pravega.configurationFile", "config.properties"))
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()

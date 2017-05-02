@@ -204,7 +204,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         indexTableFuture.getNow(null).getData(),
                         historyTableFuture.getNow(null).getData());
                 resultFutures.add(findOverlapping(successor, candidates).thenApply(
-                        list -> new SimpleImmutableEntry<>(successor, candidates)));
+                        list -> new SimpleImmutableEntry<>(successor, list.stream().map(Segment::getNumber).collect(Collectors.toList()))));
             }
             return FutureHelpers.allOfWithResults(resultFutures);
         }).thenApply(list -> list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), Map.Entry::getValue)));
@@ -373,23 +373,23 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     return ActiveTxnRecord.parse(ok.getData()).getTxnStatus();
                 });
 
-        return verifyLegalState(activeTx
-                .thenCompose(x -> {
-                    if (x.equals(TxnStatus.UNKNOWN)) {
-                        return getCompletedTx(txId)
-                                .handle((ok, ex) -> {
-                                    if (ok == null ||
-                                            (ex != null && ex instanceof DataNotFoundException)) {
-                                        return TxnStatus.UNKNOWN;
-                                    } else if (ex != null) {
-                                        throw new CompletionException(ex);
-                                    }
-                                    return CompletedTxnRecord.parse(ok.getData()).getCompletionStatus();
-                                });
-                    } else {
-                        return CompletableFuture.completedFuture(x);
-                    }
-                }));
+        return verifyLegalState(activeTx.thenCompose(x -> {
+            return parseStatus(txId, x);
+        }));
+    }
+
+    private CompletionStage<TxnStatus> parseStatus(final UUID txId, TxnStatus x) {
+        if (!x.equals(TxnStatus.UNKNOWN)) {
+            return CompletableFuture.completedFuture(x);
+        }
+        return getCompletedTx(txId).handle((ok, ex) -> {
+            if (ok == null || (ex != null && ex instanceof DataNotFoundException)) {
+                return TxnStatus.UNKNOWN;
+            } else if (ex != null) {
+                throw new CompletionException(ex);
+            }
+            return CompletedTxnRecord.parse(ok.getData()).getCompletionStatus();
+        });
     }
 
     @Override

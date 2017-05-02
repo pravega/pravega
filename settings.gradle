@@ -5,5 +5,5 @@
  */
 
 include 'common', 'clients:streaming', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host',
-        'controller:contract', 'controller:server', 'connectors:flink',
-        'test:integration', 'test:common', 'benchmark', 'singlenode', 'test:system', 'shared'
+        'shared:controller', 'controller:server', 'connectors:flink','shared:protocol',
+        'test:integration', 'test:common', 'benchmark', 'singlenode', 'test:system', 'shared', 'shared:metrics'

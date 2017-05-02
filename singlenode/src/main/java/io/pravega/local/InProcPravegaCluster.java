@@ -223,7 +223,6 @@ public class InProcPravegaCluster implements AutoCloseable {
         try {
                 ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                     .builder()
-                    .include("config.properties")
                     .include(System.getProperties())
                     .include(ServiceConfig.builder()
                                           .with(ServiceConfig.CONTAINER_COUNT, containerCount)
@@ -310,7 +309,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .controllerClusterListenerConfig(Optional.empty())
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
-                .requestHandlersEnabled(true)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.empty())
                 .build();

@@ -10,14 +10,10 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath group: 'com.bmuschko', name :'gradle-docker-plugin', version: gradleDockerPlugin
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
         classpath group: 'com.github.jengelman.gradle.plugins', name:'shadow', version: shadowGradlePlugin
     }
 }
-
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
-import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 
 allprojects {
     apply plugin: 'java'
@@ -29,6 +25,9 @@ allprojects {
     apply plugin: 'findbugs'
     apply plugin: 'maven-publish'
     apply plugin: 'jacoco'
+
+    version = pravegaVersion
+    archivesBaseName = "pravega" + project.path.replace(':', '-')
 
     checkstyle {
         toolVersion = checkstyleToolVersion
@@ -52,9 +51,9 @@ allprojects {
             html.enabled true
         }
     }
-    compileJava { 
-        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
-    } 
+    compileJava {
+        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror"
+    }
 
     repositories {
         // Use 'jcenter' for resolving your dependencies.
@@ -62,12 +61,6 @@ allprojects {
         jcenter()
         mavenCentral()
         mavenLocal()
-        maven {
-            url "https://raw.github.com/twitter/bookkeeper/mvn-repo/"+ mvnRepoVersion
-        }
-        maven {
-            url "http://maven.twttr.com"
-        }
     }
 
     checkstyle {
@@ -118,45 +111,25 @@ allprojects {
     }
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'test:integration']
-
 project('common') {
     dependencies {
         testCompile project(':test:common')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        // for Metrics
-        compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
-        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
-        compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-graphite
-        compile group: 'io.dropwizard.metrics', name: 'metrics-graphite', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-ganglia
-        compile group: 'io.dropwizard.metrics', name: 'metrics-ganglia', version: metricsVersion
-        // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
-        compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        jar {
-            from project.sourceSets.main.output
-            from project(":test:common").sourceSets.main.output
-        }
+    }
+    jar {
+        from project.sourceSets.main.output
+        from project(":test:common").sourceSets.main.output
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                pom.withXml {
-                    asNode().appendNode('repositories', '').appendNode('repository','').
-                            appendNode('id','jcenter').parent().
-                            appendNode('name','JCenter Repository').parent().
-                            appendNode('url','http://jcenter.bintray.com')
-                }
                 artifactId 'pravega-common'
                 from components.java
             }
@@ -165,20 +138,19 @@ project('common') {
     javadoc {
         title = "Pravega Common Libraries"
         failOnError = false
-        source  =  project(':common').sourceSets.main.java
-        def javadocs = new File(rootDir, "javadocs")
-        javadocs.mkdirs()
-        destinationDir = javadocs
+        source {
+            project(':common').sourceSets.main.java
+            project(':shared:protocol').sourceSets.main.java
+        }
     }
 }
 
 project ('shared') {
-   dependencies {
-    compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-    compile project(':common')
-   }
-
-   publishing {
+    dependencies {
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+    }
+    publishing {
         publications {
             maven(MavenPublication) {
                 artifactId 'pravega-shared'
@@ -191,6 +163,58 @@ project ('shared') {
     }
 }
 
+project ('shared:metrics') {
+   dependencies {
+       compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+       compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
+       // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
+       compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
+       // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
+       compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: metricsVersion
+       // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-graphite
+       compile group: 'io.dropwizard.metrics', name: 'metrics-graphite', version: metricsVersion
+       // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-ganglia
+       compile group: 'io.dropwizard.metrics', name: 'metrics-ganglia', version: metricsVersion
+       // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
+       compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
+       compile project(':common')
+   }
+   publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-shared-metrics'
+                pom.withXml {
+                    asNode().appendNode('repositories', '').appendNode('repository','').
+                            appendNode('id','jcenter').parent().
+                            appendNode('name','JCenter Repository').parent().
+                            appendNode('url','http://jcenter.bintray.com')
+                }
+                from components.java
+            }
+        }
+    }
+    javadoc {
+        exclude 'io/pravega/shared/*'
+    }
+}
+
+project('shared:protocol') {
+    dependencies {
+        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-shared-protocol'
+                from components.java
+            }
+        }
+    }
+}
+
 project('clients:streaming') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -199,7 +223,8 @@ project('clients:streaming') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
         compile project(':shared')
-        compile project(":controller:contract")
+        compile project(':shared:protocol')
+        compile project(":shared:controller")
         testCompile project(':test:common')
     }
     publishing {
@@ -215,9 +240,6 @@ project('clients:streaming') {
         failOnError = false
         exclude "**/impl/**";
         source  =  project(':clients:streaming').sourceSets.main.java
-        def javadocs = new File(rootDir, "javadocs")
-        javadocs.mkdirs()
-        destinationDir = javadocs
     }
 }
 
@@ -253,7 +275,7 @@ project('service:storage') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
-        compile project(':shared')
+        compile project(':shared:metrics')
         testCompile project(':test:common')
     }
     publishing {
@@ -284,7 +306,7 @@ project('service:storage:impl') {
 
         compile project(':common')
         compile project(':service:storage')
-        compile project(':shared')
+        compile project(':shared:metrics')
         testCompile project(':test:common')
         testCompile files(project(':service:storage').sourceSets.test.output)
     }
@@ -303,7 +325,7 @@ project('service:server') {
         compile project(':common')
         compile project(':service:contracts')
         compile project(':service:storage')
-        compile project(':shared')
+        compile project(':shared:metrics')
         testCompile project(':test:common')
     }
     publishing {
@@ -318,17 +340,17 @@ project('service:server') {
 
 project('service:server:host') {
     apply plugin: 'application'
-    apply plugin: 'com.bmuschko.docker-java-application'
-    docker {
-        url = dockerUrl
-    }
+    applicationName = "pravega-segmentstore"
     mainClassName = "io.pravega.service.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dlogback.configurationFile=SERVER_APP_HOME/config/logback.xml"]
+                                 "-Dlog.dir=SERVER_APP_HOME/logs",
+                                 "-Dlog.name=segmentstore",
+                                 "-Dpravega.configurationFile=SERVER_APP_HOME/conf/config.properties",
+                                 "-Dlogback.configurationFile=SERVER_APP_HOME/conf/logback.xml"]
 
     applicationDistribution.from('src/config') {
-        into "config"
+        into "conf"
     }
 
     startScripts {
@@ -350,23 +372,6 @@ project('service:server:host') {
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
         testCompile files(project(':service:storage:impl').sourceSets.test.output)
-    }
-    task buildPravegaHostImage(type: DockerBuildImage) {
-        dependsOn 'distTar','distZip'
-        dockerFile = file(dockerFilePravegaHost)
-        inputDir = file(dockerDirPravegaHost)
-        tag = "${pravegaHostBaseTag}:${pravegaVersion}"
-    }
-    task pushPravegaHostImage(type: DockerPushImage) {
-        dependsOn buildPravegaHostImage
-        conventionMapping.imageName = { buildPravegaHostImage.getTag() }
-        docker {
-            registryCredentials {
-                url = "$dockerRegistryUrl"
-                username = "$dockerRegistryUser"
-                password = "$dockerRegistryPass"
-            }
-        }
     }
     publishing {
         publications {
@@ -395,6 +400,7 @@ project('test:integration') {
         testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: flinkVersion
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
         testCompile files(project(':common').sourceSets.test.output)
+        testCompile files(project(':shared:protocol').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
@@ -467,7 +473,7 @@ project('controller') {
     }
 }
 
-project('controller:contract') {
+project('shared:controller') {
     apply plugin: 'com.google.protobuf'
     protobuf {
         protoc {
@@ -508,7 +514,7 @@ project('controller:contract') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-controller-contract'
+                artifactId 'pravega-shared-controller'
                 from components.java
             }
         }
@@ -519,10 +525,6 @@ project('controller:contract') {
 }
 
 project('controller:server') {
-    apply plugin: 'com.bmuschko.docker-java-application'
-    docker {
-        url = dockerUrl
-    }
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
     }
@@ -533,13 +535,17 @@ project('controller:server') {
     }
 
     apply plugin: 'application'
+    applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
-                                 "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
+                                 "-Dconfig.file=CONTROLLER_APP_HOME/conf/controller.conf",
+                                 "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml",
+                                 "-Dlog.dir=CONTROLLER_APP_HOME/logs",
+                                 "-Dlog.name=controller"]
 
     applicationDistribution.from('src/conf') {
         into "conf"
+        rename "application.conf", "controller.conf"
     }
 
     startScripts {
@@ -551,10 +557,9 @@ project('controller:server') {
 
     dependencies {
         compile project(':common')
-        compile project(':shared')
-        compile project(":controller:contract")
+        compile project(":shared:controller")
         compile project(":clients:streaming")
-        compile project(":shared")
+        compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
@@ -573,24 +578,6 @@ project('controller:server') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
 
-    task buildPravegaControllerImage(type: DockerBuildImage) {
-        dependsOn 'distTar','distZip'
-        dockerFile = file(dockerFilePravegaController)
-        inputDir = file(dockerDirPravegaController)
-        tag = "${pravegaControllerBaseTag}:${pravegaVersion}"
-    }
-
-    task pushPravegaControllerImage(type: DockerPushImage) {
-        dependsOn buildPravegaControllerImage
-        conventionMapping.imageName = { buildPravegaControllerImage.getTag() }
-        docker {
-            registryCredentials {
-                url = "$dockerRegistryUrl"
-                username = "$dockerRegistryUser"
-                password = "$dockerRegistryPass"
-            }
-        }
-    }
     publishing {
         publications {
             maven(MavenPublication) {
@@ -642,8 +629,9 @@ project('connectors:flink') {
             include dependency("com.google.code.gson:gson")
             include dependency("com.google.instrumentation:instrumentation-api")
             include(project(":common"))
-            include(project(":shared"))
-            include(project(":controller:contract"))
+            include(project(":shared:protocol"))
+            include(project(":shared:metrics"))
+            include(project(":shared:controller"))
             include(project(":clients:streaming"))
         }
 
@@ -675,9 +663,19 @@ project('connectors:flink') {
 
 project('singlenode') {
     apply plugin: 'application'
+    applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
-    applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError", "-Xdebug",
-                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
+    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=pravega"]
+    startScripts {
+        doLast {
+            unixScript.text = unixScript.text.replace('PRAVEGA_APP_HOME', '\$APP_HOME')
+            windowsScript.text = windowsScript.text.replace('PRAVEGA_APP_HOME', '%~dp0..')
+        }
+    }
+
     dependencies {
         compile project(':common')
         compile project(':clients:streaming')
@@ -697,7 +695,6 @@ project('singlenode') {
 
         testCompile project(':test:common')
         testCompile files(project(':common').sourceSets.test.output)
-        compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
@@ -706,8 +703,7 @@ project('singlenode') {
 
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
-        args = ["4000", "9090", "6000"]
-        environment "ZK_URL", "localhost:4000"
+        environment "JAVA_OPTS", "-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"
     }
 
     publishing {
@@ -797,13 +793,15 @@ subprojects {
 task publishAllJars() {
     dependsOn ':clients:streaming:publish'
     dependsOn ':common:publish'
+    dependsOn ':shared:publish'
+    dependsOn ':shared:protocol:publish'
     dependsOn ':service:contracts:publish'
     dependsOn ':service:storage:publish'
     dependsOn ':service:storage:impl:publish'
     dependsOn ':service:server:publish'
     dependsOn ':service:server:host:publish'
-    dependsOn ':shared:publish'
-    dependsOn ':controller:contract:publish'
+    dependsOn ':shared:metrics:publish'
+    dependsOn ':shared:controller:publish'
     dependsOn ':controller:server:publish'
     dependsOn ':connectors:flink:publish'
     dependsOn ':singlenode:publish'
@@ -825,4 +823,94 @@ task sourceTar(type: Tar) {
 
 task genJavaDocs(type: Javadoc) {
     dependsOn 'clients:streaming:javadoc'
+}
+
+task javadocs(type: Javadoc) {
+    description = "Generate main pravega javadoc"
+
+    // Include names of any project that is to be included in the javadoc distribution
+    ext.projects = [':clients:streaming', ':common', ':shared:protocol']
+
+    title = "Pravega API"
+    source = files(projects.collect {
+        project(it).sourceSets.main.allJava
+    })
+    classpath = files(projects.collect {
+        project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
+    })
+    failOnError = false
+    exclude "**/impl/**"
+}
+
+apply plugin: 'distribution'
+distributions {
+    main {
+        baseName = "pravega"
+        contents {
+            duplicatesStrategy = "exclude"
+            from ("dist/conf") {
+                into "conf"
+            }
+            from ("config") {
+                into "conf"
+            }
+            from (project(":controller:server").installDist) {
+                exclude "logback.xml"
+            }
+            from (project(":service:server:host").installDist) {
+                exclude "logback.xml"
+            }
+            from (project(":singlenode").installDist)
+        }
+    }
+    client {
+        baseName = "pravega-client"
+        contents {
+            from { project(":clients:streaming").configurations.runtime }
+            from { project(":clients:streaming").configurations.runtime.allArtifacts.files }
+        }
+    }
+    javadoc {
+        baseName = "pravega-javadoc"
+        contents {
+            from (javadocs)
+        }
+    }
+}
+
+tasks.withType(Tar) {
+    compression = Compression.GZIP
+}
+
+task preparePravegaImage(type: Copy) {
+    into "${buildDir}/docker/pravega"
+    from "docker/pravega"
+    from (installDist) {
+        into "pravega"
+        exclude "**/*.bat"
+    }
+}
+
+task buildPravegaImage(type: Exec, dependsOn: preparePravegaImage) {
+    executable dockerExecutable
+    args "build"
+    args "-t", "${pravegaBaseTag}:${pravegaVersion}"
+    args "-t", "${pravegaBaseTag}:latest"
+    args preparePravegaImage.destinationDir.absolutePath
+}
+
+task buildBookkeeperImage(type: Exec) {
+    executable dockerExecutable
+    args "build"
+    args "-t", "${bookkeeperBaseTag}:${pravegaVersion}"
+    args "-t", "${bookkeeperBaseTag}:latest"
+    args "docker/bookkeeper"
+}
+
+task docker(dependsOn: [buildPravegaImage, buildBookkeeperImage]) {
+    description = "Builds all docker images"
+}
+
+task distribution(dependsOn: [assembleDist, assembleClientDist, assembleJavadocDist]) {
+    description = "Builds a distribution package"
 }

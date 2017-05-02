@@ -11,12 +11,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLException;
 import io.pravega.common.Exceptions;
-import io.pravega.common.netty.AppendBatchSizeTracker;
-import io.pravega.common.netty.CommandDecoder;
-import io.pravega.common.netty.CommandEncoder;
-import io.pravega.common.netty.ExceptionLoggingHandler;
-import io.pravega.common.netty.PravegaNodeUri;
-import io.pravega.common.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
+import io.pravega.shared.protocol.netty.CommandDecoder;
+import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
 import com.google.common.base.Preconditions;
 
 import io.netty.bootstrap.Bootstrap;
@@ -35,7 +35,7 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

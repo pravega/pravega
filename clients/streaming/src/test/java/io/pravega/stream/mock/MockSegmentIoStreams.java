@@ -5,7 +5,7 @@
  */
 package io.pravega.stream.mock;
 
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.stream.Segment;
 import io.pravega.stream.impl.PendingEvent;
 import io.pravega.stream.impl.segment.EndOfSegmentException;
@@ -122,6 +122,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     public Collection<PendingEvent> getUnackedEvents() {
         return Collections.emptyList();
+    }
+
+    @Override
+    public String getSegmentName() {
+        return segment.getScopedName();
     }
 
 }

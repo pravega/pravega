@@ -35,10 +35,12 @@ import java.util.stream.Collectors;
 
 import lombok.Data;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.FutureHelpers.allOfWithResults;
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
+@Slf4j
 @Data
 public class ReaderGroupImpl implements ReaderGroup {
 
@@ -102,6 +104,9 @@ public class ReaderGroupImpl implements ReaderGroup {
             return FutureHelpers.delayedTask(() -> {
                 synchronizer.fetchUpdates();
                 checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
+                if (checkpointPending.get()) {
+                    log.debug("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());                    
+                }
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor).thenApply(v ->  completeCheckpoint(checkpointName, synchronizer)

@@ -55,7 +55,7 @@ public class ControllerBootstrapTest {
 
         // 2. Start controller
         try {
-            controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, true,
+            controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                     controllerPort, serviceHost, servicePort, containerCount);
         } catch (Exception e) {
             Assert.fail("Failed starting ControllerWrapper");

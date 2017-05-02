@@ -5,33 +5,39 @@
  */
 package io.pravega.stream.impl.segment;
 
+
+import com.google.common.collect.ImmutableList;
+import io.netty.buffer.Unpooled;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.stream.impl.PendingEvent;
+import io.pravega.stream.impl.netty.ClientConnection;
+import io.pravega.stream.impl.netty.ClientConnection.CompletedCallback;
+import io.pravega.stream.mock.MockConnectionFactoryImpl;
+import io.pravega.stream.mock.MockController;
+import io.pravega.test.common.Async;
+import java.nio.ByteBuffer;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import lombok.Cleanup;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import java.nio.ByteBuffer;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
-import io.pravega.common.netty.WireCommands;
-import io.pravega.stream.impl.PendingEvent;
-import io.pravega.stream.impl.netty.ClientConnection;
-import io.pravega.stream.mock.MockController;
-import io.pravega.test.common.Async;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.mockito.InOrder;
-
-import io.pravega.common.netty.Append;
-import io.pravega.common.netty.ConnectionFailedException;
-import io.pravega.common.netty.PravegaNodeUri;
-import io.pravega.stream.mock.MockConnectionFactoryImpl;
-
-import io.netty.buffer.Unpooled;
-import lombok.Cleanup;
 
 public class SegmentOutputStreamTest {
 
@@ -42,7 +48,7 @@ public class SegmentOutputStreamTest {
         return ByteBuffer.wrap(s.getBytes());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
@@ -58,8 +64,8 @@ public class SegmentOutputStreamTest {
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1, null);
         verifyNoMoreInteractions(connection);
     }
-    
-    @Test
+
+    @Test(timeout = 10000)
     public void testConditionalSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
@@ -92,22 +98,37 @@ public class SegmentOutputStreamTest {
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
         output.write(new PendingEvent(null, getBuffer("test1"), new CompletableFuture<>()));
         output.write(new PendingEvent(null, getBuffer("test2"), new CompletableFuture<>()));
+        answerSuccess(connection);
         cf.getProcessor(uri).connectionDropped();
         Async.testBlocking(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
                            () -> cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0)));
         output.write(new PendingEvent(null, getBuffer("test4"), new CompletableFuture<>()));
         
+        Append append1 = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null);
+        Append append2 = new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null);
+        Append append3 = new Append(SEGMENT, cid, 3, Unpooled.wrappedBuffer(getBuffer("test3")), null);
+        Append append4 = new Append(SEGMENT, cid, 4, Unpooled.wrappedBuffer(getBuffer("test4")), null);
         inOrder.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
-        inOrder.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null));
-        inOrder.verify(connection).send(new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null));
+        inOrder.verify(connection).send(append1);
+        inOrder.verify(connection).send(append2);
         inOrder.verify(connection).close();
         inOrder.verify(connection).send(new WireCommands.SetupAppend(2, cid, SEGMENT));
-        inOrder.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null));
-        inOrder.verify(connection).send(new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null));
-        inOrder.verify(connection).send(new Append(SEGMENT, cid, 3, Unpooled.wrappedBuffer(getBuffer("test3")), null));
-        inOrder.verify(connection).send(new Append(SEGMENT, cid, 4, Unpooled.wrappedBuffer(getBuffer("test4")), null));
+        inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
+        inOrder.verify(connection).send(append3);
+        inOrder.verify(connection).send(append4);
         
         verifyNoMoreInteractions(connection);
+    }
+
+    private void answerSuccess(ClientConnection connection) {
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                CompletedCallback callback = (CompletedCallback) invocation.getArgument(1);
+                callback.complete(null);
+                return null;
+            }
+        }).when(connection).sendAsync(Mockito.any(), Mockito.any());
     }
 
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
@@ -118,7 +139,7 @@ public class SegmentOutputStreamTest {
         assertEquals(false, acked.isDone());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testClose() throws ConnectionFailedException, SegmentSealedException, InterruptedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);

@@ -6,9 +6,9 @@
 package io.pravega.stream.impl.segment;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.ConnectionFailedException;
-import io.pravega.common.netty.WireCommandType;
-import io.pravega.common.netty.WireCommands;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.stream.Segment;
 import io.pravega.test.common.AssertExtensions;

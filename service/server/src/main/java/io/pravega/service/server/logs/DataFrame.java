@@ -24,8 +24,8 @@ import static io.pravega.common.util.BitConverter.writeInt;
 public class DataFrame {
     //region Members
 
+    static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
     private static final byte CURRENT_VERSION = 0;
-    private static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
     private final ByteArraySegment data;
     private FrameHeader header;
     private ByteArraySegment contents;

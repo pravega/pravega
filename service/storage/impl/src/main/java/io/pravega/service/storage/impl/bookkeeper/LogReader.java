@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -27,7 +27,7 @@ import org.apache.bookkeeper.client.LedgerHandle;
  * Performs read from BookKeeper Logs.
  */
 @Slf4j
-@ThreadSafe
+@NotThreadSafe
 class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> {
     //region Members
 

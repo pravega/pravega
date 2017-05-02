@@ -15,8 +15,8 @@ import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
-import io.pravega.controller.eventProcessor.ControllerEvent;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.stream.EventPointer;
 import io.pravega.stream.EventRead;
 import io.pravega.stream.EventStreamReader;
@@ -39,7 +39,6 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -66,8 +65,13 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public static class TestEvent implements ControllerEvent, Serializable {
+    public static class TestEvent implements ControllerEvent {
         int number;
+
+        @Override
+        public String getKey() {
+            return null;
+        }
     }
 
     public static class TestEventProcessor extends EventProcessor<TestEvent> {
@@ -437,7 +441,7 @@ public class EventProcessorTest {
     private EventProcessorSystemImpl createMockSystem(final String name, final String processId, final String scope,
                                                       final SequenceAnswer<EventStreamReader<TestEvent>> readers,
                                                       final EventStreamWriter<TestEvent> writer,
-                                                  String readerGroupName) {
+                                                      final String readerGroupName) {
         ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
         Mockito.when(clientFactory.createReader(anyString(), anyString(), any(), any()))
                 .thenAnswer(readers);
