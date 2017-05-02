@@ -105,8 +105,7 @@ public class ControllerServiceWithZKStreamTest {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final ConnectionFactory connectionFactory) {
-            super(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper,
-                    executor, hostId, connectionFactory);
+            super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory);
         }
 
         public void initializeWriters(final List<AckFuture> commitWriterResponses,

@@ -89,7 +89,7 @@ public class StreamMetadataTasksTest {
                 executor, "host", connectionFactory);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock, executor, "host", connectionFactory);
+                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory);
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 

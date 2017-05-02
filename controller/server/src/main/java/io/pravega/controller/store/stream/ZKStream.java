@@ -329,23 +329,16 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> sealActiveTx(final int epoch, final UUID txId, final boolean commit, final Optional<Integer> version) {
+    CompletableFuture<Void> sealActiveTx(final int epoch, final UUID txId, final boolean commit,
+                                         final ActiveTxnRecord previous, final int version) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
-
-        return getActiveTx(epoch, txId)
-                .thenCompose(x -> {
-                    if (version.isPresent() && version.get().intValue() != x.getVersion()) {
-                        throw new WriteConflictException(txId.toString());
-                    }
-                    ActiveTxnRecord previous = ActiveTxnRecord.parse(x.getData());
-                    ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
+        final ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
                             previous.getLeaseExpiryTime(),
                             previous.getMaxExecutionExpiryTime(),
                             previous.getScaleGracePeriod(),
                             commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
-                    return store.setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
-                })
-                .thenApply(x -> cache.invalidateCache(activePath));
+        final Data<Integer> data = new Data<>(updated.toByteArray(), version);
+        return store.setData(activePath, data).thenApply(x -> cache.invalidateCache(activePath));
     }
 
     @Override

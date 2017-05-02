@@ -60,7 +60,7 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImp
                 executorService, "host", connectionFactory);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host", connectionFactory);
+                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory);
 
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());

@@ -217,33 +217,21 @@ public class ZKStoreHelper {
 
     CompletableFuture<Void> setData(final String path, final Data<Integer> data) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
-
-        checkExists(path)
-                .whenComplete((exists, ex) -> {
-                    if (ex != null) {
-                        result.completeExceptionally(ex);
-                    } else if (exists) {
-                        try {
-                            if (data.getVersion() == null) {
-                                client.setData().inBackground(
-                                        callback(event -> result.complete(null), result::completeExceptionally), executor)
-                                        .forPath(path, data.getData());
-                            } else {
-                                client.setData().withVersion(data.getVersion()).inBackground(
-                                        callback(event -> result.complete(null), result::completeExceptionally), executor)
-                                        .forPath(path, data.getData());
-                            }
-                        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                            result.completeExceptionally(new StoreConnectionException(e));
-                        } catch (Exception e) {
-                            result.completeExceptionally(e);
-                        }
-                    } else {
-                        log.error("Failed to write data. path {}", path);
-                        result.completeExceptionally(new DataNotFoundException(path));
-                    }
-                });
-
+        try {
+            if (data.getVersion() == null) {
+                client.setData().inBackground(
+                        callback(event -> result.complete(null), result::completeExceptionally), executor)
+                        .forPath(path, data.getData());
+            } else {
+                client.setData().withVersion(data.getVersion()).inBackground(
+                        callback(event -> result.complete(null), result::completeExceptionally), executor)
+                        .forPath(path, data.getData());
+            }
+        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+            result.completeExceptionally(new StoreConnectionException(e));
+        } catch (Exception e) {
+            result.completeExceptionally(e);
+        }
         return result;
     }
 

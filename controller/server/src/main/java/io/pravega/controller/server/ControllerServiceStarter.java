@@ -67,11 +67,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ScheduledExecutorService eventProcExecutor;
     private ExecutorService clusterListenerExecutor;
 
-    private StreamMetadataStore streamStore;
-    private TaskMetadataStore taskMetadataStore;
-    private HostControllerStore hostStore;
-    private CheckpointStore checkpointStore;
-
     private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
@@ -103,6 +98,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     @Override
     protected void startUp() {
+        final StreamMetadataStore streamStore;
+        final TaskMetadataStore taskMetadataStore;
+        final HostControllerStore hostStore;
+        final CheckpointStore checkpointStore;
+
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         log.info("Initiating controller service startUp");
         log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
@@ -159,7 +159,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                     segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, taskMetadataStore, segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
+                    hostStore, segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
 
@@ -170,7 +170,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
             // controllers and starts sweeping tasks orphaned by those hostIds.
             TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.getHostId(), taskExecutor,
-                    streamMetadataTasks, streamTransactionMetadataTasks);
+                    streamMetadataTasks);
 
             // Setup and start controller cluster listener.
             if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {

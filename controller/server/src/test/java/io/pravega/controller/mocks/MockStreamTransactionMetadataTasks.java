@@ -10,7 +10,6 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.stream.impl.netty.ConnectionFactory;
 import lombok.Synchronized;
@@ -34,12 +33,11 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
 
     public MockStreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                               final HostControllerStore hostControllerStore,
-                                              final TaskMetadataStore taskMetadataStore,
                                               final SegmentHelper segmentHelper,
                                               final ScheduledExecutorService executor,
                                               final String hostId,
                                               final ConnectionFactory connectionFactory) {
-        super(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory);
+        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory);
         this.streamMetadataStore = streamMetadataStore;
     }
 

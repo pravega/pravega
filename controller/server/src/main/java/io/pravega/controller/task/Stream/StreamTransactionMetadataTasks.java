@@ -17,10 +17,6 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.task.Resource;
-import io.pravega.controller.store.task.TaskMetadataStore;
-import io.pravega.controller.task.Task;
-import io.pravega.controller.task.TaskBase;
 import io.pravega.stream.AckFuture;
 import io.pravega.stream.EventStreamWriter;
 import io.pravega.stream.EventWriterConfig;
@@ -30,13 +26,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -47,38 +44,54 @@ import java.util.stream.Collectors;
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 @Slf4j
-public class StreamTransactionMetadataTasks extends TaskBase {
+public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     protected EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
     protected EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
     protected String commitStreamName;
     protected String abortStreamName;
+    protected final String hostId;
+    protected final ScheduledExecutorService executor;
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
 
+    private volatile boolean ready;
+    private final CountDownLatch readyLatch;
+
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
-                                          final TaskMetadataStore taskMetadataStore,
-                                          final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                                          final SegmentHelper segmentHelper,
+                                          final ScheduledExecutorService executor,
                                           final String hostId,
                                           final ConnectionFactory connectionFactory) {
-        this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId), connectionFactory);
-    }
-
-    private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                           final HostControllerStore hostControllerStore,
-                                           final TaskMetadataStore taskMetadataStore,
-                                           SegmentHelper segmentHelper, final ScheduledExecutorService executor,
-                                           final Context context,
-                                           final ConnectionFactory connectionFactory) {
-        super(taskMetadataStore, executor, context);
+        this.hostId = hostId;
+        this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
+        readyLatch = new CountDownLatch(1);
+    }
+
+    protected void setReady() {
+        ready = true;
+        readyLatch.countDown();
+    }
+
+    public boolean isReady() {
+        return ready;
+    }
+
+    @VisibleForTesting
+    public boolean awaitInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        return readyLatch.await(timeout, timeUnit);
+    }
+
+    public void awaitInitialization() throws InterruptedException {
+        readyLatch.await();
     }
 
     /**
@@ -129,16 +142,11 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param contextOpt       operational context
      * @return transaction id.
      */
-    @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream, final long lease,
                                                                                       final long maxExecutionTime, final long scaleGracePeriod, final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream, lease, maxExecutionTime, scaleGracePeriod, null},
-                () -> createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context));
+        return createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context);
     }
 
     /**
@@ -156,11 +164,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                                                final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return execute(
-                new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId},
-                () -> pingTxnBody(scope, stream, txId, lease, context));
+        return pingTxnBody(scope, stream, txId, lease, context);
     }
 
     /**
@@ -173,15 +177,10 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param contextOpt       operational context
      * @return true/false.
      */
-    @Task(name = "abortTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
                                                  final Integer version, final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return execute(
-                new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId, version, null},
-                () -> abortTxnBody(scope, stream, txId, version, context));
+        return abortTxnBody(scope, stream, txId, version, context);
     }
 
     /**
@@ -193,15 +192,10 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return true/false.
      */
-    @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return execute(
-                new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId, null},
-                () -> commitTxnBody(scope, stream, txId, context));
+        return commitTxnBody(scope, stream, txId, context);
     }
 
     private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope, final String stream,
@@ -209,6 +203,8 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                                                       final long scaleGracePeriod,
                                                                       final OperationContext context) {
         UUID txnId = UUID.randomUUID();
+        // TODO: store txnId in transactionIndex
+        // transactionIndex.put(context.getHostId(), txnId)
         return streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod, scaleGracePeriod, context, executor)
                 .thenCompose(txData ->
                         streamMetadataStore.getActiveSegments(scope, stream, context, executor)
@@ -243,6 +239,8 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                         return CompletableFuture.completedFuture(status);
                     }
                 }, executor);
+        // TODO: remove txid from transactionIndex
+        // transactionIndex.remove(context.getHostId(), txnId)
     }
 
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
@@ -258,6 +256,8 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                         return CompletableFuture.completedFuture(status);
                     }
                 }, executor);
+        // TODO: remove txid from transactionIndex
+        // transactionIndex.remove(context.getHostId(), txnId)
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
@@ -297,25 +297,6 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 txid,
                 this.hostControllerStore,
                 this.connectionFactory), executor);
-    }
-
-    @Override
-    public TaskBase copyWithContext(Context context) {
-        StreamTransactionMetadataTasks transactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamMetadataStore,
-                        hostControllerStore,
-                        taskMetadataStore,
-                        segmentHelper, executor,
-                        context,
-                        connectionFactory);
-        if (this.isReady()) {
-            transactionMetadataTasks.commitStreamName = this.commitStreamName;
-            transactionMetadataTasks.commitEventEventStreamWriter = this.commitEventEventStreamWriter;
-            transactionMetadataTasks.abortStreamName = this.abortStreamName;
-            transactionMetadataTasks.abortEventEventStreamWriter = this.abortEventEventStreamWriter;
-            transactionMetadataTasks.setReady();
-        }
-        return transactionMetadataTasks;
     }
 
     @Override

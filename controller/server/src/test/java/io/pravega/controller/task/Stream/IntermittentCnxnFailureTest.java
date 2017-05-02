@@ -90,7 +90,7 @@ public class IntermittentCnxnFailureTest {
                 executor, "host", connectionFactory);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, taskMetadataStore, segmentHelperMock, executor, "host", connectionFactory);
+                streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory);
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 

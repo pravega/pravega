@@ -420,15 +420,18 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit,
                                                         final Optional<Integer> version) {
-        return verifyLegalState(getTransactionEpoch(txId).thenCompose(epoch -> checkTransactionStatus(epoch, txId)
-                .thenCompose(x -> {
+        return verifyLegalState(getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId)
+                .thenCompose(data -> {
+                    ActiveTxnRecord txnRecord = ActiveTxnRecord.parse(data.getData());
+                    int dataVersion = version.isPresent() ? version.get() : data.getVersion();
+                    TxnStatus status = txnRecord.getTxnStatus();
                     if (commit) {
-                        switch (x) {
+                        switch (status) {
                             case OPEN:
-                                return sealActiveTx(epoch, txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
+                                return sealActiveTx(epoch, txId, true, txnRecord, dataVersion).thenApply(y -> TxnStatus.COMMITTING);
                             case COMMITTING:
                             case COMMITTED:
-                                return CompletableFuture.completedFuture(x);
+                                return CompletableFuture.completedFuture(status);
                             case ABORTING:
                             case ABORTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
@@ -436,12 +439,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 throw new TransactionNotFoundException(txId.toString());
                         }
                     } else {
-                        switch (x) {
+                        switch (status) {
                             case OPEN:
-                                return sealActiveTx(epoch, txId, false, version).thenApply(y -> TxnStatus.ABORTING);
+                                return sealActiveTx(epoch, txId, false, txnRecord, dataVersion).thenApply(y -> TxnStatus.ABORTING);
                             case ABORTING:
                             case ABORTED:
-                                return CompletableFuture.completedFuture(x);
+                                return CompletableFuture.completedFuture(status);
                             case COMMITTING:
                             case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
@@ -784,7 +787,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> sealActiveTx(final int epoch,
                                                   final UUID txId, final boolean commit,
-                                                  final Optional<Integer> version) throws DataNotFoundException;
+                                                  final ActiveTxnRecord txnRecord,
+                                                  final int version) throws DataNotFoundException;
 
     abstract CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) throws DataNotFoundException;
 

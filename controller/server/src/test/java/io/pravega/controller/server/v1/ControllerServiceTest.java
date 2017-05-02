@@ -82,7 +82,7 @@ public class ControllerServiceTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
                 taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
+                hostStore, segmentHelper, executor, "host", connectionFactory);
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                 TimeoutServiceConfig.defaultConfig());
 
