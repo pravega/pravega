@@ -3,17 +3,17 @@
  */
 package io.pravega.test.integration.service.selftest;
 
-import io.pravega.service.contracts.AttributeUpdate;
-import io.pravega.service.contracts.ReadResult;
-import io.pravega.service.contracts.SegmentProperties;
-import io.pravega.service.contracts.StreamSegmentExistsException;
-import io.pravega.service.contracts.StreamSegmentNotExistsException;
-import io.pravega.service.server.host.handler.PravegaConnectionListener;
-import io.pravega.service.server.store.ServiceBuilderConfig;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.EventWriterConfig;
-import io.pravega.stream.impl.ByteArraySerializer;
-import io.pravega.stream.mock.MockStreamManager;
+import io.pravega.server.segmentstore.contracts.AttributeUpdate;
+import io.pravega.server.segmentstore.contracts.ReadResult;
+import io.pravega.server.segmentstore.contracts.SegmentProperties;
+import io.pravega.server.segmentstore.contracts.StreamSegmentExistsException;
+import io.pravega.server.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.server.segmentstore.service.host.handler.PravegaConnectionListener;
+import io.pravega.server.segmentstore.service.store.ServiceBuilderConfig;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.impl.ByteArraySerializer;
+import io.pravega.client.stream.mock.MockStreamManager;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;

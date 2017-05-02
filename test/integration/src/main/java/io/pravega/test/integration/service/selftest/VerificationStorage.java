@@ -5,11 +5,11 @@ package io.pravega.test.integration.service.selftest;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.CallbackHelpers;
-import io.pravega.service.contracts.SegmentProperties;
-import io.pravega.service.storage.SegmentHandle;
-import io.pravega.service.storage.Storage;
-import io.pravega.service.storage.StorageFactory;
-import io.pravega.service.storage.TruncateableStorage;
+import io.pravega.server.segmentstore.contracts.SegmentProperties;
+import io.pravega.server.segmentstore.storage.SegmentHandle;
+import io.pravega.server.segmentstore.storage.Storage;
+import io.pravega.server.segmentstore.storage.StorageFactory;
+import io.pravega.server.segmentstore.storage.TruncateableStorage;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;

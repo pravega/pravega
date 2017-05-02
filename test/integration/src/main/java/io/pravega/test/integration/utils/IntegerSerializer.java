@@ -3,7 +3,7 @@
  */
 package io.pravega.test.integration.utils;
 
-import io.pravega.stream.Serializer;
+import io.pravega.client.stream.Serializer;
 
 import java.nio.ByteBuffer;
 

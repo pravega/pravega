@@ -5,7 +5,7 @@
 package io.pravega.test.system;
 
 import static org.junit.Assert.assertTrue;
-import io.pravega.ClientFactory;
+import io.pravega.client.ClientFactory;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
@@ -15,17 +15,17 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.EventWriterConfig;
-import io.pravega.stream.ScalingPolicy;
-import io.pravega.stream.StreamConfiguration;
-import io.pravega.stream.Transaction;
-import io.pravega.stream.impl.ControllerImpl;
-import io.pravega.stream.impl.JavaSerializer;
-import io.pravega.stream.impl.StreamImpl;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.stream.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
@@ -312,7 +312,7 @@ public class AutoScaleTest extends AbstractScaleTests {
                             e.getCause() instanceof io.grpc.StatusRuntimeException &&
                             ((io.grpc.StatusRuntimeException) e.getCause()).getStatus().getCode().equals(Status.Code.INTERNAL) &&
                             Objects.equals(((StatusRuntimeException) e.getCause()).getStatus().getDescription(),
-                                    "io.pravega.controller.task.Stream.StreamTransactionMetadataTasks not yet ready"))) {
+                                    "StreamTransactionMetadataTasks not yet ready"))) {
                         log.warn("test exception writing events in a transaction : {}", e);
                         break;
                     }

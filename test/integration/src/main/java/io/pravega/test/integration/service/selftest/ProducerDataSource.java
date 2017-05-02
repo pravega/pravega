@@ -7,7 +7,7 @@ package io.pravega.test.integration.service.selftest;
 
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.service.contracts.StreamSegmentNotExistsException;
+import io.pravega.server.segmentstore.contracts.StreamSegmentNotExistsException;
 import com.google.common.base.Preconditions;
 import lombok.val;
 

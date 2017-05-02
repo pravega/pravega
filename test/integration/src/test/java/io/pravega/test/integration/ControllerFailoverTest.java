@@ -5,15 +5,15 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.StreamManager;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import io.pravega.service.contracts.StreamSegmentStore;
-import io.pravega.service.server.host.handler.PravegaConnectionListener;
-import io.pravega.service.server.store.ServiceBuilder;
-import io.pravega.service.server.store.ServiceBuilderConfig;
-import io.pravega.stream.ScalingPolicy;
-import io.pravega.stream.StreamConfiguration;
+import io.pravega.server.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.server.segmentstore.service.host.handler.PravegaConnectionListener;
+import io.pravega.server.segmentstore.service.store.ServiceBuilder;
+import io.pravega.server.segmentstore.service.store.ServiceBuilderConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;

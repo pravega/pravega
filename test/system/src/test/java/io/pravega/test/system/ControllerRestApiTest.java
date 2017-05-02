@@ -3,16 +3,16 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
-import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
-import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
-import io.pravega.controller.server.rest.generated.model.RetentionConfig;
-import io.pravega.controller.server.rest.generated.model.ScalingConfig;
-import io.pravega.controller.server.rest.generated.model.StreamProperty;
-import io.pravega.controller.server.rest.generated.model.ScopeProperty;
-import io.pravega.controller.server.rest.generated.model.StreamState;
-import io.pravega.controller.server.rest.generated.model.StreamsList;
-import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.server.controller.service.server.rest.generated.api.JacksonJsonProvider;
+import io.pravega.server.controller.service.server.rest.generated.model.CreateScopeRequest;
+import io.pravega.server.controller.service.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.server.controller.service.server.rest.generated.model.RetentionConfig;
+import io.pravega.server.controller.service.server.rest.generated.model.ScalingConfig;
+import io.pravega.server.controller.service.server.rest.generated.model.StreamProperty;
+import io.pravega.server.controller.service.server.rest.generated.model.ScopeProperty;
+import io.pravega.server.controller.service.server.rest.generated.model.StreamState;
+import io.pravega.server.controller.service.server.rest.generated.model.StreamsList;
+import io.pravega.server.controller.service.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;

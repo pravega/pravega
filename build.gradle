@@ -215,13 +215,14 @@ project('shared:protocol') {
     }
 }
 
-project('clients:streaming') {
+project('client') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
+        testCompile project(':client:admin')
         compile project(':shared')
         compile project(':shared:protocol')
         compile project(":shared:controller")
@@ -230,7 +231,7 @@ project('clients:streaming') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-clients'
+                artifactId 'pravega-client'
                 from components.java
             }
         }
@@ -239,7 +240,28 @@ project('clients:streaming') {
         title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
-        source  =  project(':clients:streaming').sourceSets.main.java
+        source  {
+            project(':client').sourceSets.main.java
+            project(':client:admin').sourceSets.main.java
+        }
+    }
+}
+
+project('client:admin') {
+    dependencies {
+        compile project(':client')
+        compile project(':shared:protocol')
+        compile project(':shared')
+        testCompile project(':test:common')
+        testCompile files(project(':client').sourceSets.test.output)
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-client-admin'
+                from components.java
+            }
+        }
     }
 }
 
@@ -256,7 +278,7 @@ project('test:common') {
     }
 }
 
-project('service:contracts') {
+project('server:segmentstore:contracts') {
     dependencies {
         compile project(':common')
         testCompile project(':test:common')
@@ -264,31 +286,31 @@ project('service:contracts') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-service-contracts'
+                artifactId 'pravega-server-segmentstore-contracts'
                 from components.java
             }
         }
     }
 }
 
-project('service:storage') {
+project('server:segmentstore:storage') {
     dependencies {
         compile project(':common')
-        compile project(':service:contracts')
+        compile project(':server:segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:common')
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-service-storage'
+                artifactId 'pravega-server-segmentstore-storage'
                 from components.java
             }
         }
     }
 }
 
-project('service:storage:impl') {
+project('server:segmentstore:storage:impl') {
     dependencies {
         compile (group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion) {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -305,43 +327,43 @@ project('service:storage:impl') {
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         compile project(':common')
-        compile project(':service:storage')
+        compile project(':server:segmentstore:storage')
         compile project(':shared:metrics')
         testCompile project(':test:common')
-        testCompile files(project(':service:storage').sourceSets.test.output)
+        testCompile files(project(':server:segmentstore:storage').sourceSets.test.output)
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-service-storage-impl'
+                artifactId 'pravega-server-segmentstore-storage-impl'
                 from components.java
             }
         }
     }
 }
 
-project('service:server') {
+project('server:segmentstore:service') {
     dependencies {
         compile project(':common')
-        compile project(':service:contracts')
-        compile project(':service:storage')
+        compile project(':server:segmentstore:contracts')
+        compile project(':server:segmentstore:storage')
         compile project(':shared:metrics')
         testCompile project(':test:common')
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-service-server'
+                artifactId 'pravega-server-segmentstore-service'
                 from components.java
             }
         }
     }
 }
 
-project('service:server:host') {
+project('server:segmentstore:service:host') {
     apply plugin: 'application'
     applicationName = "pravega-segmentstore"
-    mainClassName = "io.pravega.service.server.host.ServiceStarter"
+    mainClassName = "io.pravega.server:segmentstore.service.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlog.dir=SERVER_APP_HOME/logs",
@@ -361,22 +383,22 @@ project('service:server:host') {
     }
     dependencies {
         compile project(':common')
-        compile project(':service:contracts')
-        compile project(':clients:streaming')
-        compile project(':service:storage')
-        compile project(':service:storage:impl')
-        compile project(':service:server')
+        compile project(':server:segmentstore:contracts')
+        compile project(':client')
+        compile project(':server:segmentstore:storage')
+        compile project(':server:segmentstore:storage:impl')
+        compile project(':server:segmentstore:service')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:common')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        testCompile files(project(':service:server').sourceSets.test.output)
+        testCompile files(project(':server:segmentstore:service').sourceSets.test.output)
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
-        testCompile files(project(':service:storage:impl').sourceSets.test.output)
+        testCompile files(project(':server:segmentstore:storage:impl').sourceSets.test.output)
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-service-server-host'
+                artifactId 'pravega-server-segmentstore-service-host'
                 from components.java
             }
         }
@@ -386,10 +408,11 @@ project('service:server:host') {
 project('test:integration') {
     dependencies {
         compile project(':common')
-        compile project(':clients:streaming')
-        compile project(':service:server')
-        compile project(':service:server:host')
-        compile project(':controller:server')
+        compile project(':client')
+        compile project(':client:admin')
+        compile project(':server:segmentstore:service')
+        compile project(':server:segmentstore:service:host')
+        compile project(':server:controller:service')
         compile project(':connectors:flink')
         compile project(':test:common')
         compile group: 'junit', name:'junit', version: junitVersion
@@ -401,25 +424,25 @@ project('test:integration') {
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
         testCompile files(project(':common').sourceSets.test.output)
         testCompile files(project(':shared:protocol').sourceSets.test.output)
-        compile files(project(':clients:streaming').sourceSets.test.output)
-        testCompile files(project(':service:server').sourceSets.test.output)
-        testCompile files(project(':service:server:host').sourceSets.test.output)
+        compile files(project(':client').sourceSets.test.output)
+        testCompile files(project(':server:segmentstore:service').sourceSets.test.output)
+        testCompile files(project(':server:segmentstore:service:host').sourceSets.test.output)
     }
 
     task startServer(type: JavaExec) {
-        main = "io.pravega.service.server.host.ServiceStarter"
+        main = "io.pravega.server.segmentstore.service.host.ServiceStarter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startServerInteractive(type: JavaExec) {
-        main = "io.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
+        main = "io.pravega.server.segmentstore.service.host.InteractiveStreamSegmentStoreTester"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startBenchmark(type: JavaExec) {
-        main = "io.pravega.service.server.host.ServiceBenchmark"
+        main = "io.pravega.server.segmentstore.service.host.ServiceBenchmark"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -443,7 +466,7 @@ project('test:integration') {
     }
 
     task startController(type: JavaExec) {
-        main = "io.pravega.controller.server.Main"
+        main = "io.pravega.server.controller.service.Main"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -464,12 +487,6 @@ project('test:integration') {
         main = "io.pravega.test.integration.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
-    }
-}
-
-project('controller') {
-    dependencies {
-        testCompile project(':test:common')
     }
 }
 
@@ -524,7 +541,7 @@ project('shared:controller') {
     }
 }
 
-project('controller:server') {
+project('server:controller:service') {
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
     }
@@ -536,7 +553,7 @@ project('controller:server') {
 
     apply plugin: 'application'
     applicationName = "pravega-controller"
-    mainClassName = "io.pravega.controller.server.Main"
+    mainClassName = "io.pravega.server.controller.service.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dconfig.file=CONTROLLER_APP_HOME/conf/controller.conf",
                                  "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml",
@@ -558,7 +575,8 @@ project('controller:server') {
     dependencies {
         compile project(':common')
         compile project(":shared:controller")
-        compile project(":clients:streaming")
+        compile project(":client")
+        compile project(":client:admin")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
@@ -581,7 +599,7 @@ project('controller:server') {
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-controller-server'
+                artifactId 'pravega-server-controller-service'
                 from components.java
             }
         }
@@ -592,7 +610,8 @@ project('connectors:flink') {
     apply plugin: 'com.github.johnrengelman.shadow'
 
     dependencies {
-        compile project(":clients:streaming")
+        compile project(":client")
+        compile project(":client:admin")
         compileOnly group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
 
         //  configuring the shaded pom dependencies
@@ -632,7 +651,8 @@ project('connectors:flink') {
             include(project(":shared:protocol"))
             include(project(":shared:metrics"))
             include(project(":shared:controller"))
-            include(project(":clients:streaming"))
+            include(project(":client"))
+            include(project(":client:admin"))
         }
 
         // Shading the libraries which could cause potential version conflicts with flink.
@@ -678,13 +698,13 @@ project('singlenode') {
 
     dependencies {
         compile project(':common')
-        compile project(':clients:streaming')
-        compile project(':service:server')
-        compile project(':service:server:host')
-        compile project(':controller:server')
-        compile project(':service:contracts')
-        compile project(':service:storage')
-        compile project(':service:storage:impl')
+        compile project(':client')
+        compile project(':server:segmentstore:service')
+        compile project(':server:segmentstore:service:host')
+        compile project(':server:controller:service')
+        compile project(':server:segmentstore:contracts')
+        compile project(':server:segmentstore:storage')
+        compile project(':server:segmentstore:storage:impl')
 
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -695,8 +715,8 @@ project('singlenode') {
 
         testCompile project(':test:common')
         testCompile files(project(':common').sourceSets.test.output)
-        testCompile files(project(':service:server').sourceSets.test.output)
-        testCompile files(project(':service:server:host').sourceSets.test.output)
+        testCompile files(project(':server:segmentstore:service').sourceSets.test.output)
+        testCompile files(project(':server:segmentstore:service:host').sourceSets.test.output)
     }
 
     task startSinglenode(type: JavaExec) {
@@ -721,8 +741,9 @@ project('test:system') {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
-        compile project(':controller:server')
-        compile project(":clients:streaming")
+        compile project(':server:controller:service')
+        compile project(":client")
+        compile project(":client:admin")
         compile project(":test:common")
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
@@ -791,18 +812,19 @@ subprojects {
 }
 
 task publishAllJars() {
-    dependsOn ':clients:streaming:publish'
+    dependsOn ':client:publish'
+    dependsOn ':client:admin:publish'
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
     dependsOn ':shared:protocol:publish'
-    dependsOn ':service:contracts:publish'
-    dependsOn ':service:storage:publish'
-    dependsOn ':service:storage:impl:publish'
-    dependsOn ':service:server:publish'
-    dependsOn ':service:server:host:publish'
+    dependsOn ':server:segmentstore:contracts:publish'
+    dependsOn ':server:segmentstore:storage:publish'
+    dependsOn ':server:segmentstore:storage:impl:publish'
+    dependsOn ':server:segmentstore:service:publish'
+    dependsOn ':server:segmentstore:service:host:publish'
     dependsOn ':shared:metrics:publish'
     dependsOn ':shared:controller:publish'
-    dependsOn ':controller:server:publish'
+    dependsOn ':server:controller:service:publish'
     dependsOn ':connectors:flink:publish'
     dependsOn ':singlenode:publish'
     dependsOn ':test:system:publish'
@@ -822,14 +844,14 @@ task sourceTar(type: Tar) {
 }
 
 task genJavaDocs(type: Javadoc) {
-    dependsOn 'clients:streaming:javadoc'
+    dependsOn 'client:javadoc'
 }
 
 task javadocs(type: Javadoc) {
     description = "Generate main pravega javadoc"
 
     // Include names of any project that is to be included in the javadoc distribution
-    ext.projects = [':clients:streaming', ':common', ':shared:protocol']
+    ext.projects = [':client',':client:admin', ':common', ':shared:protocol']
 
     title = "Pravega API"
     source = files(projects.collect {
@@ -854,10 +876,10 @@ distributions {
             from ("config") {
                 into "conf"
             }
-            from (project(":controller:server").installDist) {
+            from (project(":server:controller:service").installDist) {
                 exclude "logback.xml"
             }
-            from (project(":service:server:host").installDist) {
+            from (project(":server:segmentstore:service:host").installDist) {
                 exclude "logback.xml"
             }
             from (project(":singlenode").installDist)
@@ -866,8 +888,14 @@ distributions {
     client {
         baseName = "pravega-client"
         contents {
-            from { project(":clients:streaming").configurations.runtime }
-            from { project(":clients:streaming").configurations.runtime.allArtifacts.files }
+            from {
+                project(":client").configurations.runtime
+                project(":client:admin").configurations.runtime
+            }
+            from {
+                project(":client").configurations.runtime.allArtifacts.files
+                project(":client:admin").configurations.runtime.allArtifacts.files
+            }
         }
     }
     javadoc {
