@@ -52,7 +52,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.channelRegistered(ctx);
         Channel c = ctx.channel();
         channel.set(c);
-        c.write(new WireCommands.Hello(1, 1), c.voidPromise());
+        c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION), c.voidPromise());
         ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(ctx), 20, 10, TimeUnit.SECONDS));
         if (old != null) {
             old.cancel(false);

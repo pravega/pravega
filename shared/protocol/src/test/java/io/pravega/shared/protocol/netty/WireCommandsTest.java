@@ -31,7 +31,7 @@ public class WireCommandsTest {
 
     @Test
     public void testHello() throws IOException {
-        testCommand(new WireCommands.Hello(i, length));
+        testCommand(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
     }
     
     @Test

@@ -14,6 +14,7 @@ import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
@@ -95,7 +96,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     
     @Override
     public void hello(Hello hello) {
-        connection.send(new Hello(1, 1));
+        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
     }
 
     /**

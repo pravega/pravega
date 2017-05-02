@@ -38,6 +38,8 @@ import lombok.experimental.Accessors;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
+    public static final int WIRE_VERSION = 1;
+    public static final int OLDEST_COMPATABLE_VERSION = 1;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
     public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
