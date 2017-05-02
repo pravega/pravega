@@ -247,18 +247,6 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> createZNodeIfParentExists(final String path, final byte[] data) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
-        try {
-            client.create()
-                    .inBackground(callback(x -> result.complete(null), result::completeExceptionally), executor)
-                    .forPath(path, data);
-        } catch (Exception e) {
-            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
-        }
-        return result;
-    }
-
     CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
