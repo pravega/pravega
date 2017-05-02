@@ -16,7 +16,10 @@ public class SegmentAggregatesTest {
     public void aggregate() {
         SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
 
-        write(aggregates);
+        write(aggregates, 100);
+        aggregates.setLastTick(System.nanoTime() - Duration.ofMillis(5050).toNanos());
+        aggregates.update(0, 1);
+
         assert aggregates.getTwoMinuteRate() > 0 && aggregates.getFiveMinuteRate() > 0 &&
                 aggregates.getTenMinuteRate() > 0 && aggregates.getTwentyMinuteRate() > 0;
 
@@ -25,7 +28,7 @@ public class SegmentAggregatesTest {
     @Test
     public void aggregateTxn() {
         SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
-
+        aggregates.setLastTick(System.nanoTime() - Duration.ofMillis(5050).toNanos());
         // add transaction. Approximately 10 events per second.
         aggregates.updateTx(0, 6500, System.currentTimeMillis() - Duration.ofMinutes(10).toMillis());
         assert aggregates.getTwoMinuteRate() > 10;
@@ -35,37 +38,45 @@ public class SegmentAggregatesTest {
         aggregates.updateTx(0, 100, System.currentTimeMillis());
         assert aggregates.getTwoMinuteRate() == 0;
         assert aggregates.getCurrentCount().get() == 100;
+        aggregates.setLastTick(System.nanoTime() - Duration.ofMillis(5050).toNanos());
 
         aggregates.updateTx(0, 1000, System.currentTimeMillis() - Duration.ofSeconds(5).toMillis());
         assert aggregates.getTwoMinuteRate() > 0;
     }
 
-    private void write(SegmentAggregates aggregates) {
-        long startTime = System.currentTimeMillis();
-        // after 10 seconds we should have written ~100 events.
-        // Which means 2 minute rate at this point is 100 / 120 ~= 0.4 events per second
-        while (System.currentTimeMillis() - startTime < Duration.ofSeconds(7).toMillis()) {
-            for (int i = 0; i < 11; i++) {
-                aggregates.update(0, 1);
-            }
-            // Simulating an approximate rate of 10 events per second
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+    private void write(SegmentAggregates aggregates, int numOfEvents) {
+        for (int i = 0; i < numOfEvents; i++) {
+            aggregates.update(0, 1);
         }
     }
 
     @Test
     public void parallel() throws ExecutionException, InterruptedException {
         SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
-        CompletableFuture.allOf(CompletableFuture.runAsync(() -> write(aggregates)),
-                CompletableFuture.runAsync(() -> write(aggregates)),
-                CompletableFuture.runAsync(() -> write(aggregates))).get();
-        // 3 writers in parallel would write about 150 events in 5 seconds.
-        // 2 minute rate = 150/120 = 1.25.. with exponential weighing it will be slightly less than that.
-        // safer side we will check against 0.5
-        assert aggregates.getTwoMinuteRate() > 0.5;
+        CompletableFuture.allOf(CompletableFuture.runAsync(() -> write(aggregates, 100)),
+                CompletableFuture.runAsync(() -> write(aggregates, 100)),
+                CompletableFuture.runAsync(() -> write(aggregates, 100))).get();
+        aggregates.setLastTick(System.nanoTime() - Duration.ofMillis(5050).toNanos());
+        aggregates.update(0, 1);
+        // 301 events in 5 seconds
+        assert aggregates.getTwoMinuteRate() > 50;
+    }
+
+    private void writeTx(SegmentAggregates aggregates, int numOfEvents) {
+        aggregates.updateTx(0, numOfEvents, System.currentTimeMillis() - Duration.ofMillis(10100).toMillis());
+    }
+
+    @Test
+    public void parallelTx() throws ExecutionException, InterruptedException {
+        SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
+        // effectively write 300 events in 10 seconds
+        CompletableFuture.allOf(CompletableFuture.runAsync(() -> writeTx(aggregates, 100)),
+                CompletableFuture.runAsync(() -> writeTx(aggregates, 100)),
+                CompletableFuture.runAsync(() -> writeTx(aggregates, 100))).get();
+        // Two minute rate should be closer to 30 events per sec. So at least > 20 events per second
+        aggregates.setLastTick(System.nanoTime() - Duration.ofMillis(5050).toNanos());
+        aggregates.update(0, 1);
+
+        assert aggregates.getTwoMinuteRate() > 20;
     }
 }

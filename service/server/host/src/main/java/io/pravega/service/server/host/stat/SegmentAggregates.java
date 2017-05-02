@@ -3,8 +3,8 @@
  */
 package io.pravega.service.server.host.stat;
 
-import io.pravega.shared.protocol.netty.WireCommands;
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -119,26 +119,13 @@ class SegmentAggregates {
     }
 
     void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
-
-        long amortizedPerTick = 0;
         long durationInSeconds = (System.currentTimeMillis() - txnCreationTime) / 1000;
-        long numOfTicks = (int) durationInSeconds / INTERVAL_IN_SECONDS;
 
-        if (numOfTicks == 0) {
+        if (durationInSeconds < INTERVAL_IN_SECONDS) {
             // Not large enough lifespan for transaction. Include in regular traffic.
             update(dataSize, numOfEvents);
         } else {
-            // Transaction lasted at least one tick internal (5 seconds) or more.
-            // Amortize traffic over per tick and decay the rate accordingly.
-            if (scaleType == WireCommands.CreateSegment.IN_KBYTES_PER_SEC) {
-                amortizedPerTick = dataSize / numOfTicks;
-            } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS_PER_SEC) {
-                amortizedPerTick = numOfEvents / numOfTicks;
-            }
-
-            for (int i = 0; i < numOfTicks; i++) {
-                computeDecay(amortizedPerTick, INTERVAL_IN_SECONDS);
-            }
+            update(dataSize * INTERVAL_IN_SECONDS / durationInSeconds, (int) (numOfEvents * INTERVAL_IN_SECONDS / durationInSeconds));
         }
     }
 
@@ -173,4 +160,10 @@ class SegmentAggregates {
     double getTwentyMinuteRate() {
         return Double.longBitsToDouble(twentyMinuteRate.get());
     }
+
+    @VisibleForTesting
+    void setLastTick(long tick) {
+        lastTick.set(tick);
+    }
+
 }
