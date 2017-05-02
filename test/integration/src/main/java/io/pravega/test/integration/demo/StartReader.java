@@ -5,11 +5,11 @@
  */
 package io.pravega.test.integration.demo;
 
-import io.pravega.stream.EventStreamReader;
-import io.pravega.stream.ReaderConfig;
-import io.pravega.stream.ReaderGroupConfig;
-import io.pravega.stream.impl.JavaSerializer;
-import io.pravega.stream.mock.MockStreamManager;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.mock.MockStreamManager;
 
 import java.util.Collections;
 import java.util.UUID;

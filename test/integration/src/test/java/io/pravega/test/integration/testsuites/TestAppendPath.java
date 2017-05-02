@@ -11,8 +11,8 @@ import org.junit.runners.Suite.SuiteClasses;
 
 import io.pravega.shared.protocol.netty.AppendEncodeDecodeTest;
 import io.pravega.test.integration.AppendTest;
-import io.pravega.service.server.host.handler.AppendProcessorTest;
-import io.pravega.stream.impl.segment.SegmentOutputStreamTest;
+import io.pravega.server.segmentstore.service.host.handler.AppendProcessorTest;
+import io.pravega.client.stream.impl.segment.SegmentOutputStreamTest;
 
 @RunWith(Suite.class)
 @SuiteClasses({ AppendEncodeDecodeTest.class, AppendProcessorTest.class, AppendTest.class, SegmentOutputStreamTest.class })

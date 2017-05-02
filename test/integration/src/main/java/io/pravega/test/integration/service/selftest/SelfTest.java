@@ -11,7 +11,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
-import io.pravega.service.server.store.ServiceBuilderConfig;
+import io.pravega.server.segmentstore.service.store.ServiceBuilderConfig;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;

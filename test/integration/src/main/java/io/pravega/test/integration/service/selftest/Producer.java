@@ -9,10 +9,10 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.service.contracts.SegmentProperties;
-import io.pravega.service.contracts.StreamSegmentMergedException;
-import io.pravega.service.contracts.StreamSegmentNotExistsException;
-import io.pravega.service.contracts.StreamSegmentSealedException;
+import io.pravega.server.segmentstore.contracts.SegmentProperties;
+import io.pravega.server.segmentstore.contracts.StreamSegmentMergedException;
+import io.pravega.server.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.server.segmentstore.contracts.StreamSegmentSealedException;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;

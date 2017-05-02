@@ -6,9 +6,9 @@
 package io.pravega.test.integration.service.selftest;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.service.contracts.AttributeUpdate;
-import io.pravega.service.contracts.ReadResult;
-import io.pravega.service.contracts.SegmentProperties;
+import io.pravega.server.segmentstore.contracts.AttributeUpdate;
+import io.pravega.server.segmentstore.contracts.ReadResult;
+import io.pravega.server.segmentstore.contracts.SegmentProperties;
 
 import java.time.Duration;
 import java.util.Collection;
