@@ -478,7 +478,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         return CompletableFuture.completedFuture(null); // already committed, do nothing
                     }
                 })
-                .thenCompose(x -> removeActiveTxEntry(epoch, txId))
+                .thenCompose(x -> epoch != null ? removeActiveTxEntry(epoch, txId) : CompletableFuture.completedFuture(null))
                 .thenApply(x -> TxnStatus.COMMITTED)));
     }
 
@@ -506,7 +506,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         return CompletableFuture.completedFuture(null); // already committed, do nothing
                     }
                 })
-                .thenCompose(y -> removeActiveTxEntry(epoch, txId))
+                .thenCompose(y -> epoch != null ? removeActiveTxEntry(epoch, txId) : CompletableFuture.completedFuture(null))
                 .thenApply(y -> TxnStatus.ABORTED)));
     }
 
