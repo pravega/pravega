@@ -23,7 +23,7 @@ Build the pravega distribution:
 ./gradlew distribution
 ```
 
-Install pravega jar files into the local maven repository:
+Install pravega jar files into the local maven repository. This is handy for running the `pravega-samples` locally against a custom version of pravega.
 
 ```
 ./gradlew publishMavenPublicationToMavenLocal
