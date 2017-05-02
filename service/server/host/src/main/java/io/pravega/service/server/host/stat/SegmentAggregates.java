@@ -3,8 +3,8 @@
  */
 package io.pravega.service.server.host.stat;
 
-import io.pravega.shared.protocol.netty.WireCommands;
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -125,7 +125,8 @@ class SegmentAggregates {
             // Not large enough lifespan for transaction. Include in regular traffic.
             update(dataSize, numOfEvents);
         } else {
-            update(dataSize * INTERVAL_IN_SECONDS / durationInSeconds, (int) (numOfEvents * INTERVAL_IN_SECONDS / durationInSeconds));
+            assert durationInSeconds > 0;
+            update((dataSize * INTERVAL_IN_SECONDS) / durationInSeconds, numOfEvents * INTERVAL_IN_SECONDS / (int) durationInSeconds);
         }
     }
 
