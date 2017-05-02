@@ -67,6 +67,15 @@ allprojects {
         maven {
             url "http://maven.twttr.com"
         }
+        maven {
+            url "https://repository.apache.org/snapshots"
+        }
+    }
+
+    configurations.all {
+        resolutionStrategy {
+            cacheChangingModulesFor 0, 'seconds'
+        }
     }
 
     checkstyle {
