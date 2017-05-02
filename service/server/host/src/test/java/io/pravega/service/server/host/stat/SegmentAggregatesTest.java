@@ -23,6 +23,16 @@ public class SegmentAggregatesTest {
         assert aggregates.getTwoMinuteRate() > 0 && aggregates.getFiveMinuteRate() > 0 &&
                 aggregates.getTenMinuteRate() > 0 && aggregates.getTwentyMinuteRate() > 0;
 
+        // test bytes per second
+        aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_KBYTES_PER_SEC, 1);
+
+        aggregates.update(100000, 0);
+        aggregates.setLastTick(System.nanoTime() - Duration.ofMillis(5050).toNanos());
+        aggregates.update(1, 0);
+
+        assert aggregates.getTwoMinuteRate() > 0 && aggregates.getFiveMinuteRate() > 0 &&
+                aggregates.getTenMinuteRate() > 0 && aggregates.getTwentyMinuteRate() > 0;
+
     }
 
     @Test

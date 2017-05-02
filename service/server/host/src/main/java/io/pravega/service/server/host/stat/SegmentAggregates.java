@@ -3,8 +3,8 @@
  */
 package io.pravega.service.server.host.stat;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.shared.protocol.netty.WireCommands;
+import com.google.common.annotations.VisibleForTesting;
 import lombok.Getter;
 import lombok.Setter;
 
