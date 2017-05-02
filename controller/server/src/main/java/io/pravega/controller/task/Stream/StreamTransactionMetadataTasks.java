@@ -232,17 +232,31 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
                                                       final Integer version, final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), context, executor)
-                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
-                        writeEvent(abortEventEventStreamWriter, abortStreamName, txid.toString(),
-                                new AbortEvent(scope, stream, txid), txid, status), executor), executor);
+                .thenComposeAsync(status -> {
+                    if (status == TxnStatus.ABORTING) {
+                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter,
+                                        abortStreamName, txid.toString(), new AbortEvent(scope, stream, txid), txid, status),
+                                executor);
+                    } else {
+                        // Status is ABORTED, return it.
+                        return CompletableFuture.completedFuture(status);
+                    }
+                }, executor);
     }
 
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
                                                        final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), context, executor)
-                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
-                        writeEvent(commitEventEventStreamWriter, commitStreamName, scope + stream,
-                                new CommitEvent(scope, stream, txid), txid, status), executor), executor);
+                .thenComposeAsync(status -> {
+                    if (status == TxnStatus.COMMITTING) {
+                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter,
+                                commitStreamName, scope + stream, new CommitEvent(scope, stream, txid), txid, status),
+                                executor);
+                    } else {
+                        // Status is COMMITTED, return it.
+                        return CompletableFuture.completedFuture(status);
+                    }
+                }, executor);
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
