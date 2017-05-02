@@ -966,7 +966,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 "Original container did not reject an append operation after being fenced out.",
                 () -> container1.append(segmentNames.get(0), new byte[1], null, TIMEOUT),
                 ex -> ex instanceof DataLogWriterNotPrimaryException);
-        //container1.append(segmentNames.get(0), new byte[1], null, TIMEOUT).join();
+
         // Verify we can still write to the second container.
         container2.append(segmentNames.get(0), 0, new byte[1], null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 

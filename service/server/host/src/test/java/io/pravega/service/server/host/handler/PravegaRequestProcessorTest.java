@@ -5,7 +5,6 @@ package io.pravega.service.server.host.handler;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.netty.WireCommands;
 import io.pravega.service.contracts.ReadResult;
 import io.pravega.service.contracts.ReadResultEntry;
 import io.pravega.service.contracts.ReadResultEntryContents;
