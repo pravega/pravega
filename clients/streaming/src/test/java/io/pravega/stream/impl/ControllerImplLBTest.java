@@ -22,6 +22,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.grpc.Server;
 import io.grpc.inprocess.InProcessServerBuilder;
@@ -38,6 +39,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -158,10 +160,9 @@ public class ControllerImplLBTest {
         testRPCServer3.shutdownNow();
         testRPCServer3.awaitTermination();
         Assert.assertTrue(testRPCServer3.isTerminated());
-        controllerClient = new ControllerImpl(
+        ControllerImpl client = new ControllerImpl(
                 URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
-        uris = fetchFromServers(controllerClient, 0);
-        Assert.assertEquals(0, uris.size());
+        AssertExtensions.assertThrows(ExecutionException.class, () -> client.getEndpointForSegment("a/b/0").get());
     }
 
     @Test
@@ -208,22 +209,12 @@ public class ControllerImplLBTest {
         testRPCServer3.awaitTermination();
         Assert.assertTrue(testRPCServer3.isTerminated());
 
-        uris = fetchFromServers(controllerClient, 0);
-        Assert.assertEquals(0, uris.size());
+        AssertExtensions.assertThrows(ExecutionException.class,
+                () -> controllerClient.getEndpointForSegment("a/b/0").get());
     }
 
     private Set<PravegaNodeUri> fetchFromServers(ControllerImpl client, int numServers) {
         Set<PravegaNodeUri> uris = new HashSet<>();
-
-        if (numServers == 0) {
-            try {
-                uris.add(client.getEndpointForSegment("a/b/0").get());
-                Assert.assertFalse("Received response when no servers were expected to be running", true);
-            } catch (Exception e) {
-                // Expected.
-            }
-            return uris;
-        }
 
         // Reading multiple times to ensure round robin policy gets a chance to read from all available servers.
         // Reading more than the number of servers since on failover request might fail intermittently due to
