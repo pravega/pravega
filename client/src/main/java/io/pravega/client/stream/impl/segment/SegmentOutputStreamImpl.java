@@ -199,13 +199,20 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             synchronized (lock) {
                 eventNumber++;
                 inflight.put(eventNumber, event);
+                if (emptyInflightFuture != null && emptyInflightFuture.isDone()) {
+                    emptyInflightFuture = null;
+                }
                 return eventNumber;
             }
         }
         
         private PendingEvent removeSingleInflight(long inflightEventNumber) {
             synchronized (lock) {
-                return inflight.remove(inflightEventNumber);
+                PendingEvent result = inflight.remove(inflightEventNumber);
+                if (emptyInflightFuture != null && inflight.isEmpty()) {
+                    emptyInflightFuture.complete(null);
+                }
+                return result;
             }
         }
         
