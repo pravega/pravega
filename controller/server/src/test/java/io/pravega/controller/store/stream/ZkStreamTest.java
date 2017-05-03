@@ -1,5 +1,17 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -16,6 +28,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -443,7 +456,7 @@ public class ZkStreamTest {
 
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testTransaction() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
@@ -473,12 +486,20 @@ public class ZkStreamTest {
         assert store.transactionStatus(SCOPE, streamName, tx.getId(), context, executor)
                 .get().equals(TxnStatus.COMMITTING);
 
+        // Test to ensure that sealTransaction is idempotent.
+        Assert.assertEquals(TxnStatus.COMMITTING,
+                store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.empty(), context, executor).join());
+
         CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor);
 
         store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.<Integer>empty(),
                 context, executor).get();
         assert store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
                 .get().equals(TxnStatus.ABORTING);
+
+        // Test to ensure that sealTransaction is idempotent.
+        Assert.assertEquals(TxnStatus.ABORTING,
+                store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.empty(), context, executor).join());
 
         CompletableFuture<TxnStatus> f2 = store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor);
 
@@ -488,6 +509,22 @@ public class ZkStreamTest {
                 .get().equals(TxnStatus.COMMITTED);
         assert store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
                 .get().equals(TxnStatus.ABORTED);
+
+        // Test to ensure that sealTransaction, to commit it, on committed transaction does not throw an error.
+        Assert.assertEquals(TxnStatus.COMMITTED,
+                store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.empty(), context, executor).join());
+
+        // Test to ensure that commitTransaction is idempotent.
+        Assert.assertEquals(TxnStatus.COMMITTED,
+                store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor).join());
+
+        // Test to ensure that sealTransaction, to abort it, on aborted transaction does not throw an error.
+        Assert.assertEquals(TxnStatus.ABORTED,
+                store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.empty(), context, executor).join());
+
+        // Test to ensure that commitTransaction is idempotent.
+        Assert.assertEquals(TxnStatus.ABORTED,
+                store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor).join());
 
         assert store.commitTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {

@@ -1,5 +1,17 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -399,24 +411,24 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(x -> {
                     if (commit) {
                         switch (x) {
-                            case COMMITTING:
-                                return CompletableFuture.completedFuture(TxnStatus.COMMITTING);
                             case OPEN:
                                 return sealActiveTx(txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
+                            case COMMITTING:
+                            case COMMITTED:
+                                return CompletableFuture.completedFuture(x);
                             case ABORTING:
                             case ABORTED:
-                            case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
                             default:
                                 throw new TransactionNotFoundException(txId.toString());
                         }
                     } else {
                         switch (x) {
-                            case ABORTING:
-                                return CompletableFuture.completedFuture(TxnStatus.ABORTING);
                             case OPEN:
                                 return sealActiveTx(txId, false, version).thenApply(y -> TxnStatus.ABORTING);
+                            case ABORTING:
                             case ABORTED:
+                                return CompletableFuture.completedFuture(x);
                             case COMMITTING:
                             case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");

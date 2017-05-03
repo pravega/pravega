@@ -1,7 +1,17 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.stream.impl;
 
@@ -60,7 +70,8 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 public class ReaderGroupStateManager {
     
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
-    static final Duration UPDATE_TIME = Duration.ofMillis(30000);
+    static final Duration FETCH_STATE_INTERVAL = Duration.ofMillis(3000);
+    static final Duration UPDATE_WINDOW = Duration.ofMillis(30000);
     private final Object decisionLock = new Object();
     private final HashHelper hashHelper;
     @Getter
@@ -69,6 +80,7 @@ public class ReaderGroupStateManager {
     private final Controller controller;
     private final TimeoutTimer releaseTimer;
     private final TimeoutTimer acquireTimer;
+    private final TimeoutTimer fetchStateTimer;
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -83,6 +95,7 @@ public class ReaderGroupStateManager {
         }
         releaseTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
+        fetchStateTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
 
     static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
@@ -156,24 +169,18 @@ public class ReaderGroupStateManager {
         acquireTimer.zero();
     }
 
-    private void checkStillAlive(ReaderGroupState state) throws ReinitializationRequiredException {
-
-    }
-
     /**
      * If a segment should be released because the distribution of segments is imbalanced and
      * this reader has not done so in a while, this returns the segment that should be released.
      */
     Segment findSegmentToReleaseIfRequired() {
-        if (!releaseTimer.hasRemaining()) {
-            sync.fetchUpdates();
-        }
+        fetchUpdatesIfNeeded();
         Segment segment = null;
         synchronized (decisionLock) {
             if (!releaseTimer.hasRemaining() && doesReaderOwnTooManySegments(sync.getState())) {
                 segment = findSegmentToRelease();
                 if (segment != null) {
-                    releaseTimer.reset(UPDATE_TIME);
+                    releaseTimer.reset(UPDATE_WINDOW);
                 }
             }
         }
@@ -242,13 +249,18 @@ public class ReaderGroupStateManager {
      * @return A map from the new segment that was acquired to the offset to begin reading from within the segment.
      */
     Map<Segment, Long> acquireNewSegmentsIfNeeded(long timeLag) throws ReinitializationRequiredException {
-        if (!acquireTimer.hasRemaining()) {
-            sync.fetchUpdates();
-        }
+        fetchUpdatesIfNeeded();
         if (shouldAcquireSegment()) {
             return acquireSegment(timeLag);
         } else {
             return Collections.emptyMap();
+        }
+    }
+
+    private void fetchUpdatesIfNeeded() {
+        if (!fetchStateTimer.hasRemaining()) {
+            fetchStateTimer.reset(FETCH_STATE_INTERVAL);
+            sync.fetchUpdates();
         }
     }
     
@@ -263,7 +275,7 @@ public class ReaderGroupStateManager {
             if (sync.getState().getNumberOfUnassignedSegments() == 0) {
                 return false;
             }
-            acquireTimer.reset(UPDATE_TIME);
+            acquireTimer.reset(UPDATE_WINDOW);
             return true;
         }
     }

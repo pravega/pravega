@@ -1,7 +1,17 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.stream.impl;
 
@@ -234,7 +244,7 @@ public class ReaderGroupStateManagerTest {
         AssertExtensions.assertThrows(ReinitializationRequiredException.class,
                 () -> readerState2.releaseSegment(new Segment(scope, stream, 0), 711L, 0L));
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
         newSegments = readerState1.acquireNewSegmentsIfNeeded(0);
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 0)));
@@ -295,11 +305,11 @@ public class ReaderGroupStateManagerTest {
 
         assertTrue(Sets.intersection(segments1.keySet(), segments2.keySet()).isEmpty());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertFalse(reader1.releaseSegment(new Segment(scope, stream, 0), 0, 0));
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertTrue(reader1.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader1.findSegmentToReleaseIfRequired());
@@ -368,28 +378,28 @@ public class ReaderGroupStateManagerTest {
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertNotNull(reader1.findSegmentToReleaseIfRequired());
         reader1.releaseSegment(new Segment(scope, stream, 3), 3, 0);
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertNotNull(reader1.findSegmentToReleaseIfRequired());
         reader1.releaseSegment(new Segment(scope, stream, 4), 4, 0);
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertNotNull(reader1.findSegmentToReleaseIfRequired());
         reader1.releaseSegment(new Segment(scope, stream, 5), 5, 0);
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
@@ -414,7 +424,7 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments3 = reader3.acquireNewSegmentsIfNeeded(0);
         assertEquals(2, segments3.size());
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
         assertTrue(reader3.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader1.findSegmentToReleaseIfRequired());

@@ -1,5 +1,17 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.task.Stream;
 
@@ -232,17 +244,31 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
                                                       final Integer version, final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), context, executor)
-                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
-                        writeEvent(abortEventEventStreamWriter, abortStreamName, txid.toString(),
-                                new AbortEvent(scope, stream, txid), txid, status), executor), executor);
+                .thenComposeAsync(status -> {
+                    if (status == TxnStatus.ABORTING) {
+                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter,
+                                        abortStreamName, txid.toString(), new AbortEvent(scope, stream, txid), txid, status),
+                                executor);
+                    } else {
+                        // Status is ABORTED, return it.
+                        return CompletableFuture.completedFuture(status);
+                    }
+                }, executor);
     }
 
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
                                                        final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), context, executor)
-                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
-                        writeEvent(commitEventEventStreamWriter, commitStreamName, scope + stream,
-                                new CommitEvent(scope, stream, txid), txid, status), executor), executor);
+                .thenComposeAsync(status -> {
+                    if (status == TxnStatus.COMMITTING) {
+                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter,
+                                commitStreamName, scope + stream, new CommitEvent(scope, stream, txid), txid, status),
+                                executor);
+                    } else {
+                        // Status is COMMITTED, return it.
+                        return CompletableFuture.completedFuture(status);
+                    }
+                }, executor);
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
