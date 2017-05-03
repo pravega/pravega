@@ -116,6 +116,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setClientTcpNoDelay(true)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
+        config.setZkLedgersRootPath(this.config.getBkLegerPath());
         return new BookKeeper(config);
     }
 
