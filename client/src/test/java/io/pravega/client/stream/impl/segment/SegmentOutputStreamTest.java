@@ -106,13 +106,13 @@ public class SegmentOutputStreamTest {
         
         output.setupConnection();
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
-        output.write(new PendingEvent(null, getBuffer("test1"), new CompletableFuture<>()));
-        output.write(new PendingEvent(null, getBuffer("test2"), new CompletableFuture<>()));
+        output.write(new PendingEvent(null, 1, getBuffer("test1"), new CompletableFuture<>()));
+        output.write(new PendingEvent(null, 2, getBuffer("test2"), new CompletableFuture<>()));
         answerSuccess(connection);
         cf.getProcessor(uri).connectionDropped();
-        Async.testBlocking(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
+        Async.testBlocking(() -> output.write(new PendingEvent(null, 3, getBuffer("test3"), new CompletableFuture<>())),
                            () -> cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0)));
-        output.write(new PendingEvent(null, getBuffer("test4"), new CompletableFuture<>()));
+        output.write(new PendingEvent(null, 4, getBuffer("test4"), new CompletableFuture<>()));
         
         Append append1 = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null);
         Append append2 = new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null);
@@ -144,7 +144,7 @@ public class SegmentOutputStreamTest {
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
             ByteBuffer data, int num, Long expectedLength) throws SegmentSealedException, ConnectionFailedException {
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
-        output.write(new PendingEvent(null, data, acked, expectedLength));
+        output.write(new PendingEvent(null, num, data, acked, expectedLength));
         verify(connection).send(new Append(SEGMENT, cid, num, Unpooled.wrappedBuffer(data), expectedLength));
         assertEquals(false, acked.isDone());
     }
@@ -165,7 +165,7 @@ public class SegmentOutputStreamTest {
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
-        output.write(new PendingEvent(null, data, acked));
+        output.write(new PendingEvent(null, 1, data, acked));
         verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked.isDone());
         Async.testBlocking(() -> output.close(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1)));
@@ -198,7 +198,7 @@ public class SegmentOutputStreamTest {
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Boolean> acked1 = new CompletableFuture<>();
-        output.write(new PendingEvent(null, data, acked1));
+        output.write(new PendingEvent(null, 1, data, acked1));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked1.isDone());
         Async.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1)));
@@ -207,7 +207,7 @@ public class SegmentOutputStreamTest {
         order.verify(connection).send(new WireCommands.KeepAlive());
         
         CompletableFuture<Boolean> acked2 = new CompletableFuture<>();
-        output.write(new PendingEvent(null, data, acked2));
+        output.write(new PendingEvent(null, 2, data, acked2));
         order.verify(connection).send(new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked2.isDone());
         Async.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 2)));
@@ -252,7 +252,7 @@ public class SegmentOutputStreamTest {
         ByteBuffer data = ByteBuffer.allocate(PendingEvent.MAX_WRITE_SIZE + 1);
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
         try {
-            output.write(new PendingEvent("routingKey", data, acked));
+            output.write(new PendingEvent("routingKey", 1, data, acked));
             fail("Did not throw");
         } catch (IllegalArgumentException e) {
             // expected

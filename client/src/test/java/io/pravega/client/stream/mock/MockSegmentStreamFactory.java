@@ -35,7 +35,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
+    public SegmentOutputStream createOutputStreamForSegment(UUID writerId, Segment segment) {
         MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
         segments.putIfAbsent(segment, streams);
         return segments.get(segment);

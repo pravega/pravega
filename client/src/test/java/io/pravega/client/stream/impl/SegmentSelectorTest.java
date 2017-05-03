@@ -19,6 +19,7 @@ import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
 import java.util.Arrays;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.Test;
@@ -37,7 +38,7 @@ public class SegmentSelectorTest {
     public void testUsesAllSegments() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), UUID.randomUUID(), controller, factory);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -64,7 +65,7 @@ public class SegmentSelectorTest {
     public void testNullRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), UUID.randomUUID(), controller, factory);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -91,7 +92,7 @@ public class SegmentSelectorTest {
     public void testSameRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), UUID.randomUUID(), controller, factory);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));

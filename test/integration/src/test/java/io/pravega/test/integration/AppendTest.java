@@ -129,7 +129,7 @@ public class AppendTest {
         AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment));
 
         assertEquals(segment, setup.getSegment());
-        assertEquals(uuid, setup.getConnectionId());
+        assertEquals(uuid, setup.getWriterId());
 
         DataAppended ack = (DataAppended) sendRequest(channel,
                                                       new Append(segment, uuid, data.readableBytes(), data, null));
@@ -172,6 +172,7 @@ public class AppendTest {
         String testString = "Hello world\n";
         String scope = "scope";
         String stream = "stream";
+        UUID writerId = UUID.randomUUID();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
@@ -186,9 +187,9 @@ public class AppendTest {
 
         Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment);
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(writerId, segment);
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
-        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
+        out.write(new PendingEvent(null, 0, ByteBuffer.wrap(testString.getBytes()), ack));
         assertTrue(ack.get(5, TimeUnit.SECONDS));
     }
 

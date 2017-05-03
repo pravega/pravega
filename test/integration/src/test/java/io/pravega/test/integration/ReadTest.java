@@ -180,8 +180,8 @@ public class ReadTest {
                                        .getSegments().iterator().next();
 
         @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment);
-        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
+        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(UUID.randomUUID(), segment);
+        out.write(new PendingEvent(null, 1, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
         @Cleanup("close")
