@@ -10,57 +10,43 @@ application.
 **Verify the following prerequisite**:
 
 ```
-JDK version 1.8
+Java 8
 ```
 
 **Download Pravega**
 
+Download the Pravega release from the [github releases page](https://github.com/pravega/pravega/releases).
+If you prefer to build Pravega yourself, you can download the code and run `./gradlew distribution`. More 
+details are shown in the Pravega [README.md](https://github.com/pravega/pravega/blob/master/README.md).
+
 ```
-$ mkdir pravega
-$ cd pravega
-$ git clone https://github.com/pravega/pravega
+$ tar xfvz pravega-0.1.0.tgz
 ```
 
-
-**Launch Pravega in a single node**
+**Run Pravega in standalone mode**
 
 This launches all the components of Pravega on your local machine.
-NOTE: this is for testing/demo purposes only, *do not* use this mode of
-  deployment in Production! We talk about multi-node production quality deployment of Pravega
-            [elsewhere](http://pravega.io/docs//Deploying-and-Managing-Pravega/index.html).
-             
+NOTE: this is for testing/demo purposes only, *do not* use this mode of deployment 
+in Production! More options for [Running Pravega](deployment/deployment.md) are
+covered in the running Pravega guide.           
 
 ```
-$ cd pravega 
-$ ./gradlew startSingleNode
+$ cd pravega-0.1.0
+$ bin/pravega-standalone
 ```
 
-Thats it.  Pravega should be up and running very soon.  Look for the
-  "Pravega Sandbox is running locally now." message on the console to be sure
-  Pravega has launched successfully:
-```
-Pravega Sandbox is running locally now. You could access it at 127.0.0.1:9090
-```
+That's it.  Pravega should be up and running very soon.
 
 ## Running a sample Pravega App is simple too
 
 Pravega maintains a separate github repository for sample applications.  It is located at:
 [https://github.com/pravega/pravega-samples](https://github.com/pravega/pravega-samples)
 
-Lets download and run the "Hello World" Pravega sample reader and writer apps.
+Lets download and run the "Hello World" Pravega sample reader and writer apps. Pravega
+dependencies will be pulled from maven central.
 
-**Generate the client jar files and publish them to the local maven repo** 
--   Note: you need to do this only if you have downloaded and are running a
-        nightly build of Pravega.  If you are using a released build, the
-        artifacts should already be in Maven Central.
--   Note: maven 2 needs to be installed and running on your machine
-
-```
-$ cd pravega 
-$ ./gradlew publishMavenPublicationToMavenLocal
-```
-  -   The above command should generate the required jar files into your local
-      maven repo.
+Note: The samples can also use a locally compiled version of Pravega. For more information
+about this see the note on maven publishing in the [README.md](https://github.com/pravega/pravega/blob/master/README.md).
 
 **Download the Pravega-Samples git repo**
 
