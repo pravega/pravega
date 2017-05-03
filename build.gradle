@@ -580,26 +580,84 @@ task preparePravegaImage(type: Copy) {
     }
 }
 
-task buildPravegaImage(type: Exec, dependsOn: preparePravegaImage) {
-    executable dockerExecutable
-    args "build"
-    args "-t", "${pravegaBaseTag}:${pravegaVersion}"
-    args "-t", "${pravegaBaseTag}:latest"
-    args preparePravegaImage.destinationDir.absolutePath
+task buildPravegaImage(type: DockerBuildTask, dependsOn: preparePravegaImage) {
+    baseTag = pravegaBaseTag
+    dockerDir = preparePravegaImage.destinationDir.absolutePath
 }
 
-task buildBookkeeperImage(type: Exec) {
-    executable dockerExecutable
-    args "build"
-    args "-t", "${bookkeeperBaseTag}:${pravegaVersion}"
-    args "-t", "${bookkeeperBaseTag}:latest"
-    args "docker/bookkeeper"
+task buildBookkeeperImage(type: DockerBuildTask) {
+    baseTag = pravegaBaseTag
+    dockerDir = "docker/bookkeeper"
 }
 
 task docker(dependsOn: [buildPravegaImage, buildBookkeeperImage]) {
     description = "Builds all docker images"
 }
 
+task pushPravegaImage(type: DockerPushTask) {
+    // No explicit dependency on building the pravega image
+    mustRunAfter buildPravegaImage
+    tag = "${pravegaBaseTag}:${version}"
+}
+
+task pushBookkeeperImage(type: DockerPushTask) {
+    // No explicit dependency on building the bookkeeper image
+    mustRunAfter buildBookkeeperImage
+    tag = "${pravegaBaseTag}:${version}"
+}
+
+task dockerPush(dependsOn: [pushPravegaImage, pushBookkeeperImage]) {
+    description = "Push all docker images"
+}
+
 task distribution(dependsOn: [assembleDist, assembleClientDist, assembleJavadocDist]) {
     description = "Builds a distribution package"
+}
+
+/**
+ * Task for building a docker image
+ */
+class DockerBuildTask extends Exec {
+    String baseTag
+    String dockerDir
+
+    DockerBuildTask() {
+        executable project.dockerExecutable
+        args "build"
+        args "-t", "${->baseTag}:${project.version}"
+        args "-t", "${->baseTag}:latest"
+        args "${->dockerDir}"
+    }
+}
+
+/**
+ * Task for pushing an image, which can either push to dockerhub or to a private registry.
+ * If pushing to dockerhub, you must be logged using using `docker login` before running.
+ */
+class DockerPushTask extends Exec {
+    String tag
+
+    DockerPushTask() {
+        executable project.dockerExecutable
+        args "push", "${->getRemoteTag()}"
+    }
+
+    protected void exec() {
+        // Tag the image with the remote image name first
+        if (project.hasProperty('dockerRegistry')) {
+            project.exec {
+                commandLine project.dockerExecutable, "tag", tag, getRemoteTag()
+            }
+        }
+        super.exec()
+    }
+
+    String getRemoteTag() {
+        if (project.hasProperty('dockerRegistry')) {
+            return "${project.property('dockerRegistry')}/${tag}"
+        }
+        else {
+            return tag
+        }
+    }
 }
