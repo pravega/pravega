@@ -88,11 +88,14 @@ public final class ModelHelper {
      * @return New instance of RetentionPolicy.
      */
     public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
-        Preconditions.checkNotNull(policy, "policy");
-        return RetentionPolicy.builder()
-                .type(RetentionPolicy.Type.valueOf(policy.getType().name()))
-                .value(policy.getValue())
-                .build();
+        if (policy != null) {
+            return RetentionPolicy.builder()
+                    .type(RetentionPolicy.Type.valueOf(policy.getType().name()))
+                    .value(policy.getValue())
+                    .build();
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -234,11 +237,14 @@ public final class ModelHelper {
      * @return Instance of Retention Policy Impl.
      */
     public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
-        Preconditions.checkNotNull(policyModel, "policyModel");
-        return Controller.RetentionPolicy.newBuilder()
-                .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getType().name()))
-                .setValue(policyModel.getValue())
-                .build();
+        if (policyModel != null) {
+            return Controller.RetentionPolicy.newBuilder()
+                    .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getType().name()))
+                    .setValue(policyModel.getValue())
+                    .build();
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -249,11 +255,13 @@ public final class ModelHelper {
      */
     public static final StreamConfig decode(final StreamConfiguration configModel) {
         Preconditions.checkNotNull(configModel, "configModel");
-        return StreamConfig.newBuilder()
+        final StreamConfig.Builder builder = StreamConfig.newBuilder()
                 .setStreamInfo(createStreamInfo(configModel.getScope(), configModel.getStreamName()))
-                .setScalingPolicy(decode(configModel.getScalingPolicy()))
-                .setRetentionPolicy(decode(configModel.getRetentionPolicy()))
-                .build();
+                .setScalingPolicy(decode(configModel.getScalingPolicy()));
+        if (configModel.getRetentionPolicy() != null) {
+            builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
+        }
+        return builder.build();
     }
 
     /**
@@ -326,5 +334,4 @@ public final class ModelHelper {
                                 .collect(Collectors.toList()))
                 .build();
     }
-
 }

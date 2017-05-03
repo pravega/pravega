@@ -31,7 +31,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -171,7 +170,6 @@ public class MultiSegmentStoreTest {
         Assert.assertTrue(streamManager.createStream(scope, stream, StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(stream)
-                .retentionPolicy(RetentionPolicy.disabled())
                 .scalingPolicy(ScalingPolicy.fixed(10))
                 .build()));
 

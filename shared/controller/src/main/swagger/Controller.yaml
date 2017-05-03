@@ -294,7 +294,6 @@ definitions:
       type:
         type: string
         enum:
-        - DISABLED
         - LIMITED_TIME_MILLIS
         - LIMITED_SIZE_BYTES
       value:

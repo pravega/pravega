@@ -37,6 +37,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class ModelHelperTest {
 
@@ -121,11 +122,8 @@ public class ModelHelperTest {
         assertEquals(RetentionPolicy.Type.TIME, policy2.getType());
         assertEquals(Duration.ofDays(100L).toMillis(), (long) policy2.getValue());
 
-        RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.disabled()));
-        assertEquals(RetentionPolicy.Type.DISABLED, policy3.getType());
-
-        AssertExtensions.assertThrows(NullPointerException.class,
-                () -> ModelHelper.encode((Controller.RetentionPolicy) null));
+        RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode((RetentionPolicy) null));
+        assertNull(policy3);
     }
 
     @Test
@@ -138,10 +136,8 @@ public class ModelHelperTest {
         assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, policy2.getType());
         assertEquals(Duration.ofDays(100L).toMillis(), policy2.getValue());
 
-        Controller.RetentionPolicy policy3 = ModelHelper.decode(RetentionPolicy.disabled());
-        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.DISABLED, policy3.getType());
-
-        AssertExtensions.assertThrows(NullPointerException.class, () -> ModelHelper.decode((RetentionPolicy) null));
+        Controller.RetentionPolicy policy3 = ModelHelper.decode((RetentionPolicy) null);
+        assertNull(policy3);
     }
 
     @Test(expected = NullPointerException.class)

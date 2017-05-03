@@ -38,12 +38,7 @@ public class RetentionPolicy implements Serializable {
         /**
          * Set retention based on the total size of the data in the stream in bytes.
          */
-        SIZE,
-
-        /**
-         * Disable retention policy so stream data is kept forever.
-         */
-        DISABLED
+        SIZE
     }
 
     private final Type type;
@@ -55,9 +50,5 @@ public class RetentionPolicy implements Serializable {
 
     public static RetentionPolicy bySizeBytes(long size) {
         return new RetentionPolicy(Type.SIZE, size);
-    }
-
-    public static RetentionPolicy disabled() {
-        return new RetentionPolicy(Type.DISABLED, 0L);
     }
 }

@@ -58,17 +58,16 @@ public class ModelHelper {
             );
         }
         RetentionPolicy retentionPolicy = null;
-        switch (createStreamRequest.getRetentionPolicy().getType()) {
-            case DISABLED:
-                retentionPolicy = RetentionPolicy.disabled();
-                break;
-            case LIMITED_SIZE_BYTES:
-                retentionPolicy = RetentionPolicy.bySizeBytes(createStreamRequest.getRetentionPolicy().getValue());
-                break;
-            case LIMITED_TIME_MILLIS:
-                retentionPolicy =
-                        RetentionPolicy.byTime(Duration.ofMillis(createStreamRequest.getRetentionPolicy().getValue()));
-                break;
+        if (createStreamRequest.getRetentionPolicy() != null) {
+            switch (createStreamRequest.getRetentionPolicy().getType()) {
+                case SIZE_BYTES:
+                    retentionPolicy = RetentionPolicy.bySizeBytes(createStreamRequest.getRetentionPolicy().getValue());
+                    break;
+                case TIME_MILLIS:
+                    retentionPolicy =
+                            RetentionPolicy.byTime(Duration.ofMillis(createStreamRequest.getRetentionPolicy().getValue()));
+                    break;
+            }
         }
         return StreamConfiguration.builder()
                 .scope(scope)
@@ -106,17 +105,16 @@ public class ModelHelper {
             );
         }
         RetentionPolicy retentionPolicy = null;
-        switch (updateStreamRequest.getRetentionPolicy().getType()) {
-            case DISABLED:
-                retentionPolicy = RetentionPolicy.disabled();
-                break;
-            case LIMITED_SIZE_BYTES:
-                retentionPolicy = RetentionPolicy.bySizeBytes(updateStreamRequest.getRetentionPolicy().getValue());
-                break;
-            case LIMITED_TIME_MILLIS:
-                retentionPolicy =
-                        RetentionPolicy.byTime(Duration.ofMillis(updateStreamRequest.getRetentionPolicy().getValue()));
-                break;
+        if (updateStreamRequest.getRetentionPolicy() != null) {
+            switch (updateStreamRequest.getRetentionPolicy().getType()) {
+                case SIZE_BYTES:
+                    retentionPolicy = RetentionPolicy.bySizeBytes(updateStreamRequest.getRetentionPolicy().getValue());
+                    break;
+                case TIME_MILLIS:
+                    retentionPolicy =
+                            RetentionPolicy.byTime(Duration.ofMillis(updateStreamRequest.getRetentionPolicy().getValue()));
+                    break;
+            }
         }
         return StreamConfiguration.builder()
                                   .scope(scope)
@@ -146,19 +144,19 @@ public class ModelHelper {
             scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
         }
 
-        RetentionConfig retentionConfig = new RetentionConfig();
-        switch (streamConfiguration.getRetentionPolicy().getType()) {
-            case DISABLED:
-                retentionConfig.setType(RetentionConfig.TypeEnum.DISABLED);
-                break;
-            case SIZE:
-                retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_BYTES);
-                retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
-                break;
-            case TIME:
-                retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_TIME_MILLIS);
-                retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
-                break;
+        RetentionConfig retentionConfig = null;
+        if (streamConfiguration.getRetentionPolicy() != null) {
+            retentionConfig = new RetentionConfig();
+            switch (streamConfiguration.getRetentionPolicy().getType()) {
+                case SIZE:
+                    retentionConfig.setType(RetentionConfig.TypeEnum.SIZE_BYTES);
+                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
+                    break;
+                case TIME:
+                    retentionConfig.setType(RetentionConfig.TypeEnum.TIME_MILLIS);
+                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
+                    break;
+            }
         }
 
         StreamProperty streamProperty = new StreamProperty();
