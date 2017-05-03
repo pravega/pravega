@@ -129,7 +129,7 @@ class SegmentAggregates {
         if (age > TICK_INTERVAL) {
             lastTick.set(newTick);
             final long count = currentCount.getAndSet(0);
-            computeDecay(count, Duration.ofMillis(age).toMillis() / 1000);
+            computeDecay(count, (double) Duration.ofMillis(age).toMillis() / 1000.0);
         }
     }
 
