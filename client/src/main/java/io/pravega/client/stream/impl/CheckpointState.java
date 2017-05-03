@@ -46,7 +46,9 @@ public class CheckpointState {
     @Synchronized
     void beginNewCheckpoint(String checkpointId, Set<String> currentReaders) {
         if (!checkpointPositions.containsKey(checkpointId)) {
-            uncheckpointedHosts.put(checkpointId, new ArrayList<>(currentReaders));
+            if (!currentReaders.isEmpty()) {
+                uncheckpointedHosts.put(checkpointId, new ArrayList<>(currentReaders));
+            }
             checkpointPositions.put(checkpointId, new HashMap<>());
             checkpoints.add(checkpointId);
         }
