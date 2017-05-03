@@ -101,6 +101,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * 10) // Very frequent rollovers.
                 .with(BookKeeperConfig.ZK_NAMESPACE, namespace)
+                .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
                 .build());
 
         // Create default factory.
