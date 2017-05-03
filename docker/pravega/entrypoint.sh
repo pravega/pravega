@@ -22,8 +22,7 @@ configure_segmentstore() {
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
-    add_system_property "dlog.hostname" "${ZK_URL%:*}"
-    add_system_property "dlog.port" "${ZK_URL#*:}"
+    add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
