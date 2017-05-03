@@ -19,7 +19,7 @@ import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamConfiguration;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;

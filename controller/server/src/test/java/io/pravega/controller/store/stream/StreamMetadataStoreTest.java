@@ -17,8 +17,8 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.stream.ScalingPolicy;
-import io.pravega.stream.StreamConfiguration;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;

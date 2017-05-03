@@ -15,7 +15,7 @@
  */
 package io.pravega.test.integration.demo;
 
-import io.pravega.ClientFactory;
+import io.pravega.client.ClientFactory;
 import io.pravega.controller.util.Config;
 import io.pravega.common.util.Retry;
 import io.pravega.service.contracts.StreamSegmentStore;
@@ -26,16 +26,16 @@ import io.pravega.service.server.host.stat.SegmentStatsRecorder;
 import io.pravega.service.server.store.ServiceBuilder;
 import io.pravega.service.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.EventWriterConfig;
-import io.pravega.stream.ScalingPolicy;
-import io.pravega.stream.StreamConfiguration;
-import io.pravega.stream.Transaction;
-import io.pravega.stream.impl.ClientFactoryImpl;
-import io.pravega.stream.impl.Controller;
-import io.pravega.stream.impl.JavaSerializer;
-import io.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import io.pravega.stream.mock.MockClientFactory;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
+import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;

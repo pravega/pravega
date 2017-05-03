@@ -15,11 +15,11 @@
  */
 package io.pravega.controller.mocks;
 
-import io.pravega.stream.AckFuture;
-import io.pravega.stream.EventStreamReader;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.EventWriterConfig;
-import io.pravega.stream.Transaction;
+import io.pravega.client.stream.AckFuture;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Transaction;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.ArrayList;

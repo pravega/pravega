@@ -16,7 +16,7 @@
 package io.pravega.controller.mocks;
 
 
-import io.pravega.stream.AckFuture;
+import io.pravega.client.stream.AckFuture;
 import com.google.common.util.concurrent.AbstractFuture;
 
 import java.util.concurrent.CompletableFuture;

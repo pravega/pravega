@@ -17,7 +17,7 @@ package io.pravega.controller.eventProcessor;
 
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.stream.Serializer;
+import io.pravega.client.stream.Serializer;
 import com.google.common.base.Preconditions;
 import lombok.Data;
 

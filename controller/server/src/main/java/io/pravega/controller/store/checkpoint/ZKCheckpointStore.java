@@ -16,8 +16,8 @@
 package io.pravega.controller.store.checkpoint;
 
 import io.pravega.common.util.Retry;
-import io.pravega.stream.Position;
-import io.pravega.stream.impl.JavaSerializer;
+import io.pravega.client.stream.Position;
+import io.pravega.client.stream.impl.JavaSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Lombok;

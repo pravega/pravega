@@ -15,11 +15,11 @@
  */
 package io.pravega.connectors.flink;
 
-import io.pravega.ClientFactory;
-import io.pravega.stream.AckFuture;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.EventWriterConfig;
-import io.pravega.stream.Serializer;
+import io.pravega.client.ClientFactory;
+import io.pravega.client.stream.AckFuture;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Serializer;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.configuration.Configuration;

@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-include 'common', 'clients:streaming', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host',
+include 'common', 'client', 'client:admin', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host',
         'shared:controller', 'controller:server', 'connectors:flink','shared:protocol',
         'test:integration', 'test:common', 'benchmark', 'singlenode', 'test:system', 'shared', 'shared:metrics'

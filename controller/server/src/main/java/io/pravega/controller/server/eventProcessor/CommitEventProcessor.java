@@ -25,8 +25,8 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.stream.Position;
-import io.pravega.stream.impl.netty.ConnectionFactory;
+import io.pravega.client.stream.Position;
+import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;

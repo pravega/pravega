@@ -15,11 +15,11 @@
  */
 package io.pravega.test.integration.demo;
 
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.EventWriterConfig;
-import io.pravega.stream.Transaction;
-import io.pravega.stream.impl.JavaSerializer;
-import io.pravega.stream.mock.MockStreamManager;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.mock.MockStreamManager;
 
 import lombok.Cleanup;
 

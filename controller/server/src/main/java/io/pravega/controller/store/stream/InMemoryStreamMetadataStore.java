@@ -18,7 +18,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamConfiguration;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 

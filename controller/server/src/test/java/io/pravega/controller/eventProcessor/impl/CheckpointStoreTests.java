@@ -17,8 +17,8 @@ package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
-import io.pravega.stream.Position;
-import io.pravega.stream.impl.PositionImpl;
+import io.pravega.client.stream.Position;
+import io.pravega.client.stream.impl.PositionImpl;
 import org.junit.Assert;
 import org.junit.After;
 import org.junit.Before;

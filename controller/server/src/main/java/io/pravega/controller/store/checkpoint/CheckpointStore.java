@@ -15,7 +15,7 @@
  */
 package io.pravega.controller.store.checkpoint;
 
-import io.pravega.stream.Position;
+import io.pravega.client.stream.Position;
 
 import java.util.List;
 import java.util.Map;

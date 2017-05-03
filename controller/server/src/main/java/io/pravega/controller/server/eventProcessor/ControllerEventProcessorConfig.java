@@ -16,7 +16,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.controller.eventProcessor.CheckpointConfig;
-import io.pravega.stream.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 
 /**
  * Configuration of controller event processors.
