@@ -235,6 +235,7 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Create Stream Status", 201, response.getStatus());
         streamResponseActual = response.readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+        response.close();
 
         // Test to create a stream which doesn't exist and have Retention Policy INFINITE
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
@@ -242,6 +243,7 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Create Stream Status", 201, response.getStatus());
         streamResponseActual = response.readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected2, streamResponseActual);
+        response.close();
 
         // Test to create a stream with internal stream name
         final CreateStreamRequest streamRequest = new CreateStreamRequest();
@@ -249,6 +251,7 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
         response = target(streamResourceURI).request().buildPost(Entity.json(streamRequest)).invoke();
         assertEquals("Create Stream Status", 400, response.getStatus());
+        response.close();
 
         // Test to create a stream which doesn't exist and have Scaling Policy FIXED_NUM_SEGMENTS
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
@@ -256,11 +259,13 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Create Stream Status", 201, response.getStatus());
         streamResponseActual = response.readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected3, streamResponseActual);
+        response.close();
 
         // Test to create a stream that already exists
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
         response = target(streamResourceURI).request().buildPost(Entity.json(createStreamRequest)).invoke();
         assertEquals("Create Stream Status", 409, response.getStatus());
+        response.close();
 
         // Test for validation of create stream request object
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus3);
@@ -268,11 +273,13 @@ public class StreamMetaDataTests extends JerseyTest {
         // TODO: Server should be returning 400 here, change this once issue
         // https://github.com/pravega/pravega/issues/531 is fixed.
         assertEquals("Create Stream Status", 500, response.getStatus());
+        response.close();
 
         // Test create stream for non-existent scope
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus4);
         response = target(streamResourceURI).request().buildPost(Entity.json(createStreamRequest3)).invoke();
         assertEquals("Create Stream Status for non-existent scope", 404, response.getStatus());
+        response.close();
     }
 
     /**
@@ -289,17 +296,20 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Update Stream Status", 200, response.getStatus());
         streamResponseActual = response.readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+        response.close();
 
         // Test sending extra fields in the request object to check if json parser can handle it.
         response = target(resourceURI).request().buildPut(Entity.json(createStreamRequest)).invoke();
         assertEquals("Update Stream Status", 200, response.getStatus());
         streamResponseActual = response.readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+        response.close();
 
         // Test to update an non-existing stream
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus2);
         response = target(resourceURI).request().buildPut(Entity.json(updateStreamRequest2)).invoke();
         assertEquals("Update Stream Status", 404, response.getStatus());
+        response.close();
 
         // Test for validation of request object
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus3);
@@ -307,11 +317,13 @@ public class StreamMetaDataTests extends JerseyTest {
         // TODO: Server should be returning 400 here, change this once issue
         // https://github.com/pravega/pravega/issues/531 is fixed.
         assertEquals("Update Stream Status", 500, response.getStatus());
+        response.close();
 
         // Test to update stream for non-existent scope
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus4);
         response = target(resourceURI).request().buildPut(Entity.json(updateStreamRequest)).invoke();
         assertEquals("Update Stream Status", 404, response.getStatus());
+        response.close();
     }
 
     /**
@@ -329,6 +341,7 @@ public class StreamMetaDataTests extends JerseyTest {
         streamResponseActual = response.readEntity(StreamProperty.class);
         assertEquals("Get Stream Config Status", 200, response.getStatus());
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+        response.close();
 
         // Get a non-existent stream
         when(mockControllerService.getStream(scope1, stream2)).thenReturn(CompletableFuture.supplyAsync(() -> {
@@ -337,6 +350,7 @@ public class StreamMetaDataTests extends JerseyTest {
         response = target(resourceURI2).request().buildGet().invoke();
         streamResponseActual = response.readEntity(StreamProperty.class);
         assertEquals("Get Stream Config Status", 404, response.getStatus());
+        response.close();
     }
 
     /**
@@ -353,24 +367,28 @@ public class StreamMetaDataTests extends JerseyTest {
                 DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.SUCCESS).build()));
         Response response = target(resourceURI).request().buildDelete().invoke();
         assertEquals("Delete Stream response code", 204, response.getStatus());
+        response.close();
 
         // Test to delete a unsealed stream
         when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
                 DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.STREAM_NOT_SEALED).build()));
         response = target(resourceURI).request().buildDelete().invoke();
         assertEquals("Delete Stream response code", 412, response.getStatus());
+        response.close();
 
         // Test to delete a non existent stream
         when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
                 DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.STREAM_NOT_FOUND).build()));
         response = target(resourceURI).request().buildDelete().invoke();
         assertEquals("Delete Stream response code", 404, response.getStatus());
+        response.close();
 
         // Test to delete a stream giving an internal server error
         when(mockControllerService.deleteStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
                 DeleteStreamStatus.newBuilder().setStatus(DeleteStreamStatus.Status.FAILURE).build()));
         response = target(resourceURI).request().buildDelete().invoke();
         assertEquals("Delete Stream response code", 500, response.getStatus());
+        response.close();
     }
 
     /**
@@ -389,18 +407,21 @@ public class StreamMetaDataTests extends JerseyTest {
                 CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build()));
         Response response = target(resourceURI).request().buildPost(Entity.json(createScopeRequest)).invoke();
         assertEquals("Create Scope response code", 201, response.getStatus());
+        response.close();
 
         // Test to create an existing scope.
         when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
                 CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build()));
         response = target(resourceURI).request().buildPost(Entity.json(createScopeRequest)).invoke();
         assertEquals("Create Scope response code", 409, response.getStatus());
+        response.close();
 
         // create scope failure.
         when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
                 CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build()));
         response = target(resourceURI).request().buildPost(Entity.json(createScopeRequest)).invoke();
         assertEquals("Create Scope response code", 500, response.getStatus());
+        response.close();
 
         // Test to create an invalid scope name.
         when(mockControllerService.createScope(scope1)).thenReturn(CompletableFuture.completedFuture(
@@ -408,6 +429,7 @@ public class StreamMetaDataTests extends JerseyTest {
         createScopeRequest.setScopeName("_system");
         response = target(resourceURI).request().buildPost(Entity.json(createScopeRequest)).invoke();
         assertEquals("Create Scope response code", 400, response.getStatus());
+        response.close();
     }
 
     /**
@@ -425,24 +447,28 @@ public class StreamMetaDataTests extends JerseyTest {
                 DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build()));
         Response response = target(resourceURI).request().buildDelete().invoke();
         assertEquals("Delete Scope response code", 204, response.getStatus());
+        response.close();
 
         // Test to delete scope with existing streams.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
                 DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build()));
         response = target(resourceURI).request().buildDelete().invoke();
         assertEquals("Delete Scope response code", 412, response.getStatus());
+        response.close();
 
         // Test to delete non-existing scope.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
                 DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build()));
         response = target(resourceURI).request().buildDelete().invoke();
         assertEquals("Delete Scope response code", 404, response.getStatus());
+        response.close();
 
         // Test delete scope failure.
         when(mockControllerService.deleteScope(scope1)).thenReturn(CompletableFuture.completedFuture(
                 DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build()));
         response = target(resourceURI).request().buildDelete().invoke();
         assertEquals("Delete Scope response code", 500, response.getStatus());
+        response.close();
     }
 
     /**
@@ -460,6 +486,7 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.getScope(scope1)).thenReturn(CompletableFuture.completedFuture("scope1"));
         Response response = target(resourceURI).request().buildGet().invoke();
         assertEquals("Get existent scope", 200, response.getStatus());
+        response.close();
 
         // Test to get non-existent scope
         when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.supplyAsync(() -> {
@@ -467,6 +494,7 @@ public class StreamMetaDataTests extends JerseyTest {
         }));
         response = target(resourceURI2).request().buildGet().invoke();
         assertEquals("Get non existent scope", 404, response.getStatus());
+        response.close();
 
         //Test for get scope failure.
         final CompletableFuture<String> completableFuture2 = new CompletableFuture<>();
@@ -474,6 +502,7 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.getScope(scope1)).thenReturn(completableFuture2);
         response = target(resourceURI).request().buildGet().invoke();
         assertEquals("Get scope fail test", 500, response.getStatus());
+        response.close();
     }
 
     /**
@@ -495,6 +524,7 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("List count", scopesList1.getScopes().size(), 2);
         assertEquals("List element", scopesList1.getScopes().get(0).getScopeName(), "scope1");
         assertEquals("List element", scopesList1.getScopes().get(1).getScopeName(), "scope2");
+        response.close();
 
         // Test for list scopes failure.
         final CompletableFuture<List<String>> completableFuture = new CompletableFuture<>();
@@ -502,6 +532,7 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.listScopes()).thenReturn(completableFuture);
         response = target(resourceURI).request().buildGet().invoke();
         assertEquals("List Scopes response code", 500, response.getStatus());
+        response.close();
     }
 
     /**
@@ -538,6 +569,7 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("List count", streamsList1.getStreams().size(), 2);
         assertEquals("List element", streamsList1.getStreams().get(0).getStreamName(), "stream1");
         assertEquals("List element", streamsList1.getStreams().get(1).getStreamName(), "stream2");
+        response.close();
 
         // Test for list streams for invalid scope.
         final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
@@ -545,6 +577,7 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
         response = target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 404, response.getStatus());
+        response.close();
 
         // Test for list streams failure.
         final CompletableFuture<List<StreamConfiguration>> completableFuture = new CompletableFuture<>();
@@ -552,6 +585,7 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture);
         response = target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 500, response.getStatus());
+        response.close();
 
         // Test for filtering streams.
         final StreamConfiguration streamConfiguration3 = StreamConfiguration.builder()
@@ -570,12 +604,15 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("List count", 2, streamsListResp.getStreams().size());
         assertEquals("List element", "stream1", streamsListResp.getStreams().get(0).getStreamName());
         assertEquals("List element", "stream2", streamsListResp.getStreams().get(1).getStreamName());
+        response.close();
+
         response = target(resourceURI).queryParam("showInternalStreams", "true").request().buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
         streamsListResp = response.readEntity(StreamsList.class);
         assertEquals("List count", 1, streamsListResp.getStreams().size());
         assertEquals("List element", NameUtils.getInternalNameForStream("stream3"),
                 streamsListResp.getStreams().get(0).getStreamName());
+        response.close();
 
         // Test to list large number of streams.
         streamsList = Collections.nCopies(1000, streamConfiguration1);
@@ -584,6 +621,7 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("List Streams response code", 200, response.getStatus());
         final StreamsList streamsList2 = response.readEntity(StreamsList.class);
         assertEquals("List count", 200, streamsList2.getStreams().size());
+        response.close();
     }
 
     /**
@@ -599,6 +637,7 @@ public class StreamMetaDataTests extends JerseyTest {
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         Response response = target(resourceURI).request().buildPut(Entity.json(streamState)).invoke();
         assertEquals("Update Stream State response code", 200, response.getStatus());
+        response.close();
 
         // Test to seal a non existent scope.
         when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
@@ -606,6 +645,7 @@ public class StreamMetaDataTests extends JerseyTest {
         streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         response = target(resourceURI).request().buildPut(Entity.json(streamState)).invoke();
         assertEquals("Update Stream State response code", 404, response.getStatus());
+        response.close();
 
         // Test to seal a non existent stream.
         when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
@@ -613,6 +653,7 @@ public class StreamMetaDataTests extends JerseyTest {
         streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         response = target(resourceURI).request().buildPut(Entity.json(streamState)).invoke();
         assertEquals("Update Stream State response code", 404, response.getStatus());
+        response.close();
 
         // Test to check failure.
         when(mockControllerService.sealStream(scope1, stream1)).thenReturn(CompletableFuture.completedFuture(
@@ -620,6 +661,7 @@ public class StreamMetaDataTests extends JerseyTest {
         streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         response = target(resourceURI).request().buildPut(Entity.json(streamState)).invoke();
         assertEquals("Update Stream State response code", 500, response.getStatus());
+        response.close();
     }
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
