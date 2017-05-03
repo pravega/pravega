@@ -1,18 +1,27 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.logs;
 
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.service.storage.LogAddress;
 import io.pravega.test.common.AssertExtensions;
+import java.util.List;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.List;
 
 /**
  * Unit tests for the DataFrame class.
@@ -60,12 +69,11 @@ public class DataFrameTests {
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
 
-        byte[] serialization = new byte[writeFrame.getLength()];
-        int bytesRead = StreamHelpers.readAll(writeFrame.getData(), serialization, 0, serialization.length);
-        Assert.assertEquals("StreamHelpers.readAll did not read the entire DataFrame serialization.", serialization.length, bytesRead);
+        val frameData = writeFrame.getData();
+        Assert.assertEquals("Unexpected length from getData().", writeFrame.getLength(), frameData.getLength());
 
         // Read them back, by deserializing the frame.
-        DataFrame readFrame = new DataFrame(serialization);
+        DataFrame readFrame = new DataFrame(new ByteArraySegment(frameData.array(), frameData.arrayOffset(), frameData.getLength()));
         DataFrameTestHelpers.checkReadRecords(readFrame, allRecords, b -> b);
     }
 

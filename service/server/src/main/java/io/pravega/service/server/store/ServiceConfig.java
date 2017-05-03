@@ -1,16 +1,27 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.store;
 
+import com.google.common.base.Strings;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
-
-import com.google.common.base.Strings;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -59,7 +70,6 @@ public class ServiceConfig {
      */
     @Getter
     private final String listeningIPAddress;
-
 
     /**
      * Pravega segment store allows a configuration in which it connects to an IP address:port pair on the node and a
@@ -121,7 +131,7 @@ public class ServiceConfig {
         int publishedPort;
         try {
             publishedPort = properties.getInt(PUBLISHED_PORT);
-        }  catch (ConfigurationException e) {
+        } catch (ConfigurationException e) {
             publishedPort = this.listeningPort;
         }
         this.publishedPort = publishedPort;

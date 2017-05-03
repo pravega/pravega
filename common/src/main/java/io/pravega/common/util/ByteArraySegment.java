@@ -1,7 +1,17 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
@@ -9,7 +19,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
 import com.google.common.base.Preconditions;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,24 +93,18 @@ public class ByteArraySegment implements ArrayView {
     }
 
     @Override
-    public void set(int index, byte value) {
-        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
-        Preconditions.checkElementIndex(index, this.length, "index");
-        this.array[index + this.startOffset] = value;
-    }
-
-    @Override
-    public void setSequence(int index, byte... values) {
-        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
-        Exceptions.checkArrayRange(index, values.length, this.length, "index", "values.length");
-
-        int baseOffset = index + this.startOffset;
-        System.arraycopy(values, 0, this.array, baseOffset, values.length);
-    }
-
-    @Override
     public int getLength() {
         return this.length;
+    }
+
+    @Override
+    public byte[] array() {
+        return this.array;
+    }
+
+    @Override
+    public int arrayOffset() {
+        return this.startOffset;
     }
 
     @Override
@@ -118,6 +121,20 @@ public class ByteArraySegment implements ArrayView {
     //endregion
 
     //region Operations
+
+    /**
+     * Sets the value at the specified index.
+     *
+     * @param index The index to set the value at.
+     * @param value The value to set.
+     * @throws IllegalStateException          If the ByteArraySegment is readonly.
+     * @throws ArrayIndexOutOfBoundsException If index is invalid.
+     */
+    public void set(int index, byte value) {
+        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
+        Preconditions.checkElementIndex(index, this.length, "index");
+        this.array[index + this.startOffset] = value;
+    }
 
     /**
      * Gets a value indicating whether the ByteArraySegment is read-only.

@@ -1,5 +1,17 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.store;
 
@@ -38,7 +50,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -91,9 +102,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     //endregion
 
     /**
-     * Tests an end-to-end scenario using real adapters for Cache (RocksDB) and Storage (HDFS).
-     * Currently this does not use a real adapter for DurableDataLog due to difficulties in getting DistributedLog
-     * to run in-process.
+     * Tests an end-to-end scenario for the SegmentStore.
+     * * Appends
+     * * Reads
+     * * Segment and transaction creation
+     * * Transaction mergers
+     * * Recovery
      *
      * @throws Exception If an exception occurred.
      */
@@ -160,10 +174,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private ServiceBuilder createBuilder(AtomicReference<Storage> storage) {
+    private ServiceBuilder createBuilder(AtomicReference<Storage> storage) throws Exception {
         val builderConfig = this.configBuilder.build();
         val builder = createBuilder(builderConfig, storage);
-        builder.initialize().join();
+        builder.initialize();
         return builder;
     }
 

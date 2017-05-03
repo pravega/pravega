@@ -1,11 +1,23 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
-import io.pravega.ClientFactory;
+import io.pravega.client.ClientFactory;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
@@ -26,14 +38,14 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
-import io.pravega.stream.ScalingPolicy;
-import io.pravega.stream.Serializer;
-import io.pravega.stream.StreamConfiguration;
-import io.pravega.stream.impl.ClientFactoryImpl;
-import io.pravega.stream.impl.Controller;
-import io.pravega.stream.impl.JavaSerializer;
-import io.pravega.stream.impl.ReaderGroupManagerImpl;
-import io.pravega.stream.impl.netty.ConnectionFactory;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.admin.stream.impl.ReaderGroupManagerImpl;
+import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 

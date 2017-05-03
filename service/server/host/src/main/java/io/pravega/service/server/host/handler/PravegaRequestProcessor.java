@@ -1,12 +1,38 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.host.handler;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.segment.StreamSegmentNameUtils;
+import io.pravega.service.contracts.AttributeUpdate;
+import io.pravega.service.contracts.AttributeUpdateType;
+import io.pravega.service.contracts.Attributes;
+import io.pravega.service.contracts.ReadResult;
+import io.pravega.service.contracts.ReadResultEntry;
+import io.pravega.service.contracts.ReadResultEntryContents;
+import io.pravega.service.contracts.SegmentProperties;
+import io.pravega.service.contracts.StreamSegmentExistsException;
+import io.pravega.service.contracts.StreamSegmentNotExistsException;
+import io.pravega.service.contracts.StreamSegmentSealedException;
+import io.pravega.service.contracts.StreamSegmentStore;
+import io.pravega.service.contracts.WrongHostException;
+import io.pravega.service.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
@@ -27,6 +53,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentPolicyUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
@@ -34,25 +61,8 @@ import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
+import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.common.segment.StreamSegmentNameUtils;
-import io.pravega.service.contracts.AttributeUpdate;
-import io.pravega.service.contracts.AttributeUpdateType;
-import io.pravega.service.contracts.Attributes;
-import io.pravega.service.contracts.ReadResult;
-import io.pravega.service.contracts.ReadResultEntry;
-import io.pravega.service.contracts.ReadResultEntryContents;
-import io.pravega.service.contracts.SegmentProperties;
-import io.pravega.service.contracts.StreamSegmentExistsException;
-import io.pravega.service.contracts.StreamSegmentNotExistsException;
-import io.pravega.service.contracts.StreamSegmentSealedException;
-import io.pravega.service.contracts.StreamSegmentStore;
-import io.pravega.service.contracts.WrongHostException;
-import io.pravega.service.server.host.stat.SegmentStatsRecorder;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -64,20 +74,19 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
-import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
-import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
-import static io.pravega.shared.protocol.netty.WireCommands.SegmentPolicyUpdated;
-import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
-import static io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import static io.pravega.service.contracts.Attributes.CREATION_TIME;
 import static io.pravega.service.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.service.contracts.Attributes.SCALE_POLICY_TYPE;
 import static io.pravega.service.contracts.ReadResultEntryType.Cache;
 import static io.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.service.contracts.ReadResultEntryType.Future;
+import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
+import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
+import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
+import static io.pravega.shared.MetricsNames.nameFromSegment;
+import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
