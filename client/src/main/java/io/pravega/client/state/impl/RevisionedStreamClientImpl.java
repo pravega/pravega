@@ -17,16 +17,15 @@ package io.pravega.client.state.impl;
 
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.impl.segment.EndOfSegmentException;
 import io.pravega.client.stream.impl.segment.SegmentInputStream;
 import io.pravega.client.stream.impl.segment.SegmentOutputStream;
 import io.pravega.client.stream.impl.segment.SegmentSealedException;
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Iterator;
@@ -59,8 +58,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         int size = serialized.remaining();
         try {
             synchronized (lock) {
-                Sequence seq = Sequence.create(0, sequenceNumber.incrementAndGet());
-                PendingEvent event = new PendingEvent(null, seq, serialized, wasWritten, offset);
+                PendingEvent event = new PendingEvent(null, sequenceNumber.incrementAndGet(), serialized, wasWritten,
+                                                      offset);
                 out.write(event);
             }
         } catch (SegmentSealedException e) {
@@ -87,8 +86,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         try {
             log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
-                Sequence seq = Sequence.create(0, sequenceNumber.incrementAndGet());
-                PendingEvent event = new PendingEvent(null, seq, serialized, wasWritten);
+                PendingEvent event = new PendingEvent(null, sequenceNumber.incrementAndGet(), serialized, wasWritten);
                 out.write(event);
             }
         } catch (SegmentSealedException e) {

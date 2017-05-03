@@ -23,7 +23,7 @@ import lombok.Data;
 public class Append implements Request, Comparable<Append> {
     final String segment;
     final UUID writerId;
-    final AppendSequence eventNumber;
+    final long eventNumber;
     final ByteBuf data;
     final Long expectedLength;
     
@@ -38,6 +38,6 @@ public class Append implements Request, Comparable<Append> {
 
     @Override
     public int compareTo(Append other) {
-        return eventNumber.compareTo(other.getEventNumber());
+        return Long.compare(eventNumber, other.eventNumber);
     }
 }

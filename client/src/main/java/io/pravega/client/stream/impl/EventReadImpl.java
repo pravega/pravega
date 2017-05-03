@@ -15,11 +15,10 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.Position;
-import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.Sequence;
-
 import lombok.Data;
 
 @Data

@@ -199,7 +199,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         buf.readBytes(bytes);
 
         val attributes = Arrays.asList(new AttributeUpdate(
-                        toWrite.getConnectionId(),
+                        toWrite.getWriterId(),
                         AttributeUpdateType.ReplaceIfGreater,
                         toWrite.getEventNumber()),
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, numOfEvents));
@@ -223,21 +223,21 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     toWrite.getData().release();
                     outstandingAppend = null;
                     if (u != null && !conditionalFailed) {
-                        waitingAppends.removeAll(toWrite.getConnectionId());
-                        latestEventNumbers.remove(toWrite.getConnectionId());
+                        waitingAppends.removeAll(toWrite.getWriterId());
+                        latestEventNumbers.remove(toWrite.getWriterId());
                     }
                 }
 
                 if (u != null) {
                     if (conditionalFailed) {
-                        connection.send(new ConditionalCheckFailed(toWrite.getConnectionId(), toWrite.getEventNumber()));
+                        connection.send(new ConditionalCheckFailed(toWrite.getWriterId(), toWrite.getEventNumber()));
                     } else {
                         handleException(toWrite.getEventNumber(), segment, "appending data", u);
                     }
                 } else {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
                     WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-                    connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
+                    connection.send(new DataAppended(toWrite.getWriterId(), toWrite.getEventNumber()));
 
                     if (statsRecorder != null) {
                         statsRecorder.record(segment, bytes.length, (int) numOfEvents);
@@ -308,7 +308,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @Override
     public void append(Append append) {
         synchronized (lock) {
-            UUID id = append.getConnectionId();
+            UUID id = append.getWriterId();
             Long lastEventNumber = latestEventNumbers.get(id);
             if (lastEventNumber == null) {
                 throw new IllegalStateException("Data from unexpected connection: " + id);

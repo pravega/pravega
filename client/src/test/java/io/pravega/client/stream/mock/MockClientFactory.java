@@ -32,7 +32,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
-
+import java.util.UUID;
 import java.util.function.Supplier;
 
 public class MockClientFactory implements ClientFactory, AutoCloseable {
@@ -59,9 +59,9 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     }
 
     @Override
-    public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
+    public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, UUID writerId, Serializer<T> s,
                                                                           EventWriterConfig config) {
-        return impl.createIdempotentEventWriter(streamName, s, config);
+        return impl.createIdempotentEventWriter(streamName, writerId, s, config);
     }
 
     @Override

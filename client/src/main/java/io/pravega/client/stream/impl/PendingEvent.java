@@ -16,7 +16,6 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
@@ -40,7 +39,7 @@ public class PendingEvent {
     /**
      * The sequence for this event. (The sequence must only increase.)
      */
-    private final Sequence sequence;
+    private final long sequence;
     /**
      * Callback to be invoked when the data is written.
      */
@@ -50,11 +49,11 @@ public class PendingEvent {
      */
     private final Long expectedOffset;
     
-    public PendingEvent(String routingKey, Sequence sequence, ByteBuffer data, CompletableFuture<Boolean> ackFuture) {
+    public PendingEvent(String routingKey, long sequence, ByteBuffer data, CompletableFuture<Boolean> ackFuture) {
         this(routingKey, sequence, data, ackFuture, null);
     }
     
-    public PendingEvent(String routingKey, Sequence sequence, ByteBuffer data, CompletableFuture<Boolean> ackFuture, Long expectedOffset) {
+    public PendingEvent(String routingKey, long sequence, ByteBuffer data, CompletableFuture<Boolean> ackFuture, Long expectedOffset) {
         Preconditions.checkNotNull(data);
         Preconditions.checkNotNull(sequence);
         Preconditions.checkNotNull(ackFuture);

@@ -28,7 +28,6 @@ import io.pravega.client.stream.Transaction.Status;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.segment.SegmentOutputStream;
 import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
-import io.pravega.client.stream.impl.segment.SequenceImpl;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -69,7 +68,7 @@ public class EventStreamWriterImpl<Type> extends IdempotentEventStreamWriterImpl
     public AckFuture writeEvent(Type event) {
         synchronized (lock) {
             long sequence = sequenceGenerator.incrementAndGet();
-            return writeEventInternal(null, SequenceImpl.create(0, sequence), event);
+            return writeEventInternal(null, sequence, event);
         }
     }
 
@@ -78,7 +77,7 @@ public class EventStreamWriterImpl<Type> extends IdempotentEventStreamWriterImpl
         Preconditions.checkNotNull(routingKey);
         synchronized (lock) {
             long sequence = sequenceGenerator.incrementAndGet();
-            return writeEventInternal(routingKey, SequenceImpl.create(0, sequence), event);
+            return writeEventInternal(routingKey, sequence, event);
         }
     }
     

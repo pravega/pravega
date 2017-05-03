@@ -85,7 +85,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     @Data
     private static final class Session {
         private final UUID writerId;
-        private AppendSequence lastEventNumber = AppendSequence.MIN_VALUE;
+        private long lastEventNumber = -1L;
     }    
 
     @Override
@@ -97,7 +97,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             if (session == null || !session.writerId.equals(append.getWriterId())) {
                 throw new InvalidMessageException("Sending appends without setting up the append.");
             }
-            if (append.getEventNumber().compareTo(session.lastEventNumber) <= 0) {
+            if (append.getEventNumber() <= session.lastEventNumber) {
                 throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
                 + " following: " + session.lastEventNumber);
             }

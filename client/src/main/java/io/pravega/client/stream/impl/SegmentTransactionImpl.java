@@ -15,15 +15,14 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.impl.segment.SegmentOutputStream;
+import io.pravega.client.stream.impl.segment.SegmentSealedException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-import io.pravega.client.stream.Sequence;
-import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.TxnFailedException;
-import io.pravega.client.stream.impl.segment.SegmentSealedException;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
 
 final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     private final Serializer<Type> serializer;
@@ -43,8 +42,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
         try {
             ByteBuffer buffer = serializer.serialize(event);
             synchronized (lock) {
-                Sequence sequence = Sequence.create(0, sequenceNumber.incrementAndGet());
-                out.write(new PendingEvent(null, sequence, buffer,  CompletableFuture.completedFuture(null)));
+                out.write(new PendingEvent(null, sequenceNumber.incrementAndGet(), buffer,  CompletableFuture.completedFuture(null)));
             }
         } catch (SegmentSealedException e) {
             throw new TxnFailedException(e);

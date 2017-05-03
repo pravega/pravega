@@ -45,7 +45,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
     @Data
     private static final class Segment {
         private final String name;
-        private AppendSequence lastEventNumber;
+        private long lastEventNumber;
     }
     
     @Override
@@ -81,7 +81,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         case CONDITIONAL_APPEND:
             WireCommands.ConditionalAppend ca = (WireCommands.ConditionalAppend) command;
             segment = getSegment(ca.getWriterId());
-            if (ca.getEventNumber().compareTo(segment.lastEventNumber) < 0) {
+            if (ca.getEventNumber() < segment.lastEventNumber) {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
             segment.lastEventNumber = ca.getEventNumber();
@@ -106,7 +106,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
             }
             segment = getSegment(connectionId);
-            if (blockEnd.getLastEventNumber().compareTo(segment.lastEventNumber) < 0) {
+            if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
             int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();

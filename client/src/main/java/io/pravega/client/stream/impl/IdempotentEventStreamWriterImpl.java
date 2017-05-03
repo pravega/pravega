@@ -10,7 +10,6 @@ import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.IdempotentEventStreamWriter;
 import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.segment.SegmentOutputStream;
@@ -48,7 +47,7 @@ public class IdempotentEventStreamWriterImpl<Type> implements IdempotentEventStr
     @GuardedBy("lock")
     private final SegmentSelector selector;
     @GuardedBy("lock")
-    private Sequence lastSequence = Sequence.MIN_VALUE;
+    private long lastSequence = Long.MIN_VALUE;
 
     IdempotentEventStreamWriterImpl(Stream stream, UUID writerId, Controller controller,
             SegmentOutputStreamFactory outputStreamFactory, Serializer<Type> serializer, EventWriterConfig config) {
@@ -67,19 +66,19 @@ public class IdempotentEventStreamWriterImpl<Type> implements IdempotentEventStr
     }
     
     @Override
-    public AckFuture writeEvent(String routingKey, Sequence sequence, Type event) {
+    public AckFuture writeEvent(String routingKey, long sequence, Type event) {
         Preconditions.checkNotNull(routingKey);
         return writeEventInternal(routingKey, sequence, event);
     }
     
-    AckFuture writeEventInternal(String routingKey, Sequence sequence, Type event) {
+    AckFuture writeEventInternal(String routingKey, long sequence, Type event) {
         Preconditions.checkNotNull(event);
         Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         synchronized (lock) {
-            checkArgument(lastSequence.compareTo(sequence) < 0,
-                          "Sequence was out of order. Previously saw {} and now {}", lastSequence, sequence);
+            checkArgument(lastSequence < sequence, "Sequence was out of order. Previously saw {} and now {}",
+                          lastSequence, sequence);
             lastSequence = sequence;
             SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             while (segmentWriter == null) {

@@ -41,10 +41,10 @@ public interface IdempotentEventStreamWriter<Type> extends AutoCloseable {
      * 
      * 
      * @param routingKey A free form string that is used to route messages to readers. Two events
-     *        written with the same routingKey are guaranteed to be read in order. Two events with
-     *        different routing keys may be read in parallel.
-     * @param sequence An ever increasing sequence. If this method is called with a lower sequence
-     *        the event will not be written.
+     *            written with the same routingKey are guaranteed to be read in order. Two events
+     *            with different routing keys may be read in parallel.
+     * @param sequence An ever increasing sequence. If this method is called with an equal or lower
+     *            sequence the event will not be written.
      * @param event The event to be written to the stream
      * @return A future that will complete when the event has been durably stored on the configured
      *         number of replicas, and is available for readers to see. This future may complete
@@ -53,7 +53,7 @@ public interface IdempotentEventStreamWriter<Type> extends AutoCloseable {
      *         handled internally with multiple retires and exponential backoff. So there is no need
      *         to attempt to retry in the event of an exception.
      */
-    AckFuture writeEvent(String routingKey, Sequence sequence, Type event);
+    AckFuture writeEvent(String routingKey, long sequence, Type event);
 
     
     /**
