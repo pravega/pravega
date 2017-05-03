@@ -130,7 +130,7 @@ public class CheckpointTest {
             reader.readNextEvent(60000);
             fail();
         } catch (ReinitializationRequiredException e) {
-            // Expected
+            //Expected
         }
         reader.close();
         reader = clientFactory.createReader(readerName, readerGroupName, serializer, ReaderConfig.builder().build());
