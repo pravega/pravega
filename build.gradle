@@ -1,23 +1,29 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
+ 
 // Apply the java plugin to add support for Java
 buildscript {
     repositories {
         jcenter()
     }
     dependencies {
-        classpath group: 'com.bmuschko', name :'gradle-docker-plugin', version: gradleDockerPlugin
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
         classpath group: 'com.github.jengelman.gradle.plugins', name:'shadow', version: shadowGradlePlugin
     }
 }
-
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
-import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 
 allprojects {
     apply plugin: 'java'
@@ -29,6 +35,9 @@ allprojects {
     apply plugin: 'findbugs'
     apply plugin: 'maven-publish'
     apply plugin: 'jacoco'
+
+    version = pravegaVersion
+    archivesBaseName = "pravega" + project.path.replace(':', '-')
 
     checkstyle {
         toolVersion = checkstyleToolVersion
@@ -52,9 +61,9 @@ allprojects {
             html.enabled true
         }
     }
-    compileJava { 
-        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
-    } 
+    compileJava {
+        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror"
+    }
 
     repositories {
         // Use 'jcenter' for resolving your dependencies.
@@ -62,12 +71,6 @@ allprojects {
         jcenter()
         mavenCentral()
         mavenLocal()
-        maven {
-            url "https://raw.github.com/twitter/bookkeeper/mvn-repo/"+ mvnRepoVersion
-        }
-        maven {
-            url "http://maven.twttr.com"
-        }
     }
 
     checkstyle {
@@ -118,8 +121,6 @@ allprojects {
     }
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'test:integration']
-
 project('common') {
     dependencies {
         testCompile project(':test:common')
@@ -131,10 +132,10 @@ project('common') {
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        jar {
-            from project.sourceSets.main.output
-            from project(":test:common").sourceSets.main.output
-        }
+    }
+    jar {
+        from project.sourceSets.main.output
+        from project(":test:common").sourceSets.main.output
     }
     publishing {
         publications {
@@ -151,9 +152,6 @@ project('common') {
             project(':common').sourceSets.main.java
             project(':shared:protocol').sourceSets.main.java
         }
-        def javadocs = new File(rootDir, "javadocs")
-        javadocs.mkdirs()
-        destinationDir = javadocs
     }
 }
 
@@ -227,7 +225,7 @@ project('shared:protocol') {
     }
 }
 
-project('clients:streaming') {
+project('client') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
@@ -238,11 +236,12 @@ project('clients:streaming') {
         compile project(':shared:protocol')
         compile project(":shared:controller")
         testCompile project(':test:common')
+        testCompile project(':client:admin')
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-clients'
+                artifactId 'pravega-client'
                 from components.java
             }
         }
@@ -251,10 +250,28 @@ project('clients:streaming') {
         title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
-        source  =  project(':clients:streaming').sourceSets.main.java
-        def javadocs = new File(rootDir, "javadocs")
-        javadocs.mkdirs()
-        destinationDir = javadocs
+        source  {
+            project(':client').sourceSets.main.java
+            project(':client:admin').sourceSets.main.java
+        }
+    }
+}
+
+project('client:admin') {
+    dependencies {
+        compile project(':client')
+        compile project(':shared:protocol')
+        compile project(':shared')
+        testCompile project(':test:common')
+        testCompile files(project(':client').sourceSets.test.output)
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-client-admin'
+                from components.java
+            }
+        }
     }
 }
 
@@ -305,25 +322,8 @@ project('service:storage') {
 
 project('service:storage:impl') {
     dependencies {
-        compile(group: 'com.twitter', name:'distributedlog-core', version: distributedlogVersion) {
+        compile (group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion) {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-        }
-        compile(group: 'com.twitter', name: 'distributedlog-client', version: distributedlogVersion) {
-            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-        }
-        testCompile ('com.twitter:distributedlog-service:0.3.51-RC1') {
-            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-        }
-
-        test {
-            // We use Guava 20.0, however DistributedLog use Guava 16.0. We cannot start DistributedLog in process or
-            // using our own classpath because it can't find required classes. As such, we get the path to Guava 16.0
-            // and pass it down via a System Property, so the DistributedLogDataLogTests can make use of it.
-            // TODO: we should update this version when DistributedLog upgrades to the latest Guava or when we use
-            // something else. See DistributedLog issue: https://issues.apache.org/jira/browse/DL-193
-            configurations { guava16 }
-            dependencies { guava16 "com.google.guava:guava:${guavaServiceStorageImplVersion}" }
-            systemProperty "user.guava16", configurations.guava16.files
         }
 
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
@@ -372,17 +372,17 @@ project('service:server') {
 
 project('service:server:host') {
     apply plugin: 'application'
-    apply plugin: 'com.bmuschko.docker-java-application'
-    docker {
-        url = dockerUrl
-    }
+    applicationName = "pravega-segmentstore"
     mainClassName = "io.pravega.service.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dlogback.configurationFile=SERVER_APP_HOME/config/logback.xml"]
+                                 "-Dlog.dir=SERVER_APP_HOME/logs",
+                                 "-Dlog.name=segmentstore",
+                                 "-Dpravega.configurationFile=SERVER_APP_HOME/conf/config.properties",
+                                 "-Dlogback.configurationFile=SERVER_APP_HOME/conf/logback.xml"]
 
     applicationDistribution.from('src/config') {
-        into "config"
+        into "conf"
     }
 
     startScripts {
@@ -394,36 +394,16 @@ project('service:server:host') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
-        compile project(':clients:streaming')
+        compile project(':client')
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:common')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        testCompile ('com.twitter:distributedlog-service:0.3.51-RC1') {
-            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-        }
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
         testCompile files(project(':service:storage:impl').sourceSets.test.output)
-    }
-    task buildPravegaHostImage(type: DockerBuildImage) {
-        dependsOn 'distTar','distZip'
-        dockerFile = file(dockerFilePravegaHost)
-        inputDir = file(dockerDirPravegaHost)
-        tag = "${pravegaHostBaseTag}:${pravegaVersion}"
-    }
-    task pushPravegaHostImage(type: DockerPushImage) {
-        dependsOn buildPravegaHostImage
-        conventionMapping.imageName = { buildPravegaHostImage.getTag() }
-        docker {
-            registryCredentials {
-                url = "$dockerRegistryUrl"
-                username = "$dockerRegistryUser"
-                password = "$dockerRegistryPass"
-            }
-        }
     }
     publishing {
         publications {
@@ -438,7 +418,8 @@ project('service:server:host') {
 project('test:integration') {
     dependencies {
         compile project(':common')
-        compile project(':clients:streaming')
+        compile project(':client')
+        compile project(':client:admin')
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
@@ -453,7 +434,7 @@ project('test:integration') {
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
         testCompile files(project(':common').sourceSets.test.output)
         testCompile files(project(':shared:protocol').sourceSets.test.output)
-        compile files(project(':clients:streaming').sourceSets.test.output)
+        compile files(project(':client').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
@@ -577,10 +558,6 @@ project('shared:controller') {
 }
 
 project('controller:server') {
-    apply plugin: 'com.bmuschko.docker-java-application'
-    docker {
-        url = dockerUrl
-    }
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
     }
@@ -591,13 +568,17 @@ project('controller:server') {
     }
 
     apply plugin: 'application'
+    applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
-                                 "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
+                                 "-Dconfig.file=CONTROLLER_APP_HOME/conf/controller.conf",
+                                 "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml",
+                                 "-Dlog.dir=CONTROLLER_APP_HOME/logs",
+                                 "-Dlog.name=controller"]
 
     applicationDistribution.from('src/conf') {
         into "conf"
+        rename "application.conf", "controller.conf"
     }
 
     startScripts {
@@ -610,7 +591,8 @@ project('controller:server') {
     dependencies {
         compile project(':common')
         compile project(":shared:controller")
-        compile project(":clients:streaming")
+        compile project(":client")
+        compile project(":client:admin")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
@@ -630,24 +612,6 @@ project('controller:server') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
 
-    task buildPravegaControllerImage(type: DockerBuildImage) {
-        dependsOn 'distTar','distZip'
-        dockerFile = file(dockerFilePravegaController)
-        inputDir = file(dockerDirPravegaController)
-        tag = "${pravegaControllerBaseTag}:${pravegaVersion}"
-    }
-
-    task pushPravegaControllerImage(type: DockerPushImage) {
-        dependsOn buildPravegaControllerImage
-        conventionMapping.imageName = { buildPravegaControllerImage.getTag() }
-        docker {
-            registryCredentials {
-                url = "$dockerRegistryUrl"
-                username = "$dockerRegistryUser"
-                password = "$dockerRegistryPass"
-            }
-        }
-    }
     publishing {
         publications {
             maven(MavenPublication) {
@@ -662,7 +626,8 @@ project('connectors:flink') {
     apply plugin: 'com.github.johnrengelman.shadow'
 
     dependencies {
-        compile project(":clients:streaming")
+        compile project(":client")
+        compile project(":client:admin")
         compileOnly group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
 
         //  configuring the shaded pom dependencies
@@ -702,7 +667,8 @@ project('connectors:flink') {
             include(project(":shared:protocol"))
             include(project(":shared:metrics"))
             include(project(":shared:controller"))
-            include(project(":clients:streaming"))
+            include(project(":client"))
+            include(project(":client:admin"))
         }
 
         // Shading the libraries which could cause potential version conflicts with flink.
@@ -733,12 +699,22 @@ project('connectors:flink') {
 
 project('singlenode') {
     apply plugin: 'application'
+    applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
-    applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError", "-Xdebug",
-                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
+    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=pravega"]
+    startScripts {
+        doLast {
+            unixScript.text = unixScript.text.replace('PRAVEGA_APP_HOME', '\$APP_HOME')
+            windowsScript.text = windowsScript.text.replace('PRAVEGA_APP_HOME', '%~dp0..')
+        }
+    }
+
     dependencies {
         compile project(':common')
-        compile project(':clients:streaming')
+        compile project(':client')
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
@@ -753,16 +729,8 @@ project('singlenode') {
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
 
-        compile(group: 'com.twitter', name:'distributedlog-core', version: distributedlogVersion) {
-            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-        }
-        compile(group: 'com.twitter', name: 'distributedlog-client', version: distributedlogVersion) {
-            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-        }
-
         testCompile project(':test:common')
         testCompile files(project(':common').sourceSets.test.output)
-        compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
@@ -771,8 +739,8 @@ project('singlenode') {
 
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
-        args = ["4000", "9090", "6000"]
-        environment "ZK_URL", "localhost:4000"
+        systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
+        environment "JAVA_OPTS", "-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"
     }
 
     publishing {
@@ -791,7 +759,7 @@ project('test:system') {
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
         compile project(':controller:server')
-        compile project(":clients:streaming")
+        compile project(":client")
         compile project(":test:common")
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
@@ -860,7 +828,8 @@ subprojects {
 }
 
 task publishAllJars() {
-    dependsOn ':clients:streaming:publish'
+    dependsOn ':client:publish'
+    dependsOn ':client:admin:publish'
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
     dependsOn ':shared:protocol:publish'
@@ -891,5 +860,101 @@ task sourceTar(type: Tar) {
 }
 
 task genJavaDocs(type: Javadoc) {
-    dependsOn 'clients:streaming:javadoc'
+    dependsOn 'client:javadoc'
+}
+
+task javadocs(type: Javadoc) {
+    description = "Generate main pravega javadoc"
+
+    // Include names of any project that is to be included in the javadoc distribution
+    ext.projects = [':client', ':client:admin', ':common', ':shared:protocol']
+
+    title = "Pravega API"
+    source = files(projects.collect {
+        project(it).sourceSets.main.allJava
+    })
+    classpath = files(projects.collect {
+        project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
+    })
+    failOnError = false
+    exclude "**/impl/**"
+}
+
+apply plugin: 'distribution'
+distributions {
+    main {
+        baseName = "pravega"
+        contents {
+            duplicatesStrategy = "exclude"
+            from ("dist/conf") {
+                into "conf"
+            }
+            from ("config") {
+                into "conf"
+            }
+            from (project(":controller:server").installDist) {
+                exclude "logback.xml"
+            }
+            from (project(":service:server:host").installDist) {
+                exclude "logback.xml"
+            }
+            from (project(":singlenode").installDist)
+        }
+    }
+    client {
+        baseName = "pravega-client"
+        contents {
+            from {
+                project(":client").configurations.runtime
+                project(":client:admin").configurations.runtime
+            }
+            from {
+                project(":client").configurations.runtime.allArtifacts.files
+                project(":client:admin").configurations.runtime.allArtifacts.files
+            }
+        }
+    }
+    javadoc {
+        baseName = "pravega-javadoc"
+        contents {
+            from (javadocs)
+        }
+    }
+}
+
+tasks.withType(Tar) {
+    compression = Compression.GZIP
+}
+
+task preparePravegaImage(type: Copy) {
+    into "${buildDir}/docker/pravega"
+    from "docker/pravega"
+    from (installDist) {
+        into "pravega"
+        exclude "**/*.bat"
+    }
+}
+
+task buildPravegaImage(type: Exec, dependsOn: preparePravegaImage) {
+    executable dockerExecutable
+    args "build"
+    args "-t", "${pravegaBaseTag}:${pravegaVersion}"
+    args "-t", "${pravegaBaseTag}:latest"
+    args preparePravegaImage.destinationDir.absolutePath
+}
+
+task buildBookkeeperImage(type: Exec) {
+    executable dockerExecutable
+    args "build"
+    args "-t", "${bookkeeperBaseTag}:${pravegaVersion}"
+    args "-t", "${bookkeeperBaseTag}:latest"
+    args "docker/bookkeeper"
+}
+
+task docker(dependsOn: [buildPravegaImage, buildBookkeeperImage]) {
+    description = "Builds all docker images"
+}
+
+task distribution(dependsOn: [assembleDist, assembleClientDist, assembleJavadocDist]) {
+    description = "Builds a distribution package"
 }

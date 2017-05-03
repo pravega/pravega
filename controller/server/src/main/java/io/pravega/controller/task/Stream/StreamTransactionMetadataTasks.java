@@ -1,9 +1,21 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.ClientFactory;
+import io.pravega.client.ClientFactory;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.SegmentHelper;
@@ -21,10 +33,10 @@ import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
-import io.pravega.stream.AckFuture;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.EventWriterConfig;
-import io.pravega.stream.impl.netty.ConnectionFactory;
+import io.pravega.client.stream.AckFuture;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -232,17 +244,31 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
                                                       final Integer version, final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), context, executor)
-                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
-                        writeEvent(abortEventEventStreamWriter, abortStreamName, txid.toString(),
-                                new AbortEvent(scope, stream, txid), txid, status), executor), executor);
+                .thenComposeAsync(status -> {
+                    if (status == TxnStatus.ABORTING) {
+                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter,
+                                        abortStreamName, txid.toString(), new AbortEvent(scope, stream, txid), txid, status),
+                                executor);
+                    } else {
+                        // Status is ABORTED, return it.
+                        return CompletableFuture.completedFuture(status);
+                    }
+                }, executor);
     }
 
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
                                                        final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), context, executor)
-                .thenComposeAsync(status -> TaskStepsRetryHelper.withRetries(() ->
-                        writeEvent(commitEventEventStreamWriter, commitStreamName, scope + stream,
-                                new CommitEvent(scope, stream, txid), txid, status), executor), executor);
+                .thenComposeAsync(status -> {
+                    if (status == TxnStatus.COMMITTING) {
+                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter,
+                                commitStreamName, scope + stream, new CommitEvent(scope, stream, txid), txid, status),
+                                executor);
+                    } else {
+                        // Status is COMMITTED, return it.
+                        return CompletableFuture.completedFuture(status);
+                    }
+                }, executor);
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,

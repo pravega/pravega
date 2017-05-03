@@ -32,82 +32,39 @@ Pravega is an open source distributed storage service implementing **Streams**. 
     automatically recovers ensuring the continuous flow of data required for 
     business continuity. 
 
-### Create stream
+## Releases
 
-```
-StreamManager streamManager = StreamManager.create(controllerURI);
+The latest pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
 
-// Auto scaling is disabled. Stream has fixed number of segments. 
-// Scaling policy can be fixed, byEventRate. or byDataRate
+## Quick Start
 
-StreamConfiguration streamConfig = StreamConfiguration.builder()
-        .scalingPolicy(ScalingPolicy.fixed(5))
-        .build();
-        
-final boolean streamIsNew = streamManager.createStream(scope, streamName, streamConfig);
+Read [Getting Started](getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications. 
 
-```
+## Running Pravega
 
-### Write events to a steam 
+Pravega can be installed locally or in a distributed environment. The installation and deployment of pravega is covered in the [Running Pravega](deployment/deployment.md) guide.
 
-```
-ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
-EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
-           new JavaSerializer<String>(),
-           EventWriterConfig.builder().build());
-
-final AckFuture writeFuture = writer.writeEvent(routingKey, message);
-```
-
-### Read events from a stream 
-
-```
-EventStreamReader<String> reader = clientFactory.createReader("Reader1",
-        'MyReaderGroup1',
-        new JavaSerializer<String>(),
-        ReaderConfig.builder().build());
-        
-EventRead<String> event = reader.readNextEvent(READER_TIMEOUT_MS);
-
-```
-
-Quick Start
-----------------------------
-
-Read [Getting Started](http://pravega.io/docs/Getting-Started/) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications. 
-
-
-Deployment Options 
--------------------
-
-There are multiple ways to deploy your own Pravega Cluster. These  installation options currently include [manual](http://pravega.io/docs/Manual-Deployment-Pravega-Cluster/) and [docker based](http://pravega.io/docs/Docker-based-Deployment-Pravega-Cluster/). As we are enabling more options with help of the community, check out [Deploying Pravega Cluster](http://pravega.io/docs/Deploying-Pravega/) page for more. 
-
-
-Support
--------
+## Support
 
 Don’t hesitate to ask! Contact the developers and community on the mailing lists
 if you need any help. Open an issue if you found a bug on [Github
 Issues](https://github.com/pravega/pravega/issues)
 
-Documentation
--------------
+## Documentation
 
 The Pravega documentation of is hosted on the website:
 <http://pravega.io/docs> or in the
 [docs/](https://github.com/pravega/pravega/tree/master/docs) directory of the
 source code.
 
-Contribute
-----------
+## Contributing
 
 Become one of the contributors! We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
-[Here](https://github.com/pravega/pravega/wiki/Contributing) we describe how to
+[Here](contributing.md) we describe how to
 contribute to Pravega!
 
-About
------
+## About
 
 Pravega is 100% open source and community-driven. All components are available
 under [Apache 2 License](https://www.apache.org/licenses/LICENSE-2.0.html) on

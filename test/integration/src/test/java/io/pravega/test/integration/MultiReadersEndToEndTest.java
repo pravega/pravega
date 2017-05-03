@@ -1,13 +1,24 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
-import io.pravega.ClientFactory;
-import io.pravega.ReaderGroupManager;
-import io.pravega.StreamManager;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.integration.utils.IntegerSerializer;
 import io.pravega.test.integration.utils.SetupUtils;
@@ -15,18 +26,17 @@ import io.pravega.service.contracts.StreamSegmentStore;
 import io.pravega.service.server.host.handler.PravegaConnectionListener;
 import io.pravega.service.server.store.ServiceBuilder;
 import io.pravega.service.server.store.ServiceBuilderConfig;
-import io.pravega.stream.EventStreamReader;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.EventWriterConfig;
-import io.pravega.stream.ReaderConfig;
-import io.pravega.stream.ReaderGroupConfig;
-import io.pravega.stream.ReinitializationRequiredException;
-import io.pravega.stream.ScalingPolicy;
-import io.pravega.stream.StreamConfiguration;
-import io.pravega.stream.mock.MockClientFactory;
-import io.pravega.stream.mock.MockStreamManager;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.mock.MockClientFactory;
+import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.test.common.TestUtils;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,11 +46,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -177,10 +185,10 @@ public class MultiReadersEndToEndTest {
     }
     
     private void runTestUsingMock(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
-            throws ExecutionException, InterruptedException {
+            throws Exception {
         int servicePort = TestUtils.getAvailableListenPort();
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);

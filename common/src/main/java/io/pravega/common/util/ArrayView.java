@@ -1,14 +1,24 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
 import java.io.InputStream;
 
 /**
- * Defines a generic view of an index-based, array-like structure.
+ * Defines a generic read-only view of an index-based, array-like structure.
  */
 public interface ArrayView {
     /**
@@ -21,31 +31,28 @@ public interface ArrayView {
     byte get(int index);
 
     /**
-     * Sets the value at the specified index.
-     *
-     * @param index The index to set the value at.
-     * @param value The value to set.
-     * @throws IllegalStateException          If the ByteArraySegment is readonly.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid.
-     */
-    void set(int index, byte value);
-
-    /**
-     * Sets the value(s) starting at the specified index.
-     *
-     * @param index  The index to start setting the values at.
-     * @param values The values to set. Position n inside this array will correspond to position 'index + n' inside the ArrayView.
-     * @throws IllegalStateException          If the ArrayView is readonly.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid or the items to be added cannot fit.
-     */
-    void setSequence(int index, byte... values);
-
-    /**
      * Gets a value representing the length of this ArrayView.
      *
      * @return The length.
      */
     int getLength();
+
+    /**
+     * Gets a reference to the backing array for this ArrayView. This should be used in conjunction with arrayOffset()
+     * in order to determine where in the array this ArrayView starts at.
+     * NOTE: Care must be taken when using this array. Just like any other array in Java, it is modifiable and changes to
+     * it will be reflected in this ArrayView.
+     *
+     * @return The backing array.
+     */
+    byte[] array();
+
+    /**
+     * Gets a value indicating the offset in the backing array where this ArrayView starts at.
+     *
+     * @return The offset in the backing array.
+     */
+    int arrayOffset();
 
     /**
      * Creates an InputStream that can be used to read the contents of this ArrayView. The InputStream returned

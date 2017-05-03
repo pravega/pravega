@@ -1,13 +1,23 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.io;
 
+import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.io.InputStream;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -16,12 +26,10 @@ import org.junit.Test;
  */
 public class StreamHelpersTests {
     /**
-     * Tests the readAll method.
-     *
-     * @throws IOException
+     * Tests the readAll method that copies data into an existing array.
      */
     @Test
-    public void testReadAll() throws IOException {
+    public void testReadAllIntoArray() throws IOException {
         final int itemCount = 100;
         final byte[] buffer = new byte[itemCount];
         final int readStartOffset = 5;
@@ -37,7 +45,7 @@ public class StreamHelpersTests {
         Assert.assertEquals("Unexpected number of bytes read.", readLength, readBytes);
         for (int i = 0; i < readResult.length; i++) {
             if (i < readStartOffset || i >= readStartOffset + readLength) {
-                Assert.assertEquals("readAll wrote data at wrong offsset " + i, 0, readResult[i]);
+                Assert.assertEquals("readAll wrote data at wrong offset " + i, 0, readResult[i]);
             } else {
                 int originalOffset = i - readStartOffset;
                 Assert.assertEquals("unexpected value at target index " + i, buffer[originalOffset], readResult[i]);
@@ -45,12 +53,32 @@ public class StreamHelpersTests {
         }
     }
 
+    /**
+     * Tests the readAll method that copies data into an existing array.
+     */
+    @Test
+    public void testReadAllNewArray() throws IOException {
+        final int itemCount = 100;
+        final byte[] buffer = new byte[itemCount];
+        for (int i = 0; i < itemCount; i++) {
+            buffer[i] = (byte) i;
+        }
+
+        byte[] readFullyData = StreamHelpers.readAll(new TestInputStream(buffer), buffer.length);
+        Assert.assertArrayEquals(buffer, readFullyData);
+
+        AssertExtensions.assertThrows(
+                "readAll accepted a length higher than the given input stream length.",
+                () -> StreamHelpers.readAll(new TestInputStream(buffer), buffer.length + 1),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
     private static class TestInputStream extends InputStream {
         private final byte[] buffer;
         private int pos;
         private boolean pause;
 
-        public TestInputStream(byte[] buffer) {
+        TestInputStream(byte[] buffer) {
             this.buffer = buffer;
             this.pos = 0;
             this.pause = false;

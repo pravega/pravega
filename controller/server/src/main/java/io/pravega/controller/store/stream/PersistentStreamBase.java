@@ -1,5 +1,17 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -15,7 +27,7 @@ import io.pravega.controller.store.stream.tables.IndexRecord;
 import io.pravega.controller.store.stream.tables.SegmentRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import io.pravega.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -373,23 +385,23 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     return ActiveTxnRecord.parse(ok.getData()).getTxnStatus();
                 });
 
-        return verifyLegalState(activeTx
-                .thenCompose(x -> {
-                    if (x.equals(TxnStatus.UNKNOWN)) {
-                        return getCompletedTx(txId)
-                                .handle((ok, ex) -> {
-                                    if (ok == null ||
-                                            (ex != null && ex instanceof DataNotFoundException)) {
-                                        return TxnStatus.UNKNOWN;
-                                    } else if (ex != null) {
-                                        throw new CompletionException(ex);
-                                    }
-                                    return CompletedTxnRecord.parse(ok.getData()).getCompletionStatus();
-                                });
-                    } else {
-                        return CompletableFuture.completedFuture(x);
-                    }
-                }));
+        return verifyLegalState(activeTx.thenCompose(x -> {
+            return parseStatus(txId, x);
+        }));
+    }
+
+    private CompletionStage<TxnStatus> parseStatus(final UUID txId, TxnStatus x) {
+        if (!x.equals(TxnStatus.UNKNOWN)) {
+            return CompletableFuture.completedFuture(x);
+        }
+        return getCompletedTx(txId).handle((ok, ex) -> {
+            if (ok == null || (ex != null && ex instanceof DataNotFoundException)) {
+                return TxnStatus.UNKNOWN;
+            } else if (ex != null) {
+                throw new CompletionException(ex);
+            }
+            return CompletedTxnRecord.parse(ok.getData()).getCompletionStatus();
+        });
     }
 
     @Override
@@ -399,24 +411,24 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(x -> {
                     if (commit) {
                         switch (x) {
-                            case COMMITTING:
-                                return CompletableFuture.completedFuture(TxnStatus.COMMITTING);
                             case OPEN:
                                 return sealActiveTx(txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
+                            case COMMITTING:
+                            case COMMITTED:
+                                return CompletableFuture.completedFuture(x);
                             case ABORTING:
                             case ABORTED:
-                            case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
                             default:
                                 throw new TransactionNotFoundException(txId.toString());
                         }
                     } else {
                         switch (x) {
-                            case ABORTING:
-                                return CompletableFuture.completedFuture(TxnStatus.ABORTING);
                             case OPEN:
                                 return sealActiveTx(txId, false, version).thenApply(y -> TxnStatus.ABORTING);
+                            case ABORTING:
                             case ABORTED:
+                                return CompletableFuture.completedFuture(x);
                             case COMMITTING:
                             case COMMITTED:
                                 throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
