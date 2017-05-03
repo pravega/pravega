@@ -24,7 +24,7 @@ import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.stream.impl.netty.ConnectionFactory;
+import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;

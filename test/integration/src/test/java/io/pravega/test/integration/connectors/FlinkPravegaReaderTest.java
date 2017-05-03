@@ -17,7 +17,7 @@ package io.pravega.test.integration.connectors;
 
 import io.pravega.test.integration.utils.SetupUtils;
 import io.pravega.connectors.flink.FlinkPravegaReader;
-import io.pravega.stream.EventStreamWriter;
+import io.pravega.client.stream.EventStreamWriter;
 import com.google.common.collect.Lists;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;

@@ -17,8 +17,8 @@ package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.stream.Position;
-import io.pravega.stream.impl.PositionInternal;
+import io.pravega.client.stream.Position;
+import io.pravega.client.stream.impl.PositionInternal;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.junit.Test;

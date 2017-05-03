@@ -15,7 +15,7 @@
  */
 package io.pravega.controller.store.stream.tables;
 
-import io.pravega.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamConfiguration;
 import lombok.Data;
 
 @Data

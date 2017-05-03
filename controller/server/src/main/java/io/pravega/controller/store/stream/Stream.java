@@ -17,7 +17,7 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
-import io.pravega.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamConfiguration;
 
 import java.util.AbstractMap;
 import java.util.List;

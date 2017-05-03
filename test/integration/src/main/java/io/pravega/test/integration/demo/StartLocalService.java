@@ -19,7 +19,7 @@ import io.pravega.service.contracts.StreamSegmentStore;
 import io.pravega.service.server.host.handler.PravegaConnectionListener;
 import io.pravega.service.server.store.ServiceBuilder;
 import io.pravega.service.server.store.ServiceBuilderConfig;
-import io.pravega.stream.mock.MockStreamManager;
+import io.pravega.client.stream.mock.MockStreamManager;
 import lombok.Cleanup;
 
 public class StartLocalService {

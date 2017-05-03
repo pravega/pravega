@@ -37,8 +37,8 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
-import io.pravega.stream.ScalingPolicy;
-import io.pravega.stream.impl.Controller;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.impl.Controller;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;

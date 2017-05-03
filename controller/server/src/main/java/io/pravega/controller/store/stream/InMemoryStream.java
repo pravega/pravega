@@ -18,7 +18,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
-import io.pravega.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import org.apache.commons.lang.NotImplementedException;

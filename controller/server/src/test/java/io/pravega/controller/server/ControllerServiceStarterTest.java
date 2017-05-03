@@ -15,7 +15,7 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.StreamManager;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.controller.fault.ControllerClusterListenerConfig;
 import io.pravega.controller.fault.impl.ControllerClusterListenerConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -26,7 +26,7 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
-import io.pravega.stream.impl.StreamManagerImpl;
+import io.pravega.client.admin.stream.impl.StreamManagerImpl;
 import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;

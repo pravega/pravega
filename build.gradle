@@ -225,7 +225,7 @@ project('shared:protocol') {
     }
 }
 
-project('clients:streaming') {
+project('client') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: googleCodeFindBugsJsr305Version
@@ -236,11 +236,12 @@ project('clients:streaming') {
         compile project(':shared:protocol')
         compile project(":shared:controller")
         testCompile project(':test:common')
+        testCompile project(':client:admin')
     }
     publishing {
         publications {
             maven(MavenPublication) {
-                artifactId 'pravega-clients'
+                artifactId 'pravega-client'
                 from components.java
             }
         }
@@ -249,7 +250,28 @@ project('clients:streaming') {
         title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
-        source  =  project(':clients:streaming').sourceSets.main.java
+        source  {
+            project(':client').sourceSets.main.java
+            project(':client:admin').sourceSets.main.java
+        }
+    }
+}
+
+project('client:admin') {
+    dependencies {
+        compile project(':client')
+        compile project(':shared:protocol')
+        compile project(':shared')
+        testCompile project(':test:common')
+        testCompile files(project(':client').sourceSets.test.output)
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                artifactId 'pravega-client-admin'
+                from components.java
+            }
+        }
     }
 }
 
@@ -372,7 +394,7 @@ project('service:server:host') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
-        compile project(':clients:streaming')
+        compile project(':client')
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
@@ -396,7 +418,8 @@ project('service:server:host') {
 project('test:integration') {
     dependencies {
         compile project(':common')
-        compile project(':clients:streaming')
+        compile project(':client')
+        compile project(':client:admin')
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
@@ -411,7 +434,7 @@ project('test:integration') {
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
         testCompile files(project(':common').sourceSets.test.output)
         testCompile files(project(':shared:protocol').sourceSets.test.output)
-        compile files(project(':clients:streaming').sourceSets.test.output)
+        compile files(project(':client').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
@@ -568,7 +591,8 @@ project('controller:server') {
     dependencies {
         compile project(':common')
         compile project(":shared:controller")
-        compile project(":clients:streaming")
+        compile project(":client")
+        compile project(":client:admin")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
@@ -602,7 +626,8 @@ project('connectors:flink') {
     apply plugin: 'com.github.johnrengelman.shadow'
 
     dependencies {
-        compile project(":clients:streaming")
+        compile project(":client")
+        compile project(":client:admin")
         compileOnly group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
 
         //  configuring the shaded pom dependencies
@@ -642,7 +667,8 @@ project('connectors:flink') {
             include(project(":shared:protocol"))
             include(project(":shared:metrics"))
             include(project(":shared:controller"))
-            include(project(":clients:streaming"))
+            include(project(":client"))
+            include(project(":client:admin"))
         }
 
         // Shading the libraries which could cause potential version conflicts with flink.
@@ -688,7 +714,7 @@ project('singlenode') {
 
     dependencies {
         compile project(':common')
-        compile project(':clients:streaming')
+        compile project(':client')
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
@@ -733,7 +759,7 @@ project('test:system') {
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
         compile project(':controller:server')
-        compile project(":clients:streaming")
+        compile project(":client")
         compile project(":test:common")
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
@@ -802,7 +828,8 @@ subprojects {
 }
 
 task publishAllJars() {
-    dependsOn ':clients:streaming:publish'
+    dependsOn ':client:publish'
+    dependsOn ':client:admin:publish'
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
     dependsOn ':shared:protocol:publish'
@@ -833,14 +860,14 @@ task sourceTar(type: Tar) {
 }
 
 task genJavaDocs(type: Javadoc) {
-    dependsOn 'clients:streaming:javadoc'
+    dependsOn 'client:javadoc'
 }
 
 task javadocs(type: Javadoc) {
     description = "Generate main pravega javadoc"
 
     // Include names of any project that is to be included in the javadoc distribution
-    ext.projects = [':clients:streaming', ':common', ':shared:protocol']
+    ext.projects = [':client', ':client:admin', ':common', ':shared:protocol']
 
     title = "Pravega API"
     source = files(projects.collect {
@@ -877,8 +904,14 @@ distributions {
     client {
         baseName = "pravega-client"
         contents {
-            from { project(":clients:streaming").configurations.runtime }
-            from { project(":clients:streaming").configurations.runtime.allArtifacts.files }
+            from {
+                project(":client").configurations.runtime
+                project(":client:admin").configurations.runtime
+            }
+            from {
+                project(":client").configurations.runtime.allArtifacts.files
+                project(":client:admin").configurations.runtime.allArtifacts.files
+            }
         }
     }
     javadoc {

@@ -15,11 +15,11 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.ClientFactory;
+import io.pravega.client.ClientFactory;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImpl;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;

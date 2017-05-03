@@ -45,7 +45,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import io.pravega.stream.impl.ModelHelper;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.Map.Entry;

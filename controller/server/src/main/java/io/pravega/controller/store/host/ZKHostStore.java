@@ -18,7 +18,7 @@ package io.pravega.controller.store.host;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.controller.util.ZKUtils;
-import io.pravega.stream.Segment;
+import io.pravega.client.stream.Segment;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;

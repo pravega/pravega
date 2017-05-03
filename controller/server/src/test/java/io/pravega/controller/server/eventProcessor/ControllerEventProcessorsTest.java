@@ -28,9 +28,9 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.impl.Controller;
-import io.pravega.stream.impl.netty.ConnectionFactory;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import org.junit.Test;
 
 import java.util.Set;
