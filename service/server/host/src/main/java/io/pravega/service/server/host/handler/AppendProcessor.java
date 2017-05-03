@@ -24,9 +24,11 @@ import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
@@ -100,6 +102,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         this.connection = connection;
         this.next = next;
         this.statsRecorder = statsRecorder;
+    }
+    
+    @Override
+    public void hello(Hello hello) {
+        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
     }
 
     /**

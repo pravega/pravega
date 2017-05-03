@@ -40,6 +40,11 @@ public class WireCommandsTest {
     private final long l = 7L;
 
     @Test
+    public void testHello() throws IOException {
+        testCommand(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
+    }
+    
+    @Test
     public void testPadding() throws IOException {
         testCommand(new WireCommands.Padding(length));
     }

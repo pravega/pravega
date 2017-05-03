@@ -48,6 +48,8 @@ import lombok.experimental.Accessors;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
+    public static final int WIRE_VERSION = 1;
+    public static final int OLDEST_COMPATABLE_VERSION = 1;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
     public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
@@ -69,6 +71,35 @@ public final class WireCommands {
         WireCommand readFrom(DataInput in, int length) throws IOException;
     }
 
+    @Data
+    public static final class Hello implements Request, Reply, WireCommand {
+        final WireCommandType type = WireCommandType.HELLO;
+        final int highVersion;
+        final int lowVersion;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.hello(this);
+        }
+        
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.hello(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(highVersion);
+            out.writeInt(lowVersion);
+        }
+
+        public static Hello readFrom(DataInput in, int length) throws IOException {
+            int highVersion = in.readInt();
+            int lowVersion = in.readInt();
+            return new Hello(highVersion, lowVersion);
+        }
+    }
+    
     @Data
     public static final class WrongHost implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.WRONG_HOST;
