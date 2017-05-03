@@ -24,4 +24,4 @@ for endpoint in endpoints:
             print(e)
             sleep(5)
 
-subprocess.call(entrypoint)
+subprocess.call(entrypoint, shell=True)
