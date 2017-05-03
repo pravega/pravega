@@ -1,5 +1,17 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -14,7 +26,7 @@ import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.SegmentRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import io.pravega.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamConfiguration;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -90,7 +102,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        return store.getChildren(activeTxRoot).thenApply(list -> list == null ? 0 : list.size());
+        return store.getChildren(activeTxRoot).thenCompose(list ->
+                FutureHelpers.allOfWithResults(list.stream().map(epoch ->
+                        getNumberOfOngoingTransactions(Integer.parseInt(epoch))).collect(Collectors.toList())))
+                .thenApply(list -> list.stream().reduce(0, Integer::sum));
+    }
+
+    private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
+        return store.getChildren(getEpochPath(epoch)).thenApply(List::size);
     }
 
     @Override
@@ -265,23 +284,40 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Integer> createNewTransaction(final UUID txId,
-                                                 final long timestamp,
-                                                 final long leaseExpiryTime,
-                                                 final long maxExecutionExpiryTime,
-                                                 final long scaleGracePeriod) {
-        // TODO: retry is yet to be applied here
+                                                    final long timestamp,
+                                                    final long leaseExpiryTime,
+                                                    final long maxExecutionExpiryTime,
+                                                    final long scaleGracePeriod) {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        createNewTransactionNode(txId, timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod)
+                .whenComplete((value, ex) -> {
+                    if (ex != null) {
+                        if (ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+                            FutureHelpers.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
+                                    maxExecutionExpiryTime, scaleGracePeriod), future);
+                        } else {
+                            future.completeExceptionally(ex);
+                        }
+                    } else {
+                        future.complete(value);
+                    }
+                });
+        return future;
+    }
+
+    private CompletableFuture<Integer> createNewTransactionNode(final UUID txId,
+                                                                final long timestamp,
+                                                                final long leaseExpiryTime,
+                                                                final long maxExecutionExpiryTime,
+                                                                final long scaleGracePeriod) {
         return getLatestEpoch().thenCompose(pair -> {
             final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
             final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
                     scaleGracePeriod, TxnStatus.OPEN).toByteArray();
+            // TODO: replace the previous create version with `createZNodeIfParentExists` method, once scale operation
             return store.createZNodeIfNotExist(activePath, txnRecord)
                     .thenApply(x -> cache.invalidateCache(activePath))
                     .thenApply(y -> pair.getKey());
-            // TODO: replace the previous create version with `createZNodeIfParentExists` method, once scale operation
-            // creates epoch nodes
-            //  return store.createZNodeIfParentExists(activePath, txnRecord)
-            //          .thenApply(x -> cache.invalidateCache(activePath))
-            //          .thenApply(y -> pair.getKey());
         });
     }
 
@@ -300,7 +336,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
             if (opt.isPresent()) {
                 return Integer.parseInt(opt.get().getKey());
             } else {
-                return null;
+                throw new DataNotFoundException(txId.toString());
             }
         });
     }

@@ -1,7 +1,17 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.timeout;
 
@@ -28,10 +38,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.Config;
-import io.pravega.stream.ScalingPolicy;
-import io.pravega.stream.StreamConfiguration;
-import io.pravega.stream.impl.ModelHelper;
-import io.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.Optional;
 import java.util.UUID;
@@ -458,6 +468,41 @@ public class TimeoutServiceTest {
 
         Controller.TxnStatus.Status status = controllerService.abortTransaction(SCOPE, STREAM, txnId).join().getStatus();
         Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status);
+    }
+
+    @Test(timeout = 10000)
+    public void testUnknownTxnPingSuccess() throws InterruptedException {
+        UUID txnId = UUID.randomUUID();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE, MAX_EXECUTION_TIME,
+                SCALE_GRACE_PERIOD, null, executor).join();
+
+        TxnId tx = TxnId.newBuilder()
+                .setHighBits(txnId.getMostSignificantBits())
+                .setLowBits(txnId.getLeastSignificantBits())
+                .build();
+
+        controllerService.pingTransaction(SCOPE, STREAM, tx, LEASE);
+
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
+
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
+        Assert.assertEquals(TxnStatus.OPEN, status);
+
+        PingTxnStatus pingStatus = timeoutService.pingTxn(SCOPE, STREAM, txData.getId(), LEASE);
+        Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
+
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
+
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
+        Assert.assertEquals(TxnStatus.OPEN, status);
+
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.8 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNotNull(result);
+
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
+        Assert.assertEquals(TxnStatus.ABORTED, status);
     }
 
     private TxnId convert(UUID uuid) {

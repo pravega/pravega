@@ -1,7 +1,17 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.eventProcessor;
 
@@ -10,18 +20,18 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
-import io.pravega.stream.PingFailedException;
-import io.pravega.stream.Segment;
-import io.pravega.stream.SegmentWithRange;
-import io.pravega.stream.Stream;
-import io.pravega.stream.StreamConfiguration;
-import io.pravega.stream.StreamSegmentsWithPredecessors;
-import io.pravega.stream.Transaction;
-import io.pravega.stream.impl.Controller;
-import io.pravega.stream.impl.ControllerFailureException;
-import io.pravega.stream.impl.ModelHelper;
-import io.pravega.stream.impl.StreamSegments;
-import io.pravega.stream.impl.TxnSegments;
+import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.Segment;
+import io.pravega.client.stream.SegmentWithRange;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ControllerFailureException;
+import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.impl.TxnSegments;
 
 import java.util.HashMap;
 import java.util.List;

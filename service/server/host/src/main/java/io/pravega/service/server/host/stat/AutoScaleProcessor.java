@@ -1,18 +1,30 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.host.stat;
 
-import io.pravega.ClientFactory;
+import io.pravega.client.ClientFactory;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.controller.event.ScaleEvent;
 import io.pravega.shared.NameUtils;
-import io.pravega.stream.EventStreamWriter;
-import io.pravega.stream.EventWriterConfig;
-import io.pravega.stream.Segment;
-import io.pravega.stream.Serializer;
-import io.pravega.stream.impl.JavaSerializer;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Segment;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.impl.JavaSerializer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
