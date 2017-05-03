@@ -377,8 +377,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId) {
         CompletableFuture<Integer> epochFuture = getTransactionEpoch(txId).handle((epoch, ex) -> {
-            if (epoch == null ||
-                    (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException)) {
+            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
                 return null;
             } else if (ex != null) {
                 throw new CompletionException(ex);
@@ -397,8 +396,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<TxnStatus> checkTransactionStatus(final int epoch, final UUID txId) {
         final CompletableFuture<TxnStatus> activeTx = getActiveTx(epoch, txId).handle((ok, ex) -> {
-            if (ok == null ||
-                    (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException)) {
+            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
                 return TxnStatus.UNKNOWN;
             } else if (ex != null) {
                 throw new CompletionException(ex);
@@ -417,7 +415,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<TxnStatus> getCompletedTxnStatus(UUID txId) {
         return getCompletedTx(txId).handle((ok, ex) -> {
-            if (ok == null || (ex != null && ex instanceof DataNotFoundException)) {
+            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
                 return TxnStatus.UNKNOWN;
             } else if (ex != null) {
                 throw new CompletionException(ex);
@@ -432,8 +430,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         CompletableFuture<TxnStatus> future = verifyLegalState(getTransactionEpoch(txId)
                 .thenCompose(epoch -> sealActiveTxn(epoch, txId, commit, version)))
                 .exceptionally(this::handleDataNotFoundException);
-        return future.thenCompose(status ->
-                status == TxnStatus.UNKNOWN ? validateCompletedTxn(txId, commit, "seal") : CompletableFuture.completedFuture(status));
+        return future.thenCompose(status -> status == TxnStatus.UNKNOWN ?
+                validateCompletedTxn(txId, commit, "seal") : CompletableFuture.completedFuture(status));
     }
 
     private CompletableFuture<TxnStatus> sealActiveTxn(int epoch, UUID txId, final boolean commit, final Optional<Integer> version) {
