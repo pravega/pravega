@@ -16,7 +16,7 @@ for all major operating systems.
 # Zookeeper
 
 Pravega requires Zookeeper 3.5.1-alpha+. At least 3 Zookeeper nodes are recommended for a quorum. No special
-configuration is required for zookeeper but it is recommended to use a dedicated cluster for Pravega.
+configuration is required for Zookeeper but it is recommended to use a dedicated cluster for Pravega.
 
 This specific version of Zookeeper can be downloaded from Apache at [zookeeper-3.5.1-alpha.tar.gz](http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz).
 
@@ -24,7 +24,7 @@ For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache
 
 # Bookkeeper
 
-Pravega requires Bookkeeper 4.4.0+. At least 3 bookkeeper servers are required for a quorum.
+Pravega requires Bookkeeper 4.4.0+. At least 3 Bookkeeper servers are required for a quorum.
 
 This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.4.0-bin.tar.gz](http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz).
 
@@ -49,7 +49,7 @@ zkLedgersRootPath=/pravega/bookkeeper/ledgers
 
 ## Initializing Zookeeper paths
 
-The following paths need to be created in Zookeeper. From the `zookeeper-3.5.1-alpha` directory on the zookeeper servers run:
+The following paths need to be created in Zookeeper. From the `zookeeper-3.5.1-alpha` directory on the Zookeeper servers run:
 
 ```
 bin/zkCli.sh -server $ZK_URL create /pravega
