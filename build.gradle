@@ -133,7 +133,6 @@ project('client') {
         exclude "**/impl/**";
     }
 }
-
 project('test:common') {
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
@@ -370,7 +369,7 @@ project('controller:server') {
     }
 }
 
-project('singlenode') {
+project('standalone') {
     apply plugin: 'application'
     applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
@@ -402,7 +401,7 @@ project('singlenode') {
         testCompile project(path:':service:server:host', configuration:'testRuntime')
     }
 
-    task startSinglenode(type: JavaExec) {
+    task startStandalone(type: JavaExec) {
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
@@ -492,7 +491,7 @@ task publishAllJars() {
     dependsOn ':shared:metrics:publish'
     dependsOn ':shared:controller:publish'
     dependsOn ':controller:server:publish'
-    dependsOn ':singlenode:publish'
+    dependsOn ':standalone:publish'
     dependsOn ':test:system:publish'
 }
 
@@ -549,7 +548,7 @@ distributions {
             from (project(":service:server:host").installDist) {
                 exclude "logback.xml"
             }
-            from (project(":singlenode").installDist)
+            from (project(":standalone").installDist)
         }
     }
     client {

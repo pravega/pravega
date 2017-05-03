@@ -15,6 +15,19 @@
  */
 rootProject.name = 'pravega'
 
-include 'common', 'client', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host',
-        'shared:controller', 'controller:server', 'shared:protocol',
-        'test:integration', 'test:common', 'benchmark', 'singlenode', 'test:system', 'shared', 'shared:metrics'
+include 'common',
+        'shared',
+        'shared:metrics',
+        'shared:protocol',
+        'shared:controller',
+        'client',
+        'service:contracts',
+        'service:storage',
+        'service:storage:impl',
+        'service:server',
+        'service:server:host',
+        'controller:server',
+        'standalone',
+        'test:common',
+        'test:integration',
+        'test:system'
