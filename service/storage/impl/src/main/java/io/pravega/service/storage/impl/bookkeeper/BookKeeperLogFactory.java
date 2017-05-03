@@ -56,7 +56,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient")
-                                     .usingNamespace(this.config.getNamespace());
+                                     .usingNamespace(zkClient.getNamespace() + this.config.getNamespace());
         this.bookKeeper = new AtomicReference<>();
     }
 
