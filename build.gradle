@@ -21,7 +21,6 @@ buildscript {
     }
     dependencies {
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
-        classpath group: 'com.github.jengelman.gradle.plugins', name:'shadow', version: shadowGradlePlugin
     }
 }
 
@@ -402,14 +401,10 @@ project('test:integration') {
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
-        compile project(':connectors:flink')
         compile project(':test:common')
         compile group: 'junit', name:'junit', version: junitVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile group: 'org.apache.flink', name: 'flink-tests_2.11', version: flinkVersion
-        testCompile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: flinkVersion
-        testCompile group: 'org.apache.flink', name: 'flink-streaming-contrib_2.11', version: flinkVersion
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
         testCompile files(project(':common').sourceSets.test.output)
         testCompile files(project(':shared:protocol').sourceSets.test.output)
@@ -600,79 +595,6 @@ project('controller:server') {
     }
 }
 
-project('connectors:flink') {
-    apply plugin: 'com.github.johnrengelman.shadow'
-
-    dependencies {
-        compile project(":client")
-        compileOnly group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
-
-        //  configuring the shaded pom dependencies
-        shadow group: 'org.slf4j', name:'slf4j-api', version: slf4jApiVersion
-        shadow group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
-    }
-
-    shadowJar {
-        dependencies {
-            // 'include' specific dependencies in the shadow jar
-            // IMPORTANT: transitive dependencies must be manually listed here!
-            include dependency("com.google.guava:guava")
-            include dependency("commons-lang:commons-lang")
-            include dependency("org.apache.commons:commons-lang3")
-            include dependency("commons-io:commons-io")
-            include dependency("io.netty:netty-common")
-            include dependency("io.netty:netty-buffer")
-            include dependency("io.netty:netty-resolver")
-            include dependency("io.netty:netty-transport")
-            include dependency("io.netty:netty-codec")
-            include dependency("io.netty:netty-codec-http")
-            include dependency("io.netty:netty-codec-http2")
-            include dependency("io.netty:netty-codec-socks")
-            include dependency("io.netty:netty-handler")
-            include dependency("io.netty:netty-handler-proxy")
-            include dependency("io.grpc:grpc-core")
-            include dependency("io.grpc:grpc-protobuf")
-            include dependency("io.grpc:grpc-stub")
-            include dependency("io.grpc:grpc-context")
-            include dependency("io.grpc:grpc-netty")
-            include dependency("io.grpc:grpc-protobuf-lite")
-            include dependency("com.google.protobuf:protobuf-java-util")
-            include dependency("com.google.protobuf:protobuf-java")
-            include dependency("com.google.code.gson:gson")
-            include dependency("com.google.instrumentation:instrumentation-api")
-            include(project(":common"))
-            include(project(":shared:protocol"))
-            include(project(":shared:metrics"))
-            include(project(":shared:controller"))
-            include(project(":client"))
-        }
-
-        // Shading the libraries which could cause potential version conflicts with flink.
-        relocate "com.google", "io.pravega.shaded.com.google"
-        relocate "org.apache.commons", "io.pravega.shaded.org.apache.commons"
-        relocate "io.grpc", "io.pravega.shaded.io.grpc"
-        relocate "io.netty", "io.pravega.shaded.io.netty"
-
-        mergeServiceFiles()
-    }
-
-    // Publishing both shaded and non-shaded versions of the flink connector.
-    publishing {
-        publications {
-            maven(MavenPublication) {
-                artifactId 'pravega-connectors-flink_2.11'
-                from components.java
-            }
-            shadow(MavenPublication) {
-                groupId = System.properties['groupId'] ? System.properties['groupId'].toString() : "io.pravega"
-                version = pravegaVersion
-                artifactId 'pravega-connectors-flink-shaded_2.11'
-                from components.shadow
-            }
-        }
-    }
-}
-
 project('singlenode') {
     apply plugin: 'application'
     applicationName = "pravega-standalone"
@@ -816,7 +738,6 @@ task publishAllJars() {
     dependsOn ':shared:metrics:publish'
     dependsOn ':shared:controller:publish'
     dependsOn ':controller:server:publish'
-    dependsOn ':connectors:flink:publish'
     dependsOn ':singlenode:publish'
     dependsOn ':test:system:publish'
 }

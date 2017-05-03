@@ -15,5 +15,5 @@
  */
 
 include 'common', 'client', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host',
-        'shared:controller', 'controller:server', 'connectors:flink','shared:protocol',
+        'shared:controller', 'controller:server', 'shared:protocol',
         'test:integration', 'test:common', 'benchmark', 'singlenode', 'test:system', 'shared', 'shared:metrics'
