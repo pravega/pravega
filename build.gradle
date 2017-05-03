@@ -715,6 +715,9 @@ project('singlenode') {
         classpath = sourceSets.main.runtimeClasspath
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
         environment "JAVA_OPTS", "-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"
+        if(project.hasProperty('singlenodeargs')){
+            args(singlenodeargs.split(','))
+        }
     }
 
     publishing {

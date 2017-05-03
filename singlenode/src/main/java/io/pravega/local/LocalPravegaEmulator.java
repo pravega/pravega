@@ -70,6 +70,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
             final int controllerPort = intArg(args, 1, DEFAULT_CONTROLLER_PORT);
             final int segmentstorePort = intArg(args, 2, DEFAULT_SEGMENTSTORE_PORT);
 
+            log.info("Running Pravega Emulator with ports: ZK port {}, controllerPort {}, SegmentStorePort {}",
+                    zkPort, controllerPort, segmentstorePort);
+
             final LocalPravegaEmulator localPravega = LocalPravegaEmulator.builder().controllerPort(
                     controllerPort).hostPort(segmentstorePort).zkPort(zkPort).build();
             Runtime.getRuntime().addShutdownHook(new Thread() {
