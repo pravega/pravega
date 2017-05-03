@@ -91,7 +91,7 @@ public class BookKeeperConfig {
      * The path for the BookKeeper Ledger.
      */
     @Getter
-    private final String bkLegerPath;
+    private final String bkLedgerPath;
 
     /**
      * The Ensemble Size for each Ledger created in BookKeeper.
@@ -141,7 +141,7 @@ public class BookKeeperConfig {
         }
 
         this.retryPolicy = properties.getRetryWithBackoff(RETRY_POLICY);
-        this.bkLegerPath = properties.get(BK_LEDGER_PATH);
+        this.bkLedgerPath = properties.get(BK_LEDGER_PATH);
         this.bkEnsembleSize = properties.getInt(BK_ENSEMBLE_SIZE);
         this.bkAckQuorumSize = properties.getInt(BK_ACK_QUORUM_SIZE);
         this.bkWriteQuorumSize = properties.getInt(BK_WRITE_QUORUM_SIZE);
