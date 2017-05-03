@@ -88,7 +88,9 @@ public final class ModelHelper {
      * @return New instance of RetentionPolicy.
      */
     public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
-        if (policy != null) {
+        // Using default enum type of UNKNOWN(0) to detect if retention policy has been set or not.
+        // This is required since proto3 does not have any other way to detect if a field has been set or not.
+        if (policy != null && policy.getType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
             return RetentionPolicy.builder()
                     .type(RetentionPolicy.Type.valueOf(policy.getType().name()))
                     .value(policy.getValue())

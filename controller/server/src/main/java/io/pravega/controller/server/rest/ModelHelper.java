@@ -60,10 +60,10 @@ public class ModelHelper {
         RetentionPolicy retentionPolicy = null;
         if (createStreamRequest.getRetentionPolicy() != null) {
             switch (createStreamRequest.getRetentionPolicy().getType()) {
-                case SIZE_BYTES:
+                case LIMITED_SIZE_BYTES:
                     retentionPolicy = RetentionPolicy.bySizeBytes(createStreamRequest.getRetentionPolicy().getValue());
                     break;
-                case TIME_MILLIS:
+                case LIMITED_TIME_MILLIS:
                     retentionPolicy =
                             RetentionPolicy.byTime(Duration.ofMillis(createStreamRequest.getRetentionPolicy().getValue()));
                     break;
@@ -107,10 +107,10 @@ public class ModelHelper {
         RetentionPolicy retentionPolicy = null;
         if (updateStreamRequest.getRetentionPolicy() != null) {
             switch (updateStreamRequest.getRetentionPolicy().getType()) {
-                case SIZE_BYTES:
+                case LIMITED_SIZE_BYTES:
                     retentionPolicy = RetentionPolicy.bySizeBytes(updateStreamRequest.getRetentionPolicy().getValue());
                     break;
-                case TIME_MILLIS:
+                case LIMITED_TIME_MILLIS:
                     retentionPolicy =
                             RetentionPolicy.byTime(Duration.ofMillis(updateStreamRequest.getRetentionPolicy().getValue()));
                     break;
@@ -149,11 +149,11 @@ public class ModelHelper {
             retentionConfig = new RetentionConfig();
             switch (streamConfiguration.getRetentionPolicy().getType()) {
                 case SIZE:
-                    retentionConfig.setType(RetentionConfig.TypeEnum.SIZE_BYTES);
+                    retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_BYTES);
                     retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
                     break;
                 case TIME:
-                    retentionConfig.setType(RetentionConfig.TypeEnum.TIME_MILLIS);
+                    retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_TIME_MILLIS);
                     retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
                     break;
             }

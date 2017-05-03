@@ -19,9 +19,9 @@ public class RetentionConfig   {
    * Gets or Sets type
    */
   public enum TypeEnum {
-    TIME_MILLIS("LIMITED_TIME_MILLIS"),
-    
-    SIZE_BYTES("LIMITED_SIZE_BYTES");
+    LIMITED_TIME_MILLIS("LIMITED_TIME_MILLIS"),
+
+    LIMITED_SIZE_BYTES("LIMITED_SIZE_BYTES");
 
     private String value;
 

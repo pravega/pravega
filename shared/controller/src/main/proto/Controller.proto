@@ -146,8 +146,9 @@ message ScalingPolicy {
 
 message RetentionPolicy {
     enum RetentionPolicyType {
-        TIME = 0;
-        SIZE = 1;
+        UNKNOWN = 0;
+        TIME = 1;
+        SIZE = 2;
     }
     RetentionPolicyType type = 1;
     int64 value = 2;
