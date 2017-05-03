@@ -1,3 +1,0 @@
-# Installing Pravega Cluster
-
-TBD

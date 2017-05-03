@@ -1,3 +1,0 @@
-# Deploying Pravega Docker
-
-TBD

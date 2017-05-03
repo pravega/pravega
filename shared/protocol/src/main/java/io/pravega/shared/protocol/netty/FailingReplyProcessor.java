@@ -1,13 +1,24 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchTransaction;
@@ -15,22 +26,29 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentPolicyUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentPolicyUpdated;
+import lombok.extern.slf4j.Slf4j;
 
 
 /**
  * A ReplyProcessor that throws on every method. (Useful to subclass)
  */
+@Slf4j
 public abstract class FailingReplyProcessor implements ReplyProcessor {
 
+    @Override
+    public void hello(Hello hello) {
+        log.info("Received hello: {}", hello);
+    }
+    
     @Override
     public void wrongHost(WrongHost wrongHost) {
         throw new IllegalStateException("Wrong host. Segment: " + wrongHost.segment + " is on "
