@@ -1,0 +1,110 @@
+version: '2'
+services:
+  zookeeper:
+    image: jplock/zookeeper:3.5.2-alpha
+    ports:
+      - "2181:2181"
+
+  hdfs:
+    image: dsrw/hdfs:2.7.2-1
+    ports:
+      - "2222:2222"
+      - "8020:8020"
+      - "50090:50090"
+      - "50010:50010"
+      - "50020:50020"
+      - "50075:50075"
+      - "50070:50070"
+    environment:
+      SSH_PORT: 2222
+      HDFS_HOST: ${HOST_IP}
+
+  bookie1:
+    image: nautilus/bookkeeper
+    ports:
+      - "3181:3181"
+    environment:
+      ENTRYPOINT: /opt/dl_all/entry_point.sh
+      WAIT_FOR: zookeeper:2181
+      ZK_URL: zookeeper:2181
+      ZK: zookeeper:2181
+      DLOG_EXTRA_OPTS: -Xms512m
+      bookiePort: 3181
+    links:
+      - zookeeper
+    volumes:
+      - ./wait_for:/opt/bin/wait_for
+    entrypoint: /opt/bin/wait_for
+
+  bookie2:
+      image: nautilus/bookkeeper
+      ports:
+        - "3182:3182"
+      environment:
+        ENTRYPOINT: /opt/dl_all/entry_point.sh
+        WAIT_FOR: zookeeper:2181
+        ZK_URL: zookeeper:2181
+        ZK: zookeeper:2181
+        DLOG_EXTRA_OPTS: -Xms512m
+        bookiePort: 3181
+      links:
+        - zookeeper
+      volumes:
+        - ./wait_for:/opt/bin/wait_for
+      entrypoint: /opt/bin/wait_for
+
+  bookie3:
+      image: nautilus/bookkeeper
+      ports:
+        - "3183:3183"
+      environment:
+        ENTRYPOINT: /opt/dl_all/entry_point.sh
+        WAIT_FOR: zookeeper:2181
+        ZK_URL: zookeeper:2181
+        ZK: zookeeper:2181
+        DLOG_EXTRA_OPTS: -Xms512m
+        bookiePort: 3181
+      links:
+        - zookeeper
+      volumes:
+        - ./wait_for:/opt/bin/wait_for
+      entrypoint: /opt/bin/wait_for
+
+  controller:
+    image: nautilus/pravega-controller
+    ports:
+      - "9090:9090"
+      - "10080:10080"
+    environment:
+      ENTRYPOINT: /opt/controller/server/bin/server
+      WAIT_FOR: zookeeper:2181,host:12345
+      REST_SERVER_PORT: 10080
+      CONTROLLER_SERVER_PORT: 9090
+      ZK_URL: zookeeper:2181
+      JAVA_OPTS: -Dconfig.controller.metricenableCSVReporter=false -Xmx512m
+      SERVICE_HOST_IP: host
+      HOST_STORE_TYPE: Zookeeper
+    links:
+      - host
+      - zookeeper
+    volumes:
+      - ./wait_for:/opt/bin/wait_for
+    entrypoint: /opt/bin/wait_for
+
+  host:
+    image: nautilus/pravega-host
+    ports:
+      - "12345:12345"
+    environment:
+      ENTRYPOINT: /opt/host/bin/host
+      WAIT_FOR: bookie1:3181,hdfs:8020
+      JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Ddlog.hostname=zookeeper -Ddlog.port=2181 -Dhdfs.replication=1 -Dhdfs.hdfsUrl=${HOST_IP}:8020 -Dpravegaservice.zkURL=zookeeper:2181 -Dpravegaservice.publishedIPAddress=${HOST_IP} -Xmx900m
+    links:
+      - zookeeper
+      - hdfs
+      - bookie1
+      - bookie2
+      - bookie3
+    volumes:
+      - ./wait_for:/opt/bin/wait_for
+    entrypoint: /opt/bin/wait_for
