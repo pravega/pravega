@@ -3,9 +3,7 @@ from time import sleep
 
 import os
 import socket
-import subprocess
 
-entrypoint = os.environ["ENTRYPOINT"]
 endpoints = os.environ["WAIT_FOR"].split(",")
 size = 1024
 
@@ -23,5 +21,3 @@ for endpoint in endpoints:
             print("Unable to connect to " + endpoint + ". Waiting")
             print(e)
             sleep(5)
-
-subprocess.call(entrypoint, shell=True)

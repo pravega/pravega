@@ -32,6 +32,10 @@ configure_standalone() {
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
+if [ -z ${WAIT_FOR} ];then
+  ./wait_for
+fi
+
 case $1 in
 controller)
     configure_controller
