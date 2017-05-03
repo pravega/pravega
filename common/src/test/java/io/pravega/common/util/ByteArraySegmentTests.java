@@ -1,7 +1,17 @@
 /**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
@@ -51,23 +61,6 @@ public class ByteArraySegmentTests {
             s2.set(i, newValue);
             Assert.assertEquals("Unexpected value for updated get in second half of buffer at index " + i, newValue, s2.get(i));
             Assert.assertEquals("Unexpected value for the base buffer (second half) at index " + (i - halfOffset), newValue, buffer[i + halfOffset]);
-        }
-    }
-
-    /**
-     * Tests the functionality of setSequence.
-     */
-    @Test
-    public void testSetSequence() {
-        final byte[] buffer = createFormattedBuffer();
-        ByteArraySegment s1 = new ByteArraySegment(buffer);
-        int offset = 10;
-        byte[] newValues = new byte[]{99, 98, 97, 9, 6, 95, 94, 93, 92, 91, 90};
-        s1.setSequence(offset, newValues);
-        for (int i = 0; i < buffer.length; i++) {
-            int expectedValue = i < offset || i >= offset + newValues.length ? i : newValues[i - offset];
-            Assert.assertEquals("Unexpected value after setSequence in segment at offset " + i, expectedValue, s1.get(i));
-            Assert.assertEquals("Unexpected value after setSequence in base buffer at offset " + i, expectedValue, buffer[i]);
         }
     }
 
@@ -236,7 +229,6 @@ public class ByteArraySegmentTests {
         checkReadOnlyException("copyFrom", () -> segment.copyFrom(new ByteArraySegment(new byte[10], 0, 10), 0, 10));
         checkReadOnlyException("getWriter", segment::getWriter);
         checkReadOnlyException("set", () -> segment.set(0, (byte) 0));
-        checkReadOnlyException("setSequence", () -> segment.setSequence(0, new byte[]{0}));
 
         // Check to see that, even though we did get an exception, the buffer was not modified.
         for (int i = 0; i < buffer.length; i++) {

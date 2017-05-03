@@ -1,13 +1,26 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
-import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.service.contracts.StreamSegmentException;
 import io.pravega.service.contracts.StreamSegmentInformation;
@@ -35,14 +48,15 @@ import io.pravega.service.server.reading.ReadIndexConfig;
 import io.pravega.service.storage.CacheFactory;
 import io.pravega.service.storage.DataLogNotAvailableException;
 import io.pravega.service.storage.DurableDataLogException;
+import io.pravega.service.storage.LogAddress;
 import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.mocks.InMemoryCacheFactory;
 import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.service.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
-import com.google.common.util.concurrent.Service;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -61,6 +75,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Cleanup;
+import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
@@ -776,27 +791,24 @@ public class DurableLogTests extends OperationLogTestBase {
         // Recovery failure due to DataCorruption
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // Reset error injectors to nothing.
             dataLog.get().setReadErrorInjectors(null, null);
             AtomicInteger readCounter = new AtomicInteger();
             dataLog.get().setReadInterceptor(
                     readItem -> {
-                        byte[] payload = readItem.getPayload();
-                        if (readCounter.incrementAndGet() > failReadAfter && payload.length > 14) { // 14 == DataFrame.Header.Length
+                        if (readCounter.incrementAndGet() > failReadAfter && readItem.getLength() > DataFrame.MIN_ENTRY_LENGTH_NEEDED) {
                             // Mangle with the payload and overwrite its contents with a DataFrame having a bogus
                             // previous sequence number.
-                            DataFrame df = new DataFrame(Integer.MAX_VALUE, payload.length);
+                            DataFrame df = new DataFrame(Integer.MAX_VALUE, readItem.getLength());
                             df.seal();
-                            try {
-                                StreamHelpers.readAll(df.getData(), payload, 0, payload.length);
-                            } catch (Exception ex) {
-                                Assert.fail(ex.toString());
-                            }
+                            ArrayView serialization = df.getData();
+                            return new InjectedReadItem(serialization.getReader(), serialization.getLength(), readItem.getAddress());
                         }
+
+                        return readItem;
                     }
             );
 
@@ -1104,6 +1116,17 @@ public class DurableLogTests extends OperationLogTestBase {
                     String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
                     expectedItem, actualItem);
         }
+    }
+
+    //endregion
+
+    //region InjectedReadItem
+
+    @Data
+    private static class InjectedReadItem implements TestDurableDataLog.ReadItem {
+        private final InputStream payload;
+        private final int length;
+        private final LogAddress address;
     }
 
     //endregion

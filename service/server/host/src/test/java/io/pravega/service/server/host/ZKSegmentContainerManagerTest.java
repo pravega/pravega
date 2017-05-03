@@ -1,10 +1,21 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.host;
 
 import io.pravega.common.cluster.Host;
-import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.service.server.ContainerHandle;
 import io.pravega.service.server.SegmentContainerRegistry;
 import io.pravega.test.common.AssertExtensions;
@@ -18,7 +29,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -85,7 +95,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
         CuratorFramework zkClient = startClient();
         @Cleanup
         ZKSegmentContainerManager segManager = createContainerManager(createMockContainerRegistry(), zkClient);
-        segManager.initialize().get();
+        segManager.initialize();
     }
 
     /**
@@ -120,7 +130,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
         ZKSegmentContainerManager segManager = createContainerManager(containerRegistry, zkClient);
-        FutureHelpers.await(segManager.initialize());
+        segManager.initialize();
         segManager.close();
     }
 
@@ -138,7 +148,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
 
         @Cleanup
         ZKSegmentContainerManager segManager = createContainerManager(containerRegistry, zkClient);
-        FutureHelpers.await(segManager.initialize());
+        segManager.initialize();
         verify(containerRegistry, timeout(30000).atLeastOnce()).startContainer(eq(1), any());
     }
 

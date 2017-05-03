@@ -1,8 +1,21 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.host.handler;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.service.contracts.ReadResult;
 import io.pravega.service.contracts.ReadResultEntry;
@@ -18,18 +31,15 @@ import io.pravega.service.server.store.StreamSegmentService;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsData;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
-import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-
-import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -165,12 +175,12 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 20000)
-    public void testCreateSegment() throws InterruptedException, ExecutionException {
+    public void testCreateSegment() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         String streamSegmentName = "testCreateSegment";
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize().get();
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
@@ -192,12 +202,12 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 20000)
-    public void testCreateSealDelete() throws InterruptedException, ExecutionException {
+    public void testCreateSealDelete() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against.
         String streamSegmentName = "testCreateSealDelete";
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize().get();
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);

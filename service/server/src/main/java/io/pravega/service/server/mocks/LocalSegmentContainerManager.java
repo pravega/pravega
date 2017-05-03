@@ -1,8 +1,21 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.mocks;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -10,7 +23,6 @@ import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.service.server.ContainerHandle;
 import io.pravega.service.server.SegmentContainerManager;
 import io.pravega.service.server.SegmentContainerRegistry;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,7 +30,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -92,7 +103,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     //region SegmentContainerManager Implementation
 
     @Override
-    public CompletableFuture<Void> initialize() {
+    public void initialize() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         long containerCount = this.segmentToContainerMapper.getTotalContainerCount();
@@ -102,8 +113,8 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
                                      .thenAccept(this::registerHandle));
         }
 
-        return FutureHelpers.allOf(futures)
-                            .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+        FutureHelpers.allOf(futures).join();
+        LoggerHelpers.traceLeave(log, "initialize", traceId);
     }
 
     //endregion

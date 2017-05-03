@@ -1,19 +1,27 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.storage.mocks;
 
-import io.pravega.service.storage.DataLogWriterNotPrimaryException;
+import com.google.common.base.Preconditions;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogTestBase;
 import io.pravega.service.storage.LogAddress;
-import io.pravega.test.common.AssertExtensions;
-import com.google.common.base.Preconditions;
-import java.io.ByteArrayInputStream;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -61,20 +69,15 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
     }
 
     @Override
-    protected int getWriteCountForWrites() {
+    protected int getWriteCount() {
         return WRITE_COUNT;
-    }
-
-    @Override
-    protected int getWriteCountForReads() {
-        return getWriteCountForWrites(); // In-Memory is fast enough; we can do this many.
     }
 
     /**
      * Tests the constructor of InMemoryDurableDataLog. The constructor takes in an EntryCollection and this verifies
      * that information from a previous instance of an InMemoryDurableDataLog is still accessible.
      */
-    @Test
+    @Test(timeout = 5000)
     public void testConstructor() throws Exception {
         InMemoryDurableDataLog.EntryCollection entries = new InMemoryDurableDataLog.EntryCollection();
         TreeMap<LogAddress, byte[]> writeData;
@@ -90,62 +93,7 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
             log.initialize(TIMEOUT);
 
             // Verify it contains the same entries.
-            verifyReads(log, createLogAddress(-1), writeData);
-        }
-    }
-
-    @Test
-    @Override
-    public void testExclusiveWriteLock() throws Exception {
-        InMemoryDurableDataLog.EntryCollection entries = new InMemoryDurableDataLog.EntryCollection();
-
-        final long initialEpoch;
-        final long secondEpoch;
-        try (DurableDataLog log = new InMemoryDurableDataLog(entries, executorService())) {
-            log.initialize(TIMEOUT);
-            initialEpoch = log.getEpoch();
-            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", 0, initialEpoch);
-
-            // 1. No two logs can use the same EntryCollection.
-            try (DurableDataLog log2 = new InMemoryDurableDataLog(entries, executorService())) {
-                AssertExtensions.assertThrows(
-                        "A second log was able to acquire the exclusive write lock, even if another log held it.",
-                        () -> log2.initialize(TIMEOUT),
-                        ex -> ex instanceof DataLogWriterNotPrimaryException);
-
-                AssertExtensions.assertThrows(
-                        "getEpoch() did not throw after failed initialization.",
-                        log2::getEpoch,
-                        ex -> ex instanceof IllegalStateException);
-            }
-
-            // Verify we can still append to the first log.
-            TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForWrites());
-
-            // 2. If during the normal operation of a log, it loses its lock, it should no longer be able to append...
-            secondEpoch = entries.forceAcquireLock("ForceLock");
-            AssertExtensions.assertGreaterThan("forceAcquireLock did not increase epoch.", initialEpoch, secondEpoch);
-            AssertExtensions.assertThrows(
-                    "A second log acquired the exclusive write lock, but the first log could still append to it.",
-                    () -> log.append(new ByteArrayInputStream("h".getBytes()), TIMEOUT).join(),
-                    ex -> ex instanceof DataLogWriterNotPrimaryException);
-
-            // ... or to truncate ...
-            AssertExtensions.assertThrows(
-                    "A second log acquired the exclusive write lock, but the first log could still truncate it.",
-                    () -> log.truncate(writeData.lastKey(), TIMEOUT).join(),
-                    ex -> ex instanceof DataLogWriterNotPrimaryException);
-
-            // ... but it should still be able to read.
-            verifyReads(log, createLogAddress(-1), writeData);
-        }
-
-        // Verify epoch is incremented with every call to initialize().
-        entries.releaseLock("ForceLock");
-        try (DurableDataLog log = new InMemoryDurableDataLog(entries, executorService())) {
-            log.initialize(TIMEOUT);
-            long epoch = log.getEpoch();
-            AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on non-empty log initialization.", secondEpoch, epoch);
+            verifyReads(log, writeData);
         }
     }
 }

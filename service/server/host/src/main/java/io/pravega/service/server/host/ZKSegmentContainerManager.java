@@ -1,8 +1,21 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.service.server.host;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
@@ -11,12 +24,8 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.service.server.SegmentContainerManager;
 import io.pravega.service.server.SegmentContainerRegistry;
-import com.google.common.base.Preconditions;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -52,26 +61,24 @@ class ZKSegmentContainerManager implements SegmentContainerManager {
     }
 
     @Override
-    public CompletableFuture<Void> initialize() {
+    public void initialize() {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
 
-        return CompletableFuture
-                .runAsync(() -> {
-                    // Initialize the container monitor.
-                    this.containerMonitor.initialize();
+        try {
+            // Initialize the container monitor.
+            this.containerMonitor.initialize();
 
-                    // Advertise this segment store to the cluster.
-                    this.cluster.registerHost(this.host);
-                    log.info("Initialized.");
-                    LoggerHelpers.traceLeave(log, "initialize", traceId);
-                }, this.executor)
-                .exceptionally(ex -> {
-                    // Need to make sure we clean up resources if we failed to initialize.
-                    log.error("Initialization error. Cleaning up.", ex);
-                    close();
-                    throw new CompletionException(ex);
-                });
+            // Advertise this segment store to the cluster.
+            this.cluster.registerHost(this.host);
+            log.info("Initialized.");
+            LoggerHelpers.traceLeave(log, "initialize", traceId);
+        } catch (Exception ex) {
+            // Need to make sure we clean up resources if we failed to initialize.
+            log.error("Initialization error. Cleaning up.", ex);
+            close();
+            throw ex;
+        }
     }
 
     @Override

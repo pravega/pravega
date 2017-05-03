@@ -1,5 +1,17 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework.services;
 
@@ -111,7 +123,7 @@ public class PravegaControllerService extends MarathonBasedService {
         Collection<Volume> volumeCollection = new ArrayList<Volume>();
         volumeCollection.add(createVolume("/tmp/logs", "/mnt/logs", "RW"));
         app.getContainer().setVolumes(volumeCollection);
-        app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega-controller:" + PRAVEGA_VERSION);
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         //set docker container parameters
@@ -134,8 +146,9 @@ public class PravegaControllerService extends MarathonBasedService {
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG");
         Map<String, String> map = new HashMap<>();
-        map.put("SERVER_OPTS", controllerSystemProperties);
+        map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);
+        app.setArgs(Arrays.asList("controller"));
 
         return app;
     }
