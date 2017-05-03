@@ -24,6 +24,7 @@ import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.Transaction.Status;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.segment.SegmentOutputStream;
 import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
@@ -286,8 +287,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     public Transaction<Type> getTxn(UUID txId) {
         StreamSegments segments = getAndHandleExceptions(
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
-        Transaction.Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
-        if (status != Transaction.Status.OPEN) {
+        Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
+        if (status != Status.OPEN) {
             return new TransactionImpl<>(txId, controller, stream);
         }
         
