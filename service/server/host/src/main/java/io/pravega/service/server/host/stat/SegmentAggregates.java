@@ -8,8 +8,10 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class is meant to compute and store aggregates per segment.
@@ -26,7 +28,7 @@ class SegmentAggregates {
     private static final int SECONDS_PER_MINUTE = 60;
 
     private static final int INTERVAL_IN_SECONDS = 5;
-    private static final long TICK_INTERVAL = Duration.ofSeconds(5).toNanos();
+    private static final long TICK_INTERVAL = Duration.ofSeconds(5).toMillis();
 
     /**
      * Exponential weights.
@@ -35,6 +37,7 @@ class SegmentAggregates {
     private static final double M5_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 5);
     private static final double M10_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 10);
     private static final double M20_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 20);
+    private static final AtomicReference<Clock> CLOCK = new AtomicReference<>(Clock.systemDefaultZone());
 
     // Amount of data stored in each aggregate object in memory = 77 bytes + object overhead
 
@@ -85,9 +88,9 @@ class SegmentAggregates {
     SegmentAggregates(byte scaleType, int targetRate) {
         this.targetRate = targetRate;
         this.scaleType = scaleType;
-        this.startTime = System.currentTimeMillis();
-        this.lastReportedTime = new AtomicLong(System.currentTimeMillis());
-        this.lastTick = new AtomicLong(System.nanoTime());
+        this.startTime = CLOCK.get().millis();
+        this.lastReportedTime = new AtomicLong(CLOCK.get().millis());
+        this.lastTick = new AtomicLong(CLOCK.get().millis());
         this.currentCount = new AtomicLong(Double.doubleToLongBits(0.0));
         this.twoMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
         this.fiveMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
@@ -109,36 +112,37 @@ class SegmentAggregates {
             return;
         }
 
-        final long newTick = System.nanoTime();
+        final long newTick = CLOCK.get().millis();
         final long age = newTick - lastTick.get();
         if (age > TICK_INTERVAL) {
             lastTick.set(newTick);
             final long count = currentCount.getAndSet(0);
-            computeDecay(count, Duration.ofNanos(age).toMillis() / 1000);
+            computeDecay(count, Duration.ofMillis(age).toMillis() / 1000);
         }
     }
 
     void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
-        long durationInSeconds = (System.currentTimeMillis() - txnCreationTime) / 1000;
+        long durationInMillis = CLOCK.get().millis() - txnCreationTime;
 
-        if (durationInSeconds < INTERVAL_IN_SECONDS) {
+        if (durationInMillis < TICK_INTERVAL) {
             // Not large enough lifespan for transaction. Include in regular traffic.
             update(dataSize, numOfEvents);
         } else {
-            assert durationInSeconds > 0;
-            update((dataSize * INTERVAL_IN_SECONDS) / durationInSeconds, numOfEvents * INTERVAL_IN_SECONDS / (int) durationInSeconds);
+            assert durationInMillis > 0;
+            int amortizedNumOfEvents = (int) (numOfEvents * TICK_INTERVAL) / (int) durationInMillis;
+            update((dataSize * TICK_INTERVAL) / durationInMillis, amortizedNumOfEvents);
         }
     }
 
-    private void computeDecay(long count, long duration) {
+    private void computeDecay(long count, double duration) {
         twoMinuteRate.getAndUpdate(prev -> Double.doubleToRawLongBits(decayingRate(count, Double.longBitsToDouble(prev), M2_ALPHA, duration)));
         fiveMinuteRate.getAndUpdate(prev -> Double.doubleToRawLongBits(decayingRate(count, Double.longBitsToDouble(prev), M5_ALPHA, duration)));
         tenMinuteRate.getAndUpdate(prev -> Double.doubleToRawLongBits(decayingRate(count, Double.longBitsToDouble(prev), M10_ALPHA, duration)));
         twentyMinuteRate.getAndUpdate(prev -> Double.doubleToRawLongBits(decayingRate(count, Double.longBitsToDouble(prev), M20_ALPHA, duration)));
     }
 
-    private double decayingRate(long count, double rate, double alpha, long interval) {
-        final double instantRate = (double) count / (double) interval;
+    private double decayingRate(long count, double rate, double alpha, double interval) {
+        final double instantRate = count / interval;
         if (rate == 0) {
             return instantRate;
         } else {
@@ -163,8 +167,8 @@ class SegmentAggregates {
     }
 
     @VisibleForTesting
-    void setLastTick(long tick) {
-        lastTick.set(tick);
+    static void setClock(Clock clock) {
+        CLOCK.set(clock);
     }
 
 }
