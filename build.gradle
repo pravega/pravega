@@ -236,7 +236,6 @@ project('client') {
         compile project(':shared:protocol')
         compile project(":shared:controller")
         testCompile project(':test:common')
-        testCompile project(':client:admin')
     }
     publishing {
         publications {
@@ -252,25 +251,6 @@ project('client') {
         exclude "**/impl/**";
         source  {
             project(':client').sourceSets.main.java
-            project(':client:admin').sourceSets.main.java
-        }
-    }
-}
-
-project('client:admin') {
-    dependencies {
-        compile project(':client')
-        compile project(':shared:protocol')
-        compile project(':shared')
-        testCompile project(':test:common')
-        testCompile files(project(':client').sourceSets.test.output)
-    }
-    publishing {
-        publications {
-            maven(MavenPublication) {
-                artifactId 'pravega-client-admin'
-                from components.java
-            }
         }
     }
 }
@@ -419,7 +399,6 @@ project('test:integration') {
     dependencies {
         compile project(':common')
         compile project(':client')
-        compile project(':client:admin')
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
@@ -592,7 +571,6 @@ project('controller:server') {
         compile project(':common')
         compile project(":shared:controller")
         compile project(":client")
-        compile project(":client:admin")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
@@ -627,7 +605,6 @@ project('connectors:flink') {
 
     dependencies {
         compile project(":client")
-        compile project(":client:admin")
         compileOnly group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: flinkVersion
 
         //  configuring the shaded pom dependencies
@@ -668,7 +645,6 @@ project('connectors:flink') {
             include(project(":shared:metrics"))
             include(project(":shared:controller"))
             include(project(":client"))
-            include(project(":client:admin"))
         }
 
         // Shading the libraries which could cause potential version conflicts with flink.
@@ -829,7 +805,6 @@ subprojects {
 
 task publishAllJars() {
     dependsOn ':client:publish'
-    dependsOn ':client:admin:publish'
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
     dependsOn ':shared:protocol:publish'
@@ -867,7 +842,7 @@ task javadocs(type: Javadoc) {
     description = "Generate main pravega javadoc"
 
     // Include names of any project that is to be included in the javadoc distribution
-    ext.projects = [':client', ':client:admin', ':common', ':shared:protocol']
+    ext.projects = [':client', ':common', ':shared:protocol']
 
     title = "Pravega API"
     source = files(projects.collect {
@@ -904,14 +879,8 @@ distributions {
     client {
         baseName = "pravega-client"
         contents {
-            from {
-                project(":client").configurations.runtime
-                project(":client:admin").configurations.runtime
-            }
-            from {
-                project(":client").configurations.runtime.allArtifacts.files
-                project(":client:admin").configurations.runtime.allArtifacts.files
-            }
+            from { project(":client").configurations.runtime }
+            from { project(":client").configurations.runtime.allArtifacts.files }
         }
     }
     javadoc {
