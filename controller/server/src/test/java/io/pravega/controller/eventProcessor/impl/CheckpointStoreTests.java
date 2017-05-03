@@ -9,6 +9,7 @@ import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.stream.Position;
 import io.pravega.stream.impl.PositionImpl;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 import org.junit.After;
 import org.junit.Before;
@@ -19,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Checkpoint store test.
@@ -32,6 +34,26 @@ public abstract class CheckpointStoreTests {
 
     @After
     public abstract void cleanupCheckpointStore() throws IOException;
+
+    @Test(timeout = 10000)
+    public void testIdempotence() throws CheckpointStoreException {
+        final String process1 = UUID.randomUUID().toString();
+        final String readerGroup1 = UUID.randomUUID().toString();
+        final String reader = UUID.randomUUID().toString();
+
+        checkpointStore.addReaderGroup(process1, readerGroup1);
+        checkpointStore.addReader(process1, readerGroup1, reader);
+        checkpointStore.removeReader(process1, readerGroup1, reader);
+        checkpointStore.removeReader(process1, readerGroup1, reader);
+        checkpointStore.sealReaderGroup(process1, readerGroup1);
+        checkpointStore.sealReaderGroup(process1, readerGroup1);
+        checkpointStore.removeReaderGroup(process1, readerGroup1);
+
+        AssertExtensions.assertThrows("failed sealReaderGroup", () -> checkpointStore.sealReaderGroup(process1, readerGroup1),
+                e -> e instanceof CheckpointStoreException && ((CheckpointStoreException) e).getType().equals(CheckpointStoreException.Type.NoNode));
+
+        checkpointStore.removeReaderGroup(process1, readerGroup1);
+    }
 
     @Test
     public void folderOperationTests() throws CheckpointStoreException {

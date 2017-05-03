@@ -45,26 +45,6 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
     }
 
     @Test
-    public void testIdempotency() throws CheckpointStoreException {
-        final String process1 = UUID.randomUUID().toString();
-        final String readerGroup1 = UUID.randomUUID().toString();
-        final String reader = UUID.randomUUID().toString();
-
-        checkpointStore.addReaderGroup(process1, readerGroup1);
-        checkpointStore.addReader(process1, readerGroup1, reader);
-        checkpointStore.removeReader(process1, readerGroup1, reader);
-        checkpointStore.removeReader(process1, readerGroup1, reader);
-        checkpointStore.sealReaderGroup(process1, readerGroup1);
-        checkpointStore.sealReaderGroup(process1, readerGroup1);
-        checkpointStore.removeReaderGroup(process1, readerGroup1);
-
-        AssertExtensions.assertThrows("failed sealReaderGroup", () -> checkpointStore.sealReaderGroup(process1, readerGroup1),
-                e -> e instanceof CheckpointStoreException && ((CheckpointStoreException) e).getType().equals(CheckpointStoreException.Type.NoNode));
-
-        checkpointStore.removeReaderGroup(process1, readerGroup1);
-    }
-
-    @Test
     public void failingTests() {
         final String process1 = UUID.randomUUID().toString();
         final String readerGroup1 = UUID.randomUUID().toString();
