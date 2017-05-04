@@ -4,14 +4,47 @@ plugins.withId('maven') {
             mavenDeployer {
                 // Only configure publishing if a URL was provided
                 if (project.hasProperty("publishUrl")) {
-                    repository(url: publishUrl) {
-                        // Only configure credentials if they are provided (allows publishing to the filesystem)
-                        if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
+                    if (publishUrl == "mavenCentral") {
+                        repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                            authentication(userName: publishUsername, password: publishPassword)
+                        }
+                        snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
                             authentication(userName: publishUsername, password: publishPassword)
                         }
                     }
+                    else {
+                        repository(url: publishUrl) {
+                            // Only configure credentials if they are provided (allows publishing to the filesystem)
+                            if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
+                                authentication(userName: publishUsername, password: publishPassword)
+                            }
+                        }
+                    }
                 }
+
                 pom.artifactId = "pravega-${project.name}"
+                pom.project {
+                    name "Pravega"
+                    url "http://pravega.io"
+                    description "Streaming Storage Platform"
+                    scm {
+                        url 'https://github.com/pravega/pravega/tree/master'
+                        connection 'scm:git:git://github.com/pravega/pravega.git'
+                        developerConnection 'scm:git:https://github.com/pravega/pravega.git'
+                    }
+                    licenses {
+                        license {
+                            name 'The Apache License, Version 2.0'
+                            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        }
+                    }
+                    developers {
+                        developer {
+                            id 'fpj'
+                            name 'Flavio Junqueira'
+                        }
+                    }
+                }
 
                 // Sign the POM when the signing plugin is present
                 plugins.withId('signing') {
