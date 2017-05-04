@@ -1,0 +1,39 @@
+- hosts: all 
+  roles:
+    - { role: install-prereqs }
+
+- hosts: common-services
+  environment:
+    JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+  roles:
+    - { role: install-zk }
+
+- hosts: common-services
+  environment:
+    LD_LIBRARY_PATH: /opt/bk_all/lib
+    JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+  roles: 
+    - { role: install-bk }
+
+- hosts: pravega-controller
+  environment:
+    JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    REST_SERVER_PORT: 10080
+    CONTROLLER_SERVER_PORT: 9090
+    ZK_URL: ZKNODE:2181
+    JAVA_OPTS: -Dconfig.controller.metricenableCSVReporter=false -Xmx512m
+  roles:
+    - { role: install-controller }
+
+- hosts: pravega-hosts
+  serial: 1
+  environment:
+    JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    HDFS_REPLICATION: 1
+    HDFS_URL: NAMENODE:8020
+    ZK_URL: ZKNODE:2181
+    CONTROLLER_URL: tcp://CONTROLLERNODE:9090
+    JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Dbookkeeper.zkAddress=ZKNODE:2181 -Dpravegaservice.publishedIPAddress=CONTROLLERNODE -Xmx900m
+    HADOOP_USER_NAME: hdfs
+  roles:
+    - { role: install-hosts }

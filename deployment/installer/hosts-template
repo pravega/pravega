@@ -1,0 +1,12 @@
+[common-services]
+N0 myid=0
+N1 myid=1
+N2 myid=2
+
+[pravega-controller]
+N0
+
+[pravega-hosts]
+N0
+N1
+N2

@@ -1,0 +1,18 @@
+---
+- name: Untar zookeeper
+  command: tar -xvf zookeeper-3.5.1-alpha.tar.gz
+
+- name: Configure Zookeeper
+  template: src=zoo.cfg.j2 dest=zookeeper-3.5.1-alpha/conf/zoo.cfg
+
+- name: Check if Zookeeper has been initialized
+  stat: path={{ zookeeper_data_dir }}/myid
+  register: zookeeper_id_file
+
+- name: Initialize Zookeeper
+  command: "zookeeper-3.5.1-alpha/bin/zkServer-initialize.sh init --force --myid={{ myid }}"
+  when: not zookeeper_id_file.stat.exists
+
+- name: Run zookeeper
+  command: zookeeper-3.5.1-alpha/bin/zkServer.sh start
+  sudo: yes

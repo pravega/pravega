@@ -1,0 +1,38 @@
+---
+- name: add ppa
+  command: add-apt-repository ppa:openjdk-r/ppa -y
+  sudo: yes
+
+- name: apt update
+  command: apt-get -y update
+  sudo: yes
+
+- name: Install java
+  command: apt-get install -y openjdk-8-jdk
+  sudo: yes
+
+- name: Install unzip
+  command: apt-get install -y unzip
+  sudo: yes
+
+- name: Copy pravega to remote node
+  copy:
+      src: data/pravega-0.1.0-SNAPSHOT.tgz
+      dest: /home/ubuntu
+
+- name: Untar controller
+  command: tar -xvf pravega-0.1.0-SNAPSHOT.tgz
+
+- name: Create pravega workdir
+  shell: mkdir -p /opt/pravega
+  sudo: yes
+
+- name: Copy entrypoint to remote node
+  copy:
+    src: entrypoint.sh
+    dest: /opt/pravega/
+  sudo: yes
+
+- name: Move pravega dist
+  shell: mv pravega-0.1.0-SNAPSHOT/* /opt/pravega/
+  sudo: yes

@@ -1,0 +1,68 @@
+---
+- include_vars: data/variable.yml
+
+- name: Create zk work dir
+  shell: mkdir -p /opt/zk
+  sudo: yes
+
+- name: move zookeeper
+  shell: cp zookeeper-3.5.1-alpha.tar.gz/ /opt/zk/
+  sudo: yes
+
+- name: Untar zookeeper
+  command: tar -xvf /opt/zk/zookeeper-3.5.1-alpha.tar.gz
+
+- name: Untar bk
+  shell: tar -xvf bookkeeper-server-4.4.0-bin.tar.gz
+
+- name: Create bk work dir
+  shell: mkdir -p /opt/bk_all
+  sudo: yes
+
+- name: Move bk under bk_all folder
+  shell: mv bookkeeper-server-4.4.0/ /opt/bk_all/
+  sudo: yes
+
+- name: Copy install script
+  copy:
+    src: install_bk.sh
+    dest: /opt/bk_all
+  sudo: yes
+
+- name: Add exec mode on script
+  shell: chmod +x /opt/bk_all/install_bk.sh
+  sudo: yes
+
+- name: Format the volume one
+  shell: mkfs -t ext4 /dev/nvme0n1
+  sudo: yes
+  when: high_performance_mode == true
+
+- name: Create mount point one
+  shell: mkdir -p /mnt/ledgers
+  sudo: yes
+  when: high_performance_mode == true
+
+- name: Mount the volume one
+  shell: mount /dev/nvme0n1 /mnt/ledgers
+  sudo: yes
+  when: high_performance_mode == true
+
+- name: Format volume two
+  shell: mkfs -t ext4 /dev/nvme1n1
+  sudo: yes
+  when: high_performance_mode == true
+
+- name: Create mount point two
+  shell: mkdir /mnt/journal
+  sudo: yes
+  when: high_performance_mode == true
+
+- name: Mount the volume two
+  shell: mount /dev/nvme1n1 /mnt/journal
+  sudo: yes
+  when: high_performance_mode == true
+
+- name: Run install script
+  shell: /opt/bk_all/install_bk.sh
+  sudo: yes

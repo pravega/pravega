@@ -1,0 +1,8 @@
+---
+- name: Chmod entrypoint.sh
+  shell: chmod +x /opt/pravega/entrypoint.sh
+  sudo: yes
+
+- name: Run controller
+  shell: nohup /opt/pravega/entrypoint.sh controller 2>&1 &> /tmp/controller.log &
+  sudo: yes
