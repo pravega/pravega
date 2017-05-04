@@ -329,8 +329,8 @@ public class StreamMetaDataTests {
         // Test to get an existing stream
         when(mockControllerService.getStream(scope1, stream1)).thenReturn(streamConfigFuture);
         Response response = client.target(resourceURI).request().buildGet().invoke();
-        StreamProperty streamResponseActual = response.readEntity(StreamProperty.class);
         assertEquals("Get Stream Config Status", 200, response.getStatus());
+        StreamProperty streamResponseActual = response.readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
         response.close();
 
@@ -509,8 +509,8 @@ public class StreamMetaDataTests {
         List<String> scopesList = Arrays.asList("scope1", "scope2");
         when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(scopesList));
         Response response = client.target(resourceURI).request().buildGet().invoke();
-        final ScopesList scopesList1 = response.readEntity(ScopesList.class);
         assertEquals("List Scopes response code", 200, response.getStatus());
+        final ScopesList scopesList1 = response.readEntity(ScopesList.class);
         assertEquals("List count", scopesList1.getScopes().size(), 2);
         assertEquals("List element", scopesList1.getScopes().get(0).getScopeName(), "scope1");
         assertEquals("List element", scopesList1.getScopes().get(1).getScopeName(), "scope2");
