@@ -55,6 +55,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     public BookKeeperLogFactory(BookKeeperConfig config, CuratorFramework zkClient, ScheduledExecutorService executor) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
+        // TODO: Fix ZK namespaces https://github.com/pravega/pravega/issues/1204
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient")
                                      .usingNamespace(zkClient.getNamespace() + this.config.getZkMetadataPath());
         this.bookKeeper = new AtomicReference<>();
@@ -116,6 +117,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setClientTcpNoDelay(true)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
+        // TODO: Fix ZK namespaces https://github.com/pravega/pravega/issues/1204
         config.setZkLedgersRootPath(this.config.getBkLedgerPath());
         return new BookKeeper(config);
     }
