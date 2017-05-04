@@ -26,7 +26,7 @@ buildscript {
 allprojects {
     apply plugin: 'idea'
     apply plugin: 'eclipse'
-    if (file("src/main/java").exists()) {
+    if (file("src/main/java").isDirectory()) {
         apply plugin: 'java'
     }
 
