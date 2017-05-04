@@ -1008,7 +1008,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Wait for the container to be shut down and verify it is failed.
         ServiceShutdownListener.awaitShutdown(container, shutdownTimeout, false);
         Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
-        Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
+        //Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
+        Throwable actualException = container.failureCause();
         boolean exceptionMatch = actualException instanceof IntentionalException;
         if (!exceptionMatch) {
             String fullStack = ExceptionUtils.getFullStackTrace(actualException);
