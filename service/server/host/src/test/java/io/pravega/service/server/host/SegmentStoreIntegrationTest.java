@@ -89,7 +89,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
         this.configBuilder.include(BookKeeperConfig
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + zkPort)
-                .with(BookKeeperConfig.ZK_NAMESPACE, logMetaNamespace)
+                .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers"));
 
         // HDFS

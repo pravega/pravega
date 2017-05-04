@@ -35,7 +35,7 @@ public class BookKeeperConfig {
     public static final Property<String> ZK_ADDRESS = Property.named("zkAddress", "localhost:2181");
     public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zkSessionTimeoutMillis", 10000);
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
-    public static final Property<String> ZK_NAMESPACE = Property.named("zkNamespace", "/segmentstore/containers");
+    public static final Property<String> ZK_METADATA_PATH = Property.named("zkMetadataPath", "/segmentstore/containers");
     public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
     public static final Property<Retry.RetryWithBackoff> RETRY_POLICY = Property.named("retryPolicy", Retry.withExpBackoff(100, 4, 5, 30000));
     public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
@@ -72,7 +72,7 @@ public class BookKeeperConfig {
      * Sub-namespace to use for ZooKeeper LogMetadata.
      */
     @Getter
-    private final String namespace;
+    private final String zkMetadataPath;
 
     /**
      * Depth of the node hierarchy in ZooKeeper. 0 means flat, N means N deep, where each level is indexed by its
@@ -133,7 +133,7 @@ public class BookKeeperConfig {
         this.zkAddress = properties.get(ZK_ADDRESS);
         this.zkSessionTimeout = Duration.ofMillis(properties.getInt(ZK_SESSION_TIMEOUT));
         this.zkConnectionTimeout = Duration.ofMillis(properties.getInt(ZK_CONNECTION_TIMEOUT));
-        this.namespace = properties.get(ZK_NAMESPACE);
+        this.zkMetadataPath = properties.get(ZK_METADATA_PATH);
         this.zkHierarchyDepth = properties.getInt(ZK_HIERARCHY_DEPTH);
         if (this.zkHierarchyDepth < 0) {
             throw new InvalidPropertyValueException(String.format("Property %s (%d) must be a non-negative integer.",
