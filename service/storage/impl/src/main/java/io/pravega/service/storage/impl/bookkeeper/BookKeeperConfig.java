@@ -35,7 +35,7 @@ public class BookKeeperConfig {
     public static final Property<String> ZK_ADDRESS = Property.named("zkAddress", "localhost:2181");
     public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zkSessionTimeoutMillis", 10000);
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
-    public static final Property<String> ZK_METADATA_PATH = Property.named("zkMetadataPath", "pravega/segmentstore/containers");
+    public static final Property<String> ZK_METADATA_PATH = Property.named("zkMetadataPath", "/segmentstore/containers");
     public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
     public static final Property<Retry.RetryWithBackoff> RETRY_POLICY = Property.named("retryPolicy", Retry.withExpBackoff(100, 4, 5, 30000));
     public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
@@ -69,7 +69,7 @@ public class BookKeeperConfig {
     private final Duration zkConnectionTimeout;
 
     /**
-     * Path to use for ZooKeeper LogMetadata.
+     * Sub-namespace to use for ZooKeeper LogMetadata.
      */
     @Getter
     private final String zkMetadataPath;
@@ -88,7 +88,7 @@ public class BookKeeperConfig {
     private final Retry.RetryWithBackoff retryPolicy;
 
     /**
-     * The path in ZooKeeper for the BookKeeper Ledger.
+     * The path for the BookKeeper Ledger.
      */
     @Getter
     private final String bkLedgerPath;
