@@ -1,4 +1,4 @@
-# Running Pravega
+# Pravega Deployment Overview
 
 This guide describes the options for running Pravega for development, testing and in production.
 
