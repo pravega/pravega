@@ -1,12 +1,12 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -100,6 +100,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -789,7 +790,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testMetadataCleanup() throws Exception {
         final String segmentName = "segment";
-        final UUID[] attributes = new UUID[]{Attributes.CREATION_TIME, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
+        final UUID[] attributes = new UUID[]{ Attributes.CREATION_TIME, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID() };
         final byte[] appendData = "hello".getBytes();
         final Map<UUID, Long> expectedAttributes = new HashMap<>();
 
@@ -1007,7 +1008,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Wait for the container to be shut down and verify it is failed.
         ServiceShutdownListener.awaitShutdown(container, shutdownTimeout, false);
         Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
-        Assert.assertTrue("Container did not fail with the correct exception.", container.failureCause() instanceof IntentionalException);
+        Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
+        boolean exceptionMatch = actualException instanceof IntentionalException;
+        if (!exceptionMatch) {
+            String fullStack = ExceptionUtils.getFullStackTrace(actualException);
+            Assert.fail(String.format("Container did not fail with the correct exception. Expected '%s', Actual '%s'. Stack: %s ",
+                    IntentionalException.class.getSimpleName(), actualException, fullStack));
+        }
 
         // Verify the OperationLog is also shut down, and make sure it is not in a Failed state.
         ServiceShutdownListener.awaitShutdown(log.get(), shutdownTimeout, true);
