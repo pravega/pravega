@@ -15,29 +15,15 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.common.Timer;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.AppendDecoder;
-import io.pravega.shared.protocol.netty.CommandDecoder;
-import io.pravega.shared.protocol.netty.CommandEncoder;
-import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
-import io.pravega.shared.protocol.netty.Reply;
-import io.pravega.shared.protocol.netty.Request;
-import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
-import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
-import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
-import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
-import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
-import io.pravega.service.contracts.StreamSegmentStore;
-import io.pravega.service.server.host.handler.AppendProcessor;
-import io.pravega.service.server.host.handler.PravegaConnectionListener;
-import io.pravega.service.server.host.handler.PravegaRequestProcessor;
-import io.pravega.service.server.host.handler.ServerConnectionInboundHandler;
-import io.pravega.service.server.store.ServiceBuilder;
-import io.pravega.service.server.store.ServiceBuilderConfig;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Segment;
@@ -52,27 +38,37 @@ import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
+import io.pravega.common.Timer;
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.service.contracts.StreamSegmentStore;
+import io.pravega.service.server.host.handler.AppendProcessor;
+import io.pravega.service.server.host.handler.PravegaConnectionListener;
+import io.pravega.service.server.host.handler.PravegaRequestProcessor;
+import io.pravega.service.server.host.handler.ServerConnectionInboundHandler;
+import io.pravega.service.server.store.ServiceBuilder;
+import io.pravega.service.server.store.ServiceBuilderConfig;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.AppendDecoder;
+import io.pravega.shared.protocol.netty.CommandDecoder;
+import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.Request;
+import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
+import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
+import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.TestUtils;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
-
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
 import lombok.Cleanup;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -209,7 +205,7 @@ public class AppendTest {
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
-        Future<Void> ack = producer.writeEvent(testString);
+        AckFuture ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
     }
     
@@ -242,7 +238,7 @@ public class AppendTest {
             throws InterruptedException, ExecutionException, TimeoutException {
         Timer timer = new Timer();
         for (int i = 0; i < number; i++) {
-            Future<Void> ack = producer.writeEvent(testString);
+            AckFuture ack = producer.writeEvent(testString);
             if (synchronous) {
                 ack.get(5, TimeUnit.SECONDS);
             }

@@ -26,8 +26,6 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 /**
  * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.
  * It deals with segments that are sealed by re-sending the unacked events to the new correct segment.
@@ -39,7 +37,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class IdempotentEventStreamWriterImpl<Type> implements IdempotentEventStreamWriter<Type> {
 
     private final Object lock = new Object();
-    private final UUID writerId;
     private final Stream stream;
     private final Serializer<Type> serializer;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -52,12 +49,10 @@ public class IdempotentEventStreamWriterImpl<Type> implements IdempotentEventStr
     IdempotentEventStreamWriterImpl(Stream stream, UUID writerId, Controller controller,
             SegmentOutputStreamFactory outputStreamFactory, Serializer<Type> serializer, EventWriterConfig config) {
         Preconditions.checkNotNull(stream);
-        Preconditions.checkNotNull(writerId);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
         Preconditions.checkNotNull(serializer);
         this.stream = stream;
-        this.writerId = writerId;
         this.selector = new SegmentSelector(stream, writerId, controller, outputStreamFactory);
         this.serializer = serializer;
         this.config = config;
@@ -77,8 +72,11 @@ public class IdempotentEventStreamWriterImpl<Type> implements IdempotentEventStr
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         synchronized (lock) {
-            checkArgument(lastSequence < sequence, "Sequence was out of order. Previously saw {} and now {}",
-                          lastSequence, sequence);
+            if (sequence <= lastSequence) {
+                log.debug("Dropping event: " + sequence + " because we have already seen a larger sequence");
+                result.complete(false);
+                return new AckFutureImpl(result, null);
+            }
             lastSequence = sequence;
             SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             while (segmentWriter == null) {

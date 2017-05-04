@@ -24,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Mock AckFuture.
  */
-public class AckFutureMock extends AbstractFuture<Void> implements AckFuture {
+public class AckFutureMock extends AbstractFuture<Boolean> implements AckFuture {
     public AckFutureMock(CompletableFuture<Boolean> result) {
         result.handle((bool, exception) -> {
             if (exception != null) {
