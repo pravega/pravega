@@ -98,7 +98,7 @@ public class StreamMetaDataTests {
             .scope(scope1)
             .streamName(stream1)
             .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-            .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(123L)))
             .build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
