@@ -16,12 +16,13 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.segment.SequenceImpl;
+import java.io.Serializable;
 
 /**
  * A wrapper for two numbers. Where one is treated as 'high order' and the other as 'low order' to
  * break ties when the former is the same.
  */
-public interface Sequence extends Comparable<Sequence> {
+public interface Sequence extends Comparable<Sequence>, Serializable {
     public static final Sequence MAX_VALUE = create(Long.MAX_VALUE, Long.MAX_VALUE);
     public static final Sequence ZERO = create(0L, 0L);
     public static final Sequence MIN_VALUE = create(Long.MIN_VALUE, Long.MIN_VALUE);
