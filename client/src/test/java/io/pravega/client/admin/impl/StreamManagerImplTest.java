@@ -16,12 +16,10 @@
 package io.pravega.client.admin.impl;
 
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Before;
