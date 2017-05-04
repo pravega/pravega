@@ -153,6 +153,7 @@ public final class ServiceStarter {
     }
 
     private void attachBookKeeper(ServiceBuilder builder) {
+        // TODO: Fix ZK namespaces https://github.com/pravega/pravega/issues/1204
         builder.withDataLogFactory(setup ->
                 new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
     }
@@ -181,6 +182,7 @@ public final class ServiceStarter {
     }
 
     private CuratorFramework createZKClient() {
+        // TODO: Fix ZK namespaces https://github.com/pravega/pravega/issues/1204
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString(this.serviceConfig.getZkURL())
