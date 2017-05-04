@@ -1,5 +1,5 @@
 #!/bin/sh
-
+dir=$( cd "$( dirname "$0" )" && pwd )
 # Adds a system property if the value is not empty
 add_system_property() {
     local name=$1
@@ -23,6 +23,13 @@ configure_segmentstore() {
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
     add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
+    if [ "${CLUSTER_NAME}" ];then
+        add_system_property "pravegaservice.clusterName" "${CLUSTER_NAME}"
+        ZK_METADATA_PATH="${ZK_METADATA_PATH:-pravega/${CLUSTER_NAME}/segmentstore/containers}"
+    fi
+    if [ "${ZK_METADATA_PATH}" ];then
+        add_system_property "bookkeeper.zkMetadataPath" "${ZK_METADATA_PATH}"
+    fi
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
@@ -32,8 +39,8 @@ configure_standalone() {
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
-if [ -z ${WAIT_FOR} ];then
-  ./wait_for
+if [ ${WAIT_FOR} ];then
+    ${dir}/wait_for
 fi
 
 case $1 in
