@@ -29,6 +29,9 @@ configure_segmentstore() {
 configure_standalone() {
     add_system_property "pravegaservice.publishedIPAddress" "${HOST_IP}"
     add_system_property "pravegaservice.listeningIPAddress" "0.0.0.0"
+    add_system_property "singlenode.zkPort" "2181"
+    add_system_property "singlenode.controllerPort" "9090"
+    add_system_property "singlenode.segmentstorePort" "12345"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
@@ -47,7 +50,7 @@ segmentstore)
     ;;
 standalone)
     configure_standalone
-    exec /opt/pravega/bin/pravega-standalone 2181 9090 12345
+    exec /opt/pravega/bin/pravega-standalone
     ;;
 *)
     echo "Usage: $0 (controller|segmentstore|standalone)"
