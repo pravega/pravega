@@ -60,12 +60,13 @@ public class ModelHelper {
         RetentionPolicy retentionPolicy = null;
         if (createStreamRequest.getRetentionPolicy() != null) {
             switch (createStreamRequest.getRetentionPolicy().getType()) {
-                case LIMITED_SIZE_BYTES:
-                    retentionPolicy = RetentionPolicy.bySizeBytes(createStreamRequest.getRetentionPolicy().getValue());
+                case LIMITED_SIZE_MB:
+                    retentionPolicy = RetentionPolicy.bySizeBytes(
+                            createStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
                     break;
-                case LIMITED_TIME_MILLIS:
-                    retentionPolicy =
-                            RetentionPolicy.byTime(Duration.ofMillis(createStreamRequest.getRetentionPolicy().getValue()));
+                case LIMITED_DAYS:
+                    retentionPolicy = RetentionPolicy.byTime(
+                            Duration.ofDays(createStreamRequest.getRetentionPolicy().getValue()));
                     break;
             }
         }
@@ -107,12 +108,13 @@ public class ModelHelper {
         RetentionPolicy retentionPolicy = null;
         if (updateStreamRequest.getRetentionPolicy() != null) {
             switch (updateStreamRequest.getRetentionPolicy().getType()) {
-                case LIMITED_SIZE_BYTES:
-                    retentionPolicy = RetentionPolicy.bySizeBytes(updateStreamRequest.getRetentionPolicy().getValue());
+                case LIMITED_SIZE_MB:
+                    retentionPolicy = RetentionPolicy.bySizeBytes(
+                            updateStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
                     break;
-                case LIMITED_TIME_MILLIS:
-                    retentionPolicy =
-                            RetentionPolicy.byTime(Duration.ofMillis(updateStreamRequest.getRetentionPolicy().getValue()));
+                case LIMITED_DAYS:
+                    retentionPolicy = RetentionPolicy.byTime(
+                            Duration.ofDays(updateStreamRequest.getRetentionPolicy().getValue()));
                     break;
             }
         }
@@ -149,12 +151,13 @@ public class ModelHelper {
             retentionConfig = new RetentionConfig();
             switch (streamConfiguration.getRetentionPolicy().getType()) {
                 case SIZE:
-                    retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_BYTES);
-                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
+                    retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
+                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue() / (1024 * 1024));
                     break;
                 case TIME:
-                    retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_TIME_MILLIS);
-                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
+                    retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
+                    retentionConfig.setValue(
+                            Duration.ofMillis(streamConfiguration.getRetentionPolicy().getValue()).toDays());
                     break;
             }
         }

@@ -146,7 +146,7 @@ public class StreamMetaDataTests {
         scalingPolicyCommon2.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
         scalingPolicyCommon2.setMinSegments(2);
 
-        retentionPolicyCommon.setType(TypeEnum.LIMITED_TIME_MILLIS);
+        retentionPolicyCommon.setType(TypeEnum.LIMITED_DAYS);
         retentionPolicyCommon.setValue(123L);
 
         retentionPolicyCommon2.setType(null);
