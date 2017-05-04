@@ -39,6 +39,11 @@ plugins.withId('java') {
         signing {
             sign configurations.archives
         }
+        // Default the secretKeyRingFile to the current user's home
+        if (!project.property("signing.secretKeyRingFile")) {
+            def secretKeyPath = project.file("${System.getProperty("user.home")}/.gnupg/secring.gpg").absolutePath
+            project.setProperty("signing.secretKeyRingFile", secretKeyPath)
+        }
     }
 
     tasks.withType(Test) {
