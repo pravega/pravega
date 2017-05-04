@@ -33,11 +33,7 @@ final class AckFutureImpl extends AbstractFuture<Boolean> implements AckFuture {
             if (exception != null) {
                 this.setException(exception);
             } else {
-                if (bool) {
-                    this.set(null);
-                } else {
-                    this.setException(new IllegalStateException("Condition failed for non-conditional write!?"));
-                }
+                this.set(bool);
             }
             return null;
         });

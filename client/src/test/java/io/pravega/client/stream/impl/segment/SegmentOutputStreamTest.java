@@ -260,4 +260,10 @@ public class SegmentOutputStreamTest {
         assertEquals(false, acked.isDone());
         verifyNoMoreInteractions(connection);
     }
+    
+    @Test
+    public void testConnectCanAckFutureWrites() {
+        fail();
+        sdfsdf;
+    }
 }
