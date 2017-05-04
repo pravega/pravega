@@ -15,19 +15,30 @@
  */
 rootProject.name = 'pravega'
 
-include 'common',
+addProjects(
+        'common',
         'shared',
-        'shared:metrics',
-        'shared:protocol',
-        'shared:controller',
+        'shared/metrics',
+        'shared/protocol',
+        'shared/controller',
         'client',
-        'service:contracts',
-        'service:storage',
-        'service:storage:impl',
-        'service:server',
-        'service:server:host',
-        'controller:server',
+        'service/contracts',
+        'service/storage',
+        'service/storage/impl',
+        'service/server',
+        'service/server/host',
+        'controller/server',
         'standalone',
-        'test:common',
-        'test:integration',
-        'test:system'
+        'test/common',
+        'test/integration',
+        'test/system'
+)
+
+def addProjects(String... paths) {
+    paths?.each { path->
+        def dir = file(path)
+        def name = path.replace('/', '-')
+        include name
+        project(":${name}").projectDir = dir
+    }
+}
