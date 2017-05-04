@@ -15,14 +15,18 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.stream.IdempotentEventStreamWriter;
-import io.pravega.client.stream.Position;
-import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactoryImpl;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.NameUtils;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -36,21 +40,13 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.impl.netty.ConnectionFactory;
-import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
-import io.pravega.client.stream.impl.segment.SegmentInputStream;
-import io.pravega.client.stream.impl.segment.SegmentInputStreamFactory;
-import io.pravega.client.stream.impl.segment.SegmentInputStreamFactoryImpl;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
-import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.shared.NameUtils;
 import java.util.function.Supplier;
-
 import lombok.val;
-import org.apache.commons.lang.NotImplementedException;
 
 public class ClientFactoryImpl implements ClientFactory {
 
@@ -107,18 +103,6 @@ public class ClientFactoryImpl implements ClientFactory {
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         Stream stream = new StreamImpl(scope, streamName);
         return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config);
-    }
-
-    @Override
-    public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
-                                                                          EventWriterConfig config) {
-        throw new NotImplementedException();
-    }
-
-    @Override
-    public <T> EventStreamReader<T> createReader(String stream, Serializer<T> s, ReaderConfig config,
-                                                 Position startingPosition) {
-        throw new NotImplementedException();
     }
 
     @Override

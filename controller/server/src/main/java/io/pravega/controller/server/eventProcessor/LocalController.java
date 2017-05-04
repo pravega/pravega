@@ -15,24 +15,23 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.SegmentWithRange;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
-
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

@@ -15,7 +15,8 @@
  */
 package io.pravega.client.state.impl;
 
-import io.pravega.common.util.ReusableLatch;
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
@@ -23,27 +24,23 @@ import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.segment.EndOfSegmentException;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.Async;
-
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
-
+import lombok.Cleanup;
+import lombok.Data;
 import org.apache.commons.lang.NotImplementedException;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-
-import lombok.Cleanup;
-import lombok.Data;
 
 public class SynchronizerTest {
 

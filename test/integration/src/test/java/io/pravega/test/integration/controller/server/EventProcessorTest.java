@@ -16,6 +16,8 @@
 package io.pravega.test.integration.controller.server;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.client.stream.Position;
 import io.pravega.test.common.TestingServerStarter;
@@ -41,8 +43,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.admin.stream.impl.ReaderGroupManagerImpl;
-import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
 import io.pravega.test.common.TestUtils;
 import com.google.common.base.Preconditions;
 import java.util.concurrent.CompletableFuture;

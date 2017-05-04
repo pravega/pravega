@@ -15,7 +15,7 @@
  */
 package io.pravega.client.stream;
 
-import io.pravega.client.stream.impl.segment.NoSuchEventException;
+import io.pravega.client.segment.impl.NoSuchEventException;
 
 /**
  * A reader for a stream.

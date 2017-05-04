@@ -16,6 +16,7 @@
 package io.pravega.controller.task.Stream;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.SegmentHelper;
@@ -36,7 +37,6 @@ import io.pravega.controller.task.TaskBase;
 import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;

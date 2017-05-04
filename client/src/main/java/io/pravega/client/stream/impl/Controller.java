@@ -15,15 +15,13 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
-
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
