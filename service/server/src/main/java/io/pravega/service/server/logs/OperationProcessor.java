@@ -15,6 +15,7 @@
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
@@ -26,8 +27,8 @@ import io.pravega.service.server.IllegalContainerStateException;
 import io.pravega.service.server.UpdateableContainerMetadata;
 import io.pravega.service.server.logs.operations.CompletableOperation;
 import io.pravega.service.server.logs.operations.Operation;
+import io.pravega.service.storage.DataLogWriterNotPrimaryException;
 import io.pravega.service.storage.DurableDataLog;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -36,7 +37,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -341,20 +341,28 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         log.warn("{}: Cancelling {} operations with exception: {}.", this.traceObjectId, cancelCount, failException.toString());
     }
 
-    @SneakyThrows(DataCorruptionException.class)
+    @SneakyThrows
     private void handleIterationException(Throwable ex, QueueProcessingState state, Collection<CompletableOperation> operations) {
         // Fail the current set of operations with the caught exception.
         Throwable realCause = ExceptionHelpers.getRealException(ex);
         state.fail(realCause);
 
-        if (realCause instanceof DataCorruptionException) {
-            // This is a nasty one. If we encountered a DataCorruptionException, it means we detected something abnormal
-            // in our container. We need to shutdown right away.
+        if (isFatalException(realCause)) {
+            // If we encountered a fatal exception, it means we detected something that we cannot possibly recover from.
+            // We need to shutdown right away (this will be done by the main loop).
 
             // But first, fail any Operations that we did not have a chance to process yet.
             cancelIncompleteOperations(operations, realCause);
-            throw (DataCorruptionException) realCause;
+            throw realCause;
         }
+    }
+
+    /**
+     * Determines whether the given Throwable is a fatal exception from which we cannot recover.
+     */
+    private boolean isFatalException(Throwable ex) {
+        return ex instanceof DataCorruptionException
+                || ex instanceof DataLogWriterNotPrimaryException;
     }
 
     //endregion
@@ -406,7 +414,7 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          * @throws DataCorruptionException When the operation has been committed, but failed to be accepted into the In-Memory log.
          */
-        public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws Exception {
+        void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws DataCorruptionException {
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
             // Record the Truncation marker and then commit any changes to metadata.
@@ -436,18 +444,19 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
          *
          * @param ex The cause of the failure. The operations will be failed with this as a cause.
          */
-        public void fail(Throwable ex) {
-            log.error("{}: CommitFailure ({} operations). {}", this.traceObjectId, this.pendingOperations.size(), ex);
-
+        void fail(Throwable ex) {
             // Discard all updates to the metadata.
             this.metadataUpdater.rollback();
 
             // Fail all pending entries.
-            this.pendingOperations.forEach(e -> e.fail(ex));
-            this.pendingOperations.clear();
+            if (!this.pendingOperations.isEmpty()) {
+                log.error("{}: CommitFailure ({} operations).", this.traceObjectId, this.pendingOperations.size(), ex);
+                this.pendingOperations.forEach(e -> e.fail(ex));
+                this.pendingOperations.clear();
+            }
         }
 
-        public void forEachPending(Predicate<CompletableOperation> inspector) {
+        void forEachPending(Predicate<CompletableOperation> inspector) {
             this.pendingOperations.removeIf(inspector);
         }
     }

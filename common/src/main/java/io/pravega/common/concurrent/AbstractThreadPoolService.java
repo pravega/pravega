@@ -15,10 +15,10 @@
  */
 package io.pravega.common.concurrent;
 
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
+import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -26,7 +26,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -117,8 +116,15 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
                     this.runTask.get(getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
                     this.runTask = null;
                 } catch (Exception ex) {
-                    if (cause != null) {
-                        cause = ex;
+                    Throwable realEx = ExceptionHelpers.getRealException(ex);
+                    if (cause == null) {
+                        // CancellationExceptions are expected if we are shutting down the service; If this was the real
+                        // cause why runTask failed, then the service did not actually fail, so do not report a bogus exception.
+                        if (!(realEx instanceof CancellationException)) {
+                            cause = realEx;
+                        }
+                    } else if (cause != realEx) {
+                        cause.addSuppressed(realEx);
                     }
                 }
             }
