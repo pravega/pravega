@@ -88,7 +88,7 @@ public class BookKeeperConfig {
     private final Retry.RetryWithBackoff retryPolicy;
 
     /**
-     * The path for the BookKeeper Ledger.
+     * The path in ZooKeeper for the BookKeeper Ledger.
      */
     @Getter
     private final String bkLedgerPath;
