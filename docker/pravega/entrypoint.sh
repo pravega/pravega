@@ -23,13 +23,6 @@ configure_segmentstore() {
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
     add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
-    if [ "${CLUSTER_NAME}" ];then
-        add_system_property "pravegaservice.clusterName" "${CLUSTER_NAME}"
-        ZK_METADATA_PATH="${ZK_METADATA_PATH:-pravega/${CLUSTER_NAME}/segmentstore/containers}"
-    fi
-    if [ "${ZK_METADATA_PATH}" ];then
-        add_system_property "bookkeeper.zkMetadataPath" "${ZK_METADATA_PATH}"
-    fi
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
