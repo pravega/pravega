@@ -11,8 +11,7 @@ plugins.withId('maven') {
                         }
                     }
                 }
-                pom.artifactId = "pravega" + project.path.replace(':', '-')
-                pom.groupId = "io.pravega"
+                pom.artifactId = "pravega-${project.name}"
 
                 // Sign the POM when the signing plugin is present
                 plugins.withId('signing') {
@@ -27,8 +26,7 @@ plugins.withId('maven') {
     install {
         repositories {
             mavenInstaller {
-                pom.artifactId = "pravega" + project.path.replace(':', '-')
-                pom.groupId = "io.pravega"
+                pom.artifactId = "pravega-${project.name}"
             }
         }
     }
