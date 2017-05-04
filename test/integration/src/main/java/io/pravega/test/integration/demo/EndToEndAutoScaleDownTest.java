@@ -16,6 +16,7 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.controller.util.Config;
 import io.pravega.common.util.Retry;
 import io.pravega.service.contracts.StreamSegmentStore;
@@ -32,7 +33,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;

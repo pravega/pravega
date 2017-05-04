@@ -23,14 +23,14 @@ import java.util.concurrent.CompletableFuture;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
-import io.pravega.client.stream.impl.netty.ClientConnection;
 import org.apache.commons.lang.NotImplementedException;
 
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import com.google.common.annotations.VisibleForTesting;
 
 import lombok.RequiredArgsConstructor;

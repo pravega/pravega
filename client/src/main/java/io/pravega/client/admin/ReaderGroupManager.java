@@ -16,13 +16,11 @@
 package io.pravega.client.admin;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
-import io.pravega.client.admin.stream.impl.ReaderGroupManagerImpl;
-
-
 import java.net.URI;
 import java.util.Set;
 

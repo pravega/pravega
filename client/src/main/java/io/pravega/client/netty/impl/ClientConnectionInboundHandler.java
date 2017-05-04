@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl.netty;
+package io.pravega.client.netty.impl;
 
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;

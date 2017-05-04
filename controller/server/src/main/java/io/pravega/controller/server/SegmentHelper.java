@@ -15,11 +15,11 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
-import io.pravega.client.stream.impl.netty.ClientConnection;
-import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.HostControllerStore;

@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.server.v1;
 
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -33,7 +34,6 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.timeout.TimeoutService;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
-import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.util.Collections;

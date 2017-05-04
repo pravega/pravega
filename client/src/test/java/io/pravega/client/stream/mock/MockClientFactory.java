@@ -16,6 +16,7 @@
 package io.pravega.client.stream.mock;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -29,7 +30,6 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
 import java.util.function.Supplier;
 
 public class MockClientFactory implements ClientFactory, AutoCloseable {

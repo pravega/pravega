@@ -15,7 +15,7 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.stream.impl.netty.ClientConnection;
+import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;

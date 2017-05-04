@@ -16,9 +16,8 @@
 package io.pravega.client.segment.impl;
 
 import java.util.concurrent.ExecutionException;
-
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import io.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 
