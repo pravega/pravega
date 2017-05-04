@@ -407,36 +407,36 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit,
                                                         final Optional<Integer> version) {
-        CompletableFuture<TxnStatus> result = checkTransactionStatus(txId).thenCompose(x -> {
-            if (commit) {
-                switch (x) {
-                case OPEN:
-                    return sealActiveTx(txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
-                case COMMITTING:
-                case COMMITTED:
-                    return CompletableFuture.completedFuture(x);
-                case ABORTING:
-                case ABORTED:
-                    throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
-                default:
-                    throw new TransactionNotFoundException(txId.toString());
-                }
-            } else {
-                switch (x) {
-                case OPEN:
-                    return sealActiveTx(txId, false, version).thenApply(y -> TxnStatus.ABORTING);
-                case ABORTING:
-                case ABORTED:
-                    return CompletableFuture.completedFuture(x);
-                case COMMITTING:
-                case COMMITTED:
-                    throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
-                default:
-                    throw new TransactionNotFoundException(txId.toString());
-                }
-            }
-        });
-        return verifyLegalState(result);
+        return verifyLegalState(checkTransactionStatus(txId)
+                .thenCompose(x -> {
+                    if (commit) {
+                        switch (x) {
+                            case OPEN:
+                                return sealActiveTx(txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
+                            case COMMITTING:
+                            case COMMITTED:
+                                return CompletableFuture.completedFuture(x);
+                            case ABORTING:
+                            case ABORTED:
+                                throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                            default:
+                                throw new TransactionNotFoundException(txId.toString());
+                        }
+                    } else {
+                        switch (x) {
+                            case OPEN:
+                                return sealActiveTx(txId, false, version).thenApply(y -> TxnStatus.ABORTING);
+                            case ABORTING:
+                            case ABORTED:
+                                return CompletableFuture.completedFuture(x);
+                            case COMMITTING:
+                            case COMMITTED:
+                                throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                            default:
+                                throw new TransactionNotFoundException(txId.toString());
+                        }
+                    }
+                }));
     }
 
     @Override
