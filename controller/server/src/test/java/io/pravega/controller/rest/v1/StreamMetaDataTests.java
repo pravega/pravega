@@ -219,7 +219,7 @@ public class StreamMetaDataTests {
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
         response.close();
 
-        // Test to create a stream which doesn't exist and have Retention Policy DISABLED
+        // Test to create a stream which doesn't exist and has no Retention Policy set.
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
         response = client.target(streamResourceURI).request().buildPost(Entity.json(createStreamRequest4)).invoke();
         assertEquals("Create Stream Status", 201, response.getStatus());
