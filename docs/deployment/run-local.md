@@ -51,10 +51,16 @@ Unlike other options for running locally, the docker compose option runs a full 
 
 To use this you need to have Docker `1.12` or later.
 
-Download the docker-compose.yml from github and run:
+Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) from github. For example:
 
 ```
-docker-compose up
+wget https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml
 ```
 
-TODO
+You need to set the IP address of your local machine as the value of HOST_IP in the following command. To run:
+
+```
+HOST_IP=1.2.3.4 docker-compose up
+```
+
+Clients can then connect to the controller at `${HOST_IP}:9090`.

@@ -23,9 +23,11 @@ pages:
       - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
       - 'Working with State Synchronizer': 'state-synchronizer.md'
       - 'Working with Transactions': 'transactions.md'
-  - Running Pravega: 'deployment/deployment.md'
+  - Running Pravega:
+      - 'Deployment Overview': 'deployment/deployment.md'
       - 'Running Locally': 'deployment/run-local.md'
-      - 'Installation (Manual)': 'deployment/installation.md'
+      - 'Prerequisites (Manual Install)': 'deployment/prereqs.md'
+      - 'Installation (Manual Install)': 'deployment/installation.md'
       - 'Deployment in Docker Swarm': 'deployment/docker-swarm.md'
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
