@@ -1,5 +1,5 @@
 #!/bin/sh
-
+dir=$( cd "$( dirname "$0" )" && pwd )
 # Adds a system property if the value is not empty
 add_system_property() {
     local name=$1
@@ -22,16 +22,22 @@ configure_segmentstore() {
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
-    add_system_property "dlog.hostname" "${ZK_URL%:*}"
-    add_system_property "dlog.port" "${ZK_URL#*:}"
+    add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
 configure_standalone() {
     add_system_property "pravegaservice.publishedIPAddress" "${HOST_IP}"
     add_system_property "pravegaservice.listeningIPAddress" "0.0.0.0"
+    add_system_property "singlenode.zkPort" "2181"
+    add_system_property "singlenode.controllerPort" "9090"
+    add_system_property "singlenode.segmentstorePort" "12345"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
+
+if [ ${WAIT_FOR} ];then
+    ${dir}/wait_for
+fi
 
 case $1 in
 controller)
@@ -44,7 +50,7 @@ segmentstore)
     ;;
 standalone)
     configure_standalone
-    exec /opt/pravega/bin/pravega-standalone 2181 9090 12345
+    exec /opt/pravega/bin/pravega-standalone
     ;;
 *)
     echo "Usage: $0 (controller|segmentstore|standalone)"

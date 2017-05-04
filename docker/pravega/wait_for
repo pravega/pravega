@@ -1,0 +1,23 @@
+#!/usr/bin/python -u
+from time import sleep
+
+import os
+import socket
+
+endpoints = os.environ["WAIT_FOR"].split(",")
+size = 1024
+
+for endpoint in endpoints:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("Waiting for " + endpoint)
+    connected = False
+    while not connected:
+        try:
+            host,port = endpoint.split(":")
+            s.connect((host,int(port)))
+            connected = True
+            print("Connected to " + endpoint)
+        except Exception as e:
+            print("Unable to connect to " + endpoint + ". Waiting")
+            print(e)
+            sleep(5)
