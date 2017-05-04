@@ -13,18 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl.segment;
+package io.pravega.client.segment.impl;
 
-import java.io.IOException;
+import static org.junit.Assert.fail;
 
-/**
- * Could not retrieve an event given the event pointer.
- */
-public class NoSuchEventException extends IOException {
+import org.junit.Ignore;
+import org.junit.Test;
 
-    private static final long serialVersionUID = 1L;
+@Ignore
+public class SegmentManagerTest {
+    @Test
+    public void testTimeouts() {
+        fail();
+    }
 
-    public NoSuchEventException(String message) {
-        super(message);
+    @Test
+    public void testCreateLog() {
+        fail();
+    }
+
+    @Test
+    public void testLogExists() {
+        fail();
     }
 }

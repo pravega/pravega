@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl.segment;
+package io.pravega.client.segment.impl;
 
 import java.io.IOException;
 
 /**
- * A segment has ended. No more events may be read from it.
+ * A segment has been sealed and no more events may be written to it.
  */
-public class EndOfSegmentException extends IOException {
+public class SegmentSealedException extends IOException {
 
     private static final long serialVersionUID = 1L;
 

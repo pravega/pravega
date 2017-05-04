@@ -154,11 +154,6 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public void deleteReaderGroup(ReaderGroup group) {
-        throw new NotImplementedException();
-    }
-
-    @Override
     public boolean deleteStream(String scopeName, String toDelete) {
         throw new NotImplementedException();
     }

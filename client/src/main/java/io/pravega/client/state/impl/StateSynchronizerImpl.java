@@ -15,21 +15,18 @@
  */
 package io.pravega.client.state.impl;
 
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
-import io.pravega.client.state.Update;
-import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
-import io.pravega.client.stream.Segment;
-
+import io.pravega.client.state.Update;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.function.Function;
-
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Synchronized;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;

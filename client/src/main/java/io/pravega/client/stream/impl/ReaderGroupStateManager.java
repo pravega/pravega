@@ -16,11 +16,9 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.Position;
-import io.pravega.client.stream.Segment;
-import io.pravega.common.TimeoutTimer;
-import io.pravega.common.hash.HashHelper;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
@@ -31,6 +29,8 @@ import io.pravega.client.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
 import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail;
+import io.pravega.common.TimeoutTimer;
+import io.pravega.common.hash.HashHelper;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;

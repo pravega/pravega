@@ -13,14 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl.segment;
+package io.pravega.client.segment.impl;
 
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.common.util.ByteBufferUtils;
-import io.pravega.client.stream.Segment;
+import io.pravega.client.segment.impl.AsyncSegmentInputStream;
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.SegmentInputStreamImpl;
 import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
 import java.util.Vector;

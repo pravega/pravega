@@ -15,14 +15,14 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.Segment;
-import io.pravega.common.Exceptions;
+import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.ReaderGroupConfig;
-import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,7 +33,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;

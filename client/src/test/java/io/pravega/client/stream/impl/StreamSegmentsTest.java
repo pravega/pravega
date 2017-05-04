@@ -16,15 +16,12 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableList;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.SegmentWithRange;
-import io.pravega.client.stream.StreamSegmentsWithPredecessors;
+import io.pravega.client.segment.impl.Segment;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
 import org.junit.Test;
 
 import static org.junit.Assert.assertArrayEquals;

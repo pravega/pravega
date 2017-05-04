@@ -17,6 +17,12 @@ package io.pravega.client.admin.stream.impl;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -24,16 +30,8 @@ import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
-import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
 import java.net.URI;
 import java.util.Set;
-
-import org.apache.commons.lang.NotImplementedException;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -97,11 +95,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                    new JavaSerializer<>(),
                                    clientFactory,
                                    controller);
-    }
-
-    @Override
-    public void deleteReaderGroup(ReaderGroup group) {
-        throw new NotImplementedException();
     }
 
     @Override

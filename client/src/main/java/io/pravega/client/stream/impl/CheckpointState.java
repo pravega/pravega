@@ -15,8 +15,8 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.Segment;
 import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.Segment;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -26,7 +26,6 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Synchronized;
 
 public class CheckpointState {

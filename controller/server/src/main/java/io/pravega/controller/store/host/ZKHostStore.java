@@ -15,22 +15,21 @@
  */
 package io.pravega.controller.store.host;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.controller.util.ZKUtils;
-import io.pravega.client.stream.Segment;
-import com.google.common.base.Preconditions;
-import lombok.Synchronized;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.SerializationUtils;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.utils.ZKPaths;
-
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.SerializationUtils;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.utils.ZKPaths;
 
 /**
  * Zookeeper based implementation of the HostControllerStore.

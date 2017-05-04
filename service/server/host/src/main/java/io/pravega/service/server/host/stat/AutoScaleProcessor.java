@@ -15,26 +15,22 @@
  */
 package io.pravega.service.server.host.stat;
 
-import io.pravega.client.ClientFactory;
-import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.common.util.Retry;
-import io.pravega.shared.controller.event.ScaleEvent;
-import io.pravega.shared.NameUtils;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.impl.JavaSerializer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalListeners;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-
+import io.pravega.client.ClientFactory;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.util.Retry;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.controller.event.ScaleEvent;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -44,6 +40,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * This looks at segment aggregates and determines if a scale operation has to be triggered.

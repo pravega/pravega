@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl.segment;
+package io.pravega.client.segment.impl;
 
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.client.stream.Segment;
+import io.pravega.client.segment.impl.AsyncSegmentInputStream;
+import io.pravega.client.segment.impl.AsyncSegmentInputStreamImpl;
 import io.pravega.client.stream.impl.netty.ClientConnection;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl.segment;
+package io.pravega.client.segment.impl;
 
 
 import com.google.common.collect.ImmutableList;
@@ -22,6 +22,8 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.client.segment.impl.SegmentOutputStreamImpl;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.impl.netty.ClientConnection;
 import io.pravega.client.stream.impl.netty.ClientConnection.CompletedCallback;

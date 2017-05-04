@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream;
+package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.Segment;
+import java.io.Serializable;
 import lombok.Data;
 import lombok.NonNull;
-
-import java.io.Serializable;
 
 /**
  * An identifier for a segment of a stream.

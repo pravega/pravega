@@ -16,8 +16,11 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
@@ -27,12 +30,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.SegmentWithRange;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
-
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;

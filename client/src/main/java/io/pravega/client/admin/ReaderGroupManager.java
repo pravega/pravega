@@ -66,14 +66,6 @@ public interface ReaderGroupManager extends AutoCloseable {
     ReaderGroup getReaderGroup(String groupName);
     
     /**
-     * Deletes the provided reader group. No more operations may be performed.
-     * Resources used by this group will be freed.
-     * 
-     * @param group The group to be deleted.
-     */
-    void deleteReaderGroup(ReaderGroup group);
-    
-    /**
      * See @see java.lang.AutoCloseable#close() .
      */
     @Override

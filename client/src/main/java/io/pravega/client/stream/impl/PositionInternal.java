@@ -15,9 +15,8 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Position;
-import io.pravega.client.stream.Segment;
-
 import java.util.Map;
 import java.util.Set;
 

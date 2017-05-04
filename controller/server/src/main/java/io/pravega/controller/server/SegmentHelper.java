@@ -15,8 +15,16 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.stream.impl.netty.ClientConnection;
+import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.cluster.Host;
+import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -24,19 +32,10 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.impl.ModelHelper;
-import io.pravega.client.stream.impl.netty.ClientConnection;
-import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 

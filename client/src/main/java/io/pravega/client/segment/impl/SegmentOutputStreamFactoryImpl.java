@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl.segment;
+package io.pravega.client.segment.impl;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -29,7 +29,6 @@ import org.apache.commons.lang.NotImplementedException;
 
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import com.google.common.annotations.VisibleForTesting;

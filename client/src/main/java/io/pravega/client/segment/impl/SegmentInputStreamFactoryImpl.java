@@ -13,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl.segment;
+package io.pravega.client.segment.impl;
 
 import java.util.concurrent.ExecutionException;
 
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import io.pravega.common.Exceptions;
