@@ -15,21 +15,16 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.client.segment.impl.AsyncSegmentInputStream;
-import io.pravega.client.segment.impl.AsyncSegmentInputStreamImpl;
 import io.pravega.client.stream.impl.netty.ClientConnection;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-import io.pravega.test.common.Async;
-
-import java.nio.ByteBuffer;
-
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.Async;
+import java.nio.ByteBuffer;
 import lombok.Cleanup;
-
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
