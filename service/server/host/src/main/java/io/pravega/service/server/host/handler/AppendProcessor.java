@@ -57,6 +57,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.annotation.concurrent.GuardedBy;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -163,6 +165,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
                 Append last = appends.get(0);
                 int eventCount = 0;
+
                 int i = -1;
                 for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
                     Append a = iterator.next();

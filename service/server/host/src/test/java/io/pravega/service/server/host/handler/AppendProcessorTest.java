@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+import lombok.val;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -321,7 +322,6 @@ public class AppendProcessorTest {
 
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT))
                 .thenReturn(propsFuture);
-
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, 200, eventCount), AppendProcessor.TIMEOUT))
                 .thenReturn(result);
 
