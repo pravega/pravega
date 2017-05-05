@@ -43,6 +43,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final boolean startZk;
     private final int zkPort;
+    private final String ledgersPath;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
@@ -96,8 +97,10 @@ public class BookKeeperServiceRunner implements AutoCloseable {
                                  .sessionTimeoutMs(10000)
                                  .build();
 
-        zkc.create("/ledgers", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        zkc.create("/ledgers/available", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        zkc.create("/pravega", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        zkc.create("/pravega/bookkeeper", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        zkc.create("/pravega/bookkeeper/ledgers", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        zkc.create("/pravega/bookkeeper/ledgers/available", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
     }
 
     private void runBookies(ServerConfiguration baseConf) throws Exception {
@@ -118,6 +121,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             conf.setLedgerDirNames(new String[]{ tmpDir.getPath() });
             conf.setAllowLoopback(true);
             conf.setJournalAdaptiveGroupWrites(false);
+            conf.setZkLedgersRootPath(ledgersPath);
 
             log.info("Starting Bookie at port " + bkPort);
             val bs = new BookieServer(conf);

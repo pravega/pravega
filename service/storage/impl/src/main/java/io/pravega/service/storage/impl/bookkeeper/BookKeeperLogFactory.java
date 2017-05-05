@@ -118,8 +118,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setClientTcpNoDelay(true)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
-        if (this.config.getBkLedgerPath() == null) {
-            config.setZkLedgersRootPath(this.namespace + "/bookkeeper/ledgers");
+        if (this.config.getBkLedgerPath().isEmpty()) {
+            config.setZkLedgersRootPath("/" + this.namespace + "/bookkeeper/ledgers");
         } else {
             config.setZkLedgersRootPath(this.config.getBkLedgerPath());
         }

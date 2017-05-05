@@ -15,7 +15,9 @@
  */
 package io.pravega.service.storage.impl.bookkeeper;
 
+import io.pravega.service.storage.DataLogNotAvailableException;
 import io.pravega.service.storage.DurableDataLog;
+import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.DurableDataLogTestBase;
 import io.pravega.service.storage.LogAddress;
 import io.pravega.test.common.TestUtils;
@@ -26,10 +28,13 @@ import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -65,6 +70,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         val runner = BookKeeperServiceRunner.builder()
                                             .startZk(true)
                                             .zkPort(BK_PORT.get())
+                                            .ledgersPath("/pravega/bookkeeper/ledgers")
                                             .bookiePorts(bookiePorts)
                                             .build();
         runner.start();
@@ -101,7 +107,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * 10) // Very frequent rollovers.
                 .with(BookKeeperConfig.ZK_METADATA_PATH, namespace)
-                .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
+                .with(BookKeeperConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
                 .build());
 
         // Create default factory.
@@ -120,6 +126,26 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         val zkClient = this.zkClient.getAndSet(null);
         if (zkClient != null) {
             zkClient.close();
+        }
+    }
+
+    @Test
+    public void testCreateDefaultConfig() throws Exception {
+        BookKeeperConfig bkConfig = BookKeeperConfig
+                .builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
+                .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * 10) // Very frequent rollovers.
+                .with(BookKeeperConfig.ZK_METADATA_PATH, this.zkClient.get().getNamespace())
+                .build();
+        val factory = new BookKeeperLogFactory(bkConfig, this.zkClient.get(), executorService());
+        try {
+            factory.initialize();
+        } catch (DataLogNotAvailableException e) {
+            // The exception is expected, we here make sure that the cause and message
+            // contain what we expect.
+            Assert.assertTrue(e.getCause() instanceof KeeperException.NoNodeException);
+            Assert.assertTrue(e.getCause().getMessage().
+                                indexOf(this.zkClient.get().getNamespace() + "/bookkeeper/ledgers/available") > 0);
         }
     }
 

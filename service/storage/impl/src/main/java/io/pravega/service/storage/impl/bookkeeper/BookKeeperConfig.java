@@ -43,7 +43,7 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
     public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
-    public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath");
+    public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
     private static final String COMPONENT_CODE = "bookkeeper";
 
     //endregion
