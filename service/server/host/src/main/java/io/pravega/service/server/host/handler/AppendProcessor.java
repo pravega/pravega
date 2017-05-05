@@ -57,6 +57,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.annotation.concurrent.GuardedBy;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -87,7 +89,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final SegmentStatsRecorder statsRecorder;
 
     @GuardedBy("lock")
-    private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
+    private final LinkedListMultimap<UUID, AppendWithCount> waitingAppends = LinkedListMultimap.create(2);
     @GuardedBy("lock")
     private final HashMap<UUID, Long> latestEventNumbers = new HashMap<>();
     @GuardedBy("lock")
@@ -103,7 +105,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         this.next = next;
         this.statsRecorder = statsRecorder;
     }
-    
+
     @Override
     public void hello(Hello hello) {
         connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
@@ -148,8 +150,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * that is written.
      */
     public void performNextWrite() {
-        Append append;
-        long numOfEvents = 1;
+        AppendWithCount appendWithCount;
 
         synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
@@ -157,36 +158,35 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             }
 
             UUID writer = waitingAppends.keys().iterator().next();
-            List<Append> appends = waitingAppends.get(writer);
-            if (appends.get(0).isConditional()) {
-                append = appends.remove(0);
+            List<AppendWithCount> appends = waitingAppends.get(writer);
+            if (appends.get(0).append.isConditional()) {
+                appendWithCount = appends.remove(0);
             } else {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
-                Append first = appends.get(0);
-                Append last = first;
+                AppendWithCount first = appends.get(0);
+                AppendWithCount last = first;
+                int eventCount = 0;
                 int i = -1;
-                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
-                    Append a = iterator.next();
-                    if (a.isConditional()) {
+                for (Iterator<AppendWithCount> iterator = appends.iterator(); iterator.hasNext(); ) {
+                    AppendWithCount a = iterator.next();
+                    if (a.append.isConditional()) {
                         break;
                     }
                     i++;
-                    toAppend[i] = a.getData();
+                    toAppend[i] = a.append.getData();
                     last = a;
+                    eventCount += a.numOfEvents;
                     iterator.remove();
                 }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
-                if (last != null) {
-                    numOfEvents = last.getEventNumber() - first.getEventNumber() + 1;
-                }
 
-                String segment = last != null ? last.getSegment() : first.getSegment();
-                long eventNumber = last != null ? last.getEventNumber() : first.getEventNumber();
-                append = new Append(segment, writer, eventNumber, data, null);
+                String segment = last != null ? last.append.getSegment() : first.append.getSegment();
+                long eventNumber = last != null ? last.append.getEventNumber() : first.append.getEventNumber();
+                appendWithCount = new AppendWithCount(new Append(segment, writer, eventNumber, data, null), eventCount);
             }
-            outstandingAppend = append;
+            outstandingAppend = appendWithCount.append;
         }
-        write(append, numOfEvents);
+        write(appendWithCount.append, appendWithCount.numOfEvents);
     }
 
     /**
@@ -288,7 +288,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         synchronized (lock) {
             bytesWaiting = waitingAppends.values()
                     .stream()
-                    .mapToInt(a -> a.getData().readableBytes())
+                    .mapToInt(a -> a.append.getData().readableBytes())
                     .sum();
         }
 
@@ -317,7 +317,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 throw new IllegalStateException("Event was already appended.");
             }
             latestEventNumbers.put(id, append.getEventNumber());
-            waitingAppends.put(id, append);
+            waitingAppends.put(id, new AppendWithCount(append, append.getEventNumber() - lastEventNumber));
         }
         pauseOrResumeReading();
         performNextWrite();
@@ -326,5 +326,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @Override
     public RequestProcessor getNextRequestProcessor() {
         return next;
+    }
+
+    @Data
+    @AllArgsConstructor
+    private class AppendWithCount {
+        Append append;
+        long numOfEvents;
     }
 }

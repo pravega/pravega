@@ -34,9 +34,12 @@ import io.netty.buffer.Unpooled;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+import lombok.val;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -281,6 +284,63 @@ public class AppendProcessorTest {
         verify(connection).close();
         verify(store, atMost(1)).append(any(), any(), any(), any());
         verifyNoMoreInteractions(connection);
+    }
+
+    @Test
+    public void testAppendEventCount() {
+        String streamSegmentName = "testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+
+        CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
+                new StreamSegmentInformation(streamSegmentName, 0, false, false,
+                        Collections.singletonMap(clientId, 0L), new ImmutableDate()));
+
+        when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT))
+                .thenReturn(propsFuture);
+        CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
+        val attributes = Arrays.asList(new AttributeUpdate(
+                        clientId,
+                        AttributeUpdateType.ReplaceIfGreater,
+                        100),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 100));
+
+        when(store.append(streamSegmentName, data, attributes, AppendProcessor.TIMEOUT))
+                .thenReturn(result);
+
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
+        processor.append(new Append(streamSegmentName, clientId, 100, Unpooled.wrappedBuffer(data), null));
+        verify(store).append(streamSegmentName,
+                data,
+                attributes,
+                AppendProcessor.TIMEOUT);
+
+        Map<UUID, Long> map = new HashMap<>();
+        map.put(clientId, 100L);
+        map.put(EVENT_COUNT, 100L);
+        propsFuture = CompletableFuture.completedFuture(
+                new StreamSegmentInformation(streamSegmentName, 0, false, false,
+                        map, new ImmutableDate()));
+
+        when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT))
+                .thenReturn(propsFuture);
+        val attributes2 = Arrays.asList(new AttributeUpdate(
+                        clientId,
+                        AttributeUpdateType.ReplaceIfGreater,
+                        200),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 100));
+
+        when(store.append(streamSegmentName, data, attributes2, AppendProcessor.TIMEOUT))
+                .thenReturn(result);
+
+        processor.append(new Append(streamSegmentName, clientId, 200, Unpooled.wrappedBuffer(data), null));
+        verify(store).append(streamSegmentName,
+                data,
+                attributes2,
+                AppendProcessor.TIMEOUT);
     }
 
     @Test
