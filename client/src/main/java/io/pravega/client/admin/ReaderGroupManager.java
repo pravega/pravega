@@ -24,6 +24,9 @@ import io.pravega.client.stream.Serializer;
 import java.net.URI;
 import java.util.Set;
 
+/**
+ * Used to create and manage reader groups.
+ */
 public interface ReaderGroupManager extends AutoCloseable {
     
     /**
@@ -64,7 +67,7 @@ public interface ReaderGroupManager extends AutoCloseable {
     ReaderGroup getReaderGroup(String groupName);
     
     /**
-     * See @see java.lang.AutoCloseable#close() .
+     * See {@link java.lang.AutoCloseable#close()}.
      */
     @Override
     void close();
