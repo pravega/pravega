@@ -267,7 +267,7 @@ public class AppendProcessorTest {
         setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = new CompletableFuture<>();
         result.completeExceptionally(new RuntimeException("Fake exception for testing"));
-        when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length, 1), AppendProcessor.TIMEOUT))
+        when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
             .thenReturn(result);
 
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
