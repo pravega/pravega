@@ -57,8 +57,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.annotation.concurrent.GuardedBy;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -307,6 +305,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @Override
     public void append(Append append) {
+
         synchronized (lock) {
             UUID id = append.getConnectionId();
             Long lastEventNumber = latestEventNumbers.get(id);
