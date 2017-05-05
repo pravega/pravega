@@ -17,7 +17,6 @@ package io.pravega.service.storage.impl.bookkeeper;
 
 import io.pravega.service.storage.DataLogNotAvailableException;
 import io.pravega.service.storage.DurableDataLog;
-import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.DurableDataLogTestBase;
 import io.pravega.service.storage.LogAddress;
 import io.pravega.test.common.TestUtils;
