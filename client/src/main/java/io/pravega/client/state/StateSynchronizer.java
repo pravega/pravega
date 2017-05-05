@@ -21,19 +21,19 @@ import java.util.function.Function;
 /**
  * Provides a means to have state that is synchronized between many processes. This provides a
  * higher level abstraction over {@link RevisionedStreamClient}.
- * 
+ * <p>
  * The pattern is to have an object of type StateT that can be updated by objects of type UpdateT.
  * Each host can perform logic based on its current StateT object and apply updates by supplying a
  * function to create UpdateT objects. Updates from other hosts can be obtained by calling
  * {@link #fetchUpdates()}
- * 
+ * <p>
  * The applying of updates can be conditional on the state that was provided to their generator
  * being the most recent revision, and retrying if it is not. This provides a strong consistency
  * through optimistic concurrency.
- * 
+ * <p>
  * As with any optimistic concurrency system, this works best when optimism is justified: i.e. The
  * odds are good another host is not updating the state at the exact same time.
- * 
+ * <p>
  * Because they are held in memory and transmitted over the network, state objects are updates
  * should be relatively compact. Implementations might explicitly enforce size limits.
  * 
@@ -97,7 +97,7 @@ public interface StateSynchronizer<StateT extends Revisioned> {
     /**
      * Provide a function that generates compacted version of localState so that we can drop some of the
      * history updates.
-     * 
+     * <p>
      * NOTE: If InitialUpdate returned does not generate local state exactly corruption will occur.
      * 
      * @param compactor An generator of InitialUpdates given a state.

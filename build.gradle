@@ -510,16 +510,12 @@ task sourceTar(type: Tar) {
     compression = Compression.GZIP
 }
 
-task genJavaDocs(type: Javadoc) {
-    dependsOn 'client:javadoc'
-}
-
 task javadocs(type: Javadoc) {
     description = "Generate main pravega javadoc"
 
     // Include names of any project that is to be included in the javadoc distribution
-    ext.projects = [':client', ':common', ':shared:protocol']
-
+    ext.projects = [':client']
+	options.links("http://docs.oracle.com/javase/8/docs/api/");
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
     source = files(projects.collect {

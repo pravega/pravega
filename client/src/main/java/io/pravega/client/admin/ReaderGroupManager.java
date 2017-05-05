@@ -24,6 +24,9 @@ import io.pravega.client.stream.Serializer;
 import java.net.URI;
 import java.util.Set;
 
+/**
+ * Used to create and manage reader groups.
+ */
 public interface ReaderGroupManager extends AutoCloseable {
     
     /**
@@ -44,7 +47,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
      * . Once this is done they will start receiving events from the point defined in the config
      * passed here.
-     * 
+     * <p>
      * Note: This method is idempotent assuming called with the same name and config. This method
      * may block.
      * 
@@ -64,7 +67,8 @@ public interface ReaderGroupManager extends AutoCloseable {
     ReaderGroup getReaderGroup(String groupName);
     
     /**
-     * See @see java.lang.AutoCloseable#close() .
+     * Close this manager class. This will close any connections created through it.
+     * @see java.lang.AutoCloseable#close()
      */
     @Override
     void close();

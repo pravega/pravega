@@ -19,7 +19,7 @@ import io.pravega.client.segment.impl.NoSuchEventException;
 
 /**
  * A reader for a stream.
- * 
+ * <p>
  * This class is safe to use across threads, but doing so will not increase performance.
  *
  * @param <T> The type of events being sent through this stream.
@@ -52,7 +52,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
      * Re-read an event that was previously read, by passing the pointer returned from
      * {@link EventRead#getEventPointer()}.
      * This does not affect the current position of the reader.
-     * 
+     * <p>
      * This is a blocking call. Passing invalid offsets has undefined behavior.
      * 
      * @param pointer The pointer object to enable a random read of the event.

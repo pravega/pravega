@@ -30,21 +30,19 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.client.stream.impl.RebalancerUtils;
 import java.net.URI;
 
 /**
  * Used to create Writers, Readers, and Synchronizers operating on a stream.
- * 
+ * <p>
  * Events that are written to a stream can be read by a reader. All events can be processed with
  * exactly once semantics provided the reader has the ability to restore to the correct position
  * upon failure. See {@link EventRead#getPosition()}
  * <p>
  * A note on ordering: Events inside of a stream have a strict order, but may need to be divided
  * between multiple readers for scaling. In order to process events in parallel on different hosts
- * and still have some ordering guarentees; events written to a stream have a routingKey see
+ * and still have some ordering guarantees; events written to a stream have a routingKey see
  * {@link EventStreamWriter#writeEvent(String, Object)}. Events within a routing key are strictly
  * ordered (i.e. They must go the the same reader or its replacement). However because
  * {@link ReaderGroup}s process events in parallel there is no ordering between different readers.
@@ -53,11 +51,7 @@ import java.net.URI;
  * A note on scaling: Because a stream can grow in its event rate, streams are divided into
  * Segments. For the most part this is an implementation detail. However its worth understanding
  * that the way a stream is divided between multiple readers in a group that wish to split the
- * messages between them is by giving different segments to different readers. For this reason when
- * creating a reader a notification is provided. In the case of a reader group, this is automated.
- * 
- * Otherwise this can be done by creating new reader by calling:
- * {@link RebalancerUtils#rebalance(java.util.Collection, int)} .
+ * messages between them is by giving different segments to different readers.
  */
 public interface ClientFactory extends AutoCloseable {
 
@@ -70,10 +64,6 @@ public interface ClientFactory extends AutoCloseable {
      */
     static ClientFactory withScope(String scope, URI controllerUri) {
         return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri));
-    }
-
-    static ClientFactory withScope(String scope, Controller controller) {
-        return new ClientFactoryImpl(scope, controller);
     }
 
     /**
@@ -91,12 +81,12 @@ public interface ClientFactory extends AutoCloseable {
      * Creates (or recreates) a new reader that is part of a {@link ReaderGroup}. The reader
      * will join the group and the members of the group will automatically rebalance among
      * themselves.
-     * 
+     * <p>
      * In the event that the reader dies, the method {@link ReaderGroup#readerOffline(String, Position)}
      * should be called, passing the last position of the reader. (Usually done by storing the
      * position along with the output when it is processed.) Which will trigger redistribute the
      * events among the remaining readers.
-     * 
+     * <p>
      * Note that calling reader offline while the reader is still online may result in multiple
      * reader within the group receiving the same events.
      * 
@@ -140,7 +130,8 @@ public interface ClientFactory extends AutoCloseable {
                                                       SynchronizerConfig config);
     
     /**
-     * See @see java.lang.AutoCloseable#close() .
+     * Closes the client factory. This will close any connections created through it.
+     * @see java.lang.AutoCloseable#close()
      */
     @Override
     void close();
