@@ -45,20 +45,22 @@ public class StreamManagerImpl implements StreamManager {
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
         NameUtils.validateUserStreamName(streamName);
         return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                               .scope(scopeName)
-                                                                                               .streamName(streamName)
-                                                                                               .scalingPolicy(config.getScalingPolicy())
-                                                                                               .build()),
+                        .scope(scopeName)
+                        .streamName(streamName)
+                        .scalingPolicy(config.getScalingPolicy())
+                        .retentionPolicy(config.getRetentionPolicy())
+                        .build()),
                 RuntimeException::new);
     }
 
     @Override
     public boolean alterStream(String scopeName, String streamName, StreamConfiguration config) {
         return FutureHelpers.getAndHandleExceptions(controller.alterStream(StreamConfiguration.builder()
-                                                                                              .scope(scopeName)
-                                                                                              .streamName(streamName)
-                                                                                              .scalingPolicy(config.getScalingPolicy())
-                                                                                              .build()),
+                        .scope(scopeName)
+                        .streamName(streamName)
+                        .scalingPolicy(config.getScalingPolicy())
+                        .retentionPolicy(config.getRetentionPolicy())
+                        .build()),
                 RuntimeException::new);
     }
 

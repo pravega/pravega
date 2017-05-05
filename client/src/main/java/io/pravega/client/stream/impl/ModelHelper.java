@@ -31,6 +31,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.client.stream.RetentionPolicy;
+
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -80,6 +82,25 @@ public final class ModelHelper {
     }
 
     /**
+     * Helper to convert retention policy from RPC call to internal representation.
+     *
+     * @param policy The retention policy from RPC interface.
+     * @return New instance of RetentionPolicy.
+     */
+    public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
+        // Using default enum type of UNKNOWN(0) to detect if retention policy has been set or not.
+        // This is required since proto3 does not have any other way to detect if a field has been set or not.
+        if (policy != null && policy.getType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
+            return RetentionPolicy.builder()
+                    .type(RetentionPolicy.Type.valueOf(policy.getType().name()))
+                    .value(policy.getValue())
+                    .build();
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Helper to convert StreamConfig into Stream Configuration Impl.
      *
      * @param config The StreamConfig
@@ -88,10 +109,11 @@ public final class ModelHelper {
     public static final StreamConfiguration encode(final StreamConfig config) {
         Preconditions.checkNotNull(config, "config");
         return StreamConfiguration.builder()
-                                  .scope(config.getStreamInfo().getScope())
-                                  .streamName(config.getStreamInfo().getStream())
-                                  .scalingPolicy(encode(config.getPolicy()))
-                                  .build();
+                .scope(config.getStreamInfo().getScope())
+                .streamName(config.getStreamInfo().getStream())
+                .scalingPolicy(encode(config.getScalingPolicy()))
+                .retentionPolicy(encode(config.getRetentionPolicy()))
+                .build();
     }
 
     /**
@@ -211,6 +233,23 @@ public final class ModelHelper {
     }
 
     /**
+     * Decodes RetentionPolicy and returns an instance of Retention Policy impl.
+     *
+     * @param policyModel The Retention Policy.
+     * @return Instance of Retention Policy Impl.
+     */
+    public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
+        if (policyModel != null) {
+            return Controller.RetentionPolicy.newBuilder()
+                    .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getType().name()))
+                    .setValue(policyModel.getValue())
+                    .build();
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Converts StreamConfiguration into StreamConfig.
      *
      * @param configModel The stream configuration.
@@ -218,9 +257,13 @@ public final class ModelHelper {
      */
     public static final StreamConfig decode(final StreamConfiguration configModel) {
         Preconditions.checkNotNull(configModel, "configModel");
-        return StreamConfig.newBuilder()
+        final StreamConfig.Builder builder = StreamConfig.newBuilder()
                 .setStreamInfo(createStreamInfo(configModel.getScope(), configModel.getStreamName()))
-                .setPolicy(decode(configModel.getScalingPolicy())).build();
+                .setScalingPolicy(decode(configModel.getScalingPolicy()));
+        if (configModel.getRetentionPolicy() != null) {
+            builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
+        }
+        return builder.build();
     }
 
     /**
@@ -293,5 +336,4 @@ public final class ModelHelper {
                                 .collect(Collectors.toList()))
                 .build();
     }
-
 }

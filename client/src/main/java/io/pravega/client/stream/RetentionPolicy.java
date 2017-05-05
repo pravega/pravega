@@ -17,25 +17,28 @@ package io.pravega.client.stream;
 
 import java.io.Serializable;
 import java.time.Duration;
+
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
 @Data
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
 public class RetentionPolicy implements Serializable {
-    public static final RetentionPolicy INFINITE = new RetentionPolicy(Type.TIME, Long.MAX_VALUE);
     private static final long serialVersionUID = 1L;
 
     public enum Type {
         /**
-         * Set retention based on how long data has been in the stream.
+         * Set retention based on how long data has been in the stream in milliseconds.
          */
         TIME,
+
         /**
-         * Set retention based on the total size of the data in the stream.
+         * Set retention based on the total size of the data in the stream in bytes.
          */
-        SIZE,
+        SIZE
     }
 
     private final Type type;

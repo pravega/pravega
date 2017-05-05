@@ -39,11 +39,11 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -91,7 +91,6 @@ public class StreamMetaDataTests {
     private final ScalingConfig scalingPolicyCommon2 = new ScalingConfig();
     private final RetentionConfig retentionPolicyCommon = new RetentionConfig();
     private final RetentionConfig retentionPolicyCommon2 = new RetentionConfig();
-    private final RetentionConfig retentionPolicyCommon3 = new RetentionConfig();
     private final StreamProperty streamResponseExpected = new StreamProperty();
     private final StreamProperty streamResponseExpected2 = new StreamProperty();
     private final StreamProperty streamResponseExpected3 = new StreamProperty();
@@ -153,8 +152,6 @@ public class StreamMetaDataTests {
         retentionPolicyCommon2.setType(null);
         retentionPolicyCommon2.setValue(null);
 
-        retentionPolicyCommon3.setType(TypeEnum.INFINITE);
-
         streamResponseExpected.setScopeName(scope1);
         streamResponseExpected.setStreamName(stream1);
         streamResponseExpected.setScalingPolicy(scalingPolicyCommon);
@@ -174,7 +171,6 @@ public class StreamMetaDataTests {
 
         createStreamRequest4.setStreamName(stream3);
         createStreamRequest4.setScalingPolicy(scalingPolicyCommon);
-        createStreamRequest4.setRetentionPolicy(retentionPolicyCommon3);
 
         // stream 4 where targetRate and scalingFactor for Scaling Policy are null
         createStreamRequest5.setStreamName(stream4);
@@ -184,7 +180,6 @@ public class StreamMetaDataTests {
         streamResponseExpected2.setScopeName(scope1);
         streamResponseExpected2.setStreamName(stream3);
         streamResponseExpected2.setScalingPolicy(scalingPolicyCommon);
-        streamResponseExpected2.setRetentionPolicy(retentionPolicyCommon3);
 
         streamResponseExpected3.setScopeName(scope1);
         streamResponseExpected3.setStreamName(stream4);
@@ -224,7 +219,7 @@ public class StreamMetaDataTests {
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
         response.close();
 
-        // Test to create a stream which doesn't exist and have Retention Policy INFINITE
+        // Test to create a stream which doesn't exist and has no Retention Policy set.
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
         response = client.target(streamResourceURI).request().buildPost(Entity.json(createStreamRequest4)).invoke();
         assertEquals("Create Stream Status", 201, response.getStatus());
@@ -582,7 +577,6 @@ public class StreamMetaDataTests {
                 .scope(scope1)
                 .streamName(NameUtils.getInternalNameForStream("stream3"))
                 .scalingPolicy(ScalingPolicy.fixed(1))
-                .retentionPolicy(RetentionPolicy.INFINITE)
                 .build();
         List<StreamConfiguration> allStreamsList = Arrays.asList(streamConfiguration1, streamConfiguration2,
                 streamConfiguration3);
@@ -671,12 +665,9 @@ public class StreamMetaDataTests {
         assertEquals("StreamConfig: Scaling Policy: MinNumSegments",
                 expected.getScalingPolicy().getMinSegments(),
                 actual.getScalingPolicy().getMinSegments());
-        assertEquals("StreamConfig: Retention Policy: type",
-                expected.getRetentionPolicy().getType(),
-                actual.getRetentionPolicy().getType());
-        assertEquals("StreamConfig: Retention Policy: value",
-                expected.getRetentionPolicy().getValue(),
-                actual.getRetentionPolicy().getValue());
+        assertEquals("StreamConfig: Retention Policy",
+                expected.getRetentionPolicy(),
+                actual.getRetentionPolicy());
     }
 
     private String getURI() {
