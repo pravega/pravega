@@ -135,7 +135,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
         //System properties to configure SS service.
         String hostSystemProperties = setSystemProperty("pravegaservice.zkURL", zk) +
-                setSystemProperty("dlog.hostname", zkUri.getHost()) +
+                setSystemProperty("bookkeeper.zkAddress", zk) +
                 setSystemProperty("hdfs.hdfsUrl", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020") +
                 setSystemProperty("autoScale.muteInSeconds", "120") +
                 setSystemProperty("autoScale.cooldownInSeconds", "120") +
