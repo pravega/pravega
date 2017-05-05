@@ -130,6 +130,7 @@ public interface ClientFactory extends AutoCloseable {
                                                       SynchronizerConfig config);
     
     /**
+     * Closes the client factory. This will close any connections created through it.
      * @see java.lang.AutoCloseable#close()
      */
     @Override

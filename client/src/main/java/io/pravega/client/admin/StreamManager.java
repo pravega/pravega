@@ -98,6 +98,7 @@ public interface StreamManager extends AutoCloseable {
     boolean deleteScope(String scopeName);
     
     /**
+     * Closes the stream manager.
      * @see java.lang.AutoCloseable#close()
      */
     @Override
