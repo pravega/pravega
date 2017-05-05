@@ -100,7 +100,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.commons.lang.exception.ExceptionUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -1009,14 +1008,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ServiceShutdownListener.awaitShutdown(container, shutdownTimeout, false);
         Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
 
-        // Extra lengthy check but this was in order to debug an issue that only occurred in Jenkins
-        // https://github.com/pravega/pravega/issues/1205
         Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
         boolean exceptionMatch = actualException instanceof IntentionalException;
         if (!exceptionMatch) {
-            String fullStack = ExceptionUtils.getFullStackTrace(actualException);
-            Assert.fail(String.format("Container did not fail with the correct exception. Expected '%s', Actual '%s'. Stack: %s ",
-                    IntentionalException.class.getSimpleName(), actualException, fullStack));
+            Assert.fail(String.format("Container did not fail with the correct exception. Expected '%s', Actual '%s'.",
+                    IntentionalException.class.getSimpleName(), actualException));
         }
 
         // Verify the OperationLog is also shut down, and make sure it is not in a Failed state.

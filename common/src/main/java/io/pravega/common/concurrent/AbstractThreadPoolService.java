@@ -1,12 +1,12 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,6 +17,7 @@ package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import java.time.Duration;
@@ -105,7 +106,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.info("{}: Stopping.", this.traceObjectId);
 
-        this.executor.execute(() -> {
+        ExecutorServiceHelpers.execute(() -> {
             Throwable cause = this.stopException.get();
 
             // Cancel the last iteration and wait for it to finish.
@@ -138,7 +139,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
             }
 
             log.info("{}: Stopped.", this.traceObjectId);
-        });
+        }, this::notifyFailed, Runnables.doNothing(), this.executor);
     }
 
     //endregion
