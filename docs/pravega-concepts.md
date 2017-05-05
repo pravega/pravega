@@ -113,7 +113,7 @@ number of bytes containing a temperature reading from an IoT sensor composed of
 a timestamp, a metric identifier and a value.  An Event could be web data
 associated with a user click on a website.  Events can be anything you can
 represent as a collection of bytes.  Applications make sense of Events using
-application supplied serializers and deserializers, allowing them to read and write
+application-supplied serializers and deserializers, allowing them to read and write
 objects in Pravega using similar techniques to reading and writing objects from
 file-based storage.
 
