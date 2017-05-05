@@ -4,8 +4,8 @@ Here is a glossary of terms related to Pravega:
 
 | **Term**                        | **Definition**                                                                                                                                            |
 |---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Pravega**                     | A data storage primitive based on append-only logs and tiered storage.                                                                                    |
-| **Stream**                      | A persistent, unbounded, append-only collection of Events.                                                                                                |
+| **Pravega**                     | Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data.                                                                                    |
+| **Stream**                      | A durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.                                                                                                |
 |                                 | A **Stream** is identified by a name and a Scope.                                                                                                         |
 |                                 | A **Stream** is comprised of one or more **Stream Segments.**                                                                                             |
 | **Stream Segment**              | A shard of a **Stream**.                                                                                                                                  |
