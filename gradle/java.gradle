@@ -1,0 +1,68 @@
+plugins.withId('java') {
+    apply plugin: 'checkstyle'
+    apply plugin: 'findbugs'
+    apply plugin: 'jacoco'
+    apply plugin: 'signing'
+
+    // Only publish non-test projects by default
+    if (!project.path.startsWith(":test")) {
+        apply plugin: 'maven'
+    }
+
+    compileJava {
+        options.compilerArgs.addAll([
+                "-Xlint:deprecation",
+                "-Xlint:divzero",
+                "-Xlint:empty",
+                "-Xlint:fallthrough",
+                "-Xlint:finally",
+                "-Xlint:overrides",
+                "-Xlint:path",
+                "-Werror"
+        ])
+    }
+
+    archivesBaseName = "pravega" + project.path.replace(':', '-')
+
+    task sourceJar(type: Jar) {
+        classifier = 'sources'
+        from sourceSets.main.java
+    }
+
+    task testJar(type: Jar) {
+        classifier = 'tests'
+        from sourceSets.test.output
+    }
+    artifacts { testRuntime testJar }
+
+    if (project.hasProperty("doSigning")) {
+        signing {
+            sign configurations.archives
+        }
+        // Default the secretKeyRingFile to the current user's home
+        if (!project.property("signing.secretKeyRingFile")) {
+            def secretKeyPath = project.file("${System.getProperty("user.home")}/.gnupg/secring.gpg").absolutePath
+            project.setProperty("signing.secretKeyRingFile", secretKeyPath)
+        }
+    }
+
+    tasks.withType(Test) {
+        systemProperties 'logback.configurationFile' : new File(buildDir,'resources/test/logback.xml').absolutePath
+        testLogging.showStandardStreams = false
+        testLogging.exceptionFormat = "FULL"
+        testLogging.showCauses = true
+        testLogging.showExceptions = true
+        testLogging.showStackTraces = true
+        testLogging.events = ["PASSED", "FAILED"]
+        maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
+        minHeapSize = "128m"
+        maxHeapSize = "512m"
+    }
+
+    dependencies {
+        // The production code uses the SLF4J logging API at compile time
+        compile group: 'org.slf4j', name:'slf4j-api', version: slf4jApiVersion
+        testCompile group: 'junit', name:'junit', version: junitVersion
+        testCompile "org.mockito:mockito-core:${mockitoVersion}"
+    }
+}

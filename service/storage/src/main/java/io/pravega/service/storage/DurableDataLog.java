@@ -76,9 +76,10 @@ public interface DurableDataLog extends AutoCloseable {
      * Reads all the entries in the log.
      *
      * @return A CloseableIterator with the result.
-     * @throws DataLogNotAvailableException: is not possible to reach the DataLog at the current time;
-     * @throws DurableDataLogException:      the operation was unable to open a reader.
-     * @throws DurableDataLogException       If another kind of exception occurred.
+     * @throws DurableDataLogException When an exception occurred. This can be one of the following:
+     *                                 DataLogNotAvailableException: is not possible to reach the DataLog at the
+     *                                 current time;
+     *                                 DurableDataLogException: the operation was unable to open a reader.
      */
     CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException;
 

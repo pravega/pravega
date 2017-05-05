@@ -26,7 +26,7 @@ Build the pravega distribution:
 Install pravega jar files into the local maven repository. This is handy for running the `pravega-samples` locally against a custom version of pravega.
 
 ```
-./gradlew publishMavenPublicationToMavenLocal
+./gradlew install
 ```
 
 Running unit tests:
@@ -54,7 +54,7 @@ The latest pravega releases can be found on the [Github Release](https://github.
 
 ## Quick Start
 
-Read [Getting Started](docs/getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications. 
+Read [Getting Started](docs/getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
 
 ## Running Pravega
 

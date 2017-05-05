@@ -1,0 +1,33 @@
+plugins.withId('com.google.protobuf') {
+    protobuf {
+        protoc {
+            artifact = "com.google.protobuf:protoc:${protobufProtocVersion}"
+        }
+        plugins {
+            grpc {
+                artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
+            }
+        }
+        generatedFilesBaseDir = "$projectDir/src/generated/grpc-java"
+        generateProtoTasks {
+            all()*.plugins {
+                grpc {}
+            }
+        }
+    }
+
+    clean {
+        delete protobuf.generatedFilesBaseDir
+    }
+
+    sourceSets {
+        main.java.srcDirs "${protobuf.generatedFilesBaseDir}/main/java"
+        main.java.srcDirs "${protobuf.generatedFilesBaseDir}/main/grpc"
+    }
+
+    dependencies {
+        compile group: 'io.grpc', name: 'grpc-netty', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-protobuf', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-stub', version: grpcVersion
+    }
+}
