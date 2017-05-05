@@ -789,7 +789,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testMetadataCleanup() throws Exception {
         final String segmentName = "segment";
-        final UUID[] attributes = new UUID[]{Attributes.CREATION_TIME, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
+        final UUID[] attributes = new UUID[]{ Attributes.CREATION_TIME, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID() };
         final byte[] appendData = "hello".getBytes();
         final Map<UUID, Long> expectedAttributes = new HashMap<>();
 
@@ -1007,7 +1007,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Wait for the container to be shut down and verify it is failed.
         ServiceShutdownListener.awaitShutdown(container, shutdownTimeout, false);
         Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
-        Assert.assertTrue("Container did not fail with the correct exception.", container.failureCause() instanceof IntentionalException);
+
+        Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
+        boolean exceptionMatch = actualException instanceof IntentionalException;
+        if (!exceptionMatch) {
+            Assert.fail(String.format("Container did not fail with the correct exception. Expected '%s', Actual '%s'.",
+                    IntentionalException.class.getSimpleName(), actualException));
+        }
 
         // Verify the OperationLog is also shut down, and make sure it is not in a Failed state.
         ServiceShutdownListener.awaitShutdown(log.get(), shutdownTimeout, true);
