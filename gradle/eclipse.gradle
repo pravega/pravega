@@ -1,0 +1,10 @@
+def gradleProject = project
+plugins.withId('eclipse') {
+    if (gradleProject != gradleProject.rootProject) {
+        eclipse {
+            project {
+                name = "${gradleProject.rootProject.name}${gradleProject.path.replace(':', '-')}"
+            }
+        }
+    }
+}

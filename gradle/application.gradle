@@ -1,0 +1,8 @@
+plugins.withId('application') {
+    startScripts {
+        doLast {
+            unixScript.text = unixScript.text.replace('PRAVEGA_APP_HOME', '\$APP_HOME')
+            windowsScript.text = windowsScript.text.replace('PRAVEGA_APP_HOME', '%~dp0..')
+        }
+    }
+}

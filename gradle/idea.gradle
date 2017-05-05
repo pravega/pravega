@@ -1,0 +1,14 @@
+plugins.withId('idea') {
+    idea.project?.ipr {
+        withXml { provider ->
+            // Add support for annotation processing which is needed by the lombok plugin
+            provider.node.component
+                    .find { it.@name == 'CompilerConfiguration' }
+                    .annotationProcessing.replaceNode {
+                        annotationProcessing {
+                            profile(name: 'Default', default: true, enabled: true)
+                        }
+                    }
+        }
+    }
+}

@@ -18,7 +18,7 @@ cd pravega
 This one command will download dependencies, compile pravega and start the standalone deployment.
 
 ```
-./gradlew startSingleNode
+./gradlew startStandalone
 ```
 
 ### From Installation Package
