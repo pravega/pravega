@@ -19,6 +19,7 @@ import io.pravega.service.storage.DataLogNotAvailableException;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogTestBase;
 import io.pravega.service.storage.LogAddress;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -137,14 +138,17 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.ZK_METADATA_PATH, this.zkClient.get().getNamespace())
                 .build();
         val factory = new BookKeeperLogFactory(bkConfig, this.zkClient.get(), executorService());
-        try {
-            factory.initialize();
-        } catch (DataLogNotAvailableException e) {
-            // The exception is expected, we here make sure that the cause and message
-            // contain what we expect.
-            Assert.assertTrue(e.getCause() instanceof KeeperException.NoNodeException);
-            Assert.assertTrue(e.getCause().getMessage().
-                                indexOf(this.zkClient.get().getNamespace() + "/bookkeeper/ledgers/available") > 0);
+        AssertExtensions.assertThrows("",
+                factory::initialize,
+                ex -> ex instanceof DataLogNotAvailableException &&
+                        ex.getCause() instanceof KeeperException.NoNodeException &&
+                        ex.getCause().getMessage().
+                                indexOf(this.zkClient.get().getNamespace() + "/bookkeeper/ledgers/available") > 0
+        );
+
+        // Close locally created factory.
+        if (factory != null) {
+            factory.close();
         }
     }
 
