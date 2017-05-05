@@ -22,7 +22,7 @@ plugins.withId('java') {
         ])
     }
 
-    archivesBaseName = "pravega-${project.name}"
+    archivesBaseName = "pravega" + project.path.replace(':', '-')
 
     task sourceJar(type: Jar) {
         classifier = 'sources'
