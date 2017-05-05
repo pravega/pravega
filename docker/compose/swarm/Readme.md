@@ -40,8 +40,9 @@ the swarm.
 
 `ZK_URL=zookeeper:2181 HDFS_URL=hdfs:8020 docker stack up --compose-file pravega.yml pravega`
 
-Note `ZK_URL` and `HDFS_URL` must omit the protocol. They default to `zookeeper:2181` and `hdfs:8020`, so you can
-omit them if they're reachable at those addresses (which they will be if you've deployed `zookeeper.yml`/`hdfs.yml`).
+Note that `ZK_URL` and `HDFS_URL` don't include the protocol. They default to `zookeeper:2181` and `hdfs:8020`, so you 
+can omit them if they're reachable at those addresses (which they will be if you've deployed
+`zookeeper.yml`/`hdfs.yml`).
 
 Your clients must then be deployed into the swarm, with something like:
 
