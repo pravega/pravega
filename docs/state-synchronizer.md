@@ -163,7 +163,7 @@ state.
 
 Most changes from the application are made through the updateState() operation.
  The updateState() operation takes a Function as parameter.  The Function is
-invoked with each state change (update) object, computing an updated state.
+invoked with the latest state object, and computes the updates to be applied.
 
 In our example, InitialUpdateT is implemented as:
 
@@ -370,10 +370,10 @@ public V put(K key, V value){
 ```
 
 It is important to note that the function provided to the StateSynchronizer's
-updateState() will be applied potentially many times, once for each state object
-in the Stream.  The result of applying the function to the old state is written
-only when it is applied against the most current revision of the state.  Most of
-the time there will only be a small number of revisions.  In some cases, the
+updateState() will be call potentially multiple times. The result of applying the function to the old state is written
+only when it is applied against the most current revision of the state. 
+If there was a race and the optimistic concurrency check fails, it will be called again.
+Most of the time there will only be a small number of invocations.  In some cases, the
 developer may choose to use fetchUpdates() to synchronize the StateSynchronizer
 with the latest copy of shared state from the stream before running
 updateState().  This is a matter of optimizing the tradeoff between how frequent

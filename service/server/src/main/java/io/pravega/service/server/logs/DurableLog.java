@@ -15,10 +15,14 @@
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.util.SequencedItemList;
@@ -38,8 +42,6 @@ import io.pravega.service.server.logs.operations.ProbeOperation;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogFactory;
 import io.pravega.service.storage.LogAddress;
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,7 +57,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -176,7 +177,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         log.info("{}: Stopping.", this.traceObjectId);
         this.operationProcessor.stopAsync();
 
-        this.executor.execute(() -> {
+        ExecutorServiceHelpers.execute(() -> {
             ServiceShutdownListener.awaitShutdown(this.operationProcessor, false);
 
             cancelTailReads();
@@ -197,7 +198,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             log.info("{}: Stopped.", this.traceObjectId);
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
-        });
+        }, this::notifyFailed, Runnables.doNothing(), this.executor);
     }
 
     //endregion

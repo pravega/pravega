@@ -115,8 +115,8 @@ and application developers to reason about which Events are related.   A Routi
 Key is just a string that developers use to group similar Events together. A
 Routing Key is often derived from data naturally occurring in the Event,
 something like "customer-id" or "machine-id", but it could also be some
-artificial String such as a UUID or a monotonically increasing number.   A
-Routing Key could be something like a timestamp (to group Events together by
+artificial String. A
+Routing Key could be something like a date (to group Events together by
 time) or perhaps a Routing Key could be a IoT sensor id (to group Events by
 machine).  A Routing Key is important to defining the precise read and write
 semantics that Pravega guarantees, we will get into that detail a bit later,
@@ -136,8 +136,7 @@ All data is written by appending to the tail (front) of a Stream.
 
 A Reader is an application that reads Events from a Stream.  Readers can read
 from any point in the Stream.  Many Readers will be reading Events from the tail
-of the Stream.  These Events will be delivered to Readers as quickly as possible
-(within 10s of milliseconds after they were written).  Some Readers will read
+of the Stream.  These Events will be delivered to Readers as quickly as possible.  Some Readers will read
 from earlier parts of the Stream (called catch-up reads).  The application
 developer has control over where in the Stream the Reader starts reading.
  Pravega has the concept of a Position, that represents where in a Stream a
@@ -287,8 +286,7 @@ grow and shrink to match the behavior of the data input.  The size of any Strea
 is limited only by the total storage capacity made available to the Pravega
 cluster; if you need bigger streams, simply add more storage to your cluster.
 
-It is important that applications be made aware to changes in a Stream's
-Segments.  Pravega provides the hooks to allow applications to react to changes
+Applications can react to changes
 in the number of Segments in a Stream, adjusting the number of Readers within a
 ReaderGroup, to maintain optimal read parallelism if resources allow.  This is
 useful, for example in a Flink application, to allow Flink to increase or
