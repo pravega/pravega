@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
@@ -97,10 +98,20 @@ public class BookKeeperServiceRunner implements AutoCloseable {
                                  .sessionTimeoutMs(10000)
                                  .build();
 
-        zkc.create("/pravega", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        zkc.create("/pravega/bookkeeper", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        zkc.create("/pravega/bookkeeper/ledgers", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        zkc.create("/pravega/bookkeeper/ledgers/available", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        String[] znodes = ledgersPath.split("/");
+        String znode;
+        StringBuilder znodePath = new StringBuilder();
+        for ( int i = 0; i < znodes.length; i++ ) {
+            znodePath.append(znodes[i]);
+            znode = znodePath.toString();
+            if (!znode.isEmpty()) {
+                zkc.create(znode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            }
+            znodePath.append("/");
+        }
+
+        znodePath.append("available");
+        zkc.create(znodePath.toString(), new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
     }
 
     private void runBookies(ServerConfiguration baseConf) throws Exception {
