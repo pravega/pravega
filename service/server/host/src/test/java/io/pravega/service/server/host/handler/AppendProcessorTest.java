@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import lombok.val;
 import org.junit.Ignore;
 import org.junit.Test;
 
