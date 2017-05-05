@@ -123,7 +123,7 @@ Key is just a string that developers use to group similar Events together. A
 Routing Key is often derived from data naturally occurring in the Event,
 something like "customer-id" or "machine-id", but it could also be some
 artificial String. A
-Routing Key could be something like a timewindow (to group Events together by
+Routing Key could be something like a date (to group Events together by
 time) or perhaps a Routing Key could be a IoT sensor id (to group Events by
 machine).  A Routing Key is important to defining the precise read and write
 semantics that Pravega guarantees, we will get into that detail a bit later,
