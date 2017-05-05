@@ -330,7 +330,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     @Data
     @AllArgsConstructor
-    private class AppendWithCount {
+    private static class AppendWithCount {
         Append append;
         long numOfEvents;
     }
