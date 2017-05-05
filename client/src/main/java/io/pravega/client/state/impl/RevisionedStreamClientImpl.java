@@ -15,18 +15,17 @@
  */
 package io.pravega.client.state.impl;
 
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.PendingEvent;
-import io.pravega.client.stream.impl.segment.EndOfSegmentException;
-import io.pravega.client.stream.impl.segment.SegmentInputStream;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
-import io.pravega.client.stream.impl.segment.SegmentSealedException;
-
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Iterator;
@@ -34,9 +33,7 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

@@ -15,19 +15,14 @@
  */
 package io.pravega.service.server.host.stat;
 
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.controller.event.ScaleEvent;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.Transaction;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.shared.controller.event.ScaleEvent;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -35,6 +30,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 

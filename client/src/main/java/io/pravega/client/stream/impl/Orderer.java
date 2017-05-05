@@ -15,8 +15,7 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.impl.segment.SegmentInputStream;
-
+import io.pravega.client.segment.impl.SegmentInputStream;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 

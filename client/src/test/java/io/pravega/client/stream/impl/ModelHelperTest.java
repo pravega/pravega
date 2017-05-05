@@ -15,21 +15,19 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.SegmentWithRange;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.Assert;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 

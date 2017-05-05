@@ -18,11 +18,10 @@ package io.pravega.client.stream.impl;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.client.stream.impl.segment.SegmentSealedException;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
 
 final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     private final Serializer<Type> serializer;

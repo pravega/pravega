@@ -15,9 +15,9 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientFactory;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.NameUtils;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Checkpoint;
@@ -25,13 +25,13 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpoints;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
-import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,7 +42,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;

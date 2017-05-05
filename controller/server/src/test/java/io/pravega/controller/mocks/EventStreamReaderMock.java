@@ -15,13 +15,13 @@
  */
 package io.pravega.controller.mocks;
 
+import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.EventReadImpl;
-import io.pravega.client.stream.impl.segment.NoSuchEventException;
 import lombok.SneakyThrows;
 
 import java.util.concurrent.BlockingQueue;

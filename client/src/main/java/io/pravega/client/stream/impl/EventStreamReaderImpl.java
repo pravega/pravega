@@ -15,23 +15,23 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.impl.segment.EndOfSegmentException;
-import io.pravega.client.stream.impl.segment.NoSuchEventException;
-import io.pravega.client.stream.impl.segment.SegmentInputStream;
-import io.pravega.client.stream.impl.segment.SegmentInputStreamFactory;
-import io.pravega.common.Exceptions;
-import io.pravega.common.Timer;
-import io.pravega.shared.protocol.netty.WireCommands;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.NoSuchEventException;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;

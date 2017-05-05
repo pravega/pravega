@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.mocks;
 
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
@@ -24,7 +25,6 @@ import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
