@@ -2,7 +2,7 @@
 
 Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data. A Pravega stream is a durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.  
 
-Read [Pravega Concepts](praega-concepts.md) for more details.
+Read [Pravega Concepts](pravega-concepts.md) for more details.
 
 ## Key Features 
 
