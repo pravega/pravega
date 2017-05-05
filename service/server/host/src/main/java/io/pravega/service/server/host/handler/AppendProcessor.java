@@ -57,8 +57,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.annotation.concurrent.GuardedBy;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -89,7 +87,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final SegmentStatsRecorder statsRecorder;
 
     @GuardedBy("lock")
-    private final LinkedListMultimap<UUID, AppendWithCount> waitingAppends = LinkedListMultimap.create(2);
+    private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
     @GuardedBy("lock")
     private final HashMap<UUID, Long> latestEventNumbers = new HashMap<>();
     @GuardedBy("lock")
@@ -150,7 +148,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * that is written.
      */
     public void performNextWrite() {
-        AppendWithCount appendWithCount;
+        Append append;
 
         synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
@@ -158,41 +156,40 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             }
 
             UUID writer = waitingAppends.keys().iterator().next();
-            List<AppendWithCount> appends = waitingAppends.get(writer);
-            if (appends.get(0).append.isConditional()) {
-                appendWithCount = appends.remove(0);
+            List<Append> appends = waitingAppends.get(writer);
+            if (appends.get(0).isConditional()) {
+                append = appends.remove(0);
             } else {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
-                AppendWithCount first = appends.get(0);
-                AppendWithCount last = first;
+                Append last = appends.get(0);
                 int eventCount = 0;
                 int i = -1;
-                for (Iterator<AppendWithCount> iterator = appends.iterator(); iterator.hasNext(); ) {
-                    AppendWithCount a = iterator.next();
-                    if (a.append.isConditional()) {
+                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
+                    Append a = iterator.next();
+                    if (a.isConditional()) {
                         break;
                     }
                     i++;
-                    toAppend[i] = a.append.getData();
+                    toAppend[i] = a.getData();
                     last = a;
-                    eventCount += a.numOfEvents;
+                    eventCount += a.getEventCount();
                     iterator.remove();
                 }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
 
-                String segment = last != null ? last.append.getSegment() : first.append.getSegment();
-                long eventNumber = last != null ? last.append.getEventNumber() : first.append.getEventNumber();
-                appendWithCount = new AppendWithCount(new Append(segment, writer, eventNumber, data, null), eventCount);
+                String segment = last.getSegment();
+                long eventNumber = last.getEventNumber();
+                append = new Append(segment, writer, eventNumber, eventCount, data, null);
             }
-            outstandingAppend = appendWithCount.append;
+            outstandingAppend = append;
         }
-        write(appendWithCount.append, appendWithCount.numOfEvents);
+        write(append);
     }
 
     /**
      * Write the provided append to the store, and upon completion ack it back to the producer.
      */
-    private void write(final Append toWrite, long numOfEvents) {
+    private void write(final Append toWrite) {
         Timer timer = new Timer();
         ByteBuf buf = toWrite.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
@@ -202,7 +199,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         toWrite.getConnectionId(),
                         AttributeUpdateType.ReplaceIfGreater,
                         toWrite.getEventNumber()),
-                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, numOfEvents));
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, toWrite.getEventCount()));
 
         CompletableFuture<Void> future;
         String segment = toWrite.getSegment();
@@ -240,7 +237,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
 
                     if (statsRecorder != null) {
-                        statsRecorder.record(segment, bytes.length, (int) numOfEvents);
+                        statsRecorder.record(segment, bytes.length, toWrite.getEventCount());
                     }
                 }
 
@@ -288,7 +285,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         synchronized (lock) {
             bytesWaiting = waitingAppends.values()
                     .stream()
-                    .mapToInt(a -> a.append.getData().readableBytes())
+                    .mapToInt(a -> a.getData().readableBytes())
                     .sum();
         }
 
@@ -307,6 +304,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @Override
     public void append(Append append) {
+
         synchronized (lock) {
             UUID id = append.getConnectionId();
             Long lastEventNumber = latestEventNumbers.get(id);
@@ -317,7 +315,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 throw new IllegalStateException("Event was already appended.");
             }
             latestEventNumbers.put(id, append.getEventNumber());
-            waitingAppends.put(id, new AppendWithCount(append, append.getEventNumber() - lastEventNumber));
+            waitingAppends.put(id, append);
         }
         pauseOrResumeReading();
         performNextWrite();
@@ -326,12 +324,5 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @Override
     public RequestProcessor getNextRequestProcessor() {
         return next;
-    }
-
-    @Data
-    @AllArgsConstructor
-    private static class AppendWithCount {
-        Append append;
-        long numOfEvents;
     }
 }

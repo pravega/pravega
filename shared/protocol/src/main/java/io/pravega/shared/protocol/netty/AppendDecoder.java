@@ -116,7 +116,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             ByteBuf appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
             segment.lastEventNumber = blockEnd.getLastEventNumber();
             currentBlock = null;
-            result = new Append(segment.name, connectionId, segment.lastEventNumber, appendDataBuf, null);
+            result = new Append(segment.name, connectionId, segment.lastEventNumber, blockEnd.getEventCount(), appendDataBuf, null);
             break;
             //$CASES-OMITTED$
         default:
