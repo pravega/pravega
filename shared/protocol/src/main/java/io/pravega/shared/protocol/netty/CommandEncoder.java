@@ -81,12 +81,13 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private String segmentBeingAppendedTo;
     private int currentBlockSize;
     private int bytesLeftInBlock;
-    
+
     @Data
     private static final class Session {
         private final UUID id;
         private long lastEventNumber = -1L;
-    }    
+        private int eventCount;
+    }
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
@@ -127,7 +128,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 }
 
                 session.lastEventNumber = append.getEventNumber();
-
+                session.eventCount++;
                 ByteBuf data = append.getData();
                 int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
                 // Is there enough space for a subsequent message after this one?
@@ -144,8 +145,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     writeMessage(new AppendBlockEnd(session.id,
                                                     session.lastEventNumber,
                                                     currentBlockSize - bytesLeftInBlock,
+                                                    session.eventCount,
                                                     dataRemainging), out);
                     bytesLeftInBlock = 0;
+                    session.eventCount = 0;
                 }
             }
         } else if (msg instanceof SetupAppend) {
@@ -173,9 +176,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             writeMessage(new AppendBlockEnd(session.id,
                     session.lastEventNumber,
                     currentBlockSize - bytesLeftInBlock,
+                    session.eventCount,
                     null), out);
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
+            session.eventCount = 0;
         }
         segmentBeingAppendedTo = null;
     }
