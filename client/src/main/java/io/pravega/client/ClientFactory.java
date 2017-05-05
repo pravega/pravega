@@ -35,7 +35,7 @@ import java.net.URI;
 
 /**
  * Used to create Writers, Readers, and Synchronizers operating on a stream.
- * 
+ * <p>
  * Events that are written to a stream can be read by a reader. All events can be processed with
  * exactly once semantics provided the reader has the ability to restore to the correct position
  * upon failure. See {@link EventRead#getPosition()}
@@ -81,12 +81,12 @@ public interface ClientFactory extends AutoCloseable {
      * Creates (or recreates) a new reader that is part of a {@link ReaderGroup}. The reader
      * will join the group and the members of the group will automatically rebalance among
      * themselves.
-     * 
+     * <p>
      * In the event that the reader dies, the method {@link ReaderGroup#readerOffline(String, Position)}
      * should be called, passing the last position of the reader. (Usually done by storing the
      * position along with the output when it is processed.) Which will trigger redistribute the
      * events among the remaining readers.
-     * 
+     * <p>
      * Note that calling reader offline while the reader is still online may result in multiple
      * reader within the group receiving the same events.
      * 

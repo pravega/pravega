@@ -47,7 +47,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
      * . Once this is done they will start receiving events from the point defined in the config
      * passed here.
-     * 
+     * <p>
      * Note: This method is idempotent assuming called with the same name and config. This method
      * may block.
      * 

@@ -18,7 +18,7 @@ package io.pravega.client.stream;
 import java.util.concurrent.ScheduledExecutorService;
 /**
  * An event that was read from a stream or a checkpoint marker if one has been requested.
- * 
+ * <p>
  * A checkpoint is an indication that the reading application should persist its state to durable storage
  * before reading further. A checkpoint also represents a point where events waiting to be read may be
  * rebalanced among the readers in a group. So before a checkpoint one reader might be handling all of the
