@@ -60,7 +60,7 @@ swarm nodes (or a load balancer that sits in front of them). `LISTEN_ADDRESS` sh
 
 As above, `ZK_URL` and `HDFS_URL` can be omitted if the services are at their default locations.
 
-Your client should talk to Pravega at `tcp://${PUBLISHED_ADDRESS:9090`.
+Your client should talk to Pravega at `tcp://${PUBLISHED_ADDRESS}:9090`.
 
 ## Scaling BookKeeper
 
