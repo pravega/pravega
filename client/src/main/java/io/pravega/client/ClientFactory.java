@@ -130,7 +130,7 @@ public interface ClientFactory extends AutoCloseable {
                                                       SynchronizerConfig config);
     
     /**
-     * See {@link java.lang.AutoCloseable#close()}.
+     * @see java.lang.AutoCloseable#close()
      */
     @Override
     void close();

@@ -67,7 +67,7 @@ public interface ReaderGroupManager extends AutoCloseable {
     ReaderGroup getReaderGroup(String groupName);
     
     /**
-     * See {@link java.lang.AutoCloseable#close()}.
+     * @see java.lang.AutoCloseable#close()
      */
     @Override
     void close();
