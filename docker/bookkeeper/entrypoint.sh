@@ -8,9 +8,10 @@ PORT0=${PORT0:-3181}
 ZK_URL=${ZK_URL:-127.0.0.1:2181}
 USE_MOUNT=${USE_MOUNT:-0}
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
+PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 
-BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${BK_CLUSTER_NAME}/ledgers"
+BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 
 if [ $USE_MOUNT -eq 0 ]; then
     BK_DIR="/bk"
@@ -35,7 +36,8 @@ until /opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL ls /; do sleep 
 
 echo "create the zk root"
 /opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}
-/opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${BK_CLUSTER_NAME}
+/opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}
+/opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}
 
 echo "format the bookie"
 # format bookie
@@ -43,4 +45,4 @@ BOOKIE_CONF=/opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf /opt/bk_all/
 
 echo "start a new bookie"
 # start bookie,
-SERVICE_PORT=$PORT0 /opt/bk_all/bookkeeper-server-4.4.0//bin/bookkeeper bookie --conf  /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
+SERVICE_PORT=$PORT0 /opt/bk_all/bookkeeper-server-4.4.0/bin/bookkeeper bookie --conf  /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
