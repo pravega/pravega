@@ -45,4 +45,4 @@ BOOKIE_CONF=/opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf /opt/bk_all/
 
 echo "start a new bookie"
 # start bookie,
-SERVICE_PORT=$PORT0 /opt/bk_all/bookkeeper-server-4.4.0/bin/bookkeeper bookie --conf  /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
+SERVICE_PORT=$PORT0 /opt/bk_all/bookkeeper-server-4.4.0/bin/bookkeeper bookie --conf /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
