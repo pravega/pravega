@@ -35,8 +35,7 @@ pages:
       - 'Pravega Metrics': 'metrics.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
-      - 'Issue Triaging': 'contributing.md'
-      - 'Pull Request Reviews': 'contributing.md'
+      - 'Pravega Roadmap': 'roadmap.md'
       - 'Join the Community': 'join-community.md'
 extra:
     version: 0.1
