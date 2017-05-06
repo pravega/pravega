@@ -273,7 +273,7 @@ processing using Spark, Flink, and or Storm; Haddoop for batch; some kind of
 Lucene-based Search mechanism like Elastic Search for full text search; and
 maybe one (or several) NoSQL databases to support micro-services apps.
 
-![Pipeline replica](img/pipeline.separate.replicas.pmg)
+![Pipeline replica](img/pipeline.separate.replicas.png)
 
 Using traditional approaches, one set of source data, for example sensor data
 from an IoT app, would be ingested and replicated separately by each system.
