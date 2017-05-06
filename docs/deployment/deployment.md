@@ -11,10 +11,13 @@ There are two modes for running Pravega.
 
 ## Prerequisites
 
+The following prerequisites are required for running pravega in all modes.
+
+- Java 8
+
 The following prerequisites are required for running in production. These are only required for running in distributed mode.
 
 - External HDFS 2.7
-- Java 8
 - Zookeeper 3.5.1-alpha
 - Bookkeeper 4.4.0
 

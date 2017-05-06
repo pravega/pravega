@@ -23,7 +23,7 @@ This one command will download dependencies, compile pravega and start the stand
 
 ### From Installation Package
 
-Download the Pravega release from the [github releases page](https://github.com/pravega/pravega/releases).
+Download the Pravega release from the [github releases page](https://github.com/pravega/pravega/releases). The tarball and zip are identical. Instructions are provided using tar but the same steps work with the zip file.
 
 ```
 tar xfvz pravega-0.1.0.tgz
