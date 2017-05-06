@@ -266,7 +266,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                             .throwingOn(RuntimeException.class)
                             .run(() -> createTransaction(writer, exitFlag));
 
-                    for (int i = 0; i < 10; i++) {
+                    for (int i = 0; i < 100; i++) {
                         long value = data.incrementAndGet();
                         transaction.writeEvent(String.valueOf(value), value);
                     }
