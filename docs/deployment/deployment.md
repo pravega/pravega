@@ -1,4 +1,4 @@
-# Running Pravega
+# Pravega Deployment Overview
 
 This guide describes the options for running Pravega for development, testing and in production.
 
@@ -13,10 +13,12 @@ There are two modes for running Pravega.
 
 The following prerequisites are required for running in production. These are only required for running in distributed mode.
 
-- Java 8 - Java 8 is required to be installed to run Pravega
-- External HDFS 2.7 - HDFS is used as Tier 2 storage and must have sufficient capacity to store contents of all streams.
-- Zookeeper 3.5.1-alpha - At least 3 Zookeeper servers recommended for a quorum. For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache.org/doc/r3.5.1-alpha/zookeeperStarted.html).
-- Bookkeeper 4.4.0 - At least 3 Bookkeeper servers recommended for a quorum. For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/r4.4.0/bookkeeperStarted.html).
+- External HDFS 2.7
+- Java 8
+- Zookeeper 3.5.1-alpha
+- Bookkeeper 4.4.0
+
+For more details on the prerequisites and recommended configuration options for bookkeeper see the [Prerequisites Guide](prereqs.md).
 
 ## Installation
 

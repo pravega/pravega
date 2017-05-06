@@ -15,29 +15,30 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableMap;
+import io.pravega.client.segment.impl.NoSuchEventException;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.impl.segment.NoSuchEventException;
-import io.pravega.client.stream.impl.segment.SegmentInputStream;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
-import io.pravega.client.stream.impl.segment.SegmentSealedException;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
-import com.google.common.collect.ImmutableMap;
-
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class EventStreamReaderTest {
 

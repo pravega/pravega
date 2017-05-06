@@ -15,14 +15,12 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
-import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
-import io.pravega.client.stream.impl.segment.SegmentSealedException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.Stream;
-
+import io.pravega.common.concurrent.FutureHelpers;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;

@@ -144,9 +144,20 @@ message ScalingPolicy {
     int32 minNumSegments = 4;
 }
 
+message RetentionPolicy {
+    enum RetentionPolicyType {
+        UNKNOWN = 0;
+        TIME = 1;
+        SIZE = 2;
+    }
+    RetentionPolicyType type = 1;
+    int64 value = 2;
+}
+
 message StreamConfig {
     StreamInfo streamInfo = 1;
-    ScalingPolicy policy = 2;
+    ScalingPolicy scalingPolicy = 2;
+    RetentionPolicy retentionPolicy = 3;
 }
 
 message SegmentId {

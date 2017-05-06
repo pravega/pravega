@@ -20,7 +20,10 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -47,22 +50,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
-import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.Transaction;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -74,6 +64,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -556,7 +552,6 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream1")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertTrue(createStreamStatus.get());
@@ -564,7 +559,6 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream2")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertThrows("Server should throw exception", createStreamStatus, Throwable -> true);
@@ -572,7 +566,6 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream3")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertThrows("Server should throw exception", createStreamStatus, Throwable -> true);
@@ -580,7 +573,6 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream4")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertFalse(createStreamStatus.get());
@@ -588,7 +580,6 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream5")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertThrows("Server should throw exception", createStreamStatus, Throwable -> true);
@@ -596,7 +587,6 @@ public class ControllerImplTest {
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
                                                                    .streamName("stream6")
                                                                    .scope("scope1")
-                                                                   .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertThrows("Should throw Exception", createStreamStatus, throwable -> true);
@@ -608,7 +598,6 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream1")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         assertTrue(updateStreamStatus.get());
@@ -616,7 +605,6 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream2")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
@@ -624,7 +612,6 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream3")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
@@ -632,7 +619,6 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream4")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
@@ -640,7 +626,6 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
                                                                   .streamName("stream5")
                                                                   .scope("scope1")
-                                                                  .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
@@ -912,7 +897,6 @@ public class ControllerImplTest {
                                 StreamConfiguration.builder()
                                         .streamName("streamparallel")
                                         .scope("scope1")
-                                        .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis((long) 0)))
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build());
                         log.info("{}", createStreamStatus.get());

@@ -16,6 +16,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -26,7 +27,6 @@ import io.pravega.service.server.store.ServiceBuilderConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.admin.stream.impl.StreamManagerImpl;
 import io.pravega.test.common.TestUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;

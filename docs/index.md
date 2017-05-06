@@ -1,36 +1,28 @@
 # Pravega Overview
 
-Pravega is an open source distributed storage service implementing **Streams**. It offers Stream as the main primitive for the foundation of reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
+Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data. A Pravega stream is a durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.  
 
-### Features 
+Read [Pravega Concepts](pravega-concepts.md) for more details.
 
--   Auto Scaling - Dynamically scale data streams across storage
-    and processing resources to accommodate ever changing data ingestion
-    rate.
+## Key Features 
 
--   Infinite Retention - Automatically migrate old events in a stream to low-cost cloud-scale
-    storage system, thus using the same access paradigm for both real-time and historical analysis.
+-   Exactly-Once Semantics - Ensure that each event is delivered and processed exactly once, with exact ordering guarantees, despite failures in clients, servers or the network.
+
+-   Auto Scaling - Unlike systems with static partitioning, Pravega can automatically scale individual data streams to accommodate changes in data ingestion rate.
+
+-   Distributed Computing Primitive - Pravega is great for distributed computing; it can be used as a data storage mechanism, for messaging between processes and for other distributed computing services such as leader election.
+
+-   Write Efficiency - Pravega shrinks write latency to milliseconds, and seamlessly scales to handle high throughput reads and writes from thousands of concurrent clients, making it ideal for IoT and other time sensitive applications.
+
+-   Infinite Retention - Ingest, process and retain data in streams forever. Use same paradigm to access both real-time and historical events stored in Pravega.
+
+-   Storage Efficiency - Use Pravega to build pipelines of data processing, combining batch, real-time and other applications without duplicating data for every step of the pipeline.
 
 -   Durability - Don't compromise between performance, durability and consistency.
-    Pravega replicates and persists the ingested event before acknowledging while 
-    maintaining low latency and strong consistency.
+    Pravega persists and protects data before the write operation is acknowledged to the client.
     
--   Exactly-Once Semantics - Ensure that each message is delivered and processed
-    exactly once despite failures with retransmissions, idempotence and transactions.
-    
--   Transaction Support - Use transactional data ingestion to guarantee that a set
-    of events are added to a stream atomically.
+-   Transaction Support - A developer uses a Pravega Transaction to ensure that a set of events are written to a stream atomically.
 
--   Multi-Protocol Access - With multi-protocol capability, Access and process
-    your streams not only via Pravega Streaming API, but via HDFS protocol.
-
--   Write Efficiency - Pravega shrinks to milliseconds the time it takes to write 
-    massive volumes durably by seamlessly scaling up to handle high throughput 
-    reads and writes from thousands of concurrent clients.
-
--   Fault Tolerant - Pravega detects failures and
-    automatically recovers ensuring the continuous flow of data required for 
-    business continuity. 
 
 ## Releases
 
@@ -39,6 +31,13 @@ The latest pravega releases can be found on the [Github Release](https://github.
 ## Quick Start
 
 Read [Getting Started](getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications. 
+
+## Documentation
+
+The Pravega documentation is hosted on the website:
+<http://pravega.io/docs> or in the
+[docs/](https://github.com/pravega/pravega/tree/master/docs) directory of the
+source code.
 
 ## Running Pravega
 
@@ -49,13 +48,6 @@ Pravega can be installed locally or in a distributed environment. The installati
 Don’t hesitate to ask! Contact the developers and community on the mailing lists
 if you need any help. Open an issue if you found a bug on [Github
 Issues](https://github.com/pravega/pravega/issues)
-
-## Documentation
-
-The Pravega documentation of is hosted on the website:
-<http://pravega.io/docs> or in the
-[docs/](https://github.com/pravega/pravega/tree/master/docs) directory of the
-source code.
 
 ## Contributing
 

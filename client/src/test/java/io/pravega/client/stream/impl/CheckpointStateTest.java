@@ -15,12 +15,11 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.Segment;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.pravega.client.segment.impl.Segment;
 import java.util.Collections;
 import java.util.Map;
-
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

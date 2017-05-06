@@ -15,13 +15,20 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.SegmentWithRange;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.stub.StreamObserver;
+import io.grpc.util.RoundRobinLoadBalancerFactory;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -46,16 +53,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.TxnFailedException;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.stub.StreamObserver;
-
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
@@ -65,8 +63,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
-import io.grpc.util.RoundRobinLoadBalancerFactory;
 import lombok.extern.slf4j.Slf4j;
 
 /**

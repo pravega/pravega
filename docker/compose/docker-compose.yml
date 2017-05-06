@@ -1,0 +1,85 @@
+version: '2'
+services:
+  zookeeper:
+    image: jplock/zookeeper:3.5.2-alpha
+    ports:
+      - "2181:2181"
+
+  hdfs:
+    image: dsrw/hdfs:2.7.3-1
+    ports:
+      - "2222:2222"
+      - "8020:8020"
+      - "50090:50090"
+      - "50010:50010"
+      - "50020:50020"
+      - "50075:50075"
+      - "50070:50070"
+    environment:
+      SSH_PORT: 2222
+      HDFS_HOST: ${HOST_IP}
+
+  bookie1:
+    image: pravega/bookkeeper
+    ports:
+      - "3181:3181"
+    environment:
+      ZK_URL: zookeeper:2181
+      bookiePort: 3181
+    links:
+      - zookeeper
+
+  bookie2:
+      image: pravega/bookkeeper
+      ports:
+        - "3182:3182"
+      environment:
+        ZK_URL: zookeeper:2181
+        bookiePort: 3182
+      links:
+        - zookeeper
+
+  bookie3:
+      image: pravega/bookkeeper
+      ports:
+        - "3183:3183"
+      environment:
+        ZK_URL: zookeeper:2181
+        bookiePort: 3183
+      links:
+        - zookeeper
+
+  controller:
+    image: pravega/pravega
+    ports:
+      - "9090:9090"
+      - "10080:10080"
+    command: controller
+    environment:
+      WAIT_FOR: zookeeper:2181
+      REST_SERVER_PORT: 10080
+      CONTROLLER_SERVER_PORT: 9090
+      ZK_URL: zookeeper:2181
+      JAVA_OPTS: -Dconfig.controller.metricenableCSVReporter=false -Xmx512m
+      SERVICE_HOST_IP: segmentstore
+    links:
+      - zookeeper
+
+  segmentstore:
+    image: pravega/pravega
+    ports:
+      - "12345:12345"
+    command: segmentstore
+    environment:
+      WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183,hdfs:8020
+      HDFS_REPLICATION: 1
+      HDFS_URL: ${HOST_IP}:8020
+      ZK_URL: zookeeper:2181
+      CONTROLLER_URL: tcp://${HOST_IP}:9090
+      JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress=${HOST_IP} -Xmx900m
+    links:
+      - zookeeper
+      - hdfs
+      - bookie1
+      - bookie2
+      - bookie3

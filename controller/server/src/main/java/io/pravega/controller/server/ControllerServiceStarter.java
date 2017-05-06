@@ -15,6 +15,8 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
@@ -42,8 +44,6 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.timeout.TimeoutService;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
-import io.pravega.client.stream.impl.netty.ConnectionFactory;
-import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;

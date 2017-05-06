@@ -15,15 +15,15 @@
  */
 package io.pravega.client.state.impl;
 
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.PendingEvent;
-import io.pravega.client.stream.impl.segment.EndOfSegmentException;
-import io.pravega.client.stream.impl.segment.SegmentInputStream;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
-import io.pravega.client.stream.impl.segment.SegmentSealedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;

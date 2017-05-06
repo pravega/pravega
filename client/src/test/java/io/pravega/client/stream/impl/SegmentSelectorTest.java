@@ -15,13 +15,12 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import java.util.Arrays;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-
 import org.junit.Test;
 import org.mockito.Mockito;
 

@@ -15,8 +15,8 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
-import io.pravega.client.stream.Segment;
 
 /**
  * Pravega provides to a reader the ability to read an isolated event. This feature

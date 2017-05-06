@@ -15,13 +15,17 @@
  */
 package io.pravega.service.server.containers;
 
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Runnables;
+import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
-import io.pravega.common.function.RunnableWithException;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.service.contracts.AttributeUpdate;
 import io.pravega.service.contracts.ReadResult;
@@ -44,9 +48,6 @@ import io.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.service.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.StorageFactory;
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractService;
-import com.google.common.util.concurrent.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,13 +55,11 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -121,6 +120,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.stateStore = new SegmentStateStore(this.storage, this.executor);
         this.metadataCleaner = new MetadataCleaner(this.config, this.metadata, this.stateStore, this::notifyMetadataRemoved,
                 this.executor, this.traceObjectId);
+        shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.metadataCleaner::runOnce,
                 this.storage, this.executor);
         this.closed = new AtomicBoolean();
@@ -154,50 +154,80 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting.", this.traceObjectId);
 
         this.durableLog.startAsync();
-        runAsyncOrFail(() -> {
+        ExecutorServiceHelpers.execute(() -> {
             this.durableLog.awaitRunning();
             this.storage.initialize(this.metadata.getContainerEpoch());
 
             // DurableLog is running. Now start all other components that depend on it.
             this.metadataCleaner.startAsync();
             this.writer.startAsync();
-            runAsyncOrFail(() -> {
-                this.writer.awaitRunning();
-                this.metadataCleaner.awaitRunning();
-                log.info("{}: Started.", this.traceObjectId);
-                LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
-                notifyStarted();
-            }, this::notifyFailed, this.executor);
-        }, this::notifyFailed, this.executor);
+            this.writer.awaitRunning();
+            this.metadataCleaner.awaitRunning();
+            log.info("{}: Started.", this.traceObjectId);
+            LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
+            notifyStarted();
+        }, this::doStop, Runnables.doNothing(), this.executor);
     }
 
     @Override
     protected void doStop() {
+        doStop(null);
+    }
+
+    /**
+     * Stops the StreamSegmentContainer by stopping all components, waiting for them to stop, and reports a normal
+     * shutdown or failure based on case. It will report a normal shutdown only if all components shut down normally
+     * and cause is null. Otherwise, the container will report either the exception of the failed component, or the
+     * given cause.
+     *
+     * @param cause (Optional) The failure cause. If any of the components failed as well, this will be added as a
+     *              suppressed exception to the Service's failure cause.
+     */
+    private void doStop(Throwable cause) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
         this.metadataCleaner.stopAsync();
         this.writer.stopAsync();
         this.durableLog.stopAsync();
-        this.executor.execute(() -> {
-            this.metadataCleaner.awaitTerminated();
-            this.writer.awaitTerminated();
-            this.durableLog.awaitTerminated();
-            log.info("{}: Stopped.", this.traceObjectId);
-            LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
-            notifyStopped();
-        });
+        ExecutorServiceHelpers.execute(() -> {
+            ServiceShutdownListener.awaitShutdown(this.metadataCleaner, false);
+            ServiceShutdownListener.awaitShutdown(this.writer, false);
+            ServiceShutdownListener.awaitShutdown(this.durableLog, false);
+            Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);
+            if (failureCause == null) {
+                failureCause = cause;
+            } else if (cause != null && failureCause != cause) {
+                failureCause.addSuppressed(cause);
+            }
+
+            if (failureCause == null) {
+                // Normal shutdown
+                log.info("{}: Stopped.", this.traceObjectId);
+                LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
+                notifyStopped();
+            } else {
+                // Shutting down due to failure.
+                log.warn("{}: Failed due to component failure.", this.traceObjectId);
+                LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
+                notifyFailed(failureCause);
+            }
+        }, this::notifyFailed, Runnables.doNothing(), this.executor);
     }
 
-    private void runAsyncOrFail(RunnableWithException r, Consumer<Throwable> notifyFailed, Executor executor) {
-        executor.execute(() -> {
-            try {
-                r.run();
-            } catch (Throwable ex) {
-                if (!ExceptionHelpers.mustRethrow(ex)) {
-                    notifyFailed.accept(ex);
+    private Throwable getFailureCause(Service... services) {
+        Throwable result = null;
+        for (Service s : services) {
+            if (s.state() == State.FAILED) {
+                Throwable realEx = ExceptionHelpers.getRealException(s.failureCause());
+                if (result == null) {
+                    result = realEx;
+                } else {
+                    result.addSuppressed(realEx);
                 }
             }
-        });
+        }
+
+        return result;
     }
 
     //endregion
@@ -422,21 +452,23 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private void shutdownWhenStopped(Service component, String componentName) {
         Consumer<Throwable> failedHandler = cause -> {
-            log.warn("{}: {} failed with exception {}.", this.traceObjectId, componentName, cause);
-            if (state() != State.STARTING) {
-                // We cannot stop the service while we're starting it.
-                stopAsync().awaitTerminated();
+            log.warn("{}: {} failed. Shutting down StreamSegmentContainer.", this.traceObjectId, componentName, cause);
+            if (state() == State.RUNNING) {
+                // We can only stop the service if it's already running. During the stop it will pick up the failure cause
+                // and terminate in failure.
+                stopAsync();
+            } else if (state() == State.STARTING) {
+                // We can only notify failed if we are starting. We cannot fail a service if it's already in a terminal state.
+                notifyFailed(cause);
             }
-
-            notifyFailed(cause);
         };
         Runnable stoppedHandler = () -> {
-            if (state() != State.STOPPING) {
-                // The Component stopped but we are not in a stopping phase. We need to shut down right away.
+            if (state() == State.STARTING || state() == State.RUNNING) {
+                // The Component stopped but we are not in a stopping/terminal phase. We need to shut down right away.
                 log.warn("{}: {} stopped unexpectedly (no error) but StreamSegmentContainer was not currently stopping. Shutting down StreamSegmentContainer.",
                         this.traceObjectId,
                         componentName);
-                stopAsync().awaitTerminated();
+                stopAsync();
             }
         };
         component.addListener(new ServiceShutdownListener(stoppedHandler, failedHandler), this.executor);

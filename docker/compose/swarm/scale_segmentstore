@@ -1,0 +1,66 @@
+#!/usr/bin/env python2
+
+import argparse
+import subprocess
+import re
+
+try:
+    env = subprocess.check_output(
+        "docker service inspect pravega_segmentstore --format='{{.Spec.TaskTemplate.ContainerSpec.Env}}'", shell=True)
+
+    def get_config(name):
+        return re.findall(name + "=(.+?)( |])", env)[0][0]
+
+    published_address = get_config("publishedIPAddress")
+    hdfs_url = get_config("HDFS_URL")
+    zk_url = get_config("ZK_URL")
+
+    existing = subprocess.check_output("docker service ls -f 'name=pravega_segmentstore_'", shell=True)
+    instances = set([int(instance[1]) for instance in re.findall("(pravega_segmentstore_(\d+))", existing)])
+    instances.add(1) # add the first service
+except Exception as e:
+    print(e)
+    print("pravega_segmentstore isn't running, can't be queried, or is improperly configured for scaling")
+    exit(1)
+
+def instance_count(value):
+    ivalue = int(value)
+    if ivalue < 1:
+        raise argparse.ArgumentTypeError("%s must be greater than or equal to 1" % value)
+    return ivalue
+
+parser = argparse.ArgumentParser()
+parser.add_argument("instance_count", help="the number of instance to scale up/down to", type=instance_count)
+args = parser.parse_args()
+requested = set(range(1, args.instance_count + 1))
+
+to_destroy = sorted(list(instances - requested))
+to_create = sorted(list(requested - instances))
+
+for instance in to_destroy:
+    name = "pravega_segmentstore_%i" % instance
+    print("Destroying " + name)
+    subprocess.call("docker service rm " + name, shell=True)
+
+for instance in to_create:
+    name = "pravega_segmentstore_%i" % instance
+    port = 12345 + instance
+    print("Creating " + name)
+    template = """docker service create --name={name} \
+          --network pravega_default \
+          --label com.docker.stack.namespace='pravega' \
+          -p '{port}:{port}' \
+          -e HDFS_URL={hdfs_url} \
+          -e ZK_URL={zk_url} \
+          -e CONTROLLER_URL=tcp://controller:9090 \
+          -e JAVA_OPTS='-Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress={published_address} -Dpravegaservice.listeningPort={port} -Dpravegaservice.listeningIPAddress=0 -Xmx900m' \
+          pravega/pravega segmentstore"""
+
+    cmd = template.format(
+        name=name,
+        port=port,
+        hdfs_url=hdfs_url,
+        zk_url=zk_url,
+        published_address=published_address
+    )
+    subprocess.call(cmd, shell=True)

@@ -15,9 +15,12 @@
  */
 package io.pravega.service.server.containers;
 
+import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.ConfigurationException;
@@ -36,11 +39,16 @@ import io.pravega.service.contracts.StreamSegmentNotExistsException;
 import io.pravega.service.contracts.StreamSegmentSealedException;
 import io.pravega.service.contracts.TooManyActiveSegmentsException;
 import io.pravega.service.server.ConfigHelpers;
+import io.pravega.service.server.OperationLog;
 import io.pravega.service.server.OperationLogFactory;
+import io.pravega.service.server.ReadIndex;
 import io.pravega.service.server.ReadIndexFactory;
 import io.pravega.service.server.SegmentContainer;
+import io.pravega.service.server.SegmentContainerFactory;
 import io.pravega.service.server.SegmentMetadata;
 import io.pravega.service.server.SegmentMetadataComparer;
+import io.pravega.service.server.UpdateableContainerMetadata;
+import io.pravega.service.server.Writer;
 import io.pravega.service.server.WriterFactory;
 import io.pravega.service.server.logs.DurableLogConfig;
 import io.pravega.service.server.logs.DurableLogFactory;
@@ -51,6 +59,7 @@ import io.pravega.service.server.reading.TestReadResultHandler;
 import io.pravega.service.server.writer.StorageWriterFactory;
 import io.pravega.service.server.writer.WriterConfig;
 import io.pravega.service.storage.CacheFactory;
+import io.pravega.service.storage.DataLogWriterNotPrimaryException;
 import io.pravega.service.storage.DurableDataLogFactory;
 import io.pravega.service.storage.Storage;
 import io.pravega.service.storage.StorageFactory;
@@ -59,6 +68,7 @@ import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.service.storage.mocks.InMemoryStorageFactory;
 import io.pravega.service.storage.mocks.ListenableStorage;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
@@ -80,12 +90,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import lombok.Cleanup;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -105,7 +116,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 1;
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-    private static final Duration TIMEOUT = Duration.ofSeconds(100);
+    private static final int TEST_TIMEOUT_MILLIS = 100 * 1000;
+    private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -139,7 +151,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the createSegment, append, updateAttributes, read, getSegmentInfo, getActiveSegments.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testSegmentRegularOperations() throws Exception {
         final UUID attributeAccumulate = UUID.randomUUID();
         final UUID attributeReplace = UUID.randomUUID();
@@ -232,7 +244,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Note: this is tested with a single segment. It could be tested with multiple segments, but different segments
      * are mostly independent of each other, so we would not be gaining much by doing so.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testConcurrentSegmentActivation() throws Exception {
         final UUID attributeAccumulate = UUID.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
@@ -330,7 +342,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the ability to make appends with offset.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testAppendWithOffset() throws Exception {
         @Cleanup
         TestContext context = new TestContext();
@@ -386,7 +398,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Test the seal operation on StreamSegments. Also tests the behavior of Reads (non-tailing) when encountering
      * the end of a sealed StreamSegment.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testSegmentSeal() throws Exception {
         final int appendsPerSegment = 1;
         @Cleanup
@@ -488,7 +500,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the behavior of various operations when the StreamSegment does not exist.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testInexistentSegment() {
         final String segmentName = "foo";
         @Cleanup
@@ -514,7 +526,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the ability to delete StreamSegments.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testSegmentDelete() throws Exception {
         final int appendsPerSegment = 1;
         @Cleanup
@@ -599,7 +611,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Test the createTransaction, append-to-Transaction, mergeTransaction methods.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testTransactionOperations() throws Exception {
         // Create Transaction and Append to Transaction were partially tested in the Delete test, so we will focus on merge Transaction here.
         @Cleanup
@@ -657,7 +669,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * * Segment sealing
      * * Transaction merging.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testFutureReads() throws Exception {
         final int nonSealReadLimit = 100;
         @Cleanup
@@ -774,10 +786,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * 5. Deletes the segment, waits for metadata to be cleared (via forcing another log truncation), re-creates the
      * same segment and validates that the old attributes did not "bleed in".
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testMetadataCleanup() throws Exception {
         final String segmentName = "segment";
-        final UUID[] attributes = new UUID[]{Attributes.CREATION_TIME, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
+        final UUID[] attributes = new UUID[]{ Attributes.CREATION_TIME, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID() };
         final byte[] appendData = "hello".getBytes();
         final Map<UUID, Long> expectedAttributes = new HashMap<>();
 
@@ -860,7 +872,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the case when the ContainerMetadata has filled up to capacity (with segments and we cannot map anymore segments).
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testForcedMetadataCleanup() throws Exception {
         final int maxSegmentCount = 3;
         final ContainerConfig containerConfig = ContainerConfig
@@ -944,6 +956,67 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 localContainer.getStreamSegmentInfo(segment0, false, TIMEOUT).join());
 
         context.container.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Tests the behavior of the SegmentContainer when another instance of the same container is activated and fences out
+     * the first one.
+     */
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    public void testWriteFenceOut() throws Exception {
+        final Duration shutdownTimeout = Duration.ofSeconds(5);
+        @Cleanup
+        TestContext context = new TestContext();
+        val container1 = context.container;
+        container1.startAsync().awaitRunning();
+        val segmentNames = createSegments(context);
+        @Cleanup
+        val container2 = context.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
+        container2.startAsync().awaitRunning();
+
+        AssertExtensions.assertThrows(
+                "Original container did not reject an append operation after being fenced out.",
+                () -> container1.append(segmentNames.get(0), new byte[1], null, TIMEOUT),
+                ex -> ex instanceof DataLogWriterNotPrimaryException);
+
+        // Verify we can still write to the second container.
+        container2.append(segmentNames.get(0), 0, new byte[1], null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify container1 is shutting down (give it some time to complete) and that it ends up in a Failed state.
+        ServiceShutdownListener.awaitShutdown(container1, shutdownTimeout, false);
+        Assert.assertEquals("Container1 is not in a failed state after fence-out detected.", Service.State.FAILED, container1.state());
+        Assert.assertTrue("Container1 did not fail with the correct exception.", container1.failureCause() instanceof DataLogWriterNotPrimaryException);
+    }
+
+    /**
+     * Tests the behavior when there is a startup failure (i.e., already started services need to shut down.
+     */
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    public void testStartFailure() throws Exception {
+        final Duration shutdownTimeout = Duration.ofSeconds(5);
+        @Cleanup
+        val context = new TestContext();
+        val failedWriterFactory = new FailedWriterFactory();
+        AtomicReference<OperationLog> log = new AtomicReference<>();
+        val watchableDurableLogFactory = new WatchableOperationlogFactory(context.operationLogFactory, log::set);
+        val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, watchableDurableLogFactory,
+                context.readIndexFactory, failedWriterFactory, context.storageFactory, executorService());
+        val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID);
+        container.startAsync();
+
+        // Wait for the container to be shut down and verify it is failed.
+        ServiceShutdownListener.awaitShutdown(container, shutdownTimeout, false);
+        Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
+
+        Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
+        boolean exceptionMatch = actualException instanceof IntentionalException;
+        if (!exceptionMatch) {
+            Assert.fail(String.format("Container did not fail with the correct exception. Expected '%s', Actual '%s'.",
+                    IntentionalException.class.getSimpleName(), actualException));
+        }
+
+        // Verify the OperationLog is also shut down, and make sure it is not in a Failed state.
+        ServiceShutdownListener.awaitShutdown(log.get(), shutdownTimeout, true);
     }
 
     /**
@@ -1220,9 +1293,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private void await(Future<?> f) {
         f.get();
     }
+
     //region TestContext
 
     private class TestContext implements AutoCloseable {
+        final SegmentContainerFactory containerFactory;
         final SegmentContainer container;
         private final InMemoryStorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
@@ -1243,9 +1318,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.cacheFactory = new InMemoryCacheFactory();
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
-            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
+            this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
                     this.readIndexFactory, this.writerFactory, this.storageFactory, executorService());
-            this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
+            this.container = this.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = this.storageFactory.createStorageAdapter();
         }
 
@@ -1335,4 +1410,41 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     //endregion
+
+    @RequiredArgsConstructor
+    private static class WatchableOperationlogFactory implements OperationLogFactory {
+        private final OperationLogFactory wrappedFactory;
+        private final Consumer<OperationLog> onCreateLog;
+
+        @Override
+        public OperationLog createDurableLog(UpdateableContainerMetadata containerMetadata, ReadIndex readIndex) {
+            OperationLog log = this.wrappedFactory.createDurableLog(containerMetadata, readIndex);
+            this.onCreateLog.accept(log);
+            return log;
+        }
+    }
+
+    private static class FailedWriterFactory implements WriterFactory {
+        @Override
+        public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Storage storage) {
+            return new FailedWriter();
+        }
+
+        private static class FailedWriter extends AbstractService implements Writer {
+            @Override
+            protected void doStart() {
+                notifyFailed(new IntentionalException());
+            }
+
+            @Override
+            protected void doStop() {
+                notifyStopped();
+            }
+
+            @Override
+            public void close() {
+
+            }
+        }
+    }
 }

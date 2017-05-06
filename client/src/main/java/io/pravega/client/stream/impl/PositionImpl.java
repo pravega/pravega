@@ -15,14 +15,12 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.Segment;
-
+import io.pravega.client.segment.impl.Segment;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 

@@ -15,9 +15,8 @@
  */
 package io.pravega.client.admin;
 
+import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.admin.stream.impl.StreamManagerImpl;
-
 import java.net.URI;
 
 /**
@@ -99,7 +98,8 @@ public interface StreamManager extends AutoCloseable {
     boolean deleteScope(String scopeName);
     
     /**
-     * See @see java.lang.AutoCloseable#close() .
+     * Closes the stream manager.
+     * @see java.lang.AutoCloseable#close()
      */
     @Override
     void close();

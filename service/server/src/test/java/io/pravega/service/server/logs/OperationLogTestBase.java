@@ -15,6 +15,7 @@
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.collect.Iterators;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.SequencedItemList;
@@ -39,7 +40,6 @@ import io.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.service.storage.Storage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import com.google.common.collect.Iterators;
 import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -59,7 +59,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -69,7 +68,8 @@ import org.junit.Assert;
  * Base class for all Operation Log-based classes (i.e., DurableLog and OperationProcessor).
  */
 abstract class OperationLogTestBase extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final int TEST_TIMEOUT_MILLIS = 30000;
+    protected static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final Supplier<CompletableFuture<Void>> NO_OP_METADATA_CLEANUP = () -> CompletableFuture.completedFuture(null);
     private static final int MAX_SEGMENT_COUNT = 1000 * 1000;
 

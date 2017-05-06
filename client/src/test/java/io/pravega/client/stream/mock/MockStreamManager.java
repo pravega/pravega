@@ -17,6 +17,7 @@ package io.pravega.client.stream.mock;
 
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
 import io.pravega.client.state.SynchronizerConfig;
@@ -30,7 +31,6 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -150,11 +150,6 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
-        throw new NotImplementedException();
-    }
-
-    @Override
-    public void deleteReaderGroup(ReaderGroup group) {
         throw new NotImplementedException();
     }
 

@@ -57,16 +57,19 @@ public class ModelHelper {
                     createStreamRequest.getScalingPolicy().getMinSegments()
             );
         }
-
-        RetentionPolicy retentionPolicy;
-        if (createStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.INFINITE) {
-            retentionPolicy = RetentionPolicy.INFINITE;
-        } else if (createStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.LIMITED_DAYS) {
-            retentionPolicy = RetentionPolicy.byTime(Duration.ofDays(createStreamRequest.getRetentionPolicy().getValue()));
-        } else {
-            retentionPolicy = RetentionPolicy.bySizeBytes(createStreamRequest.getRetentionPolicy().getValue());
+        RetentionPolicy retentionPolicy = null;
+        if (createStreamRequest.getRetentionPolicy() != null) {
+            switch (createStreamRequest.getRetentionPolicy().getType()) {
+                case LIMITED_SIZE_MB:
+                    retentionPolicy = RetentionPolicy.bySizeBytes(
+                            createStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
+                    break;
+                case LIMITED_DAYS:
+                    retentionPolicy = RetentionPolicy.byTime(
+                            Duration.ofDays(createStreamRequest.getRetentionPolicy().getValue()));
+                    break;
+            }
         }
-
         return StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(createStreamRequest.getStreamName())
@@ -102,15 +105,19 @@ public class ModelHelper {
                     updateStreamRequest.getScalingPolicy().getMinSegments()
             );
         }
-        RetentionPolicy retentionPolicy;
-        if (updateStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.INFINITE) {
-            retentionPolicy = RetentionPolicy.INFINITE;
-        } else if (updateStreamRequest.getRetentionPolicy().getType() == RetentionConfig.TypeEnum.LIMITED_DAYS) {
-            retentionPolicy = RetentionPolicy.byTime(Duration.ofDays(updateStreamRequest.getRetentionPolicy().getValue()));
-        } else {
-            retentionPolicy = RetentionPolicy.bySizeBytes(updateStreamRequest.getRetentionPolicy().getValue());
+        RetentionPolicy retentionPolicy = null;
+        if (updateStreamRequest.getRetentionPolicy() != null) {
+            switch (updateStreamRequest.getRetentionPolicy().getType()) {
+                case LIMITED_SIZE_MB:
+                    retentionPolicy = RetentionPolicy.bySizeBytes(
+                            updateStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
+                    break;
+                case LIMITED_DAYS:
+                    retentionPolicy = RetentionPolicy.byTime(
+                            Duration.ofDays(updateStreamRequest.getRetentionPolicy().getValue()));
+                    break;
+            }
         }
-
         return StreamConfiguration.builder()
                                   .scope(scope)
                                   .streamName(stream)
@@ -126,7 +133,6 @@ public class ModelHelper {
      * @return Stream properties wrapped in StreamResponse object
      */
     public static final StreamProperty encodeStreamResponse(final StreamConfiguration streamConfiguration) {
-
         ScalingConfig scalingPolicy = new ScalingConfig();
         if (streamConfiguration.getScalingPolicy().getType() == ScalingPolicy.Type.FIXED_NUM_SEGMENTS) {
             scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().
@@ -140,17 +146,20 @@ public class ModelHelper {
             scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
         }
 
-        RetentionConfig retentionConfig = new RetentionConfig();
-        if (streamConfiguration.getRetentionPolicy().getType() == RetentionPolicy.Type.TIME) {
-            if (streamConfiguration.getRetentionPolicy().getValue() == Long.MAX_VALUE) {
-                retentionConfig.setType(RetentionConfig.TypeEnum.INFINITE);
-            } else {
-                retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
-                retentionConfig.setValue(Duration.ofMillis(streamConfiguration.getRetentionPolicy().getValue()).toDays());
+        RetentionConfig retentionConfig = null;
+        if (streamConfiguration.getRetentionPolicy() != null) {
+            retentionConfig = new RetentionConfig();
+            switch (streamConfiguration.getRetentionPolicy().getType()) {
+                case SIZE:
+                    retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
+                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue() / (1024 * 1024));
+                    break;
+                case TIME:
+                    retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
+                    retentionConfig.setValue(
+                            Duration.ofMillis(streamConfiguration.getRetentionPolicy().getValue()).toDays());
+                    break;
             }
-        } else {
-            retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
-            retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue());
         }
 
         StreamProperty streamProperty = new StreamProperty();
@@ -158,7 +167,6 @@ public class ModelHelper {
         streamProperty.setScopeName(streamConfiguration.getScope());
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
-
         return streamProperty;
     }
 }

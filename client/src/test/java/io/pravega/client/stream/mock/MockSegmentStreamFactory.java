@@ -15,12 +15,11 @@
  */
 package io.pravega.client.stream.mock;
 
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.impl.segment.SegmentInputStream;
-import io.pravega.client.stream.impl.segment.SegmentInputStreamFactory;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
-import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
-
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;

@@ -1,0 +1,31 @@
+version: '3'
+services:
+  bookkeeper:
+    image: pravega/bookkeeper
+    environment:
+      ZK_URL: ${ZK_URL:-zookeeper:2181}
+    deploy:
+      replicas: 3
+
+  controller:
+    image: pravega/pravega
+    command: controller
+    ports:
+      - "9090:9090"
+      - "10080:10080"
+    environment:
+      WAIT_FOR: ${ZK_URL:-zookeeper:2181}
+      ZK_URL: ${ZK_URL:-zookeeper:2181}
+      JAVA_OPTS: -Dconfig.controller.metricenableCSVReporter=false -Xmx512m
+
+  segmentstore:
+    image: pravega/pravega
+    command: segmentstore
+    ports:
+      - "12345:12345"
+    environment:
+      WAIT_FOR: bookkeeper:3181,${HDFS_URL:-hdfs:8020}
+      HDFS_URL: hdfs://${HDFS_URL:-hdfs:8020}
+      ZK_URL: ${ZK_URL:-zookeeper:2181}
+      CONTROLLER_URL: tcp://controller:9090
+      JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress=${PUBLISHED_ADDRESS} -Dpravegaservice.listeningIPAddress=${LISTENING_ADDRESS} -Xmx900m

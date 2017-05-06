@@ -16,10 +16,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.SegmentWithRange;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.hash.HashHelper;
-import io.pravega.client.stream.StreamSegmentsWithPredecessors;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;

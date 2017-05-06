@@ -16,6 +16,7 @@
 package io.pravega.client.stream.mock;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -26,12 +27,10 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.IdempotentEventStreamWriter;
-import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.netty.ConnectionFactoryImpl;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -64,13 +63,6 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
         return impl.createIdempotentEventWriter(streamName, writerId, s, config);
     }
 
-    @Override
-    public <T> EventStreamReader<T> createReader(String streamName, Serializer<T> s, ReaderConfig config,
-                                                 Position startingPosition) {
-        return impl.createReader(streamName, s, config, startingPosition);
-    }
-
-    @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
             ReaderConfig config) {
         return impl.createReader(readerId, readerGroup, s, config);

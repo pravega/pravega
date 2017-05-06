@@ -18,11 +18,10 @@ package io.pravega.client.stream.mock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-
+import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.client.stream.impl.netty.ClientConnection;
-import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
 
 import lombok.RequiredArgsConstructor;

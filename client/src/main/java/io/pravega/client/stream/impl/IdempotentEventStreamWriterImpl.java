@@ -6,15 +6,15 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.IdempotentEventStreamWriter;
-import io.pravega.client.stream.Segment;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
-import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
-import io.pravega.client.stream.impl.segment.SegmentSealedException;
 import io.pravega.common.Exceptions;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;

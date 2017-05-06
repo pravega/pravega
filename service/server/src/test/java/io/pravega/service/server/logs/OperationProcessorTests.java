@@ -15,6 +15,8 @@
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.util.concurrent.Runnables;
+import com.google.common.util.concurrent.Service;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.util.SequencedItemList;
@@ -39,6 +41,7 @@ import io.pravega.service.server.reading.CacheManager;
 import io.pravega.service.server.reading.ContainerReadIndex;
 import io.pravega.service.server.reading.ReadIndexConfig;
 import io.pravega.service.storage.CacheFactory;
+import io.pravega.service.storage.DataLogWriterNotPrimaryException;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogException;
 import io.pravega.service.storage.LogAddress;
@@ -47,8 +50,6 @@ import io.pravega.service.storage.mocks.InMemoryCacheFactory;
 import io.pravega.service.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
-import com.google.common.util.concurrent.Runnables;
-import com.google.common.util.concurrent.Service;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -58,9 +59,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -76,7 +77,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     /**
      * Tests the ability of the OperationProcessor to process Operations in a failure-free environment.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
         int transactionsPerStreamSegment = 2;
@@ -121,7 +122,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * * StreamSegmentSealedException
      * * General MetadataUpdateException.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testWithInvalidOperations() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 40;
@@ -197,7 +198,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     /**
      * Tests the ability of the OperationProcessor to process Operations when Serialization errors happen.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testWithOperationSerializationFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
@@ -265,7 +266,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     /**
      * Tests the ability of the OperationProcessor to process Operations when there are DataLog write failures.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testWithDataLogFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
@@ -313,10 +314,55 @@ public class OperationProcessorTests extends OperationLogTestBase {
     }
 
     /**
+     * Tests the ability of the OperationProcessor handle a DataLogWriterNotPrimaryException.
+     */
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    public void testWithDataLogNotPrimaryException() throws Exception {
+        int streamSegmentCount = 1;
+        int appendsPerStreamSegment = 1;
+
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+
+        // Setup an OperationProcessor and start it.
+        @Cleanup
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
+        dataLog.initialize(TIMEOUT);
+        @Cleanup
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
+        operationProcessor.startAsync().awaitRunning();
+
+        ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
+                count -> true,
+                () -> new CompletionException(new DataLogWriterNotPrimaryException("intentional")));
+        dataLog.setAppendErrorInjectors(null, aSyncErrorInjector);
+
+        // Process all generated operations.
+        List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
+
+        // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
+        AssertExtensions.assertThrows(
+                "No operations failed.",
+                OperationWithCompletion.allOf(completionFutures)::join,
+                ex -> ex instanceof IOException || ex instanceof DataLogWriterNotPrimaryException);
+
+        // Verify that the OperationProcessor automatically shuts down and that it has the right failure cause.
+        ServiceShutdownListener.awaitShutdown(operationProcessor, TIMEOUT, false);
+        Assert.assertEquals("OperationProcessor is not in a failed state after fence-out detected.",
+                Service.State.FAILED, operationProcessor.state());
+        Assert.assertTrue("OperationProcessor did not fail with the correct exception.",
+                operationProcessor.failureCause() instanceof DataLogWriterNotPrimaryException);
+    }
+
+    /**
      * Tests the ability of the OperationProcessor to process Operations when a simulated DataCorruptionException
      * is generated.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testWithDataCorruptionFailures() throws Exception {
         // If a DataCorruptionException is thrown for a particular Operation, the OperationQueueProcessor should
@@ -413,7 +459,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * operation, so there is no commit to DurableDataLog - we need to verify the operation is properly completed in this
      * case).
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testWithSingleProbeOperation() throws Exception {
         @Cleanup
         TestContext context = new TestContext();

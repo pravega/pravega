@@ -17,6 +17,7 @@ package io.pravega.test.integration.endtoendtest;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.service.contracts.StreamSegmentStore;
@@ -33,9 +34,9 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.admin.stream.impl.ReaderGroupManagerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.test.common.TestUtils;
 import java.util.Collections;
@@ -104,7 +105,7 @@ public class EndToEndTxnWithScaleTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("test", controller);
+        ClientFactory clientFactory = new ClientFactoryImpl("test", controller);
         @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());

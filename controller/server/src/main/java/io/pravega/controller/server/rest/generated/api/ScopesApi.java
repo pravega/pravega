@@ -1,17 +1,28 @@
 package io.pravega.controller.server.rest.generated.api;
 
+import io.pravega.controller.server.rest.generated.model.*;
+import io.pravega.controller.server.rest.generated.api.ScopesApiService;
 import io.pravega.controller.server.rest.generated.api.factories.ScopesApiServiceFactory;
 
+import io.swagger.annotations.ApiParam;
+import io.swagger.jaxrs.*;
+
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
+import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
-import io.swagger.annotations.ApiParam;
-
-import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.StreamState;
+
+import java.util.List;
+import io.pravega.controller.server.rest.generated.api.NotFoundException;
+
+import java.io.InputStream;
+
+import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
+import org.glassfish.jersey.media.multipart.FormDataParam;
 
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
@@ -39,7 +50,7 @@ public class ScopesApi  {
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = ScopeProperty.class) })
     public Response createScope(@ApiParam(value = "The scope configuration" ,required=true) CreateScopeRequest createScopeRequest
 ,@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.createScope(createScopeRequest,securityContext);
     }
     @POST
@@ -58,7 +69,7 @@ public class ScopesApi  {
     public Response createStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@ApiParam(value = "The stream configuration" ,required=true) CreateStreamRequest createStreamRequest
 ,@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.createStream(scopeName,createStreamRequest,securityContext);
     }
     @DELETE
@@ -76,7 +87,7 @@ public class ScopesApi  {
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
     public Response deleteScope(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.deleteScope(scopeName,securityContext);
     }
     @DELETE
@@ -95,7 +106,7 @@ public class ScopesApi  {
     public Response deleteStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@ApiParam(value = "Stream name",required=true) @PathParam("streamName") String streamName
 ,@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.deleteStream(scopeName,streamName,securityContext);
     }
     @GET
@@ -111,7 +122,7 @@ public class ScopesApi  {
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = ScopeProperty.class) })
     public Response getScope(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.getScope(scopeName,securityContext);
     }
     @GET
@@ -128,7 +139,7 @@ public class ScopesApi  {
     public Response getStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@ApiParam(value = "Stream name",required=true) @PathParam("streamName") String streamName
 ,@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.getStream(scopeName,streamName,securityContext);
     }
     @GET
@@ -141,7 +152,7 @@ public class ScopesApi  {
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = ScopesList.class) })
     public Response listScopes(@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.listScopes(securityContext);
     }
     @GET
@@ -156,9 +167,9 @@ public class ScopesApi  {
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = StreamsList.class) })
     public Response listStreams(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
-,@ApiParam(value = "Flag whether to display system created streams too.") @QueryParam("showInternalStreams") String showInternalStreams
+,@ApiParam(value = "Flag whether to display only system created streams") @QueryParam("showInternalStreams") String showInternalStreams
 ,@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.listStreams(scopeName,showInternalStreams,securityContext);
     }
     @PUT
@@ -176,7 +187,7 @@ public class ScopesApi  {
 ,@ApiParam(value = "Stream name",required=true) @PathParam("streamName") String streamName
 ,@ApiParam(value = "The new stream configuration" ,required=true) UpdateStreamRequest updateStreamRequest
 ,@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.updateStream(scopeName,streamName,updateStreamRequest,securityContext);
     }
     @PUT
@@ -194,7 +205,7 @@ public class ScopesApi  {
 ,@ApiParam(value = "Stream name",required=true) @PathParam("streamName") String streamName
 ,@ApiParam(value = "The state info to be updated" ,required=true) StreamState updateStreamStateRequest
 ,@Context SecurityContext securityContext)
-    throws io.pravega.controller.server.rest.generated.api.NotFoundException {
+    throws NotFoundException {
         return delegate.updateStreamState(scopeName,streamName,updateStreamStateRequest,securityContext);
     }
 }

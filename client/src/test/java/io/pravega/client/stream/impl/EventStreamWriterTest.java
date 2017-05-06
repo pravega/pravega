@@ -15,17 +15,15 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.SegmentWithRange;
-import io.pravega.client.stream.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.client.stream.impl.segment.EndOfSegmentException;
-import io.pravega.client.stream.impl.segment.SegmentOutputStream;
-import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
-import io.pravega.client.stream.impl.segment.SegmentSealedException;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import java.util.ArrayList;
 import java.util.Collections;
