@@ -587,7 +587,7 @@ task buildPravegaImage(type: DockerBuildTask, dependsOn: preparePravegaImage) {
 }
 
 task buildBookkeeperImage(type: DockerBuildTask) {
-    baseTag = pravegaBaseTag
+    baseTag = bookkeeperBaseTag
     dockerDir = "docker/bookkeeper"
 }
 
