@@ -7,6 +7,19 @@ on ingestion rate or number of events being ingested, aka Scaling Policy.
 Currently, auto scaling feature is in EXPERIMENTAL stage. With further testing,
 we plan to stabilize it. 
 
+## Reader Group
+ 
+-  Reader Group for manual segment choice
+-  Callback when # of segment changes
+-  Reader Group Metrics 
+-  Individual Reader  (Not member of a group)
+
+## Segment Store
+
+-  Auto-container restart, take it offline /Stability Improvement/
+-  Tools for debugging, more tests, etc.
+-  Unified Auth with Tier 2 per segment/stream basis
+
 ## Versioning of Wire Protocol
 
 Given the stage of Pravega, it is likely that evolution will happen rapidly. To
