@@ -103,9 +103,10 @@ Let's examine the key features of Pravega.
 
 By exactly once semantics we mean that Pravega ensures that data is not duplicated
 and no event is missed despite failures. Of course, this statement comes with a
-number of caveats, like any other system that promises exactly-once semantics. An
-important consideration is that exactly-once semantics is a natural part of Pravega
-and has been a goal and part of the design from day zero.
+number of caveats, like any other system that promises exactly-once semantics, but
+let's not dive into the gory details here. An important consideration is that
+exactly-once semantics is a natural part of Pravega and has been a goal and part
+of the design from day zero.
 
 To achieve exactly once semantics, Pravega Streams are durable, ordered,
 consistent and transactional.  We discuss durable and transactional in separate
@@ -123,19 +124,19 @@ By consistency, we mean all Readers see the same ordered view of data for a
 given routing key, even in the face of failure. Systems that are "mostly
 consistent" are not sufficient for building accurate data processing.
 
-Some systems, that can only provide "at least once" semantics may suffer from
-the possibility of data duplication.  In these other systems, in certain failure
-scenarios, a data producer, upon recovery may write the same data twice.  In
-Pravega, writes are idempotent, rewrites done as a result of failure recovery
-don't result in data duplication.   It is impossible to deliver exactly once
-processing semantics when there is the possibility of data duplication.
+Systems that provide "at least once" semantics might present duplication. In
+such systems, a data producer might write the same data twice in some scenarios.
+In Pravega, writes are idempotent, rewrites done as a result of reconnection
+don't result in data duplication. Note that we make no guarantee when the data
+coming from the source already contains duplicates. Written data is opaque to
+Pravega and it makes no attempt to remove existing duplicates.
 
 But this is not *just* exactly once semantics between two components within an
 application architecture, we are talking here about the importance of end-end
 exactly once semantics across an entire pipeline of streaming application
 components with strict ordering of data in the face of component failures.
 Data storage in Pravega is the foundation for exactly once across an entire data
-processing pipeline.  This is absolutely critical for building streaming
+processing pipeline. This is absolutely critical for building streaming
 applications that are both timely and accurate.  Without accuracy at the storage
 layer, application developers are faced with relying on the complexity of a
 Lambda architecture to deliver accurate data analysis in combination with near
