@@ -43,7 +43,7 @@ able to support dynamic acquisition and release of resources. 
 Additional streaming connectors allow data ingestion into Flink and using more
 systems as sinks for Flink streaming programs.
 
--   Flink (source/sink) - (Completed)[https://github.com/pravega/flink-connectors]
+-   Flink (source/sink) - [Completed](https://github.com/pravega/flink-connectors)
 -   Spark (source/sink)
 -   Apache Beam (TBD)
 -   (TBD)
