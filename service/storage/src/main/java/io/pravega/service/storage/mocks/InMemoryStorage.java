@@ -15,6 +15,7 @@
  */
 package io.pravega.service.storage.mocks;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ImmutableDate;
@@ -27,7 +28,6 @@ import io.pravega.service.contracts.StreamSegmentSealedException;
 import io.pravega.service.storage.SegmentHandle;
 import io.pravega.service.storage.StorageNotPrimaryException;
 import io.pravega.service.storage.TruncateableStorage;
-import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,9 +43,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.ToString;
+import lombok.val;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
@@ -170,7 +169,10 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot seal using a read-only handle.");
         CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
                 getStreamSegmentData(handle.getSegmentName()).markSealed(), this.executor);
-        result.thenRunAsync(() -> fireSealTrigger(handle.getSegmentName()), this.executor);
+        result.thenRunAsync(() -> {
+            fireSealTrigger(handle.getSegmentName());
+            cancelOffsetTriggersDueToSeal(handle.getSegmentName());
+        }, this.executor);
         return result;
     }
 
@@ -282,6 +284,8 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
 
             this.streamSegments.remove(handle.getSegmentName());
         }
+
+        cancelTriggers(handle.getSegmentName());
     }
 
     //endregion
@@ -348,19 +352,19 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     }
 
     private void fireOffsetTriggers(String segmentName, long currentOffset) {
-        HashMap<Long, CompletableFuture<Void>> toTrigger = new HashMap<>();
+        val toTrigger = new ArrayList<CompletableFuture<Void>>();
         synchronized (this.offsetTriggers) {
             HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
             if (segmentTriggers != null) {
                 segmentTriggers.entrySet().forEach(e -> {
                     if (e.getKey() <= currentOffset) {
-                        toTrigger.put(e.getKey(), e.getValue());
+                        toTrigger.add(e.getValue());
                     }
                 });
             }
         }
 
-        toTrigger.values().forEach(c -> c.complete(null));
+        toTrigger.forEach(c -> c.complete(null));
     }
 
     private void fireSealTrigger(String segmentName) {
@@ -372,6 +376,38 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
         if (toTrigger != null) {
             toTrigger.complete(null);
         }
+    }
+
+    private void cancelOffsetTriggersDueToSeal(String segmentName) {
+        val toCancel = new ArrayList<CompletableFuture<Void>>();
+        synchronized (this.offsetTriggers) {
+            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
+            if (segmentTriggers != null) {
+                toCancel.addAll(segmentTriggers.values());
+            }
+        }
+
+        val exception = new StreamSegmentSealedException(segmentName);
+        toCancel.forEach(c -> c.completeExceptionally(exception));
+    }
+
+    private void cancelTriggers(String segmentName) {
+        val toCancel = new ArrayList<CompletableFuture>();
+        synchronized (this.sealTriggers) {
+            val trigger = this.sealTriggers.remove(segmentName);
+            if (trigger != null) {
+                toCancel.add(trigger);
+            }
+        }
+
+        synchronized (this.offsetTriggers) {
+            val trigger = this.offsetTriggers.remove(segmentName);
+            if (trigger != null) {
+                toCancel.addAll(trigger.values());
+            }
+        }
+
+        toCancel.forEach(c -> c.cancel(true));
     }
 
     private CompletableFuture<Void> createSizeTrigger(String segmentName, long minSize, Duration timeout) {
@@ -619,8 +655,7 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
             return String.format("%s: Length = %d, Sealed = %s", this.name, this.length, this.sealed);
         }
 
-        @RequiredArgsConstructor
-        @ToString
+        @Data
         private static class OffsetLocation {
             final int bufferSequence;
             final int bufferOffset;
@@ -639,10 +674,5 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     private static class InMemorySegmentHandle implements SegmentHandle {
         private final String segmentName;
         private final boolean readOnly;
-
-        @Override
-        public String toString() {
-            return String.format("(%s) %s", this.readOnly ? "R" : "RW", this.segmentName);
-        }
     }
 }
