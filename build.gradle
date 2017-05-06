@@ -604,7 +604,7 @@ task pushPravegaImage(type: DockerPushTask) {
 task pushBookkeeperImage(type: DockerPushTask) {
     // No explicit dependency on building the bookkeeper image
     mustRunAfter buildBookkeeperImage
-    tag = "${pravegaBaseTag}:${version}"
+    tag = "${bookkeeperBaseTag}:${version}"
 }
 
 task dockerPush(dependsOn: [pushPravegaImage, pushBookkeeperImage]) {
