@@ -6,41 +6,53 @@ Pravega](pravega-concepts.md).
 
 ## Pravega Design Principles
 
-Pravega was designed to support the new generation of streaming applications;
+Pravega was designed to support the new generation of streaming applications:
 applications that deal with a large amount of data arriving continuously that
 also need to generate accurate analysis of that data in the face of late
-arriving data, data arriving out of order and failure conditions.  There  is a
-large variety of new open source tools to help developers build this kind of
-application, including Apache Flink, Apache Beam, Spark Streaming and others.
- To date, these applications used tools such as Apache Kafka or Hadoop's HDFS to
-store data.  Unfortunately, these tools were designed for previous generations
-of big data applications and are not ideally suited for streaming applications.
+arriving data, data arriving out of order and failures.  There is a
+large variety of new open source tools to help developers build such
+applications, including Apache Flink, Apache Beam, Spark Streaming and others.
+To date, these applications used systems such as Apache Kafka or the Apache
+Hadoop Distributed File System (HDFS) to ingest and store data. The combination
+of these technologies has enabled us to build a number of important
+effective applications across various domains. Interestingly, none of these
+existing systems offers independently a way to store and retrieve streams.
+Streams can be stored as a log temporarily, but for long-term storage, it needs
+to be moved somewhere else.
 
-Pravega looks at streaming applications from a storage perspective; what kind of
-storage primitive would be ideally suited for building the new generation of
-streaming applications in conjunction with tools like Flink?  Pravega is based
-on the lessons learned from using Lambda architectures to build streaming
-applications and the challenges to deploy streaming applications at scale that
-consistently deliver accurate results in a fault tolerant manner.  Pravega is
-based on solid storage principles such as durability and consistency, delivering
-a rock solid foundation upon which streaming applications can be built.
+We in this project have raised the question of how a stream store should look like
+and endevored into building Pravega. Pravega is an attempt to expose streams
+as a storage primitve that suits the next generation of streaming applications.
+Exposing a storage primitive alone is not sufficient for building stream pipelines,
+we also need a means for processing data. For the data processing engine, we have
+chosen Apache Flink. Flink has a very powerful combination of features that enables
+us to build the stream pipelines that we envision. 
 
-in a Lambda architecture, the developer uses a complex combination of middleware
-tools that include batch style middleware mainly influenced by Hadoop and
-continuous processing tools like Storm, Samza, Kafka and others.
+The design of Pravega incorporates the lessons learned from using the Lambda and Kappa
+architectures to build streaming applications and the challenges to deploy streaming
+applications at scale that consistently deliver accurate results despite faults.
+Pravega is based on solid storage principles such as durability and consistency,
+delivering a rock solid foundation upon which streaming applications can be built.
+
+With the Lambda architecture, the developer uses two data paths to process the data,
+in rough terms, one that is slow and accurate and another that is fast and innacurate.
+Such paths are implemented with a combination of systems including a batch processing
+engine (e.g., Hadoop) and continuous processing engines like Storm, Samza, Kafka and
+others.
 
 ![Lambda](img/lambda.png)
 
-Batch style processing is used to deliver accurate, but potentially out of date
-analysis of data.  So called "real-time" processing can deliver faster results
+Batch style processing is used to deliver accurate, but potentially stale
+analysis results.  Near real-time processing can deliver faster results
 but at a cost of some accuracy.  With this approach, there are two copies of the
 application logic because the programming models of the speed layer are
-different than those used in the batch layer.  Lambda architectures are
-expensive to develop, expensive to deploy and manage in production.  This style
-of big data application design is losing favor.  
+different than those used in the batch layer.  An implementation of the Lambda
+architecture can be costly to maintain and manage in production.  This style
+of big data application design has been losing traction.  
 
-As more applications, like IoT, require continuous processing, we simply cannot
-afford to think in terms of Lambda architectures and old style middleware.
+As more applications, like IoT application, require continuous processing with
+near real-time results, we simply cannot afford to think in terms of Lambda
+architectures and old style middleware.
 
 With the advent of more modern streaming tools, such as Flink and Pravega, a
 different style of architecture is gaining favor.  A Kappa architecture style is
@@ -76,7 +88,7 @@ components much easier.
 
 ## Pravega - Storage Reimagined for a Streaming World
 
-Pravega introduces a new storage primitive, a stream, that is ideal of
+Pravega introduces a new storage primitive, a stream, that matches
 continuous processing of unbounded data.  In Pravega, a stream is a named,
 durable, append-only and unbounded sequence of bytes.  With this primitive, and
 the key features discussed in this document, Pravega is an ideal component to
@@ -85,20 +97,22 @@ applications.  Because of Pravega's key features, we imagine that it will be th
 fundamental storage primitive for a new generation of streaming-oriented
 middleware.
 
-Lets examine the key features of Pravega.
+Let's examine the key features of Pravega.
 
 ## Exactly Once Semantics
 
-By exactly once semantics we mean that Pravega ensures that data is delivered
-and processed exactly once, with exact ordering guarantees, despite failures in
-clients, servers or the network.
+By exactly once semantics we mean that Pravega ensures that data is not duplicated
+and no event is missed despite failures. Of course, this statement comes with a
+number of caveats, like any other system that promises exactly-once semantics. An
+important consideration is that exactly-once semantics is a natural part of Pravega
+and has been a goal and part of the design from day zero.
 
 To achieve exactly once semantics, Pravega Streams are durable, ordered,
 consistent and transactional.  We discuss durable and transactional in separate
 sections below.
 
-By ordering, we mean that data is seen by Readers in the order it is written.
- In Pravega, data is written along with an application-defined routing key.  
+By ordering, we mean that data is observed by readers in the order it is written.
+In Pravega, data is written along with an application-defined routing key.  
 Pravega makes ordering guarantees in terms of routing keys.  Two pieces of data
 with the same routing key will always be read by a Reader in the order they were
 written. Pravega's ordering guarantees allow data reads to be replayed (e.g.
