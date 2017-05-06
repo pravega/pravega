@@ -444,7 +444,9 @@ project('test:system') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
-        dependsOn 'uploadArchives'
+        ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
+        ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
+
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
@@ -469,10 +471,12 @@ project('test:system') {
             systemProperty "skipServiceInstallation", "true"
         }
         maxParallelForks = 1
-        systemProperty "dockerImageRegistry", "${->dockerRegistryUrl}"
+        systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
         systemProperty "testVersion", pravegaVersion
-        systemProperty "testArtifactUrl", "${->repoUrl}/io/pravega/pravega-test-system/" +
+        systemProperty "testArtifactUrl", "${repoUrl}/io/pravega/pravega-test-system/" +
                 pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
+
+        onlyIf { dockerRegistryUrl && repoUrl }
     }
 }
 
