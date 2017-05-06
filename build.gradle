@@ -444,7 +444,6 @@ project('test:system') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
-        dependsOn 'uploadArchives'
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
