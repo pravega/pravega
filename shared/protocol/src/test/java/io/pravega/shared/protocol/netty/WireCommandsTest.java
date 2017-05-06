@@ -36,6 +36,7 @@ public class WireCommandsTest {
     private final ByteBuf buf = Unpooled.wrappedBuffer(buffer);
     private final byte b = -1;
     private final int i = 1;
+    private final int c = 1;
     private final int length = 18;
     private final long l = 7L;
 
@@ -43,7 +44,7 @@ public class WireCommandsTest {
     public void testHello() throws IOException {
         testCommand(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
     }
-    
+
     @Test
     public void testPadding() throws IOException {
         testCommand(new WireCommands.Padding(length));
@@ -66,7 +67,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAppendBlockEnd() throws IOException {
-        testCommand(new WireCommands.AppendBlockEnd(uuid, l, i, buf));
+        testCommand(new WireCommands.AppendBlockEnd(uuid, l, i, c, buf));
     }
 
     @Test
@@ -219,7 +220,7 @@ public class WireCommandsTest {
         command.writeFields(new DataOutputStream(bout));
         byte[] array = bout.toByteArray();
         WireCommand read = command.getType().readFrom(new DataInputStream(new ByteArrayInputStream(array)),
-                                                      array.length);
+                array.length);
         assertEquals(command, read);
     }
 
