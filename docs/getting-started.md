@@ -51,15 +51,14 @@ about this see the note on maven publishing in the [README.md](https://github.co
 **Download the Pravega-Samples git repo**
 
 ```
-$ mkdir pravega-samples
-$ cd pravega-samples
+$ cd ~
 $ git clone https://github.com/pravega/pravega-samples
+$ cd pravega-samples
 ```
 
 **Generate the scripts to run the apps**
 
 ```
-$ cd pravega-samples/pravega-samples
 $ ./gradlew installDist
 ```
 
@@ -67,7 +66,7 @@ $ ./gradlew installDist
 This runs a simple Java application that writes a "hello world" message
         as an event into a Pravega stream.
 ```
-$ cd pravega-samples/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
+$ cd ./standalone-examples/build/install/pravega-standalone-examples
 $ bin/helloWorldWriter
 ```
 _Example HelloWorldWriter output_
@@ -82,7 +81,9 @@ See the [readme.md](https://github.com/pravega/pravega-samples/blob/master/stand
 **Run the sample "HelloWorldReader"**
 
 ```
-$ cd pravega-samples/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
+In a new console
+
+$ cd ~/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
 $ bin/helloWorldReader
 ```
 
