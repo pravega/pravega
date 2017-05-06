@@ -220,7 +220,7 @@ public class WireCommandsTest {
         command.writeFields(new DataOutputStream(bout));
         byte[] array = bout.toByteArray();
         WireCommand read = command.getType().readFrom(new DataInputStream(new ByteArrayInputStream(array)),
-                array.length);
+                                                      array.length);
         assertEquals(command, read);
     }
 

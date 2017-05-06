@@ -100,7 +100,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             }
             if (append.getEventNumber() <= session.lastEventNumber) {
                 throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
-                        + " following: " + session.lastEventNumber);
+                + " following: " + session.lastEventNumber);
             }
             if (append.isConditional()) {
                 breakFromAppend(out);
@@ -122,8 +122,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     writeMessage(new AppendBlock(session.id), out);
                     if (ctx != null) {
                         ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
-                                blockSizeSupplier.getBatchTimeout(),
-                                TimeUnit.MILLISECONDS);
+                                                blockSizeSupplier.getBatchTimeout(),
+                                                TimeUnit.MILLISECONDS);
                     }
                 }
 
@@ -139,14 +139,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
                     ByteBuf dataInsideBlock = wrappedBuffer(serializedMessage, 0, bytesInBlock);
                     ByteBuf dataRemainging = wrappedBuffer(serializedMessage,
-                            bytesInBlock,
-                            serializedMessage.length - bytesInBlock);
+                                                           bytesInBlock,
+                                                           serializedMessage.length - bytesInBlock);
                     writeMessage(new PartialEvent(dataInsideBlock), out);
                     writeMessage(new AppendBlockEnd(session.id,
-                            session.lastEventNumber,
-                            currentBlockSize - bytesLeftInBlock,
-                            session.eventCount,
-                            dataRemainging), out);
+                                                    session.lastEventNumber,
+                                                    currentBlockSize - bytesLeftInBlock,
+                                                    session.eventCount,
+                                                    dataRemainging), out);
                     bytesLeftInBlock = 0;
                     session.eventCount = 0;
                 }
