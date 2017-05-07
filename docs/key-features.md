@@ -1,49 +1,39 @@
 # Pravega Key Features
 
 This document explains some of the key features of Pravega.  It may be
-advantageous if you are already with the core [concepts of
+advantageous if you are already familiar with the core [concepts of
 Pravega](pravega-concepts.md).
 
 ## Pravega Design Principles
 
 Pravega was designed to support the new generation of streaming applications:
 applications that deal with a large amount of data arriving continuously that
-also need to generate accurate analysis of that data in the face of late
-arriving data, data arriving out of order and failures.  There is a
-large variety of new open source tools to help developers build such
-applications, including Apache Flink, Apache Beam, Spark Streaming and others.
-To date, these applications used systems such as Apache Kafka or the Apache
-Hadoop Distributed File System (HDFS) to ingest and store data. The combination
-of these technologies has enabled us to build a number of important
-effective applications across various domains. Interestingly, none of these
-existing systems offers independently a way to store and retrieve streams.
-Streams can be stored as a log temporarily, but for long-term storage, it needs
-to be moved somewhere else.
+also need to generate an accurate analysis of that data in the face of late
+arriving data, data arriving out of order and failure conditions.  There  is a
+large variety of new open source tools to help developers build this kind of
+application, including Apache Flink, Apache Beam, Spark Streaming and others.
+ To date, these applications used tools such as Apache Kafka or the Apache
+Hadoop Distributed File System (HDFS) to ingest and
+store data.  Unfortunately, these tools were designed for previous generations
+of big data applications and are not ideally suited for streaming applications.
 
-We in this project have raised the question of how a stream store should look like
-and endevored into building Pravega. Pravega is an attempt to expose streams
-as a storage primitve that suits the next generation of streaming applications.
-Exposing a storage primitive alone is not sufficient for building stream pipelines,
-we also need a means for processing data. For the data processing engine, we have
-chosen Apache Flink. Flink has a very powerful combination of features that enables
-us to build the stream pipelines that we envision. 
+Pravega looks at streaming applications from a storage perspective; what kind of
+storage primitive would be ideally suited for building the new generation of
+streaming applications in conjunction with tools like Flink?  
+The design of Pravega incorporates lessons learned from using Lambda architectures to build streaming
+applications and the challenges to deploy streaming applications at scale that
+consistently deliver accurate results in a fault tolerant manner.  Pravega is
+based on solid storage principles such as durability and consistency, delivering
+a rock solid foundation upon which streaming applications can be built.
 
-The design of Pravega incorporates the lessons learned from using the Lambda and Kappa
-architectures to build streaming applications and the challenges to deploy streaming
-applications at scale that consistently deliver accurate results despite faults.
-Pravega is based on solid storage principles such as durability and consistency,
-delivering a rock solid foundation upon which streaming applications can be built.
-
-With the Lambda architecture, the developer uses two data paths to process the data,
-in rough terms, one that is slow and accurate and another that is fast and innacurate.
-Such paths are implemented with a combination of systems including a batch processing
-engine (e.g., Hadoop) and continuous processing engines like Storm, Samza, Kafka and
-others.
+in a Lambda architecture, the developer uses a complex combination of middleware
+tools that include batch style middleware mainly influenced by Hadoop and
+continuous processing tools like Storm, Samza, Kafka and others.
 
 ![Lambda](img/lambda.png)
 
-Batch style processing is used to deliver accurate, but potentially stale
-analysis results.  Near real-time processing can deliver faster results
+Batch style processing is used to deliver accurate, but potentially out of date
+analysis of data.  So-called "real-time" processing can deliver faster results
 but at a cost of some accuracy.  With this approach, there are two copies of the
 application logic because the programming models of the speed layer are
 different than those used in the batch layer.  An implementation of the Lambda
@@ -76,8 +66,7 @@ a pipeline of several, sometimes dozens of individual applications or jobs. 
 
 ![Pipeline](img/pipeline.png)
 
-So the real way to think about Kappa and the requirements this architecture
-imposes on middleware is to think in terms of chains or pipelines of data
+So the real way to think about the problem is in terms of chains or pipelines of data
 processing.  The requirements now involve not just component by component
 capabilities, but end-end semantics.  We need to think about scaling in terms of
 end-end scaling, not just scaling a single component.  We need to think in terms
@@ -155,10 +144,12 @@ With Pravega, it is easy to elastically and independently scale data ingestion,
 storage and processing – orchestrating the scaling of every component in a data
 pipeline.
 
-Pravega's support of auto-scaling starts with the idea that Streams are
-partitioned into Stream Segments.  A Stream may have 1 or more Stream Segments,
-any data written into the Stream is written to one of the Stream Segments based
-on a routing key.  Writers use application-meaningful routing keys like
+Pravega's support of auto scaling starts with the idea that Streams are
+partitioned into Stream Segments.  A Stream may have 1 or more Stream Segments; recall
+that a Stream Segment is a partition of the Stream associated with
+a range of routing keys.  
+Any data written into the Stream is written to the Stream Segment associated with the
+data's routing key.  Writers use application-meaningful routing keys like
 customer-id, timestamp, machine-id, etc to make sure like data is grouped
 together.  
 
@@ -219,14 +210,13 @@ to handle high throughput reads and writes from thousands of concurrent
 clients, making it ideal for IoT and other time sensitive applications.
 
 Streams are light weight, Pravega can support millions of Streams, this frees
-the application from worrying about statically configuring streams and pre
-allocating a small fixed number of streams and husbanding or limiting stream
-resource.
+the application from worrying about statically configuring streams and preallocating 
+a small fixed number of streams and husbanding or limiting stream resource.
 
 Write operations in Pravega are low latency, under 10 ms to return an
-acknowledgement is returned to a Writer. Furthermore, writes are optimized so
+acknowledgment is returned to a Writer. Furthermore, writes are optimized so
 that I/O throughput is limited by network bandwidth;  the persistence mechanism
-is not the bottle neck.  Pravega uses Apache BookKeeper to persist all write
+is not the bottleneck.  Pravega uses Apache BookKeeper to persist all write
 operations.  BookKeeper persists and protects the data very efficiently.
  Because data is protected before the write operation is acknowledged to the
 Writer, data is always durable.  As we discuss below, data durability is a
@@ -234,8 +224,7 @@ fundamental characteristic of a storage primitive,  To add further efficiency,
 writes to BookKeeper often involve data from multiple Stream Segments, so the
 cost of persisting data to disk can be amortized over several write operations.
 
-There is no durability-performance trade-off with Pravega.  Writes are durable
-AND high performance.
+There is no durability-performance trade-off with Pravega. 
 
 Reads are efficient too.  A Reader can read from a Stream either at the tail of
 the Stream or at any part of the Stream's history.  Unlike some log-based
@@ -246,11 +235,11 @@ BookKeeper as mentioned above.  Tail reads are served out of a Pravega-managed
 memory cache.  In fact, BookKeeper serves reads only in failure recovery
 scenarios, where a Pravega Server has crashed and it is being recovered.  This
 use of BookKeeper is exactly what it was designed for: fast
-writes, occasional reads.   The historical part of the Stream is in so-caled
-Tier-2 storage that is optimized for low cost storage with high throughput.
+writes, occasional reads.   The historical part of the Stream is in so-called
+Tier 2 storage that is optimized for low-cost storage with high-throughput.
  Pravega uses efficient in-memory read ahead cache, taking advantage of the fact
 that Streams are usually read in large contiguous chunks and that HDFS is well
-suited for those sort of large, high throughput reads.  It is also worth noting
+suited for those sort of large, high-throughput reads.  It is also worth noting
 that tail reads do not impact the performance of writes.
 
 ## Infinite Retention
@@ -270,7 +259,7 @@ auto-tiering, keeping lots of historical data does not affect the performance of
 tail reads and writes. 
 
 Size of a stream is not limited by the storage capacity of a single server, but
-rather, it is limited only by the storage capacity of your data center or cloud
+rather, it is limited only by the storage capacity of your storage cluster or cloud
 provider.  As cost of storage decreases, the economic incentive to delete data
 goes away
 
@@ -278,7 +267,6 @@ goes away
 
 Use Pravega to build pipelines of data processing, combining batch, real-time
 and other applications without duplicating data for every step of the pipeline.
- 
 
 Consider the following data processing environment that combines real time
 processing using Spark, Flink, and or Storm; Haddoop for batch; some kind of
@@ -287,7 +275,7 @@ maybe one (or several) NoSQL databases to support micro-services apps.
 
 ![Pipeline replica](img/pipeline.separate.replicas.png)
 
-Using traditional approaches, one set of source data, for example sensor data
+Using traditional approaches, one set of source data, for example, sensor data
 from an IoT app, would be ingested and replicated separately by each system.
  You would end up with 3 replicas of the data protected in the pub/sub system, 3
 copies in HDFS, 3 copies in Lucene, 3 copies in the NoSQL database.  When we
@@ -337,7 +325,7 @@ Transaction is atomically appended to the Stream.  Because Transactions are
 implemented in the same way as Stream Segments, data written to a Transaction is
 just as durable as data written directly to a Stream.  If a Transaction is
 abandoned (e.g. if the Writer crashes) the Transaction is aborted and all data
-is discarded.  Of course an application can choose to abort the Transaction
+is discarded.  Of course, an application can choose to abort the Transaction
 through the API if a condition occurs that suggests the Writer should discard
 the data. 
 
