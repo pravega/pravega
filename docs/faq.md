@@ -56,7 +56,7 @@ Yes. Normally, you would deploy an HDFS for Pravega to use as its Tier 2 storage
 Pravega provides an API construct called StateSynchronizer.  Using the StateSynchronizer, a developer can use Pravega to build synchronized shared state between multiple processes.  This primitive can be used to build all sorts of distributed computing solutions such as shared configuration, leader election, etc.  See the "Distributed Computing Primitive" section in [key-features](key-features.md) for more details.
 
 **What hardware do you recommend for Pravega?**
-**<<NEED TEXT>>**
+** ! NEED TEXT **
 
 **How big can a Pravega Cluster scale up to?**
-**<<NEED TEXT>>**
+** ! NEED TEXT **
