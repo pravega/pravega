@@ -32,6 +32,10 @@ The latest pravega releases can be found on the [Github Release](https://github.
 
 Read [Getting Started](getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications. 
 
+## Frequently Asked Questions
+
+You can find a list of frequently asked questions [here](faq.md).
+
 ## Documentation
 
 The Pravega documentation is hosted on the website:
