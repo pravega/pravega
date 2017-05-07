@@ -16,10 +16,10 @@ We welcome contributions from experienced and new developers alike.  Check out t
 Read the [Getting Started](getting-started.md) guide for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for some sample applications.  
 
 **Is Pravega production ready?**
-** ! NEED TEXT **
+Not yet.  We just started several months ago and some features, such as auto scaling are still experimental.  With the support of the community, we can make Pravega production ready soon.
 
 **Does Pravega run on Windows?**
-Yes.
+Yes.  
 
 **I am stuck. Where can I get help?**
 Don’t hesitate to ask! Contact the developers and community on the mailing lists
@@ -50,13 +50,10 @@ Yes.  A transaction in Pravega is itself a stream; it can have 1 or more segment
 Yes. Normally, you would deploy an HDFS for Pravega to use as its Tier 2 storage.  However, for simple test/dev environments, the so-called standAlone version of Pravega provides its own simulated HDFS.  See the [Running Pravega](deployment/deployment.md) guide for more details.
 
 **Which Tier 2 storage systems does Pravega support?**
-** ! NEED TEXT **  Is it just HDFS for now, or are we claiming support for Isilon and ECS as well?
+Pravega is designed to support various types of Tier 2 storage systems.  Currently we have implemented HDFS as the first embodiment of Tier 2 storage.
 
 **What distributed computing primitives does Pravega provide?**
 Pravega provides an API construct called StateSynchronizer.  Using the StateSynchronizer, a developer can use Pravega to build synchronized shared state between multiple processes.  This primitive can be used to build all sorts of distributed computing solutions such as shared configuration, leader election, etc.  See the "Distributed Computing Primitive" section in [Key Features](key-features.md) for more details.
 
 **What hardware do you recommend for Pravega?**
-** ! NEED TEXT **
-
-**How big can a Pravega Cluster scale up to?**
-** ! NEED TEXT **
+The Segment Store requires faster access to storage and more memory for its cache.  It can run on 1 GB memory and 2 core CPU.  10 GB is a good start for storage.  The Controller is less resource intensive, 1 CPU and 0.5 GB memory is a good start.
