@@ -36,6 +36,7 @@ import org.apache.curator.framework.CuratorFramework;
 public class BookKeeperLogFactory implements DurableDataLogFactory {
     //region Members
 
+    private final String namespace;
     private final CuratorFramework zkClient;
     private final AtomicReference<BookKeeper> bookKeeper;
     private final BookKeeperConfig config;
@@ -55,9 +56,9 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     public BookKeeperLogFactory(BookKeeperConfig config, CuratorFramework zkClient, ScheduledExecutorService executor) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        // TODO: Fix ZK namespaces https://github.com/pravega/pravega/issues/1204
+        this.namespace = zkClient.getNamespace();
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient")
-                                     .usingNamespace(zkClient.getNamespace() + this.config.getZkMetadataPath());
+                                     .usingNamespace(this.namespace + this.config.getZkMetadataPath());
         this.bookKeeper = new AtomicReference<>();
     }
 
@@ -117,8 +118,11 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setClientTcpNoDelay(true)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
-        // TODO: Fix ZK namespaces https://github.com/pravega/pravega/issues/1204
-        config.setZkLedgersRootPath(this.config.getBkLedgerPath());
+        if (this.config.getBkLedgerPath().isEmpty()) {
+            config.setZkLedgersRootPath("/" + this.namespace + "/bookkeeper/ledgers");
+        } else {
+            config.setZkLedgersRootPath(this.config.getBkLedgerPath());
+        }
         return new BookKeeper(config);
     }
 

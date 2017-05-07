@@ -37,6 +37,8 @@ $ bin/pravega-standalone
 
 That's it.  Pravega should be up and running very soon.
 
+You can find additional ways to run Pravega in [Running Pravega](deployment/deployment.md).
+
 ## Running a sample Pravega App is simple too
 
 Pravega maintains a separate github repository for sample applications.  It is located at:
@@ -51,7 +53,6 @@ about this see the note on maven publishing in the [README.md](https://github.co
 **Download the Pravega-Samples git repo**
 
 ```
-$ cd ~
 $ git clone https://github.com/pravega/pravega-samples
 $ cd pravega-samples
 ```
@@ -66,7 +67,7 @@ $ ./gradlew installDist
 This runs a simple Java application that writes a "hello world" message
         as an event into a Pravega stream.
 ```
-$ cd ./standalone-examples/build/install/pravega-standalone-examples
+$ cd pravega-samples/standalone-examples/build/install/pravega-standalone-examples
 $ bin/helloWorldWriter
 ```
 _Example HelloWorldWriter output_
@@ -81,9 +82,7 @@ See the [readme.md](https://github.com/pravega/pravega-samples/blob/master/stand
 **Run the sample "HelloWorldReader"**
 
 ```
-In a new console
-
-$ cd ~/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
+$ cd pravega-samples/standalone-examples/build/install/pravega-standalone-examples
 $ bin/helloWorldReader
 ```
 
