@@ -41,7 +41,7 @@ source code.
 
 ## Running Pravega
 
-Pravega can be installed locally or in a distributed environment. The installation and deployment of pravega is covered in the [Running Pravega](deployment/deployment.md) guide.
+Pravega can be installed locally or in a distributed environment. The installation and deployment of Pravega is covered in the [Running Pravega](deployment/deployment.md) guide.
 
 ## Support
 
