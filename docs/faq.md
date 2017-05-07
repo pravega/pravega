@@ -38,7 +38,7 @@ if you need any help.  See [Join the Community](join-community.md) for more deta
 : Pravega makes several guarantees. Durability - once data is acknowledged to a client, Pravega guarantees it is protected.  Ordering - events with the same routing key will always be read in the order they were written. Exactly once - data written to Pravega will not be duplicated.
 
 **Why is supporting consistency and durability so important for storage systems such as Pravega?**
-: **<<NEED TEXT>>**
+: Primarily because it makes building applications easier. Consistency and durability are key for supporting exactly once semantics. Without exactly once semantics, it is difficult to build fault tolerant applications that consistency produce accurate results.  See [key features](key-features.md) for a discussion on consistency and durability guarantees play a role in Pravega's support of exactly once semantics.
 
 **Does Pravega support transactions?**
 : Yes.  The Pravega API allows an application to create a transaction on a stream and write data to the transaction.  The data is durably stored, just like any other data written to Pravega.  When the application chooses, it can commit or abort the transaction.  When a transaction is committed, the data in the transaction is atomically appended to the stream.  See [here](transactions.md) for more details on Pravega's transaction support.
