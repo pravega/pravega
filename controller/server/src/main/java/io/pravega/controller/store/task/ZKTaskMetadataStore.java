@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.store.task;
 
+import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.task.TaskData;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -23,14 +24,9 @@ import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
 
 /**
  * Zookeeper based task store.
@@ -38,14 +34,11 @@ import java.util.stream.Collectors;
 @Slf4j
 class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
 
-    private final static String TAG_SEPARATOR = "_%%%_";
-    private final static String RESOURCE_PART_SEPARATOR = "_%_";
     private final CuratorFramework client;
-    private final String hostRoot = "/hostIndex";
     private final String taskRoot = "/taskIndex";
 
     ZKTaskMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
-        super(executor);
+        super(new ZKHostIndex(client, "/hostTaskIndex", executor), executor);
         this.client = client;
     }
 
@@ -186,207 +179,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
         }, executor);
     }
 
-    @Override
-    public CompletableFuture<Void> putChild(final String parent, final TaggedResource child) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(parent);
-            Preconditions.checkNotNull(child);
-
-            try {
-
-                client.create()
-                        .creatingParentsIfNeeded()
-                        .withMode(CreateMode.PERSISTENT)
-                        .forPath(getHostPath(parent, child));
-
-                return null;
-
-            } catch (KeeperException.NodeExistsException e) {
-                log.debug("Node {} exists.", getHostPath(parent, child));
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, executor);
-    }
-
-    @Override
-    public CompletableFuture<Void> removeChild(final String parent, final TaggedResource child, final boolean deleteEmptyParent) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(parent);
-            Preconditions.checkNotNull(child);
-
-            try {
-                client.delete()
-                        .forPath(getHostPath(parent, child));
-
-                if (deleteEmptyParent) {
-                    // if there are no children for the failed host, remove failed host znode
-                    Stat stat = new Stat();
-                    client.getData()
-                            .storingStatIn(stat)
-                            .forPath(getHostPath(parent));
-
-                    if (stat.getNumChildren() == 0) {
-                        client.delete()
-                                .withVersion(stat.getVersion())
-                                .forPath(getHostPath(parent));
-                    }
-                }
-                return null;
-            } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", getNode(child));
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, executor);
-    }
-
-    //    @Override
-    //    public CompletableFuture<Void> removeChildren(String parent, List<TaggedResource> children, boolean deleteEmptyParent) {
-    //        Preconditions.checkNotNull(parent);
-    //        Preconditions.checkNotNull(children);
-    //
-    //        return CompletableFuture.supplyAsync(() -> {
-    //            try {
-    //
-    //                for (TaggedResource child : children) {
-    //                    client.delete()
-    //                            .forPath(getHostPath(parent, child));
-    //                }
-    //
-    //                if (deleteEmptyParent) {
-    //                    // if there are no children for the parent, remove parent znode
-    //                    Stat stat = new Stat();
-    //                    client.getData()
-    //                            .storingStatIn(stat)
-    //                            .forPath(getHostPath(parent));
-    //
-    //                    if (stat.getNumChildren() == 0) {
-    //                        client.delete()
-    //                                .withVersion(stat.getVersion())
-    //                                .forPath(getHostPath(parent));
-    //                    }
-    //                }
-    //                return null;
-    //            } catch (KeeperException.NoNodeException e) {
-    //                log.debug("Node does not exist.", e);
-    //                return null;
-    //            } catch (Exception e) {
-    //                throw new RuntimeException(e);
-    //            }
-    //        });
-    //    }
-
-    @Override
-    public CompletableFuture<Void> removeNode(final String parent) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(parent);
-
-            try {
-
-                client.delete().forPath(getHostPath(parent));
-                return null;
-
-            } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", getHostPath(parent));
-                return null;
-            } catch (KeeperException.NotEmptyException e) {
-                log.debug("Node {} not empty.", getHostPath(parent));
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, executor);
-    }
-
-    //    @Override
-    //    public CompletableFuture<List<TaggedResource>> getChildren(String parent) {
-    //        Preconditions.checkNotNull(parent);
-    //
-    //        return CompletableFuture.supplyAsync(() -> {
-    //            try {
-    //
-    //                return client.getChildren().forPath(getHostPath(parent))
-    //                        .stream()
-    //                        .map(this::getTaggedResource)
-    //                        .collect(Collectors.toList());
-    //
-    //            } catch (KeeperException.NoNodeException e) {
-    //                log.debug("Node does not exist.", e);
-    //                return Collections.emptyList();
-    //            } catch (Exception e) {
-    //                throw new RuntimeException(e);
-    //            }
-    //        });
-    //    }
-
-    @Override
-    public CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(parent);
-
-            try {
-
-                List<String> children = client.getChildren().forPath(getHostPath(parent));
-                if (children.isEmpty()) {
-                    return Optional.empty();
-                } else {
-                    Random random = new Random();
-                    return Optional.of(getTaggedResource(children.get(random.nextInt(children.size()))));
-                }
-
-            } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", getHostPath(parent));
-                return Optional.empty();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, executor);
-    }
-
-    @Override
-    public CompletableFuture<Set<String>> getHosts() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                List<String> children = client.getChildren().forPath(hostRoot);
-                return children.stream().collect(Collectors.toSet());
-            } catch (KeeperException.NoNodeException e) {
-                return Collections.emptySet();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, executor);
-    }
-
     private String getTaskPath(final Resource resource) {
         return taskRoot + "/" + getNode(resource);
-    }
-
-    private String getHostPath(final String hostId, final TaggedResource resource) {
-        return hostRoot + "/" + hostId + "/" + getNode(resource);
-    }
-
-    private String getHostPath(final String hostId) {
-        return hostRoot + "/" + hostId;
-    }
-
-    private String getNode(final Resource resource) {
-        return resource.getString().replaceAll("/", RESOURCE_PART_SEPARATOR);
-    }
-
-    private String getNode(final TaggedResource resource) {
-        return getNode(resource.getResource()) + TAG_SEPARATOR + resource.getTag();
-    }
-
-    private Resource getResource(final String node) {
-        String[] parts = node.split(RESOURCE_PART_SEPARATOR);
-        return new Resource(parts);
-    }
-
-    private TaggedResource getTaggedResource(final String node) {
-        String[] splits = node.split(TAG_SEPARATOR);
-        return new TaggedResource(splits[1], getResource(splits[0]));
     }
 }

@@ -403,6 +403,29 @@ public interface StreamMetadataStore {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
+     * Adds specified resource as a child of current host's hostId node.
+     * This is idempotent operation.
+     *
+     * @param hostId      Host identifier tracking the transaction.
+     * @param txnId       Tracked transaction.
+     * @param version     Version of tracked transaction's node.
+     * @return            A future that completes on completion of the operation.
+     */
+    CompletableFuture<Void> addTransaction(final String hostId, final UUID txnId, final int version);
+
+    /**
+     * Removes the specified child node from the specified parent node.
+     * This is idempotent operation.
+     * If deleteEmptyParent is true and parent has no child after deletion of given child then parent is also deleted.
+     *
+     * @param hostId            node whose child is to be removed.
+     * @param txnId             child TaggedResource node to remove.
+     * @param deleteEmptyParent to delete or not to delete.
+     * @return void in future.
+     */
+    CompletableFuture<Void> removeTransaction(final String hostId, final UUID txnId, final boolean deleteEmptyParent);
+
+    /**
      * Api to mark a segment as cold.
      *
      * @param scope         scope for stream

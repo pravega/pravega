@@ -216,22 +216,21 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                       final long scaleGracePeriod,
                                                                       final OperationContext context) {
         UUID txnId = UUID.randomUUID();
-        // TODO: store txnId in transactionIndex
-        // transactionIndex.put(context.getHostId(), txnId)
-        return streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod, scaleGracePeriod, context, executor)
-                .thenCompose(txData ->
-                        streamMetadataStore.getActiveSegments(scope, stream, context, executor)
-                                .thenCompose(activeSegments ->
-                                        FutureHelpers.allOf(
-                                                activeSegments.stream()
-                                                        .parallel()
-                                                        .map(segment ->
-                                                                notifyTxCreation(scope,
-                                                                        stream,
-                                                                        segment.getNumber(),
-                                                                        txData.getId()))
-                                                        .collect(Collectors.toList()))
-                                                .thenApply(v -> new ImmutablePair<>(txData, activeSegments))));
+        CompletableFuture<Void> addIndex = streamMetadataStore.addTransaction(hostId, txnId, 0);
+        return addIndex.thenCompose(x -> streamMetadataStore.createTransaction(scope, stream, txnId, lease,
+                maxExecutionPeriod, scaleGracePeriod, context, executor).thenCompose(txData ->
+                streamMetadataStore.getActiveSegments(scope, stream, context, executor)
+                        .thenCompose(activeSegments ->
+                                FutureHelpers.allOf(
+                                        activeSegments.stream()
+                                                .parallel()
+                                                .map(segment ->
+                                                        notifyTxCreation(scope,
+                                                                stream,
+                                                                segment.getNumber(),
+                                                                txData.getId()))
+                                                .collect(Collectors.toList()))
+                                        .thenApply(v -> new ImmutablePair<>(txData, activeSegments)))));
     }
 
     private CompletableFuture<VersionedTransactionData> pingTxnBody(String scope, String stream, UUID txId, long lease,
@@ -251,9 +250,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         // Status is ABORTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
-                }, executor);
-        // TODO: remove txid from transactionIndex
-        // transactionIndex.remove(context.getHostId(), txnId)
+                }, executor).thenCompose(status ->
+                        streamMetadataStore.removeTransaction(hostId, txid, true).thenApply(ignore -> status));
     }
 
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
@@ -268,9 +266,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         // Status is COMMITTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
-                }, executor);
-        // TODO: remove txid from transactionIndex
-        // transactionIndex.remove(context.getHostId(), txnId)
+                }, executor).thenCompose(status ->
+                        streamMetadataStore.removeTransaction(hostId, txid, true).thenApply(ignore -> status));
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,

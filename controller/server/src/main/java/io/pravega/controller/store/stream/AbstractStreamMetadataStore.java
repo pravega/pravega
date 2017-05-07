@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.shared.MetricsNames;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -30,6 +31,8 @@ import io.pravega.client.stream.StreamConfiguration;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+
+import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
@@ -74,8 +77,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
+    private final HostIndex hostIndex;
 
-    protected AbstractStreamMetadataStore() {
+    protected AbstractStreamMetadataStore(HostIndex hostIndex) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
@@ -109,6 +113,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                 }
                             }
                         });
+
+        this.hostIndex = hostIndex;
     }
 
     /**
@@ -440,6 +446,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, stream, context).getNumberOfOngoingTransactions(), executor)
                 .thenApply(num -> num > 0);
+    }
+
+    @Override
+    public CompletableFuture<Void> addTransaction(String hostId, UUID txnId, int version) {
+        return hostIndex.putChild(hostId, txnId.toString(), ByteBuffer.allocate(4).putInt(version).array());
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTransaction(String hostId, UUID txnId, boolean deleteEmptyParent) {
+        return hostIndex.removeChild(hostId, txnId.toString(), deleteEmptyParent);
     }
 
     @Override

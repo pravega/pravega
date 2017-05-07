@@ -16,6 +16,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.client.stream.StreamConfiguration;
@@ -50,6 +51,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final Executor executor;
 
     InMemoryStreamMetadataStore(Executor executor) {
+        super(new InMemoryHostIndex(executor));
         this.executor = executor;
     }
 
