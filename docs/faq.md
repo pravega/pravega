@@ -26,19 +26,19 @@ Don’t hesitate to ask! Contact the developers and community on the mailing lis
 if you need any help.  See [Join the Community](join-community.md) for more details.
 
 **Does Pravega support exactly once semantics?**
-Absolutely.  See [key features](key-features.md) for a discussion on how Pravega supports exactly once semantics.
+Absolutely.  See [Key Features](key-features.md) for a discussion on how Pravega supports exactly once semantics.
 
 **How does Pravega work with stream processors such as Apache Flink?**
 So many features of Pravega make it ideal for stream processors.  First, Pravega comes out of the box with a Flink connector.  Critically, Pravega provides exactly once semantics, making it much easier to develop accurate stream processing applications.  The combination of exactly once semantics, durable storage and transactions makes Pravega an ideal way to chain Flink jobs together, providing end-end consistency and exactly once semantics.  See [here](key-features.md) for a list of key features of Pravega.
 
 **How does auto scaling work between stream processors and Flink**
-Auto scaling is a feature of Pravega where the number of segments in a stream changes based on the ingestion rate of data.  If data arrives at a faster rate, Pravega increases the capacity of a stream by adding segments.  When the data rate falls, Pravega can reduce capacity of a stream. As Pravega scales up and down the capacity of a stream, applications, such as a Flink job can observe this change and respond by adding or reducing the number of job instances consuming the stream. See the "Auto Scaling" section in [key-features](key-features.md) for more discussion of auto scaling.
+Auto scaling is a feature of Pravega where the number of segments in a stream changes based on the ingestion rate of data.  If data arrives at a faster rate, Pravega increases the capacity of a stream by adding segments.  When the data rate falls, Pravega can reduce capacity of a stream. As Pravega scales up and down the capacity of a stream, applications, such as a Flink job can observe this change and respond by adding or reducing the number of job instances consuming the stream. See the "Auto Scaling" section in [Key Features](key-features.md) for more discussion of auto scaling.
 
 **What consistency guarantees does Pravega provide?**
 Pravega makes several guarantees. Durability - once data is acknowledged to a client, Pravega guarantees it is protected.  Ordering - events with the same routing key will always be read in the order they were written. Exactly once - data written to Pravega will not be duplicated.
 
 **Why is supporting consistency and durability so important for storage systems such as Pravega?**
-Primarily because it makes building applications easier. Consistency and durability are key for supporting exactly once semantics. Without exactly once semantics, it is difficult to build fault tolerant applications that consistency produce accurate results.  See [key features](key-features.md) for a discussion on consistency and durability guarantees play a role in Pravega's support of exactly once semantics.
+Primarily because it makes building applications easier. Consistency and durability are key for supporting exactly once semantics. Without exactly once semantics, it is difficult to build fault tolerant applications that consistency produce accurate results.  See [Key Features](key-features.md) for a discussion on consistency and durability guarantees play a role in Pravega's support of exactly once semantics.
 
 **Does Pravega support transactions?**
 Yes.  The Pravega API allows an application to create a transaction on a stream and write data to the transaction.  The data is durably stored, just like any other data written to Pravega.  When the application chooses, it can commit or abort the transaction.  When a transaction is committed, the data in the transaction is atomically appended to the stream.  See [here](transactions.md) for more details on Pravega's transaction support.
@@ -53,7 +53,7 @@ Yes. Normally, you would deploy an HDFS for Pravega to use as its Tier 2 storage
 ** ! NEED TEXT **  Is it just HDFS for now, or are we claiming support for Isilon and ECS as well?
 
 **What distributed computing primitives does Pravega provide?**
-Pravega provides an API construct called StateSynchronizer.  Using the StateSynchronizer, a developer can use Pravega to build synchronized shared state between multiple processes.  This primitive can be used to build all sorts of distributed computing solutions such as shared configuration, leader election, etc.  See the "Distributed Computing Primitive" section in [key-features](key-features.md) for more details.
+Pravega provides an API construct called StateSynchronizer.  Using the StateSynchronizer, a developer can use Pravega to build synchronized shared state between multiple processes.  This primitive can be used to build all sorts of distributed computing solutions such as shared configuration, leader election, etc.  See the "Distributed Computing Primitive" section in [Key Features](key-features.md) for more details.
 
 **What hardware do you recommend for Pravega?**
 ** ! NEED TEXT **
