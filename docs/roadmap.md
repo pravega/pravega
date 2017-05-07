@@ -4,8 +4,8 @@
 
 Scaling means increasing and decreasing the number of segments in a Stream based
 on ingestion rate or number of events being ingested, aka Scaling Policy.
-Currently, auto scaling feature is in EXPERIMENTAL stage. With further testing,
-we plan to stabilize it. 
+Auto scaling is currently in EXPERIMENTAL feature. We plan to fine tune and 
+stabilize it in the upcoming releases. 
 
 ## Reader Group
  
@@ -20,7 +20,7 @@ we plan to stabilize it. 
 -  Tools for debugging, more tests, etc.
 -  Unified Auth with Tier 2 per segment/stream basis
 
-## Versioning of Wire Protocol
+## Wire Protocol
 
 Given the stage of Pravega, it is likely that evolution will happen rapidly. To
 support backward compatibility with older clients, we need to make sure that
@@ -41,15 +41,9 @@ protocol is versioned. 
 -   Encrypted connections among Clients, Controller and SegmentStore
 -   Encrypted connections among Controller and SegmentStore, and ZK and HDFS
 
-## Direct Access to Streams in HDFS.
+## Direct Access to Streams in HDFS
 
-Pravega is storing Streams in the Tier 2 storage as is. To make both Ability for
-Hadoop MapReduce jobs to access to streams in key/value format...
-
-## Add support for Apache Mesos
-
-Add support for Mesos as a resource manager. Pravega Mesos integration should be
-able to support dynamic acquisition and release of resources. 
+Allow Hadoop MapReduce jobs to access stream data stored in Tier 2 HDFS.
 
 ## Connectors for Stream Processors
 
@@ -68,7 +62,7 @@ any storage systems that support S3 API. 
 
 ## Low Level Reader API
 
--   For more flexible way to coordinate readers in a group with changing number of segments. 
+-   A more flexible way to coordinate readers in a group with changing number of segments. 
 
 ## Pravega Mesos Framework
 
