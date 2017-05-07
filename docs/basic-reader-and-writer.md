@@ -146,7 +146,7 @@ Applications use an EventStreamWriter object to write Events to a Stream.  The
 key object to creating the EventStreamWriter is the ClientFactory.  The
 ClientFactory is used to create Readers, Writers and other types of Pravega
 Client objects such as the State Synchronizer (see [Working with Pravega: State
-Synchronizer](/display/NAUT/Working+with+Pravega%3A+State+Synchronizer)).
+Synchronizer](state-synchronizer.md)).
 
 Line 10 shows the creation of a ClientFactory.  A ClientFactory is created in
 the context of a Scope, since all Readers, Writers and other Clients created by
@@ -199,7 +199,7 @@ example, we don't bother waiting.
 
 EventStreamWriter can also be used to begin a Transaction.  We cover
 Transactions in more detail elsewhere ([Working with Pravega:
-Transactions](/display/NAUT/Working+with+Pravega%3A+Transactions)).
+Transactions](transactions.md)).
 
 That's it for writing Events.  Now lets take a look at how to read Events using
 Pravega.
