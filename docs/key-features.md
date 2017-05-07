@@ -6,20 +6,21 @@ Pravega](pravega-concepts.md).
 
 ## Pravega Design Principles
 
-Pravega was designed to support the new generation of streaming applications;
+Pravega was designed to support the new generation of streaming applications:
 applications that deal with a large amount of data arriving continuously that
 also need to generate an accurate analysis of that data in the face of late
 arriving data, data arriving out of order and failure conditions.  There  is a
 large variety of new open source tools to help developers build this kind of
 application, including Apache Flink, Apache Beam, Spark Streaming and others.
- To date, these applications used tools such as Apache Kafka or Hadoop's HDFS to
+ To date, these applications used tools such as Apache Kafka or the Apache
+Hadoop Distributed File System (HDFS) to ingest and
 store data.  Unfortunately, these tools were designed for previous generations
 of big data applications and are not ideally suited for streaming applications.
 
 Pravega looks at streaming applications from a storage perspective; what kind of
 storage primitive would be ideally suited for building the new generation of
-streaming applications in conjunction with tools like Flink?  Pravega is based
-on the lessons learned from using Lambda architectures to build streaming
+streaming applications in conjunction with tools like Flink?  
+The design of Pravega incorporates lessons learned from using Lambda architectures to build streaming
 applications and the challenges to deploy streaming applications at scale that
 consistently deliver accurate results in a fault tolerant manner.  Pravega is
 based on solid storage principles such as durability and consistency, delivering
@@ -35,12 +36,13 @@ Batch style processing is used to deliver accurate, but potentially out of date
 analysis of data.  So-called "real-time" processing can deliver faster results
 but at a cost of some accuracy.  With this approach, there are two copies of the
 application logic because the programming models of the speed layer are
-different than those used in the batch layer.  Lambda architectures are
-expensive to develop, expensive to deploy and manage in production.  This style
-of big data application design is losing favor.  
+different than those used in the batch layer.  An implementation of the Lambda
+architecture can be costly to maintain and manage in production.  This style
+of big data application design has been losing traction.  
 
-As more applications, like IoT, require continuous processing, we simply cannot
-afford to think in terms of Lambda architectures and old style middleware.
+As more applications, like IoT application, require continuous processing with
+near real-time results, we simply cannot afford to think in terms of Lambda
+architectures and old style middleware.
 
 With the advent of more modern streaming tools, such as Flink and Pravega, a
 different style of architecture is gaining favor.  A Kappa architecture style is
@@ -75,7 +77,7 @@ components much easier.
 
 ## Pravega - Storage Reimagined for a Streaming World
 
-Pravega introduces a new storage primitive, a stream, that is ideal of
+Pravega introduces a new storage primitive, a stream, that matches
 continuous processing of unbounded data.  In Pravega, a stream is a named,
 durable, append-only and unbounded sequence of bytes.  With this primitive, and
 the key features discussed in this document, Pravega is an ideal component to
@@ -84,20 +86,23 @@ applications.  Because of Pravega's key features, we imagine that it will be th
 fundamental storage primitive for a new generation of streaming-oriented
 middleware.
 
-Lets examine the key features of Pravega.
+Let's examine the key features of Pravega.
 
 ## Exactly Once Semantics
 
-By exactly once semantics we mean that Pravega ensures that data is delivered
-and processed exactly once, with exact ordering guarantees, despite failures in
-clients, servers or the network.
+By exactly once semantics we mean that Pravega ensures that data is not duplicated
+and no event is missed despite failures. Of course, this statement comes with a
+number of caveats, like any other system that promises exactly-once semantics, but
+let's not dive into the gory details here. An important consideration is that
+exactly-once semantics is a natural part of Pravega and has been a goal and part
+of the design from day zero.
 
 To achieve exactly once semantics, Pravega Streams are durable, ordered,
 consistent and transactional.  We discuss durable and transactional in separate
 sections below.
 
-By ordering, we mean that data is seen by Readers in the order it is written.
- In Pravega, data is written along with an application-defined routing key.  
+By ordering, we mean that data is observed by readers in the order it is written.
+In Pravega, data is written along with an application-defined routing key.  
 Pravega makes ordering guarantees in terms of routing keys.  Two pieces of data
 with the same routing key will always be read by a Reader in the order they were
 written. Pravega's ordering guarantees allow data reads to be replayed (e.g.
@@ -108,23 +113,18 @@ By consistency, we mean all Readers see the same ordered view of data for a
 given routing key, even in the face of failure. Systems that are "mostly
 consistent" are not sufficient for building accurate data processing.
 
-Some systems, that can only provide "at least once" semantics may suffer from
-the possibility of data duplication.  In these other systems, in certain failure
-scenarios, a data producer, upon recovery may write the same data twice.  In
-Pravega, writes are idempotent, rewrites done as a result of failure recovery
-don't result in data duplication.   It is impossible to deliver exactly once
-processing semantics when there is the possibility of data duplication.
+Systems that provide "at least once" semantics might present duplication. In
+such systems, a data producer might write the same data twice in some scenarios.
+In Pravega, writes are idempotent, rewrites done as a result of reconnection
+don't result in data duplication. Note that we make no guarantee when the data
+coming from the source already contains duplicates. Written data is opaque to
+Pravega and it makes no attempt to remove existing duplicates.
 
-But this is not *just* exactly once semantics between two components within an
-application architecture, we are talking here about the importance of end-end
-exactly once semantics across an entire pipeline of streaming application
-components with strict ordering of data in the face of component failures.
-Data storage in Pravega is the foundation for exactly once across an entire data
-processing pipeline.  This is absolutely critical for building streaming
-applications that are both timely and accurate.  Without accuracy at the storage
-layer, application developers are faced with relying on the complexity of a
-Lambda architecture to deliver accurate data analysis in combination with near
-real-time processing of the data.
+We have not limited our focus to exactly-once semantics for writing, however.
+We are provide, and are actively working on extending the features, that enable
+exactly-once end-to-end for a data pipeline. The strong consistency guarantees
+that the Pravega store provides along with the semantics of a data analytics 
+engine like Flink enables such end-to-end guarantees. 
 
 ## Auto Scaling
 
@@ -176,13 +176,13 @@ time](pravega-concepts.md#autoscalingthenumber-of-stream-segments-can-vary-over-
 for more detail on how Pravega manages Stream Segments.
 
 It is possible to coordinate the auto scaling of Streams in Pravega with
-application scale out.  Using metadata available from Pravega, applications can
-configure the scaling of their application components; for example, to drive the
-number of instances of a Flink job. Alternatively, you could use software such
-as Cloud Foundry, Mesos/Marathon, Kubernetes or the Docker stack to deploy new
-instances of an application to react to increased parallelism at the Pravega
-level, or to terminate instances as Pravega scales down in response to reduced
-rate of data ingestion.
+application scale out (in the works).  Using metadata available from Pravega,
+applications can configure the scaling of their application components; for
+example, to drive the number of instances of a Flink job. Alternatively, you
+could use software such as Cloud Foundry, Mesos/Marathon, Kubernetes or the
+Docker stack to deploy new instances of an application to react to increased
+parallelism at the Pravega level, or to terminate instances as Pravega scales
+down in response to reduced rate of data ingestion.
 
 ## Distributed Computing Primitive
 
@@ -205,9 +205,9 @@ You can learn more about the State Synchronizer
 
 ## Write Efficiency
 
-Pravega shrinks write latency to milliseconds, and seamlessly scales to handle
-high-throughput reads and writes from thousands of concurrent clients, making it
-ideal for IoT and other time sensitive applications.
+Pravega write latency is of the order of milliseconds, and seamlessly scales
+to handle high throughput reads and writes from thousands of concurrent
+clients, making it ideal for IoT and other time sensitive applications.
 
 Streams are light weight, Pravega can support millions of Streams, this frees
 the application from worrying about statically configuring streams and preallocating 
@@ -244,7 +244,9 @@ that tail reads do not impact the performance of writes.
 
 ## Infinite Retention
 
-Data in Streams can be retained forever. Pravega provides one convenient API to
+Data in Streams can be retained for as long as the application needs it, 
+constrained to the amount of data available, which is unbounded given the use
+of cloud storage in Tier 2. Pravega provides one convenient API to
 access both real-time and historical data.  With Pravega, batch and real-time
 applications can both be handled efficiently; yet another reason why Pravega is
 a great storage primitive for Kappa architectures.
