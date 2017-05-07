@@ -129,6 +129,9 @@ public class StreamMetaDataTests {
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus4 = CompletableFuture.
             completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build());
 
+    private StreamConfiguration streamConfiguration1;
+    private StreamConfiguration streamConfiguration2;
+
     @Before
     public void setup() {
         mockControllerService = mock(ControllerService.class);
@@ -137,6 +140,9 @@ public class StreamMetaDataTests {
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
+        client.register(StreamProperty.class);
+        client.register(ScopesList.class);
+        client.register(StreamsList.class);
 
         scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC);
         scalingPolicyCommon.setTargetRate(100);
@@ -192,6 +198,20 @@ public class StreamMetaDataTests {
         updateStreamRequest2.setRetentionPolicy(retentionPolicyCommon);
         updateStreamRequest3.setScalingPolicy(scalingPolicyCommon);
         updateStreamRequest3.setRetentionPolicy(retentionPolicyCommon2);
+
+       streamConfiguration1 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(stream1)
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
+                .build();
+
+       streamConfiguration2 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(stream2)
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
+                .build();
     }
 
     @After
@@ -235,14 +255,6 @@ public class StreamMetaDataTests {
         assertEquals("Create Stream Status", 400, response.getStatus());
         response.close();
 
-        // Test to create a stream which doesn't exist and have Scaling Policy FIXED_NUM_SEGMENTS
-        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
-        response = client.target(streamResourceURI).request().buildPost(Entity.json(createStreamRequest5)).invoke();
-        assertEquals("Create Stream Status", 201, response.getStatus());
-        streamResponseActual = response.readEntity(StreamProperty.class);
-        testExpectedVsActualObject(streamResponseExpected3, streamResponseActual);
-        response.close();
-
         // Test to create a stream that already exists
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
         response = client.target(streamResourceURI).request().buildPost(Entity.json(createStreamRequest)).invoke();
@@ -261,6 +273,23 @@ public class StreamMetaDataTests {
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus4);
         response = client.target(streamResourceURI).request().buildPost(Entity.json(createStreamRequest3)).invoke();
         assertEquals("Create Stream Status for non-existent scope", 404, response.getStatus());
+        response.close();
+    }
+
+    /**
+     * Test to create a stream which doesn't exist and have Scaling Policy FIXED_NUM_SEGMENTS.
+     *
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
+    @Test
+    public void testCreateStreamFixedSegments() throws ExecutionException, InterruptedException {
+        String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
+        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
+        Response response = client.target(streamResourceURI).request().buildPost(Entity.json(createStreamRequest5)).invoke();
+        assertEquals("Create Stream Status", 201, response.getStatus());
+        StreamProperty streamResponseActual = response.readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseExpected3, streamResponseActual);
         response.close();
     }
 
@@ -529,22 +558,6 @@ public class StreamMetaDataTests {
     @Test
     public void testListStreams() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams";
-
-        final StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
-                .scope(scope1)
-                .streamName(stream1)
-                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
-                .build();
-
-        final StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
-                .scope(scope1)
-                .streamName(stream2)
-                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
-                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
-                .build();
-
-        // Test to list streams.
         List<StreamConfiguration> streamsList = Arrays.asList(streamConfiguration1, streamConfiguration2);
 
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
@@ -571,8 +584,17 @@ public class StreamMetaDataTests {
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 500, response.getStatus());
         response.close();
+    }
 
-        // Test for filtering streams.
+    /**
+     * Test for filtering streams.
+     *
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
+    @Test
+    public void testListStreamsFiltering() throws ExecutionException, InterruptedException {
+        final String resourceURI = getURI() + "v1/scopes/scope1/streams";
         final StreamConfiguration streamConfiguration3 = StreamConfiguration.builder()
                 .scope(scope1)
                 .streamName(NameUtils.getInternalNameForStream("stream3"))
@@ -582,7 +604,7 @@ public class StreamMetaDataTests {
                 streamConfiguration3);
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(
                 CompletableFuture.completedFuture(allStreamsList));
-        response = client.target(resourceURI).request().buildGet().invoke();
+        Response response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
         StreamsList streamsListResp = response.readEntity(StreamsList.class);
         assertEquals("List count", 2, streamsListResp.getStreams().size());
@@ -597,11 +619,20 @@ public class StreamMetaDataTests {
         assertEquals("List element", NameUtils.getInternalNameForStream("stream3"),
                 streamsListResp.getStreams().get(0).getStreamName());
         response.close();
+    }
 
-        // Test to list large number of streams.
-        streamsList = Collections.nCopies(1000, streamConfiguration1);
+    /**
+     * Test to list large number of streams.
+     *
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
+    @Test
+    public void testListStreamsLargeNum() throws ExecutionException, InterruptedException {
+        final String resourceURI = getURI() + "v1/scopes/scope1/streams";
+        List<StreamConfiguration> streamsList = Collections.nCopies(1000, streamConfiguration1);
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
-        response = client.target(resourceURI).request().buildGet().invoke();
+        Response response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
         final StreamsList streamsList2 = response.readEntity(StreamsList.class);
         assertEquals("List count", 200, streamsList2.getStreams().size());
