@@ -1,22 +1,22 @@
-In Pravega Metric Framework, we use [Yammer Metrics](http://metrics.dropwizard.io/3.1.0/apidocs) as the underneath, and provide our own API to make it easier to use.
+In Pravega Metrics Framework, we use [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
 # 1. Metrics interfaces and use example
-There are 3 basic Interface: StatsProvider, StatsLogger (short for Statistics Logger) and OpStatsLogger (short for Operation Statistics Logger, and it is included in StatsLogger).
-StatsProvider provide us the whole Metric service; StatsLogger is the place that we register and get wanted Metrics( [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms) ); while OpStatsLogger is a sub Metric for complex ones(Timer/Histograms).
-## 1.1. Metrics Service Provider — interface StatsProvider
-The starting point is the StatsProvider interface, it provides start and stop method for Metric service. Regarding the reporters, currently we provide a CSV reporter and a StatsD reporter.
+There are three basic interfaces: StatsProvider, StatsLogger (short for Statistics Logger) and OpStatsLogger (short for Operation Statistics Logger, and it is included in StatsLogger).
+StatsProvider provides us the whole Metric service; StatsLogger is the place at which we register and get required Metrics ([Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms)); while OpStatsLogger is a sub-metric for complex ones (Timer/Histograms).
+## 1.1. Metrics Service Provider — Interface StatsProvider
+The starting point of Pravega Metric framework is the StatsProvider interface, it provides start and stop method for Metric service. Regarding the reporters, currently we have support for CSV reporter and StatsD reporter.
 ```
 public interface StatsProvider {
-    public void start(MetricsConfig conf);
-    public void close();
-    public StatsLogger createStatsLogger(String scope);
+    void start(MetricsConfig conf);
+    void close();
+    StatsLogger createStatsLogger(String scope);
 }
 ```
-* start(): At start time, it provides [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and reporters for our Metrics. 
-* stop(): Mainly stop the reporters.
-* createStatsLogger (): Create and Return a StatsLogger, which is the main class to get a Metric and do our Metric insertion and collection. 
+* start(): Initializes [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and reporters for our Metrics service. 
+* close(): Shutdown of Metrics service.
+* createStatsLogger(): Creates and returns a StatsLogger instance, which is used to retrieve a metric and do metric insertion and collection in Pravega code. 
 
-## 1.2. Example
-This example is in file com.emc.pravega.service.server.host.ServiceStarter, It is the host service start place, when we start a host service, a Metrics service should be started as a sub service.
+## 1.2. Example for starting a Metric service
+This example is from file io.pravega.service.server.host.ServiceStarter. It starts Pravega service and a Metrics service is started as a sub service.
 ```
 public final class ServiceStarter {
     ...
@@ -24,58 +24,54 @@ public final class ServiceStarter {
     ...
     private void start() {
         ...
-        MetricsConfig metricsConfig = this.builderConfig.getConfig(MetricsConfig::new);
-        statsProvider = (metricsConfig.enableStatistics()) ?  //< === this config determine it will report metric or not.
-                        MetricsProvider.getNullProvider() :
-                        MetricsProvider.getProvider();
-        statsProvider.start(metricsConfig); < === here when start host service, we start Metric service.
+        log.info("Initializing metrics provider ...");
+        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
+        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.start(); // Here metric service is started as a sub-service
         ...
     }
     private void shutdown() {
-        if (!this.closed) {
-            this.serviceBuilder.close();
-            ...
-            if (this.statsProvider != null) {
-                statsProvider.close(); < ===
-                statsProvider = null;
-                log.info("Metrics statsProvider is now closed.");
-            }
-            this.closed = true;
-        }
+        ...
+         if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+            log.info("Metrics statsProvider is now closed.");
+         }
+         ...
     }
 ...
 }
 ```
 ## 1.3. Metric Logger — interface StatsLogger
-Through this interface we can register wanted Metrics. It includes simple type [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric—OpStatsLogger, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histograms](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
+Using this interface we can register required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric OpStatsLogger, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
 ```
 public interface StatsLogger {
-    public OpStatsLogger createStats(String name);
-    public Counter createCounter(String name);
-    public <T extends Number> void registerGauge(String name, Supplier<T> value);
+    OpStatsLogger createStats(String name);
+    Counter createCounter(String name);
+    <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
 }
 ```
-* createStats (): Through this we register and get a OpStatsLogger, which use for complex statistics type of Metric.
-* createCounter (): Through this we register and get a Counter Metric.
-* registerGauge(): Through this we register a Gauge Metric. 
+* createStats(): Register and get a OpStatsLogger, which is used for complex type of metrics.
+* createCounter(): Register and get a Counter metric.
+* registerGauge(): Register a get Gauge metric. 
 
 ### 1.3.1. Metric Sub Logger — OpStatsLogger
-As mentioned in StatsLogger, OpStatsLogger mainly provide complex statistics type of Metric, usually it is used in each operation, such as in CreateSegment, ReadSegment, we could use it to record the number of operation, time/duration of each happened operation.
+OpStatsLogger provides complex statistics type of Metric, usually it is used in operations such as CreateSegment, ReadSegment, we could use it to record the number of operation, time/duration of each operation.
 ```
 public interface OpStatsLogger {
-public void reportSuccessEvent(Duration duration);
-public void reportFailEvent(Duration duration);
-public void reportSuccessValue(long value);
-public void reportFailValue(long value);
+    void reportSuccessEvent(Duration duration);
+    void reportFailEvent(Duration duration);
+    void reportSuccessValue(long value);
+    void reportFailValue(long value);
 }
 ```
-* reportSuccessEvent : Use when we want to track Timer of a sucessful operation, it use Yammer.Timmer inside, and will record the latency in Nanoseconds in Yammer metric. 
-* reportFailEvent : Use when we want to track Timer of a failed operation, it  use Yammer.Timmer inside, and will record the latency in Nanoseconds in Yammer metric.  .
-* reportSuccessValue (): Use when we want to track Histogram of a success value, we reuse the Yammer.Timer to achieve it.
-* reportFailValue (): Use when we want to track Histogram of a fail value, we reuse the Yammer.Timer to achieve it. 
+* reportSuccessEvent() : Used to track Timer of a successful operation and will record the latency in Nanoseconds in required metric. 
+* reportFailEvent() : Used to track Timer of a failed operation and will record the latency in Nanoseconds in required metric.  .
+* reportSuccessValue() : Used to track Histogram of a success value.
+* reportFailValue() : Used to track Histogram of a failed value. 
 
 ### 1.3.2. Example for Counter and OpStatsLogger(Timer/Histograms)
-Here is an example in com.emc.pravega.service.server.host.handler.PravegaRequestProcessor. In this class, we registered 4 Metrics: 2 Timer(creaetSegment/ readSegment), 1 Histograms(segmentReadBytes), and 1 Counter(allReadBytes).
+This is an example from io.pravega.service.server.host.handler.PravegaRequestProcessor. In this class, we registered four metrics: Two timers (createSegment/readSegment), one histograms (segmentReadBytes) and one counter (allReadBytes).
 ```
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
     …
@@ -127,23 +123,31 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     …
 }
 ```
-And here from the above example, you would find steps of how to register and use a metric in wanted class and method:
+From the above example, we can see the reuired steps of how to register and use a metric in desired class and method:
 
-1. Get a StatsLogger from MetricsProvider: StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger();
-1. Register all the wanted Metrics through StatsLogger, and put all these Metrics in a static class Metrics. public static class Metrics { … } `static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);`
-1. Use these Metrics at the code place, which you would like to collect and record the values.   `Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsedNanos());`
-Here CREATE_SEGMENT is the name of this Metrics, we put all the Metric for host in file com.emc.pravega.service.server.host.PravegaRequestStats,
- and CREATE_STREAM_SEGMENT is the name of our Metrics logger, it will track operations of createSegment, and we will get the time of each createSegment operation happened, how long each operation takes, and other numbers computed based on them.
+1. Get a StatsLogger from MetricsProvider: 
+```
+StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger();
+```
+1. Register all the desired metrics through StatsLogger:
+```
+static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
+```
+1. Use these metrics within code at appropriate place where you would like to collect and record the values.
+```
+Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsedNanos());
+```
+Here CREATE_SEGMENT is the name of this metric, we put all the Metric for host in file io.pravega.service.server.host.PravegaRequestStats, and CREATE_STREAM_SEGMENT is the name of our Metrics logger, it will track operations of createSegment, and we will get the time of each createSegment operation happened, how long each operation takes, and other numbers computed based on them.
 
 ### 1.3.3 Output example of OpStatsLogger and Counter
-An example output of this OpStatsLogger CREATE_SEGMENT that reported through CSV reporter is like:
+An example output of OpStatsLogger CREATE_SEGMENT reported through CSV reporter:
 ```
 $ cat CREATE_SEGMENT.csv 
 t,count,max,mean,min,stddev,p50,p75,p95,p98,p99,p999,mean_rate,m1_rate,m5_rate,m15_rate,rate_unit,duration_unit
 1480928806,1,8.973952,8.973952,8.973952,0.000000,8.973952,8.973952,8.973952,8.973952,8.973952,8.973952,0.036761,0.143306,0.187101,0.195605,calls/second,millisecond
 ```
-READ_STREAM_SEGMENT, and READ_BYTES_STATS are similar as this above. 
-An example output of Counter READ_BYTES that reported through CSV reporter is like:
+READ_STREAM_SEGMENT, and READ_BYTES_STATS are similar to above output. 
+An example output of Counter READ_BYTES reported through CSV reporter:
 ```
 $ cat ALL_READ_BYTES.csv
 t,count
@@ -153,7 +157,7 @@ t,count
 ```
 
 ### 1.3.4. Example for Gauge metrics
-Here is an example in com.emc.pravega.service.server.host.handler.AppendProcessor. In this class, we registered a Gauge which represent current PendingReadBytes.
+This is an example from io.pravega.service.server.host.handler.AppendProcessor. In this class, we registered a Gauge which represent current PendingReadBytes.
 ```
 public class AppendProcessor extends DelegatingRequestProcessor {
     ...
@@ -178,11 +182,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     ...
  }
 ```
-This is similar to above example, But Gauge is a special kind of Metric, It only need a register, while other Metrics need register and report, and when Metrics reporter do the report, it calls Gauge.getValue() to get former registered value.  
+This is similar to above example, but Gauge is a special kind of Metric, it only needs to register, unlike other Metrics which need to register and report, and when Metrics reporter do the report, it calls Gauge.getValue() to get former registered value.  
  
 # 2. Metric reporter and Configurations
-Reporters are the way that we exports all the measurements being made by its metrics. By leverage yammer, we currently provide StatsD and CSV output.It is not hard to add new output formats, such as JMX/SLF4J.
-CSV reporter will export each Metric out into 1 file.csv. 
+Reporters are the way through which we export all the measurements being made by the metrics. We currently provide StatsD and CSV output. It is not difficult to add new output formats, such as JMX/SLF4J.
+CSV reporter will export each Metric out into one file. 
 StatsD reporter will export Metrics through UDP/TCP to a StatsD server.
 The reporter could be configured through MetricsConfig.
 ```
@@ -206,7 +210,7 @@ public class MetricsConfig extends ComponentConfig {
 ```
 
 # 3. Steps to add your own Metrics
-* Step 1. When start a host/controller service, start a Metrics service as a sub service. Reference above example in ServiceStarter.start()
+* Step 1. When start a segment store/controller service, start a Metrics service as a sub service. Reference above example in ServiceStarter.start()
 ```
         statsProvider = MetricsProvider.getProvider();
         statsProvider.start(metricsConfig);    
@@ -224,10 +228,11 @@ public class MetricsConfig extends ComponentConfig {
     Metrics.CREATE_STREAM_SEGMENT.reportFailure(timer.getElapsedNanos()); < === 3
 ```
 # 4. Available Metrics 
-
-ToDo
+* Segment Store: Bytes In/Out Rate, Read/Write Latency.
+* Stream Controllers: Stream creation/deletion/sealed, Segment Merging/Splitting Rate, Transactions Open/Commit/Drop/Abort
+* Tier-2 Storage Metrics: Read/Write Latency, Read/Write Rate	
 
 # 5. Useful links
-* [Yammer Metrics](http://metrics.dropwizard.io/3.1.0/apidocs)
+* [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs)
 * [Statsd_spec](https://github.com/b/statsd_spec)
 * [etsy_StatsD](https://github.com/etsy/statsd)

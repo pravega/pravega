@@ -15,11 +15,6 @@ pages:
       - 'Terminology': 'terminology.md'
       - 'Key Features': 'key-features.md'
       - 'Pravega FAQ': 'faq.md'
-#      - 'Segment Store Service': 'segment-store-service.md'
-#      - 'Segment Container': 'segment-containers.md'
-#      - 'Reader Groups': 'reader-groups-design.md'
-#      - 'State Syncronizer': 'state-synchronizer-design.md'
-#      - 'Wire Protocol': 'wire-protocol.md'
   - Developing Pravega Applications:
       - 'Java API Reference': 'javadoc.md'
       - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
@@ -33,7 +28,6 @@ pages:
       - 'Deployment in Docker Swarm': 'deployment/docker-swarm.md'
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
-      - 'Pravega Metrics': 'metrics.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
       - 'Pravega Roadmap': 'roadmap.md'

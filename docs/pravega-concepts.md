@@ -1,7 +1,7 @@
 # Pravega Concepts
 
 This page is an overview of the key concepts in Pravega.
- See [Terminology](http://pravega.io/docs/Terminology/index.html) for a concise definition for many
+ See [Terminology](terminology.md) for a concise definition for many
 Pravega concepts.
 
 ## Pravega Components
@@ -163,7 +163,7 @@ processing Stream data in parallel is a good example use of a ReaderGroup.
 
 For more details on the basics of working with Pravega Readers and Writers,
 see [Working with Pravega: Basic Reader and
-Writer](https://pravega.io/docs/Basic-Reader-and-Writer/index.html).
+Writer](basic-reader-and-writer.md).
 
 We need to talk in more detail about the relationship between Readers,
 ReaderGroups and Streams and the ordering guarantees provided by Pravega.  But
@@ -319,7 +319,7 @@ Checkpoint to reset all the Readers in the ReaderGroup to the known consistent
 state represented by the Checkpoint.
 
 For more details on working with ReaderGroups, see [Working with Pravega: Reader
-Groups](http://pravega.io/docs/Reader-Groups/index.html).
+Groups](basic-reader-and-writer.md).
 
 ## Transactions
 
@@ -355,7 +355,7 @@ Events published into a Transaction are never visible to the Reader until that
 Transaction is committed.
 
 For more details on working with Transactions, see [Working with Pravega:
-Transactions](http://pravega.io/docs/Transactions/index.html).
+Transactions](transactions.md).
 
 ## State Synchronizers
 
@@ -403,7 +403,7 @@ not at its best when many processes are all attempting to simultaneously update
 the same piece of data.
 
 For more details on working with State Synchronizers, see [Working with Pravega:
-State Synchronizer](http://pravega.io/docs/State-Synchronizer/index.html).
+State Synchronizer](state-synchronizer.md).
 
 ## Putting the Concepts Together
 
