@@ -193,12 +193,12 @@ The reporter could be configured through MetricsConfig.
 public class MetricsConfig extends ComponentConfig {
     //region Members
     public static final String COMPONENT_CODE = "metrics";
-    public final static String ENABLE_STATISTICS = "enableStatistics"; < === enable Yammer metric, or will report nothing
-    public final static String OUTPUT_FREQUENCY = "yammerStatsOutputFrequencySeconds"; < === reporter output frequency
-    public final static String METRICS_PREFIX = "yammerMetricsPrefix"; 
-    public final static String CSV_ENDPOINT = "yammerCSVEndpoint"; < === CSV reporter output dir
-    public final static String STATSD_HOST = "yammerStatsDHost"; < === StatsD server host for the reporting
-    public final static String STATSD_PORT = "yammerStatsDPort"; < === StatsD server port
+    public final static String ENABLE_STATISTICS = "enableStatistics"; < === enable metric, or will report nothing
+    public final static String OUTPUT_FREQUENCY = "StatsOutputFrequencySeconds"; < === reporter output frequency
+    public final static String METRICS_PREFIX = "MetricsPrefix"; 
+    public final static String CSV_ENDPOINT = "CSVEndpoint"; < === CSV reporter output dir
+    public final static String STATSD_HOST = "StatsDHost"; < === StatsD server host for the reporting
+    public final static String STATSD_PORT = "StatsDPort"; < === StatsD server port
     public final static boolean DEFAULT_ENABLE_STATISTICS = true;
     public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
     public final static String DEFAULT_METRICS_PREFIX = "host";
@@ -227,10 +227,35 @@ public class MetricsConfig extends ComponentConfig {
     ...
     Metrics.CREATE_STREAM_SEGMENT.reportFailure(timer.getElapsedNanos()); < === 3
 ```
-# 4. Available Metrics 
+# 4. Available Metrics and their names
 * Segment Store: Bytes In/Out Rate, Read/Write Latency.
+````
+DYNAMIC.$scope.$stream.$segment.segment_read_bytes
+DYNAMIC.$scope.$stream.$segment.segment_write_bytes
+host.segment_read_latency_ms
+host.segment_write_latency_ms 
+````
+
 * Stream Controllers: Stream creation/deletion/sealed, Segment Merging/Splitting Rate, Transactions Open/Commit/Drop/Abort
+````
+controller.stream_created
+controller.stream_sealed
+controller.stream_deleted
+DYNAMIC.$scope.$stream.segments_count
+DYNAMIC.$scope.$stream.segments_splits
+DYNAMIC.$scope.$stream.segments_merges
+DYNAMIC.$scope.$stream.transactions_created
+DYNAMIC.$scope.$stream.transactions_committed
+DYNAMIC.$scope.$stream.transactions_aborted
+DYNAMIC.$scope.$stream.transactions_opened
+````
 * Tier-2 Storage Metrics: Read/Write Latency, Read/Write Rate	
+````
+hdfs.hdfs_read_latency_ms
+hdfs.hdfs_write_latency_ms
+hdfs.hdfs_read_bytes
+hdfs.hdfs_write_bytes
+````
 
 # 5. Useful links
 * [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs)
