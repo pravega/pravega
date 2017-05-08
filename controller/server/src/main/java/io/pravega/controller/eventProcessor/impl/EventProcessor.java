@@ -33,7 +33,7 @@ public abstract class EventProcessor<T extends ControllerEvent> {
 
     @FunctionalInterface
     public interface Writer<T> {
-        Future<Void> write(T event);
+        Future<Boolean> write(T event);
     }
 
     Checkpointer checkpointer;

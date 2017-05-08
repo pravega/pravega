@@ -31,6 +31,7 @@ import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -262,8 +263,30 @@ public class SegmentOutputStreamTest {
     }
     
     @Test
-    public void testConnectCanAckFutureWrites() {
-        fail();
-        sdfsdf;
+    public void testConnectCanAckFutureWrites() throws ConnectionFailedException, SegmentSealedException, InterruptedException, ExecutionException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        output.setupConnection();
+        verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 100));
+
+        CompletableFuture<Boolean> acked = new CompletableFuture<>();
+        output.write(new PendingEvent(null, 1, getBuffer("test"), acked, null));
+        assertEquals(true, acked.isDone());
+        assertEquals(false, acked.get());
+        acked = new CompletableFuture<>();
+        output.write(new PendingEvent(null, 2, getBuffer("test"), acked, null));
+        assertEquals(true, acked.isDone());
+        assertEquals(false, acked.get());
+        acked = new CompletableFuture<>();
+        output.write(new PendingEvent(null, 3, getBuffer("test"), acked, null));
+        assertEquals(true, acked.isDone());
+        assertEquals(false, acked.get());
+        verifyNoMoreInteractions(connection);
     }
 }

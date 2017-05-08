@@ -190,16 +190,21 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 throw new RuntimeException(e);
             }
         }
+        
+        private void setEventNumber(long minEventNumber) {
+            synchronized (lock) {
+                eventNumber = minEventNumber;
+            }
+        }
 
         /**
          * Add event to the infight
          * @return The EventNumber for the event.
          */
-        private long addToInflight(PendingEvent event) {
+        private Long addToInflight(PendingEvent event) {
             synchronized (lock) {
                 if (eventNumber >= event.getSequence()) {
-                    throw new IllegalStateException("Events written out of order. Perviously received " + eventNumber
-                            + " and now received " + event.getSequence());
+                    return null;
                 }
                 eventNumber = event.getSequence();
                 inflight.put(eventNumber, event);
@@ -296,6 +301,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void appendSetup(AppendSetup appendSetup) {
             long ackLevel = appendSetup.getLastEventNumber();
+            state.setEventNumber(ackLevel);
             ackUpTo(ackLevel);
             List<Append> toRetransmit = state.getAllInflight()
                                              .stream()
@@ -340,21 +346,25 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
     
     /**
-     * @see SegmentOutputStream#write(java.nio.ByteBuffer,
-     *      java.util.concurrent.CompletableFuture)
+     * @see SegmentOutputStream#write
      */
     @Override
-    @Synchronized
     public void write(PendingEvent event) throws SegmentSealedException {
-        ClientConnection connection = getConnection();
-        long eventNumber = state.addToInflight(event);
-        try {
-            connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
-                                       event.getExpectedOffset()));
-        } catch (ConnectionFailedException e) {
-            log.warn("Connection failed due to: ", e);
-            getConnection(); // As the messages is inflight, this will perform the retransmition.
+        synchronized ($lock) {
+            ClientConnection connection = getConnection();
+            Long eventNumber = state.addToInflight(event);
+            if (eventNumber != null) {
+                try {
+                    connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
+                                               event.getExpectedOffset()));
+                } catch (ConnectionFailedException e) {
+                    log.warn("Connection failed due to: ", e);
+                    getConnection(); // As the messages is inflight, this will perform the retransmition.
+                }
+                return;
+            }
         }
+        event.getAckFuture().complete(false);
     }
     
     /**

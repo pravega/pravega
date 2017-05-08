@@ -1,10 +1,9 @@
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.AckFuture;
-import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Segment;
-import io.pravega.client.stream.impl.segment.SegmentOutputStreamFactory;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -14,7 +13,8 @@ import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class IdempotentEventStreamWriterTest {
 
@@ -79,9 +79,32 @@ public class IdempotentEventStreamWriterTest {
     }
     
     @Test
-    public void testNewClientWithLowerSequence() {
-        fail();
-        afeasl;
+    public void testNewClientWithLowerSequence() throws InterruptedException, ExecutionException  {
+        String scope = "scope";
+        String streamName = "stream";
+        UUID writerId = UUID.randomUUID();
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment = new Segment(scope, streamName, 0);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        MockSegmentIoStreams outputStream = new MockSegmentIoStreams(segment);
+        Mockito.when(streamFactory.createOutputStreamForSegment(writerId, segment)).thenReturn(outputStream);
+        IdempotentEventStreamWriterImpl<String> writer = new IdempotentEventStreamWriterImpl<>(stream, writerId,
+                                                                                               controller,
+                                                                                               streamFactory,
+                                                                                               new JavaSerializer<>(),
+                                                                                               config);
+        AckFuture fooFuture = writer.writeEvent("Foo", 2, "Foo");
+        assertTrue(fooFuture.isDone());
+        assertTrue(fooFuture.get());
+        writer = new IdempotentEventStreamWriterImpl<>(stream, writerId, controller, streamFactory,
+                new JavaSerializer<>(), config);
+        AckFuture barFuture = writer.writeEvent("Bar", 1, "Bar");
+        assertTrue(barFuture.isDone());
+        assertFalse(barFuture.get());
+        writer.close();
     }
     
 }
