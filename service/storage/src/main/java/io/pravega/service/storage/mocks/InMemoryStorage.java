@@ -52,7 +52,9 @@ import lombok.val;
 public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     //region Members
 
+    @GuardedBy("offsetTriggers")
     private final HashMap<String, HashMap<Long, CompletableFuture<Void>>> offsetTriggers;
+    @GuardedBy("sealTriggers")
     private final HashMap<String, CompletableFuture<Void>> sealTriggers;
     @GuardedBy("lock")
     private final HashMap<String, StreamSegmentData> streamSegments = new HashMap<>();
@@ -329,7 +331,7 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     public CompletableFuture<Void> registerSealTrigger(String segmentName, Duration timeout) {
         CompletableFuture<Void> result;
         boolean newTrigger = false;
-        synchronized (this.offsetTriggers) {
+        synchronized (this.sealTriggers) {
             result = this.sealTriggers.getOrDefault(segmentName, null);
             if (result == null) {
                 result = createSealTrigger(segmentName, timeout);
