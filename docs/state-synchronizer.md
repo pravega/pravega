@@ -13,9 +13,9 @@ Samples
 readme](https://github.com/pravega/pravega-samples/blob/master/standalone-examples/README.md).
 
 You really should be familiar with Pravega Concepts (see [Pravega
-Concepts](http://pravega.io/Pravega-Concepts/index.html)) before continuing reading this page.
+Concepts](pravega-concepts.md)) before continuing reading this page.
  In particular, you should be somewhat familiar with the [State
-Synchronizer](http://pravega.io/docs/Pravega+Concepts/index.html#StateSynchronizers)
+Synchronizer](pravega-concepts.md#state-synchronizers)
 concept.
 
 ## Shared State and Pravega
