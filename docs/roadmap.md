@@ -13,7 +13,7 @@ stabilize it in the upcoming releases. 
  
 -  Callback when # of segment changes
 -  Reader Group Metrics 
--  Individual Reader  (Not member of a group)
+-  Independent Reader  (Not member of a group)
 -  Manual assignment of segment
 
 ## Segment Store
