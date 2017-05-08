@@ -6,27 +6,20 @@
 
 Scaling means increasing and decreasing the number of segments in a Stream based
 on ingestion rate or number of events being ingested, aka Scaling Policy.
-Auto scaling is currently in EXPERIMENTAL feature. We plan to fine tune and 
+Auto scaling is currently EXPERIMENTAL. We plan to fine tune and 
 stabilize it in the upcoming releases. 
 
 ## Reader Group
  
--  Reader Group for manual segment choice
 -  Callback when # of segment changes
 -  Reader Group Metrics 
 -  Individual Reader  (Not member of a group)
+-  Manual assignment of segment
 
 ## Segment Store
 
--  Auto-container restart, take it offline /Stability Improvement/
 -  Tools for debugging, more tests, etc.
 -  Unified Auth with Tier 2 per segment/stream basis
-
-## Wire Protocol
-
-Given the stage of Pravega, it is likely that evolution will happen rapidly. To
-support backward compatibility with older clients, we need to make sure that
-protocol is versioned. 
 
 ## Improve Metrics and expose more runtime metrics
 
