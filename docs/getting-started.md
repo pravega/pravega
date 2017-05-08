@@ -98,5 +98,3 @@ No more events from examples/helloStream
 
 See the readme.md file in the standalone-examples for more details on running the
     HelloWorldReader application
-
-**Congratulations!**  You have successfully installed Pravega and ran a couple of simple Pravega applications.
