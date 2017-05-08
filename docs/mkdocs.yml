@@ -29,8 +29,6 @@ pages:
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
-      - 'Issue Triaging': 'contributing.md'
-      - 'Pull Request Reviews': 'contributing.md'
       - 'Join the Community': 'join-community.md'
 extra:
     version: 0.1
