@@ -27,12 +27,6 @@
   shell: mkdir -p /opt/pravega
   sudo: yes
 
-- name: Copy entrypoint to remote node
-  copy:
-    src: entrypoint.sh
-    dest: /opt/pravega/
-  sudo: yes
-
 - name: Move pravega dist
   shell: mv pravega-0.1.0-SNAPSHOT/* /opt/pravega/
   sudo: yes

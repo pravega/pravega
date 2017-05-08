@@ -137,7 +137,7 @@ EOF
 }
 
 resource "aws_iam_instance_profile" "emr_profile" {
-  name  = "emr_profile"
+  name  = "emr_profile_default"
   role = "${aws_iam_role.iam_emr_profile_role.name}"
 }
 
@@ -227,10 +227,7 @@ resource "aws_instance" "boot" {
  security_groups = ["pravega_default"]
  depends_on = ["aws_instance.pravega"]
  provisioner "local-exec" {
-   command = "../gradlew distTar && mv ../build/distributions/pravega-0.1.0-SNAPSHOT.tar installer/data/"
- }
- provisioner "local-exec" {
-   command = "chmod +x fill_template.sh && ./fill_template.sh '${join(",", aws_instance.pravega.*.public_ip)}' ${aws_emr_cluster.pravega-emr-cluster.master_public_dns} ${var.aws_region} "
+   command = "chmod +x bootstrap.sh && ./bootstrap.sh '${join(",", aws_instance.pravega.*.public_ip)}' ${aws_emr_cluster.pravega-emr-cluster.master_public_dns} ${var.aws_region} "
  }
  provisioner "file" {
    connection = {

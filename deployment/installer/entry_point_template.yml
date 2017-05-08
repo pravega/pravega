@@ -26,7 +26,6 @@
     - { role: install-controller }
 
 - hosts: pravega-hosts
-  serial: 1
   environment:
     JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     HDFS_REPLICATION: 1

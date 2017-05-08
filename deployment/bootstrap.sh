@@ -1,5 +1,18 @@
 #!/bin/bash
-set -x
+
+# Prepare installer
+cd .. && ./gradlew distTar && cd deployment && mv ../build/distributions/pravega-0.1.0-SNAPSHOT.tgz installer/data/
+cp ../config/config.properties installer/data/
+cp ../docker/bookkeeper/entrypoint.sh install-bk-temp.sh
+
+# Modify bookkeeper launch script to run in background
+sed '$ d' install-bk-temp.sh > install-bk.sh && rm install-bk-temp.sh
+echo "export SERVICE_PORT=\$PORT0" >> install-bk.sh
+echo "nohup /opt/bk_all/bookkeeper-server-4.4.0//bin/bookkeeper bookie --conf  /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf 0<&- &> /tmp/nohup.log &" >> install-bk.sh
+echo "sleep 5" >> install-bk.sh
+mkdir -p installer/roles/install-bk/files && mv install-bk.sh installer/roles/install-bk/files/
+
+# Fill in config templates
 cp installer/hosts-template installer/hosts
 public_ips=$1
 emr_endpoint=$2

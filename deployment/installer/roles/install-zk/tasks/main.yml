@@ -10,8 +10,9 @@
   register: zookeeper_id_file
 
 - name: Initialize Zookeeper
-  command: "zookeeper-3.5.1-alpha/bin/zkServer-initialize.sh init --force --myid={{ myid }}"
+  command: zookeeper-3.5.1-alpha/bin/zkServer-initialize.sh init --force --myid={{ myid }}
   when: not zookeeper_id_file.stat.exists
+  sudo: yes
 
 - name: Run zookeeper
   command: zookeeper-3.5.1-alpha/bin/zkServer.sh start

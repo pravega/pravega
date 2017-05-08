@@ -6,11 +6,8 @@
   sudo: yes
 
 - name: move zookeeper
-  shell: cp zookeeper-3.5.1-alpha.tar.gz/ /opt/zk/
+  shell: cp -r zookeeper-3.5.1-alpha /opt/zk/
   sudo: yes
-
-- name: Untar zookeeper
-  command: tar -xvf /opt/zk/zookeeper-3.5.1-alpha.tar.gz
 
 - name: Untar bk
   shell: tar -xvf bookkeeper-server-4.4.0-bin.tar.gz
@@ -25,12 +22,12 @@
 
 - name: Copy install script
   copy:
-    src: install_bk.sh
+    src: install-bk.sh
     dest: /opt/bk_all
   sudo: yes
 
 - name: Add exec mode on script
-  shell: chmod +x /opt/bk_all/install_bk.sh
+  shell: chmod +x /opt/bk_all/install-bk.sh
   sudo: yes
 
 - name: Format the volume one
@@ -39,12 +36,12 @@
   when: high_performance_mode == true
 
 - name: Create mount point one
-  shell: mkdir -p /mnt/ledgers
+  shell: mkdir -p /bk/ledgers
   sudo: yes
   when: high_performance_mode == true
 
 - name: Mount the volume one
-  shell: mount /dev/nvme0n1 /mnt/ledgers
+  shell: mount /dev/nvme0n1 /bk/ledgers
   sudo: yes
   when: high_performance_mode == true
 
@@ -54,15 +51,15 @@
   when: high_performance_mode == true
 
 - name: Create mount point two
-  shell: mkdir /mnt/journal
+  shell: mkdir /bk/journal
   sudo: yes
   when: high_performance_mode == true
 
 - name: Mount the volume two
-  shell: mount /dev/nvme1n1 /mnt/journal
+  shell: mount /dev/nvme1n1 /bk/journal
   sudo: yes
   when: high_performance_mode == true
 
 - name: Run install script
-  shell: /opt/bk_all/install_bk.sh
+  shell: /opt/bk_all/install-bk.sh
   sudo: yes

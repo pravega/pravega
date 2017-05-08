@@ -4,10 +4,6 @@
       src: data/config.properties
       dest: /home/ubuntu
 
-- name: Chmod entrypoint.sh
-  shell: chmod +x /opt/pravega/entrypoint.sh
-  sudo: yes
-
 - name: Run hosts
-  shell: nohup /opt/pravega/entrypoint.sh segmentstore 2>&1 &> /tmp/host.log &
+  shell: nohup /opt/pravega/bin/pravega-segmentstore 2>&1 &> /tmp/host.log &
   sudo: yes
