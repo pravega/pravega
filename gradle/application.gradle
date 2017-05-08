@@ -1,4 +1,10 @@
 plugins.withId('application') {
+    // Remove tar/zip from the archives configuration so they aren't published
+    configurations.archives.with {
+        artifacts.remove artifacts.find { it.archiveTask.is distZip }
+        artifacts.remove artifacts.find { it.archiveTask.is distTar }
+    }
+
     startScripts {
         doLast {
             unixScript.text = unixScript.text.replace('PRAVEGA_APP_HOME', '\$APP_HOME')

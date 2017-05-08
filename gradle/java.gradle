@@ -3,11 +3,7 @@ plugins.withId('java') {
     apply plugin: 'findbugs'
     apply plugin: 'jacoco'
     apply plugin: 'signing'
-
-    // Only publish non-test projects by default
-    if (!project.path.startsWith(":test")) {
-        apply plugin: 'maven'
-    }
+    apply plugin: 'maven'
 
     compileJava {
         options.compilerArgs.addAll([
@@ -22,7 +18,7 @@ plugins.withId('java') {
         ])
     }
 
-    archivesBaseName = "pravega" + project.path.replace(':', '-')
+    archivesBaseName = "pravega-${project.name}"
 
     task sourceJar(type: Jar) {
         classifier = 'sources'
