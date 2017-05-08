@@ -251,7 +251,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
                         // It is very important to keep this value up-to-date and correct.
                         this.metadata.setStorageLength(segmentInfo.getLength());
-                        this.dataSource.notifyStorageLengthUpdated(this.metadata.getId());
                     }
 
                     // Check if the Storage segment is sealed, but it's not in metadata (this is 100% indicative of some data corruption happening).
