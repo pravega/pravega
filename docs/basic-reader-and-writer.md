@@ -262,8 +262,6 @@ Any Reader in Pravega belongs to some ReaderGroup.  A ReaderGroup is a grouping
 of one or more Readers that consume from a Stream in parallel.  Before we create
 a Reader, we need to either create a ReaderGroup (or be aware of the name of an
 existing ReaderGroup).  This application only uses the basics from ReaderGroup.
- We discuss richer ReaderGroup functionality elsewhere ([Working with Pravega:
-Reader Groups](reader-groups-design.md)).
 
 Lines 10-15 show basic ReaderGroup creation.  ReaderGroup objects are created
 from a ReaderGroupManager object.  The ReaderGroupManager object, in turn, is
