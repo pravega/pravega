@@ -412,9 +412,6 @@ project('standalone') {
 }
 
 project('test-system') {
-    // Specifically publish this test project
-    apply plugin: 'maven'
-
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
