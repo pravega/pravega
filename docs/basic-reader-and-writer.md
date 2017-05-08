@@ -146,7 +146,7 @@ Applications use an EventStreamWriter object to write Events to a Stream.  The
 key object to creating the EventStreamWriter is the ClientFactory.  The
 ClientFactory is used to create Readers, Writers and other types of Pravega
 Client objects such as the State Synchronizer (see [Working with Pravega: State
-Synchronizer](/display/NAUT/Working+with+Pravega%3A+State+Synchronizer)).
+Synchronizer](state-synchronizer.md)).
 
 Line 10 shows the creation of a ClientFactory.  A ClientFactory is created in
 the context of a Scope, since all Readers, Writers and other Clients created by
@@ -199,7 +199,7 @@ example, we don't bother waiting.
 
 EventStreamWriter can also be used to begin a Transaction.  We cover
 Transactions in more detail elsewhere ([Working with Pravega:
-Transactions](/display/NAUT/Working+with+Pravega%3A+Transactions)).
+Transactions](transactions.md)).
 
 That's it for writing Events.  Now lets take a look at how to read Events using
 Pravega.
@@ -262,8 +262,6 @@ Any Reader in Pravega belongs to some ReaderGroup.  A ReaderGroup is a grouping
 of one or more Readers that consume from a Stream in parallel.  Before we create
 a Reader, we need to either create a ReaderGroup (or be aware of the name of an
 existing ReaderGroup).  This application only uses the basics from ReaderGroup.
- We discuss richer ReaderGroup functionality elsewhere ([Working with Pravega:
-Reader Groups](reader-groups-design.md)).
 
 Lines 10-15 show basic ReaderGroup creation.  ReaderGroup objects are created
 from a ReaderGroupManager object.  The ReaderGroupManager object, in turn, is
@@ -349,17 +347,12 @@ blocks for a specified timeout period.  If, after the timeout period has expire
 and no Event is available for reading, null is returned. That is why there is a
 null check on line 27 (to avoid printing out a spurious "null" event message to
 the console).  It is also used as the termination of the loop on line 34.  Note
-that the Event itself is wrapped in an EventRead object.  We talk a little more
-about this object elsewhere ([Working with Pravega: Reader
-Groups](reader-groups-design.md)).
+that the Event itself is wrapped in an EventRead object. 
 
 It is worth noting that readNextEvent() may throw an exception (handled in lines
 30-33).  This exception would be handled in cases where the Readers in the
 ReaderGroup need to be reset to a checkpoint or the ReaderGroup itself has been
-altered and the set of Streams being read has therefore been changed.  These
-concepts are also more advanced and covered in more detail elsewhere ([Working
-with Pravega: Reader
-Groups](reader-groups-design.md)).
+altered and the set of Streams being read has therefore been changed. 
 
 So that's it.  The simple HelloWorldReader loops, reading Events from a Stream
 until there are no more Events, and then the application terminates.
