@@ -242,7 +242,7 @@ that Streams are usually read in large contiguous chunks and that HDFS is well
 suited for those sort of large, high-throughput reads.  It is also worth noting
 that tail reads do not impact the performance of writes.
 
-## Infinite Retention
+## Unlimited Retention
 
 Data in Streams can be retained for as long as the application needs it, 
 constrained to the amount of data available, which is unbounded given the use
