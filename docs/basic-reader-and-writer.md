@@ -347,17 +347,12 @@ blocks for a specified timeout period.  If, after the timeout period has expire
 and no Event is available for reading, null is returned. That is why there is a
 null check on line 27 (to avoid printing out a spurious "null" event message to
 the console).  It is also used as the termination of the loop on line 34.  Note
-that the Event itself is wrapped in an EventRead object.  We talk a little more
-about this object elsewhere ([Working with Pravega: Reader
-Groups](reader-groups-design.md)).
+that the Event itself is wrapped in an EventRead object. 
 
 It is worth noting that readNextEvent() may throw an exception (handled in lines
 30-33).  This exception would be handled in cases where the Readers in the
 ReaderGroup need to be reset to a checkpoint or the ReaderGroup itself has been
-altered and the set of Streams being read has therefore been changed.  These
-concepts are also more advanced and covered in more detail elsewhere ([Working
-with Pravega: Reader
-Groups](reader-groups-design.md)).
+altered and the set of Streams being read has therefore been changed. 
 
 So that's it.  The simple HelloWorldReader loops, reading Events from a Stream
 until there are no more Events, and then the application terminates.
