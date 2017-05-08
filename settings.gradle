@@ -28,6 +28,6 @@ include 'common',
         'segmentstore:server:host',
         'controller',
         'standalone',
-        'test:common',
+        'test:testcommon',
         'test:integration',
         'test:system'
