@@ -147,23 +147,23 @@ project('test:common') {
     }
 }
 
-project('service:contracts') {
+project('segmentstore:contracts') {
     dependencies {
         compile project(':common')
         testCompile project(':test:common')
     }
 }
 
-project('service:storage') {
+project('segmentstore:storage') {
     dependencies {
         compile project(':common')
-        compile project(':service:contracts')
+        compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:common')
     }
 }
 
-project('service:storage:impl') {
+project('segmentstore:storage:impl') {
     dependencies {
         compile (group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion) {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -180,24 +180,24 @@ project('service:storage:impl') {
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         compile project(':common')
-        compile project(':service:storage')
+        compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         testCompile project(':test:common')
-        testCompile project(path:':service:storage', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
     }
 }
 
-project('service:server') {
+project('segmentstore:server') {
     dependencies {
         compile project(':common')
-        compile project(':service:contracts')
-        compile project(':service:storage')
+        compile project(':segmentstore:contracts')
+        compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         testCompile project(':test:common')
     }
 }
 
-project('service:server:host') {
+project('segmentstore:server:host') {
     apply plugin: 'application'
     applicationName = "pravega-segmentstore"
     mainClassName = "io.pravega.service.server.host.ServiceStarter"
@@ -214,17 +214,17 @@ project('service:server:host') {
 
     dependencies {
         compile project(':common')
-        compile project(':service:contracts')
+        compile project(':segmentstore:contracts')
         compile project(':client')
-        compile project(':service:storage')
-        compile project(':service:storage:impl')
-        compile project(':service:server')
+        compile project(':segmentstore:storage')
+        compile project(':segmentstore:storage:impl')
+        compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:common')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        testCompile project(path:':service:server', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
-        testCompile project(path:':service:storage:impl', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
     }
 }
 
@@ -232,8 +232,8 @@ project('test:integration') {
     dependencies {
         compile project(':common')
         compile project(':client')
-        compile project(':service:server')
-        compile project(':service:server:host')
+        compile project(':segmentstore:server')
+        compile project(':segmentstore:server:host')
         compile project(':controller')
         compile project(':test:common')
         compile group: 'junit', name:'junit', version: junitVersion
@@ -242,8 +242,8 @@ project('test:integration') {
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
         testCompile project(path:':common', configuration:'testRuntime')
         testCompile project(path:':shared:protocol', configuration:'testRuntime')
-        testCompile project(path:':service:server', configuration:'testRuntime')
-        testCompile project(path:':service:server:host', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:server', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
 
         // Workaround for intellij issue, since we cannot add both the compile dependency and the testRuntime
         // dependency of the client project into the compile scope of the integration tests
@@ -382,12 +382,12 @@ project('standalone') {
     dependencies {
         compile project(':common')
         compile project(':client')
-        compile project(':service:server')
-        compile project(':service:server:host')
+        compile project(':segmentstore:server')
+        compile project(':segmentstore:server:host')
         compile project(':controller')
-        compile project(':service:contracts')
-        compile project(':service:storage')
-        compile project(':service:storage:impl')
+        compile project(':segmentstore:contracts')
+        compile project(':segmentstore:storage')
+        compile project(':segmentstore:storage:impl')
 
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -398,8 +398,8 @@ project('standalone') {
 
         testCompile project(':test:common')
         testCompile project(path:':common', configuration:'testRuntime')
-        testCompile project(path:':service:server', configuration:'testRuntime')
-        testCompile project(path:':service:server:host', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:server', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
     }
 
     task startStandalone(type: JavaExec) {
@@ -489,11 +489,11 @@ task publishAllJars() {
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
     dependsOn ':shared:protocol:publish'
-    dependsOn ':service:contracts:publish'
-    dependsOn ':service:storage:publish'
-    dependsOn ':service:storage:impl:publish'
-    dependsOn ':service:server:publish'
-    dependsOn ':service:server:host:publish'
+    dependsOn ':segmentstore:contracts:publish'
+    dependsOn ':segmentstore:storage:publish'
+    dependsOn ':segmentstore:storage:impl:publish'
+    dependsOn ':segmentstore:server:publish'
+    dependsOn ':segmentstore:server:host:publish'
     dependsOn ':shared:metrics:publish'
     dependsOn ':shared:controller:publish'
     dependsOn ':controller:publish'
@@ -547,7 +547,7 @@ distributions {
             from (project(":controller").installDist) {
                 exclude "logback.xml"
             }
-            from (project(":service:server:host").installDist) {
+            from (project(":segmentstore:server:host").installDist) {
                 exclude "logback.xml"
             }
             from (project(":standalone").installDist)
