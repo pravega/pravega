@@ -263,7 +263,7 @@ of one or more Readers that consume from a Stream in parallel.  Before we creat
 a Reader, we need to either create a ReaderGroup (or be aware of the name of an
 existing ReaderGroup).  This application only uses the basics from ReaderGroup.
  We discuss richer ReaderGroup functionality elsewhere ([Working with Pravega:
-Reader Groups](http://pravega.io/docs/Reader-Groups/index.html)).
+Reader Groups](reader-groups-design.md)).
 
 Lines 10-15 show basic ReaderGroup creation.  ReaderGroup objects are created
 from a ReaderGroupManager object.  The ReaderGroupManager object, in turn, is
@@ -351,7 +351,7 @@ null check on line 27 (to avoid printing out a spurious "null" event message to
 the console).  It is also used as the termination of the loop on line 34.  Note
 that the Event itself is wrapped in an EventRead object.  We talk a little more
 about this object elsewhere ([Working with Pravega: Reader
-Groups](http://pravega.io/docs/Reader-Groups/index.html)).
+Groups](reader-groups-design.md)).
 
 It is worth noting that readNextEvent() may throw an exception (handled in lines
 30-33).  This exception would be handled in cases where the Readers in the
@@ -359,7 +359,7 @@ ReaderGroup need to be reset to a checkpoint or the ReaderGroup itself has been
 altered and the set of Streams being read has therefore been changed.  These
 concepts are also more advanced and covered in more detail elsewhere ([Working
 with Pravega: Reader
-Groups](http://pravega.io/docs/Reader-Groups/index.html)).
+Groups](reader-groups-design.md)).
 
 So that's it.  The simple HelloWorldReader loops, reading Events from a Stream
 until there are no more Events, and then the application terminates.

@@ -1,5 +1,7 @@
 # Reader Groups Design
 
+_To be updated to reflect recent implementation details (05/07/2017)_
+
 ## Motivation 
 A set of Readers can be grouped together in order that the set of Events in a Stream can be read in parallel.  The grouping of Readers is called a Readers Group.  Pravega guarantees that each Event in the Stream is read by exactly one Reader in the Readers Group. 
 
