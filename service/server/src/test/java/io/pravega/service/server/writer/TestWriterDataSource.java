@@ -85,8 +85,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @GuardedBy("lock")
     private ErrorInjector<Exception> getAppendDataErrorInjector;
     @GuardedBy("lock")
-    private Consumer<Long> notifyStorageLengthUpdatedCallback;
-    @GuardedBy("lock")
     private BiConsumer<Long, Long> completeMergeCallback;
     private final Object lock = new Object();
 
@@ -269,14 +267,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public void notifyStorageLengthUpdated(long streamSegmentId) {
-        val callback = getNotifyStorageLengthUpdatedCallback();
-        if (callback != null) {
-            callback.accept(streamSegmentId);
-        }
-    }
-
-    @Override
     public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
         synchronized (this.lock) {
             ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
@@ -360,18 +350,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     void setGetAppendDataErrorInjector(ErrorInjector<Exception> injector) {
         synchronized (this.lock) {
             this.getAppendDataErrorInjector = injector;
-        }
-    }
-
-    void setNotifyStorageLengthUpdatedCallback(Consumer<Long> callback) {
-        synchronized (this.lock) {
-            this.notifyStorageLengthUpdatedCallback = callback;
-        }
-    }
-
-    Consumer<Long> getNotifyStorageLengthUpdatedCallback() {
-        synchronized (this.lock) {
-            return this.notifyStorageLengthUpdatedCallback;
         }
     }
 

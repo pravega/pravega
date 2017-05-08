@@ -124,13 +124,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Check the ability to update Metadata.StorageOffset if it is different.
         final int writeLength = 10;
-        AtomicLong lengthNotifyCallback = new AtomicLong(-1234);
-        context.dataSource.setNotifyStorageLengthUpdatedCallback(lengthNotifyCallback::set);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.storage.write(writeHandle(context.segmentAggregator.getMetadata().getName()), 0, new ByteArrayInputStream(new byte[writeLength]), writeLength, TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
         Assert.assertEquals("SegmentMetadata.StorageLength was not updated after call to initialize().", writeLength, context.segmentAggregator.getMetadata().getStorageLength());
-        Assert.assertEquals("notifyStorageLengthUpdated was not invoked.", context.segmentAggregator.getMetadata().getId(), lengthNotifyCallback.get());
     }
 
     /**

@@ -70,6 +70,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
         this.bkRunner = BookKeeperServiceRunner.builder()
                                                .startZk(true)
                                                .zkPort(zkPort)
+                                               .ledgersPath("/ledgers")
                                                .bookiePorts(bookiePorts)
                                                .build();
         this.bkRunner.start();
