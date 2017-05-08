@@ -234,7 +234,7 @@ project('test:integration') {
         compile project(':client')
         compile project(':service:server')
         compile project(':service:server:host')
-        compile project(':controller:server')
+        compile project(':controller')
         compile project(':test:common')
         compile group: 'junit', name:'junit', version: junitVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -327,7 +327,7 @@ project('shared:controller') {
     }
 }
 
-project('controller:server') {
+project('controller') {
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
     }
@@ -384,7 +384,7 @@ project('standalone') {
         compile project(':client')
         compile project(':service:server')
         compile project(':service:server:host')
-        compile project(':controller:server')
+        compile project(':controller')
         compile project(':service:contracts')
         compile project(':service:storage')
         compile project(':service:storage:impl')
@@ -419,7 +419,7 @@ project('test:system') {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
-        compile project(':controller:server')
+        compile project(':controller')
         compile project(":client")
         compile project(":test:common")
         compile group: 'junit', name: 'junit', version: junitVersion
@@ -496,7 +496,7 @@ task publishAllJars() {
     dependsOn ':service:server:host:publish'
     dependsOn ':shared:metrics:publish'
     dependsOn ':shared:controller:publish'
-    dependsOn ':controller:server:publish'
+    dependsOn ':controller:publish'
     dependsOn ':standalone:publish'
     dependsOn ':test:system:publish'
 }
@@ -544,7 +544,7 @@ distributions {
             from ("config") {
                 into "conf"
             }
-            from (project(":controller:server").installDist) {
+            from (project(":controller").installDist) {
                 exclude "logback.xml"
             }
             from (project(":service:server:host").installDist) {
