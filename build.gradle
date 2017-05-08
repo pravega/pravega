@@ -49,6 +49,7 @@ allprojects {
     }
 
     version = pravegaVersion
+    group = "io.pravega"
 }
 
 project('common') {
