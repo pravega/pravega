@@ -1,4 +1,6 @@
-# Pravega Roadmap (March 2017)
+# Pravega Roadmap 
+
+# Version 0.2 (May 2017)
 
 ## Auto scaling of Streams
 
@@ -35,6 +37,12 @@ protocol is versioned. 
 -   Tier 2 interaction metrics
 -   Metrics for requests to/from external components (ZK, BK, HDFS..)
 
+## Flink Connector - Finalize 
+-   Flink (source/sink) - [Completed](https://github.com/pravega/flink-connectors)
+-   Support dynamic scaling of workers in flink jobs 
+
+# Version 0.3 (July 2017)
+
 ## Security
 
 -   Access Control on Stream operation
@@ -45,24 +53,25 @@ protocol is versioned. 
 
 Allow Hadoop MapReduce jobs to access stream data stored in Tier 2 HDFS.
 
+## Low Level Reader API
+
+-   A more flexible way to coordinate readers in a group with changing number of segments. 
+
 ## Connectors for Stream Processors
 
 Additional streaming connectors allow data ingestion into Flink and using more
 systems as sinks for Flink streaming programs.
 
--   Flink (source/sink) - [Completed](https://github.com/pravega/flink-connectors)
 -   Spark (source/sink)
 -   Apache Beam (TBD)
 -   (TBD)
+
+# Version 0.4 (Sep 2017)
 
 ## Object Storage as a Tier 2 Storage
 
 Ability to use Object storage as Tier 2 storage Layer. Preferably Amazon S3 or
 any storage systems that support S3 API. 
-
-## Low Level Reader API
-
--   A more flexible way to coordinate readers in a group with changing number of segments. 
 
 ## Pravega Mesos Framework
 
@@ -70,7 +79,7 @@ To fully support dynamic scaling of Pravega cluster based on resource
 utilization. This would entail that we build Pravega framework that negotiates
 with Mesos Resource Manager on securing or releasing additional resource. 
 
-## Future Items - Subject to discussion 
+# Future Items - Not versioned yet. Subject to discussion 
 
 -   REST Proxy for Reader/Writer (REST proxy for Admin operations is already there)
 -   Stream aliasing
