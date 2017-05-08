@@ -124,7 +124,7 @@ project('client') {
         compile project(':common')
         compile project(':shared')
         compile project(':shared:protocol')
-        compile project(":shared:controller")
+        compile project(":shared:controller-api")
         testCompile project(':test:common')
     }
 
@@ -311,7 +311,7 @@ project('test:integration') {
     }
 }
 
-project('shared:controller') {
+project('shared:controller-api') {
     apply plugin: 'com.google.protobuf'
 
     dependencies {
@@ -348,7 +348,7 @@ project('controller') {
 
     dependencies {
         compile project(':common')
-        compile project(":shared:controller")
+        compile project(":shared:controller-api")
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -495,7 +495,7 @@ task publishAllJars() {
     dependsOn ':segmentstore:server:publish'
     dependsOn ':segmentstore:server:host:publish'
     dependsOn ':shared:metrics:publish'
-    dependsOn ':shared:controller:publish'
+    dependsOn ':shared:controller-api:publish'
     dependsOn ':controller:publish'
     dependsOn ':standalone:publish'
     dependsOn ':test:system:publish'
