@@ -1,8 +1,30 @@
+import java.util.regex.Matcher
+
 plugins.withId('application') {
+    task pathingJar(type: Jar) {
+        appendix = 'pathing'
+
+        // Delay configuring the manifest to avoid resolving the configuration
+        doFirst {
+            manifest {
+                attributes("Class-Path":
+                        configurations.runtime.collect { it.name }.join(' ') + ' ' +
+                        jar.archiveName
+                )
+            }
+        }
+    }
+    applicationDistribution.from(pathingJar) {
+        into "lib"
+    }
+
     startScripts {
         doLast {
             unixScript.text = unixScript.text.replace('PRAVEGA_APP_HOME', '\$APP_HOME')
             windowsScript.text = windowsScript.text.replace('PRAVEGA_APP_HOME', '%~dp0..')
+            // Replace the classpath on windows with the pathing JAR and the main archive
+            windowsScript.text = windowsScript.text.replaceAll('set CLASSPATH=.*', Matcher.quoteReplacement(
+                    "set CLASSPATH=%APP_HOME%\\lib\\${pathingJar.archiveName};%APP_HOME%\\lib\\${jar.archiveName}"))
         }
     }
 }
