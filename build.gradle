@@ -75,6 +75,16 @@ project('common') {
     }
 }
 
+project ('shared') {
+    dependencies {
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+    }
+    javadoc {
+        exclude 'io/pravega/shared/*'
+    }
+}
+
 project ('shared:metrics') {
     dependencies {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
@@ -113,6 +123,7 @@ project('client') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile project(':common')
+        compile project(':shared')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
         testCompile project(':test:testcommon')

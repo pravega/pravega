@@ -16,6 +16,7 @@
 rootProject.name = 'pravega'
 
 include 'common',
+        'shared',
         'shared:metrics',
         'shared:protocol',
         'shared:controller-api',
