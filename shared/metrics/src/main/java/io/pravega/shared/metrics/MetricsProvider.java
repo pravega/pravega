@@ -18,7 +18,7 @@ package io.pravega.shared.metrics;
 import com.codahale.metrics.MetricRegistry;
 
 public class MetricsProvider {
-    static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
+    static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
     private static final StatsProviderProxy STATS_PROVIDER = new StatsProviderProxy();
     private static final DynamicLoggerProxy DYNAMIC_LOGGER = new DynamicLoggerProxy(STATS_PROVIDER.createDynamicLogger());
 
