@@ -1,6 +1,7 @@
 # Running on AWS
 
 Pre-reqs: terraform installed, and create a AWS account
+
 Terraform can be downloaded from https://www.terraform.io/downloads.html
 
 ### Deploy Steps
@@ -8,7 +9,7 @@ Terraform can be downloaded from https://www.terraform.io/downloads.html
 
 There are three sections of hosts-template, common-services is for zookeeper and bookkeeper, pravega-controller is for pravega controller node, and pravega-hosts is for pravega segmentstore node.
 Here is a example of hosts-template:
-##### 
+
 [common-services]
 N0 myid=0
 N1 myid=1
