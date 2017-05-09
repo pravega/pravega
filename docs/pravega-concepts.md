@@ -434,7 +434,7 @@ The concepts in Pravega are summarized in the following figure:
 -   Each Stream Segment is stored in a combination of Tier1 and Tier2 storage. 
     The tail of the Segment is stored in Tier1 providing low latency reads and
     writes.  The rest of the Segment is stored in Tier2, providing high
-    throughput read access with near-infinite scale and low cost. 
+    throughput read access with horizontal scalibility and low cost. 
 
 ## A Note on Tiered Storage
 
