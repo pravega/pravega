@@ -86,6 +86,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final class Session {
         private final UUID writerId;
         private long lastEventNumber = -1L;
+        private int eventCount;
     }    
 
     @Override
@@ -127,7 +128,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 }
 
                 session.lastEventNumber = append.getEventNumber();
-
+                session.eventCount++;
                 ByteBuf data = append.getData();
                 int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
                 // Is there enough space for a subsequent message after this one?
@@ -142,10 +143,13 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                                                            serializedMessage.length - bytesInBlock);
                     writeMessage(new PartialEvent(dataInsideBlock), out);
                     writeMessage(new AppendBlockEnd(session.writerId,
-                                                    session.lastEventNumber,
                                                     currentBlockSize - bytesLeftInBlock,
-                                                    dataRemainging), out);
+                                                    dataRemainging,
+                                                    session.eventCount,
+                                                    session.lastEventNumber,
+                                                    session.lastEventNumber), out);
                     bytesLeftInBlock = 0;
+                    session.eventCount = 0;
                 }
             }
         } else if (msg instanceof SetupAppend) {
@@ -171,11 +175,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
             Session session = setupSegments.get(segmentBeingAppendedTo);
             writeMessage(new AppendBlockEnd(session.writerId,
-                    session.lastEventNumber,
                     currentBlockSize - bytesLeftInBlock,
-                    null), out);
+                    null,
+                    session.eventCount,
+                    session.lastEventNumber,
+                    session.lastEventNumber), out);
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
+            session.eventCount = 0;
         }
         segmentBeingAppendedTo = null;
     }

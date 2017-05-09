@@ -368,15 +368,16 @@ public final class WireCommands {
     public static final class AppendBlockEnd implements WireCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK_END;
         final UUID writerId;
-        final long lastEventNumber;
         final int sizeOfWholeEvents;
         final ByteBuf data;
+        final int numEvents;
+        final long lastEventNumber;
+        final long unused; // Will be used by AppendSequence:  
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
-            out.writeLong(lastEventNumber);
             out.writeInt(sizeOfWholeEvents);
             if (data == null) {
                 out.writeInt(0);
@@ -384,11 +385,13 @@ public final class WireCommands {
                 out.writeInt(data.readableBytes());
                 out.write(data.array(), data.arrayOffset(), data.readableBytes());
             }
+            out.writeInt(numEvents);
+            out.writeLong(lastEventNumber);
+            out.writeLong(unused);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            long lastEventNumber = in.readLong();
             int sizeOfHeaderlessAppends = in.readInt();
             int dataLength = in.readInt();
             byte[] data;
@@ -398,7 +401,10 @@ public final class WireCommands {
             } else {
                 data = new byte[0];
             }
-            return new AppendBlockEnd(writerId, lastEventNumber, sizeOfHeaderlessAppends, wrappedBuffer(data));
+            int numEvents = in.readInt();
+            long lastEventNumber = in.readLong();
+            long unused = in.readLong();
+            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, wrappedBuffer(data), numEvents, lastEventNumber, unused);
         }
     }
     
