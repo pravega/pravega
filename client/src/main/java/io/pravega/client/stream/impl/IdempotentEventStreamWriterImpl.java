@@ -63,6 +63,7 @@ public class IdempotentEventStreamWriterImpl<Type> implements IdempotentEventStr
     @Override
     public AckFuture writeEvent(String routingKey, long sequence, Type event) {
         Preconditions.checkNotNull(routingKey);
+        Preconditions.checkArgument(sequence >= 0, "Sequence number must be positive.");
         return writeEventInternal(routingKey, sequence, event);
     }
     
