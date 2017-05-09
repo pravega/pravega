@@ -450,12 +450,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Void> addTransaction(String hostId, UUID txnId, int version) {
-        return hostIndex.putChild(hostId, txnId.toString(), ByteBuffer.allocate(4).putInt(version).array());
+        return hostIndex.addEntity(hostId, txnId.toString(), ByteBuffer.allocate(4).putInt(version).array());
     }
 
     @Override
     public CompletableFuture<Void> removeTransaction(String hostId, UUID txnId, boolean deleteEmptyParent) {
-        return hostIndex.removeChild(hostId, txnId.toString(), deleteEmptyParent);
+        return hostIndex.removeEntity(hostId, txnId.toString(), deleteEmptyParent);
     }
 
     @Override

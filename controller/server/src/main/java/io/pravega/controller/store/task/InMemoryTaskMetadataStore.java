@@ -37,7 +37,7 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     private final Map<Resource, LockData> lockTable;
 
     InMemoryTaskMetadataStore(ScheduledExecutorService executor) {
-        super(new InMemoryHostIndex(executor), executor);
+        super(new InMemoryHostIndex(), executor);
         lockTable = new HashMap<>();
     }
 

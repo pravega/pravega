@@ -51,7 +51,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final Executor executor;
 
     InMemoryStreamMetadataStore(Executor executor) {
-        super(new InMemoryHostIndex(executor));
+        super(new InMemoryHostIndex());
         this.executor = executor;
     }
 

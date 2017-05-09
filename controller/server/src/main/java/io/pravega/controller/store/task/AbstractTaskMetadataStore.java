@@ -95,25 +95,25 @@ public abstract class AbstractTaskMetadataStore implements TaskMetadataStore {
     abstract Void removeLock(final Resource resource, final String owner, final String tag);
 
     @Override
-    public synchronized CompletableFuture<Void> putChild(final String parent, final TaggedResource child) {
-        return hostIndex.putChild(parent, getNode(child));
+    public CompletableFuture<Void> putChild(final String parent, final TaggedResource child) {
+        return hostIndex.addEntity(parent, getNode(child));
     }
 
     @Override
-    public synchronized CompletableFuture<Void> removeChild(final String parent,
-                                                            final TaggedResource child,
-                                                            final boolean deleteEmptyParent) {
-        return hostIndex.removeChild(parent, getNode(child), deleteEmptyParent);
+    public CompletableFuture<Void> removeChild(final String parent,
+                                               final TaggedResource child,
+                                               final boolean deleteEmptyParent) {
+        return hostIndex.removeEntity(parent, getNode(child), deleteEmptyParent);
     }
 
     @Override
-    public synchronized CompletableFuture<Void> removeNode(final String parent) {
-        return hostIndex.removeNode(parent);
+    public CompletableFuture<Void> removeNode(final String parent) {
+        return hostIndex.removeHost(parent);
     }
 
     @Override
-    public synchronized CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent) {
-        return hostIndex.getRandomChild(parent).thenApply(strOpt -> strOpt.map(this::getTaggedResource));
+    public CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent) {
+        return hostIndex.getRandomEntity(parent).thenApply(strOpt -> strOpt.map(this::getTaggedResource));
     }
 
     @Override

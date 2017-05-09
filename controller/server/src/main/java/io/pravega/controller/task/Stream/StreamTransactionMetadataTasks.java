@@ -46,7 +46,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -144,14 +143,20 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param maxExecutionTime Maximum time for which client may extend txn lease.
      * @param scaleGracePeriod Maximum time for which client may extend txn lease once
      *                         the scaling operation is initiated on the txn stream.
-     * @param contextOpt       operational context
+     * @param ctxOpt           operational context
      * @return transaction id.
      */
-    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream, final long lease,
-                                                                                      final long maxExecutionTime, final long scaleGracePeriod, final OperationContext contextOpt) {
-        final OperationContext context =
-                contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        return execute(() -> createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context));
+    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
+                                                                                      final String stream,
+                                                                                      final long lease,
+                                                                                      final long maxExecutionTime,
+                                                                                      final long scaleGracePeriod,
+                                                                                      final OperationContext ctxOpt) {
+        return checkReady().thenComposeAsync(x -> {
+            final OperationContext context =
+                    ctxOpt == null ? streamMetadataStore.createContext(scope, stream) : ctxOpt;
+            return createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context);
+        }, executor);
     }
 
     /**
@@ -167,9 +172,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<VersionedTransactionData> pingTxn(final String scope, final String stream,
                                                                final UUID txId, final long lease,
                                                                final OperationContext contextOpt) {
-        final OperationContext context =
-                contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        return execute(() -> pingTxnBody(scope, stream, txId, lease, context));
+        return checkReady().thenComposeAsync(x -> {
+            final OperationContext context =
+                    contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+            return pingTxnBody(scope, stream, txId, lease, context);
+        }, executor);
     }
 
     /**
@@ -184,8 +191,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
                                                  final Integer version, final OperationContext contextOpt) {
-        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        return execute(() -> abortTxnBody(scope, stream, txId, version, context));
+        return checkReady().thenComposeAsync(x -> {
+            final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+            return abortTxnBody(scope, stream, txId, version, context);
+        }, executor);
     }
 
     /**
@@ -199,48 +208,44 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final OperationContext contextOpt) {
-        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        return execute(() -> commitTxnBody(scope, stream, txId, context));
+        return checkReady().thenComposeAsync(x -> {
+            final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+            return commitTxnBody(scope, stream, txId, context);
+        }, executor);
     }
 
-    private <T> CompletableFuture<T> execute(final Supplier<CompletableFuture<T>> operation) {
+    private CompletableFuture<Void> checkReady() {
         if (!ready) {
             return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         } else {
-            return operation.get();
+            return CompletableFuture.completedFuture(null);
         }
     }
 
-    private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope, final String stream,
-                                                                      final long lease, final long maxExecutionPeriod,
-                                                                      final long scaleGracePeriod,
-                                                                      final OperationContext context) {
+    private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
+                                                                                           final String stream,
+                                                                                           final long lease,
+                                                                                           final long maxExecutionPeriod,
+                                                                                           final long scaleGracePeriod,
+                                                                                           final OperationContext ctx) {
         UUID txnId = UUID.randomUUID();
         CompletableFuture<Void> addIndex = streamMetadataStore.addTransaction(hostId, txnId, 0);
-        return addIndex.thenCompose(x -> streamMetadataStore.createTransaction(scope, stream, txnId, lease,
-                maxExecutionPeriod, scaleGracePeriod, context, executor).thenCompose(txData ->
-                streamMetadataStore.getActiveSegments(scope, stream, context, executor)
-                        .thenCompose(activeSegments ->
-                                FutureHelpers.allOf(
-                                        activeSegments.stream()
-                                                .parallel()
-                                                .map(segment ->
-                                                        notifyTxCreation(scope,
-                                                                stream,
-                                                                segment.getNumber(),
-                                                                txData.getId()))
-                                                .collect(Collectors.toList()))
-                                        .thenApply(v -> new ImmutablePair<>(txData, activeSegments)))));
+        return addIndex.thenComposeAsync(x -> streamMetadataStore.createTransaction(scope, stream, txnId, lease,
+                maxExecutionPeriod, scaleGracePeriod, ctx, executor).thenComposeAsync(txData ->
+                streamMetadataStore.getActiveSegments(scope, stream, ctx, executor).thenComposeAsync(activeSegments ->
+                        notifyTxCreation(scope, stream, activeSegments, txnId).thenApply(v ->
+                                new ImmutablePair<>(txData, activeSegments)), executor), executor), executor);
     }
 
-    private CompletableFuture<VersionedTransactionData> pingTxnBody(String scope, String stream, UUID txId, long lease,
-                                                                    final OperationContext context) {
-        return streamMetadataStore.pingTransaction(scope, stream, txId, lease, context, executor);
+    private CompletableFuture<VersionedTransactionData> pingTxnBody(final String scope, final String stream,
+                                                                    final UUID txId, long lease,
+                                                                    final OperationContext ctx) {
+        return streamMetadataStore.pingTransaction(scope, stream, txId, lease, ctx, executor);
     }
 
     private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
-                                                      final Integer version, final OperationContext context) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), context, executor)
+                                                      final Integer version, final OperationContext ctx) {
+        return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), ctx, executor)
                 .thenComposeAsync(status -> {
                     if (status == TxnStatus.ABORTING) {
                         return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter,
@@ -250,13 +255,13 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         // Status is ABORTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
-                }, executor).thenCompose(status ->
-                        streamMetadataStore.removeTransaction(hostId, txid, true).thenApply(ignore -> status));
+                }, executor).thenComposeAsync(status ->
+                        streamMetadataStore.removeTransaction(hostId, txid, true).thenApply(x -> status), executor);
     }
 
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
-                                                       final OperationContext context) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), context, executor)
+                                                       final OperationContext ctx) {
+        return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), ctx, executor)
                 .thenComposeAsync(status -> {
                     if (status == TxnStatus.COMMITTING) {
                         return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter,
@@ -266,8 +271,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         // Status is COMMITTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
-                }, executor).thenCompose(status ->
-                        streamMetadataStore.removeTransaction(hostId, txid, true).thenApply(ignore -> status));
+                }, executor).thenComposeAsync(status ->
+                        streamMetadataStore.removeTransaction(hostId, txid, true).thenApply(x -> status), executor);
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
@@ -299,8 +304,20 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         }, executor);
     }
 
+    private CompletableFuture<Void> notifyTxCreation(final String scope,
+                                                     final String stream,
+                                                     final List<Segment> activeSegments,
+                                                     final UUID txnId) {
+        return FutureHelpers.allOf(activeSegments.stream()
+                .parallel()
+                .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txnId))
+                .collect(Collectors.toList()));
+    }
 
-    private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
+    private CompletableFuture<UUID> notifyTxCreation(final String scope,
+                                                     final String stream,
+                                                     final int segmentNumber,
+                                                     final UUID txid) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
                 segmentNumber,

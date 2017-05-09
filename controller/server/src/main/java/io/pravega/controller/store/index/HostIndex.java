@@ -20,63 +20,67 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Host Index.
+ * Host Index provides a mechanism for tracking a bunch of entities managed by hosts in the cluster. Entities can
+ * be added and subsequently removed from the host's index. On host failure, ownership of orphaned entities can
+ * be transferred to a new host.
+ *
+ * Host Index is a map of host to the set of entities it manages. Entities can have additional data
+ * associated with them.
  */
 public interface HostIndex {
     /**
-     * Adds specified resource as a child of current host's hostId node.
-     * This is idempotent operation.
+     * Adds specified entity to the set of entities being managed by the specified host.
+     * This is an idempotent operation.
      *
-     * @param parent Parent node.
-     * @param child  Node to be added as child of parent.
+     * @param hostId Host.
+     * @param entity Entity to be added to the host.
      * @return void in future.
      */
-    CompletableFuture<Void> putChild(final String parent, final String child);
+    CompletableFuture<Void> addEntity(final String hostId, final String entity);
 
     /**
-     * Adds specified resource as a child of current host's hostId node.
-     * This is idempotent operation.
+     * Adds specified entity to the set of entities being managed by the specified host.
+     * This is an idempotent operation.
      *
-     * @param parent Parent node.
-     * @param child  Node to be added as child of parent.
-     * @param data   Child node's data.
+     * @param hostId     Host.
+     * @param entity     Entity to be added to the host.
+     * @param entityData Child node's data.
      * @return void in future.
      */
-    CompletableFuture<Void> putChild(final String parent, final String child, final byte[] data);
+    CompletableFuture<Void> addEntity(final String hostId, final String entity, final byte[] entityData);
 
     /**
-     * Removes the specified child node from the specified parent node.
-     * This is idempotent operation.
-     * If deleteEmptyParent is true and parent has no child after deletion of given child then parent is also deleted.
+     * Removes the specified entity from the set of entities being managed by the specified host.
+     * This is an idempotent operation. If deleteEmptyHost is true and the host has not more entities
+     * to manage after removal of specified entity, then the host is removed from the index.
      *
-     * @param parent            node whose child is to be removed.
-     * @param child             child node to remove.
-     * @param deleteEmptyParent to delete or not to delete.
+     * @param hostId          Host to remove an entity from.
+     * @param entity          Entity to remove.
+     * @param deleteEmptyHost whether to delete host node if it has no children.
      * @return void in future.
      */
-    CompletableFuture<Void> removeChild(final String parent, final String child, final boolean deleteEmptyParent);
+    CompletableFuture<Void> removeEntity(final String hostId, final String entity, final boolean deleteEmptyHost);
 
     /**
-     * Remove a parent node if it is empty.
-     * This is idempotent operation.
+     * Remove an empty host. This is idempotent operation.
      *
-     * @param parent parent node.
+     * @param hostId Host.
      * @return void in future.
      */
-    CompletableFuture<Void> removeNode(final String parent);
+    CompletableFuture<Void> removeHost(final String hostId);
 
     /**
-     * Returns a random child from among the children of specified parent.
+     * Returns a random entity from among the entities being managed by te specified host.
      *
-     * @param parent parent node.
-     * @return A randomly selected child if parent has children, otherwise Optional.empty().
+     * @param hostId Host.
+     * @return A randomly selected entity if the host is managing any, otherwise Optional.empty().
      */
-    CompletableFuture<Optional<String>> getRandomChild(final String parent);
+    CompletableFuture<Optional<String>> getRandomEntity(final String hostId);
 
     /**
-     * Returns the list of hosts performing some task. This list is obtained from the hostIndex.
+     * Returns the list of hosts present in the index.
      *
-     * @return the list of hosts performing some task.
+     * @return the list of hosts present in the index.
      */
     CompletableFuture<Set<String>> getHosts();
 }

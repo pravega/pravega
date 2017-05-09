@@ -19,106 +19,78 @@ import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * In-memory implementation of HostIndex.
  */
 public class InMemoryHostIndex implements HostIndex {
-    @GuardedBy("itself")
-    private final Map<String, Set<Pair<String, byte[]>>> hostTable;
-    private Executor executor;
+    private final ConcurrentHashMap<String, ConcurrentSkipListSet<Pair<String, byte[]>>> hostTable;
 
-    public InMemoryHostIndex(Executor executor) {
-        hostTable = new HashMap<>();
-        this.executor = executor;
+    public InMemoryHostIndex() {
+        hostTable = new ConcurrentHashMap<>();
     }
 
     @Override
-    public synchronized CompletableFuture<Void> putChild(final String parent, final String child) {
-        return putChild(parent, child, new byte[0]);
+    public CompletableFuture<Void> addEntity(final String hostId, final String entity) {
+        return addEntity(hostId, entity, new byte[0]);
     }
 
     @Override
-    public CompletableFuture<Void> putChild(String parent, String child, byte[] data) {
-        synchronized (hostTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(parent);
-                Preconditions.checkNotNull(child);
+    public CompletableFuture<Void> addEntity(String hostId, String entity, byte[] entityData) {
+        Preconditions.checkNotNull(hostId);
+        Preconditions.checkNotNull(entity);
+        if (hostTable.containsKey(hostId)) {
+            hostTable.get(hostId).add(new ImmutablePair<>(entity, entityData));
+        } else {
+            ConcurrentSkipListSet<Pair<String, byte[]>> children = new ConcurrentSkipListSet<>();
+            children.add(new ImmutablePair<>(entity, entityData));
+            hostTable.put(hostId, children);
+        }
+        return CompletableFuture.completedFuture(null);
+    }
 
-                if (hostTable.containsKey(parent)) {
-                    hostTable.get(parent).add(new ImmutablePair<>(child, data));
+    @Override
+    public CompletableFuture<Void> removeEntity(final String hostId,
+                                                final String entity,
+                                                final boolean deleteEmptyHost) {
+        Preconditions.checkNotNull(hostId);
+        Preconditions.checkNotNull(entity);
+        if (hostTable.containsKey(hostId)) {
+            Set<Pair<String, byte[]>> taggedResources = hostTable.get(hostId);
+            Optional<Pair<String, byte[]>> resource =
+                    taggedResources.stream().filter(pair -> pair.getKey().equals(entity)).findFirst();
+            if (resource.isPresent()) {
+                if (deleteEmptyHost && taggedResources.size() == 1) {
+                    hostTable.remove(hostId);
                 } else {
-                    Set<Pair<String, byte[]>> taggedResources = new HashSet<>();
-                    taggedResources.add(new ImmutablePair<>(child, data));
-                    hostTable.put(parent, taggedResources);
+                    taggedResources.remove(resource.get());
                 }
-                return null;
-            }, executor);
+            }
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public synchronized CompletableFuture<Void> removeChild(final String parent,
-                                                            final String child,
-                                                            final boolean deleteEmptyParent) {
-        synchronized (hostTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(parent);
-                Preconditions.checkNotNull(child);
-
-                if (hostTable.containsKey(parent)) {
-                    Set<Pair<String, byte[]>> taggedResources = hostTable.get(parent);
-                    Optional<Pair<String, byte[]>> resource =
-                            taggedResources.stream().filter(pair -> pair.getKey().equals(child)).findFirst();
-                    if (resource.isPresent()) {
-                        if (deleteEmptyParent && taggedResources.size() == 1) {
-                            hostTable.remove(parent);
-                        } else {
-                            taggedResources.remove(resource.get());
-                        }
-                    }
-                }
-                return null;
-            }, executor);
-        }
+    public synchronized CompletableFuture<Void> removeHost(final String hostId) {
+        Preconditions.checkNotNull(hostId);
+        hostTable.remove(hostId);
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public synchronized CompletableFuture<Void> removeNode(final String parent) {
-        synchronized (hostTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(parent);
-
-                hostTable.remove(parent);
-                return null;
-
-            }, executor);
-        }
-    }
-
-    @Override
-    public synchronized CompletableFuture<Optional<String>> getRandomChild(final String parent) {
-        synchronized (hostTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(parent);
-
-                Set<Pair<String, byte[]>> children = hostTable.get(parent);
-                if (children == null) {
-                    return Optional.empty();
-                } else {
-                    return children.stream().findAny().map(Pair::getKey);
-                }
-
-            }, executor);
+    public CompletableFuture<Optional<String>> getRandomEntity(final String hostId) {
+        Preconditions.checkNotNull(hostId);
+        Set<Pair<String, byte[]>> children = hostTable.get(hostId);
+        if (children == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        } else {
+            return CompletableFuture.completedFuture(children.stream().findAny().map(Pair::getKey));
         }
     }
 

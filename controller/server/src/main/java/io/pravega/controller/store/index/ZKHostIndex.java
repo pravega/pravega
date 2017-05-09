@@ -47,27 +47,27 @@ public class ZKHostIndex implements HostIndex {
     }
 
     @Override
-    public CompletableFuture<Void> putChild(final String parent, final String child) {
-        return putChild(parent, child, new byte[0]);
+    public CompletableFuture<Void> addEntity(final String hostId, final String entity) {
+        return addEntity(hostId, entity, new byte[0]);
     }
 
     @Override
-    public CompletableFuture<Void> putChild(String parent, String child, byte[] data) {
+    public CompletableFuture<Void> addEntity(String hostId, String entity, byte[] entityData) {
         return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(parent);
-            Preconditions.checkNotNull(child);
+            Preconditions.checkNotNull(hostId);
+            Preconditions.checkNotNull(entity);
 
             try {
 
                 client.create()
                         .creatingParentsIfNeeded()
                         .withMode(CreateMode.PERSISTENT)
-                        .forPath(getHostPath(parent, child), data);
+                        .forPath(getHostPath(hostId, entity), entityData);
 
                 return null;
 
             } catch (KeeperException.NodeExistsException e) {
-                log.debug("Node {} exists.", getHostPath(parent, child));
+                log.debug("Node {} exists.", getHostPath(hostId, entity));
                 return null;
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -76,31 +76,31 @@ public class ZKHostIndex implements HostIndex {
     }
 
     @Override
-    public CompletableFuture<Void> removeChild(final String parent, final String child, final boolean deleteEmptyParent) {
+    public CompletableFuture<Void> removeEntity(final String hostId, final String entity, final boolean deleteEmptyHost) {
         return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(parent);
-            Preconditions.checkNotNull(child);
+            Preconditions.checkNotNull(hostId);
+            Preconditions.checkNotNull(entity);
 
             try {
                 client.delete()
-                        .forPath(getHostPath(parent, child));
+                        .forPath(getHostPath(hostId, entity));
 
-                if (deleteEmptyParent) {
+                if (deleteEmptyHost) {
                     // if there are no children for the failed host, remove failed host znode
                     Stat stat = new Stat();
                     client.getData()
                             .storingStatIn(stat)
-                            .forPath(getHostPath(parent));
+                            .forPath(getHostPath(hostId));
 
                     if (stat.getNumChildren() == 0) {
                         client.delete()
                                 .withVersion(stat.getVersion())
-                                .forPath(getHostPath(parent));
+                                .forPath(getHostPath(hostId));
                     }
                 }
                 return null;
             } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", child);
+                log.debug("Node {} does not exist.", entity);
                 return null;
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -109,20 +109,20 @@ public class ZKHostIndex implements HostIndex {
     }
 
     @Override
-    public CompletableFuture<Void> removeNode(final String parent) {
+    public CompletableFuture<Void> removeHost(final String hostId) {
         return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(parent);
+            Preconditions.checkNotNull(hostId);
 
             try {
 
-                client.delete().forPath(getHostPath(parent));
+                client.delete().forPath(getHostPath(hostId));
                 return null;
 
             } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", getHostPath(parent));
+                log.debug("Node {} does not exist.", getHostPath(hostId));
                 return null;
             } catch (KeeperException.NotEmptyException e) {
-                log.debug("Node {} not empty.", getHostPath(parent));
+                log.debug("Node {} not empty.", getHostPath(hostId));
                 return null;
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -131,13 +131,13 @@ public class ZKHostIndex implements HostIndex {
     }
 
     @Override
-    public CompletableFuture<Optional<String>> getRandomChild(final String parent) {
+    public CompletableFuture<Optional<String>> getRandomEntity(final String hostId) {
         return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(parent);
+            Preconditions.checkNotNull(hostId);
 
             try {
 
-                List<String> children = client.getChildren().forPath(getHostPath(parent));
+                List<String> children = client.getChildren().forPath(getHostPath(hostId));
                 if (children.isEmpty()) {
                     return Optional.empty();
                 } else {
@@ -146,7 +146,7 @@ public class ZKHostIndex implements HostIndex {
                 }
 
             } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", getHostPath(parent));
+                log.debug("Node {} does not exist.", getHostPath(hostId));
                 return Optional.empty();
             } catch (Exception e) {
                 throw new RuntimeException(e);

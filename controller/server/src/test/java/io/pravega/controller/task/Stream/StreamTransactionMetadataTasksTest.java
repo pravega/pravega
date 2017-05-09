@@ -205,7 +205,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
         Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
-                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis()).join());
+                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, 0).join());
 
         // Create 2 transactions
         final long lease = 5000;
