@@ -39,6 +39,11 @@ public interface Sequence extends Comparable<Sequence>, Serializable {
         return result;
     }
     
+    /**
+     * Creates a new Sequence from two longs.
+     * @param highOrder The 'high order' long. (Signed)
+     * @param lowOrder The 'low order' long.  (Signed)
+     */
     public static Sequence create(long highOrder, long lowOrder) {
         return SequenceImpl.create(highOrder, lowOrder);
     }

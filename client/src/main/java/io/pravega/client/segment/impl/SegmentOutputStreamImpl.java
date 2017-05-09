@@ -351,7 +351,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     public void write(PendingEvent event) throws SegmentSealedException {
-        Preconditions.checkArgument(event.getSequence() >= 0, "Sequence number must be positive.");
+        Preconditions.checkArgument(event.getSequence() >= 0, "Sequence number must be a non-negative number.");
         if (!writeIfInSequence(event)) {
             event.getAckFuture().complete(false);
         }

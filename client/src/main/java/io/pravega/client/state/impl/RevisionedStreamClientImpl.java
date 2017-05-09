@@ -47,7 +47,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final SegmentOutputStream out;
     private final Serializer<T> serializer;
-    private final AtomicLong sequenceNumber = new AtomicLong(0);
+    @GuardedBy("lock")
+    private long sequenceNumber = 0;
     private final Object lock = new Object();
 
     @Override
@@ -58,8 +59,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         int size = serialized.remaining();
         try {
             synchronized (lock) {
-                PendingEvent event = new PendingEvent(null, sequenceNumber.incrementAndGet(), serialized, wasWritten,
-                                                      offset);
+                sequenceNumber++;
+                PendingEvent event = new PendingEvent(null, sequenceNumber, serialized, wasWritten, offset);
                 out.write(event);
             }
         } catch (SegmentSealedException e) {
@@ -86,7 +87,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         try {
             log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
-                PendingEvent event = new PendingEvent(null, sequenceNumber.incrementAndGet(), serialized, wasWritten);
+                sequenceNumber++;
+                PendingEvent event = new PendingEvent(null, sequenceNumber, serialized, wasWritten);
                 out.write(event);
             }
         } catch (SegmentSealedException e) {

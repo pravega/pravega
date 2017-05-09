@@ -32,7 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
@@ -44,31 +44,31 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
  * @param <Type> The type of event that is sent
  */
 @Slf4j
-public class EventStreamWriterImpl<Type> extends IdempotentEventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
+public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     private final Stream stream;
-    private final UUID writerId;
     private final Serializer<Type> serializer;
     private final SegmentOutputStreamFactory outputStreamFactory;
     private final Controller controller;
     private final Object lock = new Object();
-    private final AtomicLong sequenceGenerator = new AtomicLong();
+    @GuardedBy("lock")
+    private long sequence = 0;
+    private final IdempotentEventStreamWriterImpl<Type> writer;
 
     EventStreamWriterImpl(Stream stream, UUID writerId, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
             Serializer<Type> serializer, EventWriterConfig config) {
-        super(stream, writerId, controller, outputStreamFactory, serializer, config);
         this.stream = stream;
-        this.writerId = writerId;
         this.controller = controller;
         this.outputStreamFactory = outputStreamFactory;
         this.serializer = serializer;
+        this.writer = new IdempotentEventStreamWriterImpl<>(stream, writerId, controller, outputStreamFactory, serializer, config);
     }
 
     @Override
     public AckFuture writeEvent(Type event) {
         synchronized (lock) {
-            long sequence = sequenceGenerator.incrementAndGet();
-            return writeEventInternal(null, sequence, event);
+            sequence++;
+            return writer.writeEventInternal(null, sequence, event);
         }
     }
 
@@ -76,8 +76,8 @@ public class EventStreamWriterImpl<Type> extends IdempotentEventStreamWriterImpl
     public AckFuture writeEvent(String routingKey, Type event) {
         Preconditions.checkNotNull(routingKey);
         synchronized (lock) {
-            long sequence = sequenceGenerator.incrementAndGet();
-            return writeEventInternal(routingKey, sequence, event);
+            sequence++;
+            return writer.writeEventInternal(routingKey, sequence, event);
         }
     }
     
@@ -217,5 +217,20 @@ public class EventStreamWriterImpl<Type> extends IdempotentEventStreamWriterImpl
         }
         return new TransactionImpl<Type>(txId, transactions, segments, controller, stream);
         
+    }
+
+    @Override
+    public EventWriterConfig getConfig() {
+        return writer.getConfig();
+    }
+
+    @Override
+    public void flush() {
+        writer.flush();
+    }
+
+    @Override
+    public void close() {
+        writer.close();
     }
 }

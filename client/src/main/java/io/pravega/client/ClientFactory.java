@@ -84,7 +84,7 @@ public interface ClientFactory extends AutoCloseable {
      * sequence associated with each one.
      *
      * @param streamName The name of the stream to write to.
-     * @param writerId The name of this writer (to distinguish it from others)
+     * @param writerId The name of this writer (to distinguish it from others).
      * @param config The writer configuration.
      * @param s The Serializer.
      * @param <T> The type of events.
