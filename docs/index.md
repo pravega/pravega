@@ -55,10 +55,11 @@ Issues](https://github.com/pravega/pravega/issues)
 
 ## Contributing
 
-Become one of the contributors! We thrive to build a welcoming and open
+Become one of the [contributors](contributors.md)! We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
 [Here](contributing.md) we describe how to
-contribute to Pravega! You can see the roadmap document [here](roadmap.md)
+contribute to Pravega! You can see the roadmap document [here](roadmap.md). 
+
 
 ## About
 
