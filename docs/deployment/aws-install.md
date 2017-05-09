@@ -3,7 +3,24 @@
 Pre-reqs: terraform installed, and create a AWS account
 
 ###Deploy Steps
-- Define the nodes layout in installer/hosts-template
+- Define the nodes layout in installer/hosts-template.
+
+There are three sections of hosts-template, common-services is for zookeeper and bookkeeper, pravega-controller is for pravega controller node, and pravega-hosts is for pravega segmentstore node.
+Here is a example of hosts-template:
+#####
+[common-services]
+N0 myid=0
+N1 myid=1
+N2 myid=2
+
+[pravega-controller]
+N0
+
+[pravega-hosts]
+N0
+N1
+N2
+
 - Put you AWS keypair file under installer directory
 - Run "terraform apply" under deployment directory, then follow prompts, enter AWS account credentials.
 

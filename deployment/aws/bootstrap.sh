@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Prepare installer
-cd .. && ./gradlew distTar && cd deployment && mv ../build/distributions/pravega-0.1.0-SNAPSHOT.tgz installer/data/
-cp ../config/config.properties installer/data/
-cp ../docker/bookkeeper/entrypoint.sh install-bk-temp.sh
+cd ../../ && ./gradlew distTar && cd deployment/aws && mv ../../build/distributions/pravega-0.1.0-SNAPSHOT.tgz installer/data/
+cp ../../config/config.properties installer/data/
+cp ../../docker/bookkeeper/entrypoint.sh install-bk-temp.sh
 
 # Modify bookkeeper launch script to run in background
 sed '$ d' install-bk-temp.sh > install-bk.sh && rm install-bk-temp.sh
