@@ -35,7 +35,7 @@ public class WireCommandsTest {
     private final ByteBuffer buffer = ByteBuffer.wrap(new byte[] { 1, 2, 3, 4, 5 });
     private final ByteBuf buf = Unpooled.wrappedBuffer(buffer);
     private final byte b = -1;
-    pricovate final int i = 1;
+    private final int i = 1;
     private final int length = 18;
     private final long l = 7L;
 
