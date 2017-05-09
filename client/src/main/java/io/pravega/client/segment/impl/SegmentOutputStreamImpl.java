@@ -361,7 +361,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private boolean writeIfInSequence(PendingEvent event) throws SegmentSealedException {
         ClientConnection connection = getConnection();
         Long eventNumber = state.addToInflight(event);
-        boolean inSequence = (eventNumber != null);
+        boolean inSequence = eventNumber != null;
         if (inSequence) {
             try {
                 connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
