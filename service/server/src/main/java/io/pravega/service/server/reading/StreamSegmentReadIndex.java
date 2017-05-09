@@ -15,6 +15,8 @@
  */
 package io.pravega.service.server.reading;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -31,8 +33,6 @@ import io.pravega.service.server.ContainerMetadata;
 import io.pravega.service.server.SegmentMetadata;
 import io.pravega.service.storage.Cache;
 import io.pravega.service.storage.ReadOnlyStorage;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -464,9 +463,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // the StorageReader. Fixing it would be complicated, so let's see if it poses any problems.
         CacheIndexEntry entry = new CacheIndexEntry(offset, data.getLength());
         long lastOffset = entry.getLastStreamSegmentOffset();
-        Exceptions.checkArgument(lastOffset < this.metadata.getStorageLength(), "entry",
-                "The given range of bytes (%d-%d) does not correspond to the StreamSegment range that is in Storage (%d).",
-                entry.getStreamSegmentOffset(), lastOffset, this.metadata.getStorageLength());
+        Exceptions.checkArgument(lastOffset < this.metadata.getDurableLogLength(), "entry",
+                "The given range of bytes (%d-%d) exceeds the Segment's Length (%d).",
+                entry.getStreamSegmentOffset(), lastOffset, this.metadata.getDurableLogLength());
         ReadIndexEntry oldEntry;
         synchronized (this.lock) {
             this.cache.insert(getCacheKey(entry), data);
@@ -706,16 +705,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             if (indexEntry == null) {
                 // No data in the index or we have at least one entry and the ResultStartOffset is before the Start Offset
                 // of the first entry in the index. Use the metadata to figure out whether to return a Storage or Future Read.
-                int readLength = this.indexEntries.size() == 0 ? maxLength : getLengthUntilNextEntry(resultStartOffset, maxLength);
-                result = createDataNotAvailableRead(resultStartOffset, readLength);
+                result = createDataNotAvailableRead(resultStartOffset, maxLength);
             } else {
                 // We have an entry. Let's see if it's valid or not.
                 if (resultStartOffset > indexEntry.getLastStreamSegmentOffset()) {
                     // ResultStartOffset is beyond the End Offset of this entry. This means either:
                     // 1. This is the last entry and ResultStartOffset is after it. OR
                     // 2. We have a gap in our entries, and ResultStartOffset is somewhere in there.
-                    int readLength = getLengthUntilNextEntry(resultStartOffset, maxLength);
-                    return createDataNotAvailableRead(resultStartOffset, readLength);
+                    return createDataNotAvailableRead(resultStartOffset, maxLength);
                 } else if (indexEntry.isDataEntry()) {
                     // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
                     result = createMemoryRead(indexEntry, resultStartOffset, maxLength, true);
@@ -837,22 +834,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
      */
     private ReadResultEntryBase createDataNotAvailableRead(long streamSegmentOffset, int maxLength) {
-        long storageLength = this.metadata.getStorageLength();
-        if (streamSegmentOffset < storageLength) {
-            // Requested data exists in Storage.
-            // Determine actual read length (until Storage Length) and make sure it does not exceed maxLength.
-            long actualReadLength = storageLength - streamSegmentOffset;
-            if (actualReadLength > maxLength) {
-                actualReadLength = maxLength;
-            }
-
-            return createStorageRead(streamSegmentOffset, (int) actualReadLength);
+        maxLength = getLengthUntilNextEntry(streamSegmentOffset, maxLength);
+        if (streamSegmentOffset < this.metadata.getDurableLogLength()) {
+            // Data does not exist in the index, but the requested offset is less than the length of the Segment.
+            // The only possible location of the data is in Storage.
+            return createStorageRead(streamSegmentOffset, maxLength);
         } else {
-            // Note that Future Reads are not necessarily tail reads. They mean that we cannot return a result given
-            // the current state of the metadata. An example of when we might return a Future Read that is not a tail read
-            // is when we receive a read request immediately after recovery, but before the StorageWriter has had a chance
-            // to refresh the Storage state (the metadata may be a bit out of date). In that case, we record a Future Read
-            // which will be completed when the StorageWriter invokes triggerFutureReads() upon refreshing the info.
+            // Requested read offset is on or beyond the last offset of the segment. Data is not yet available.
             return createFutureRead(streamSegmentOffset, maxLength);
         }
     }
@@ -899,13 +887,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
         Consumer<StorageReader.Result> doneCallback = result -> {
             ByteArraySegment data = result.getData();
+
+            // Make sure we invoke our callback first, before any chance of exceptions from insert() may block it.
+            successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
             if (!result.isDerived()) {
                 // Only insert primary results into the cache. Derived results are always sub-portions of primaries
                 // and there is no need to insert them too, as they are already contained within.
                 insert(offset, data);
             }
-
-            successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
         };
 
         // Queue the request for async processing.
@@ -914,8 +903,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     /**
-     * Returns the length from the given offset until the beginning of the next index entry. If no such entry exists, or
-     * if the length is greater than maxLength, then maxLength is returned.
+     * Calculates the read length based on the given input using the following rules:
+     * * If there exists a read index entry after the given start offset: the length until that entry.
+     * * Otherwise, if startOffset is before the end offset of the Segment: the length until the end of the Segment.
+     * * Otherwise: returns maxLength
+     *
+     * Any result will be capped at the given maxLength.
      *
      * @param startOffset The offset to search from.
      * @param maxLength   The maximum allowed length.
@@ -924,11 +917,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     @GuardedBy("lock")
     private int getLengthUntilNextEntry(long startOffset, int maxLength) {
         ReadIndexEntry ceilingEntry = this.indexEntries.getCeiling(startOffset);
+        long length = maxLength;
         if (ceilingEntry != null) {
-            maxLength = (int) Math.min(maxLength, ceilingEntry.getStreamSegmentOffset() - startOffset);
+            length = ceilingEntry.getStreamSegmentOffset() - startOffset;
+        } else if (startOffset < this.metadata.getDurableLogLength()) {
+            // Index is empty and this is not a Future Read - cap at the end of the Segment.
+            length = this.metadata.getDurableLogLength() - startOffset;
         }
 
-        return maxLength;
+        return (int) Math.min(length, maxLength);
     }
 
     /**

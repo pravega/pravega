@@ -43,8 +43,8 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     protected static final Duration TIMEOUT = Duration.ofSeconds(10);
     protected static final long DEFAULT_EPOCH = 1;
+    protected static final int APPENDS_PER_SEGMENT = 10;
     private static final int SEGMENT_COUNT = 4;
-    private static final int APPENDS_PER_SEGMENT = 10;
 
     @Override
     protected int getThreadPoolSize() {

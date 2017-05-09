@@ -61,13 +61,6 @@ interface WriterDataSource {
     void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId);
 
     /**
-     * Indicates that the metadata for the given StreamSegmentId has been updated to reflect the most accurate length
-     * of the Segment in Storage.
-     * @param streamSegmentId The Id of the StreamSegment to notify on.
-     */
-    void notifyStorageLengthUpdated(long streamSegmentId);
-
-    /**
      * Gets an InputStream representing uncommitted data in a Segment.
      *
      * @param streamSegmentId The Id of the StreamSegment to fetch data for.
