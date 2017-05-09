@@ -34,6 +34,7 @@ import io.pravega.shared.controller.event.ScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -191,14 +192,20 @@ public class AutoScaleProcessor {
             writeComplete.thenAcceptAsync((Void v) -> {
                 try {
                     ackFuture.get();
-                    result.complete(null);
-                } catch (Exception e) {
-                    log.error("sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
+                } catch (ExecutionException | InterruptedException e) {
+                    log.error("Sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
                     result.completeExceptionally(e);
+                }
+            }).whenComplete((r, e) -> {
+                if (e != null) {
+                    log.error("Sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
+                    result.completeExceptionally(e);
+                } else {
+                    result.complete(null);
                 }
             });
         } catch (Exception e) {
-            log.error("exception while trying to write scale event {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
+            log.error("Exception while trying to write scale event {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
             result.completeExceptionally(e);
         }
 
