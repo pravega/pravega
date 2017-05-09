@@ -13,9 +13,13 @@
 buildscript {
     repositories {
         jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
     }
     dependencies {
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
+        classpath "gradle.plugin.org.nosphere.apache:creadur-rat-gradle:0.3.0"
     }
 }
 
@@ -36,6 +40,7 @@ allprojects {
     apply from: "$rootDir/gradle/java.gradle"
     apply from: "$rootDir/gradle/maven.gradle"
     apply from: "$rootDir/gradle/protobuf.gradle"
+    apply plugin: "org.nosphere.apache.rat"
 
     repositories {
         jcenter()
@@ -45,6 +50,13 @@ allprojects {
 
     version = pravegaVersion
     group = "io.pravega"
+
+
+
+    rat {
+        // List of exclude directives, defaults to ['**/.gradle/**']
+        excludes = [ '**/build/**', '**/.gradle/**', '**/.idea/**', '**/gradle/wrapper/**' ]
+    }
 }
 
 project('common') {
@@ -69,6 +81,7 @@ project('common') {
         }
     }
 }
+
 
 project ('shared') {
     dependencies {
