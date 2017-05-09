@@ -1,6 +1,7 @@
 # Running on AWS
 
 Pre-reqs: terraform installed, and create a AWS account
+Terraform can be downloaded from https://www.terraform.io/downloads.html
 
 ### Deploy Steps
 - Define the nodes layout in installer/hosts-template.
