@@ -370,6 +370,7 @@ public final class WireCommands {
         final UUID connectionId;
         final long lastEventNumber;
         final int sizeOfWholeEvents;
+        final int eventCount;
         final ByteBuf data;
 
         @Override
@@ -378,6 +379,7 @@ public final class WireCommands {
             out.writeLong(connectionId.getLeastSignificantBits());
             out.writeLong(lastEventNumber);
             out.writeInt(sizeOfWholeEvents);
+            out.writeInt(eventCount);
             if (data == null) {
                 out.writeInt(0);
             } else {
@@ -390,6 +392,7 @@ public final class WireCommands {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
             long lastEventNumber = in.readLong();
             int sizeOfHeaderlessAppends = in.readInt();
+            int eventCount = in.readInt();
             int dataLength = in.readInt();
             byte[] data;
             if (dataLength > 0) {
@@ -398,7 +401,7 @@ public final class WireCommands {
             } else {
                 data = new byte[0];
             }
-            return new AppendBlockEnd(connectionId, lastEventNumber, sizeOfHeaderlessAppends, wrappedBuffer(data));
+            return new AppendBlockEnd(connectionId, lastEventNumber, sizeOfHeaderlessAppends, eventCount, wrappedBuffer(data));
         }
     }
     
