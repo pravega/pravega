@@ -15,6 +15,7 @@
  */
 package io.pravega.service.server.writer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.service.server.OperationLog;
 import io.pravega.service.server.ReadIndex;
 import io.pravega.service.server.UpdateableContainerMetadata;
@@ -23,14 +24,11 @@ import io.pravega.service.server.Writer;
 import io.pravega.service.server.WriterFactory;
 import io.pravega.service.server.logs.operations.Operation;
 import io.pravega.service.storage.Storage;
-import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -103,12 +101,6 @@ public class StorageWriterFactory implements WriterFactory {
         public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
             log.debug("{}: CompleteMerge (TargetSegmentId={}, SourceSegmentId={}).", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
             this.readIndex.completeMerge(targetStreamSegmentId, sourceStreamSegmentId);
-        }
-
-        @Override
-        public void notifyStorageLengthUpdated(long streamSegmentId) {
-            log.debug("{}: notifyStorageLengthUpdated (SegmentId={}).", this.traceObjectId, streamSegmentId);
-            this.readIndex.triggerFutureReads(Collections.singleton(streamSegmentId));
         }
 
         @Override

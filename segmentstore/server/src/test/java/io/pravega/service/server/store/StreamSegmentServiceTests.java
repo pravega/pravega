@@ -20,33 +20,40 @@ import io.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.service.storage.mocks.InMemoryStorageFactory;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.val;
+import org.junit.After;
+import org.junit.Before;
 
 /**
  * Unit tests for the StreamSegmentService class.
  */
 public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
-    @GuardedBy("this")
     private InMemoryStorageFactory storageFactory;
-    @GuardedBy("this")
     private InMemoryDurableDataLogFactory durableDataLogFactory;
+
+    @Before
+    public void setUp() {
+        this.storageFactory = new InMemoryStorageFactory(executorService());
+        this.durableDataLogFactory = new PermanentDurableDataLogFactory(executorService());
+    }
+
+    @After
+    public void tearDown() {
+        if (this.durableDataLogFactory != null) {
+            this.durableDataLogFactory.close();
+            this.durableDataLogFactory = null;
+        }
+
+        if (this.storageFactory != null) {
+            this.storageFactory.close();
+            this.storageFactory = null;
+        }
+    }
 
     @Override
     protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig, AtomicReference<Storage> storage) {
-        if (this.storageFactory == null) {
-            this.storageFactory = new InMemoryStorageFactory(executorService());
-        }
-
-        if (this.durableDataLogFactory == null) {
-            this.durableDataLogFactory = new PermanentDurableDataLogFactory(executorService());
-        }
-
-        val sf = this.storageFactory;
-        val ddlf = this.durableDataLogFactory;
         return ServiceBuilder.newInMemoryBuilder(builderConfig)
-                             .withStorageFactory(setup -> new ListenableStorageFactory(sf, storage::set))
-                             .withDataLogFactory(setup -> ddlf);
+                             .withStorageFactory(setup -> new ListenableStorageFactory(this.storageFactory, storage::set))
+                             .withDataLogFactory(setup -> this.durableDataLogFactory);
     }
 
     private static class PermanentDurableDataLogFactory extends InMemoryDurableDataLogFactory {
