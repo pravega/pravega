@@ -101,11 +101,11 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             if (currentBlock == null) {
                 throw new InvalidMessageException("AppendBlockEnd without AppendBlock.");
             }
-            UUID connectionId = blockEnd.getConnectionId();
-            if (!connectionId.equals(currentBlock.getWriterId())) {
+            UUID writerId = blockEnd.getWriterId();
+            if (!writerId.equals(currentBlock.getWriterId())) {
                 throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
             }
-            segment = getSegment(connectionId);
+            segment = getSegment(writerId);
             if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
@@ -116,7 +116,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             ByteBuf appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
             segment.lastEventNumber = blockEnd.getLastEventNumber();
             currentBlock = null;
-            result = new Append(segment.name, connectionId, segment.lastEventNumber, appendDataBuf, null);
+            result = new Append(segment.name, writerId, segment.lastEventNumber, appendDataBuf, null);
             break;
             //$CASES-OMITTED$
         default:
