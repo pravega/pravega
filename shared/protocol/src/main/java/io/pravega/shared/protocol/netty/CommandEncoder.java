@@ -143,10 +143,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                                                            serializedMessage.length - bytesInBlock);
                     writeMessage(new PartialEvent(dataInsideBlock), out);
                     writeMessage(new AppendBlockEnd(session.id,
-                                                    session.lastEventNumber,
                                                     currentBlockSize - bytesLeftInBlock,
+                                                    dataRemainging,
                                                     session.eventCount,
-                                                    dataRemainging), out);
+                                                    session.lastEventNumber,
+                                                    0L), out);
                     bytesLeftInBlock = 0;
                     session.eventCount = 0;
                 }
@@ -174,10 +175,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
             Session session = setupSegments.get(segmentBeingAppendedTo);
             writeMessage(new AppendBlockEnd(session.id,
-                    session.lastEventNumber,
                     currentBlockSize - bytesLeftInBlock,
+                    null,
                     session.eventCount,
-                    null), out);
+                    session.lastEventNumber, 0L), out);
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
             session.eventCount = 0;

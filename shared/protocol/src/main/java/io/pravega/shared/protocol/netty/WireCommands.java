@@ -367,32 +367,32 @@ public final class WireCommands {
     @Data
     public static final class AppendBlockEnd implements WireCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK_END;
-        final UUID connectionId;
-        final long lastEventNumber;
+        final UUID writerId;
         final int sizeOfWholeEvents;
-        final int eventCount;
         final ByteBuf data;
+        final int numEvents;
+        final long lastEventNumber;
+        final long unused; // Will be used by AppendSequence:  
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(connectionId.getMostSignificantBits());
-            out.writeLong(connectionId.getLeastSignificantBits());
-            out.writeLong(lastEventNumber);
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
             out.writeInt(sizeOfWholeEvents);
-            out.writeInt(eventCount);
             if (data == null) {
                 out.writeInt(0);
             } else {
                 out.writeInt(data.readableBytes());
                 out.write(data.array(), data.arrayOffset(), data.readableBytes());
             }
+            out.writeInt(numEvents);
+            out.writeLong(lastEventNumber);
+            out.writeLong(unused);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            UUID connectionId = new UUID(in.readLong(), in.readLong());
-            long lastEventNumber = in.readLong();
+            UUID writerId = new UUID(in.readLong(), in.readLong());
             int sizeOfHeaderlessAppends = in.readInt();
-            int eventCount = in.readInt();
             int dataLength = in.readInt();
             byte[] data;
             if (dataLength > 0) {
@@ -401,7 +401,10 @@ public final class WireCommands {
             } else {
                 data = new byte[0];
             }
-            return new AppendBlockEnd(connectionId, lastEventNumber, sizeOfHeaderlessAppends, eventCount, wrappedBuffer(data));
+            int numEvents = in.readInt();
+            long lastEventNumber = in.readLong();
+            long unused = in.readLong();
+            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, wrappedBuffer(data), numEvents, lastEventNumber, unused);
         }
     }
 

@@ -66,7 +66,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAppendBlockEnd() throws IOException {
-        testCommand(new WireCommands.AppendBlockEnd(uuid, l, i, i, buf));
+        testCommand(new WireCommands.AppendBlockEnd(uuid, i, buf, i, i, l));
     }
 
     @Test

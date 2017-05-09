@@ -101,7 +101,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             if (currentBlock == null) {
                 throw new InvalidMessageException("AppendBlockEnd without AppendBlock.");
             }
-            UUID connectionId = blockEnd.getConnectionId();
+            UUID connectionId = blockEnd.getWriterId();
             if (!connectionId.equals(currentBlock.getConnectionId())) {
                 throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
             }
@@ -116,7 +116,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             ByteBuf appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
             segment.lastEventNumber = blockEnd.getLastEventNumber();
             currentBlock = null;
-            result = new Append(segment.name, connectionId, segment.lastEventNumber, blockEnd.eventCount, appendDataBuf, null);
+            result = new Append(segment.name, connectionId, segment.lastEventNumber, blockEnd.numEvents, appendDataBuf, null);
             break;
             //$CASES-OMITTED$
         default:
