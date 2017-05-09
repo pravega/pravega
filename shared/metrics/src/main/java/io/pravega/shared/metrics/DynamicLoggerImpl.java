@@ -27,7 +27,7 @@ import java.util.concurrent.ExecutionException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class YammerDynamicLogger implements DynamicLogger {
+public class DynamicLoggerImpl implements DynamicLogger {
     private final long cacheSize;
 
     private final MetricRegistry metrics;
@@ -36,7 +36,7 @@ public class YammerDynamicLogger implements DynamicLogger {
     private final Cache<String, Gauge> gaugesCache;
     private final Cache<String, Meter> metersCache;
 
-    public YammerDynamicLogger(MetricsConfig metricsConfig, MetricRegistry metrics, StatsLogger statsLogger) {
+    public DynamicLoggerImpl(MetricsConfig metricsConfig, MetricRegistry metrics, StatsLogger statsLogger) {
         Preconditions.checkNotNull(metricsConfig, "metricsConfig");
         Preconditions.checkNotNull(metrics, "metrics");
         Preconditions.checkNotNull(statsLogger, "statsLogger");

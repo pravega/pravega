@@ -114,7 +114,7 @@ Stream before it is deleted.  S/he can specify data should be kept for a certai
 period of time (ideal for situations like regulatory compliance that mandate
 certain retention periods) or to retain data until a certain number of bytes
 have been consumed.  At the moment, Retention Policy is not completely
-implemented.  By default, the RetentionPolicy is set as "infinite" meaning, data
+implemented.  By default, the RetentionPolicy is set as "unlimited" meaning, data
 will not be removed from the Stream.
 
 Scaling Policy is the way developers configure a Stream to take advantage

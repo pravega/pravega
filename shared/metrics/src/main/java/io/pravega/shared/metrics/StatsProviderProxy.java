@@ -30,7 +30,7 @@ public class StatsProviderProxy implements StatsProvider {
     void setProvider(MetricsConfig config) {
         if (config.isEnableStatistics()) {
             log.info("Stats enabled");
-            instance.set(new YammerStatsProvider(config));
+            instance.set(new StatsProviderImpl(config));
         } else {
             log.info("Stats disabled");
             instance.set(new NullStatsProvider());
