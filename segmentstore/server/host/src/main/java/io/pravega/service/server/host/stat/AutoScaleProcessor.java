@@ -28,6 +28,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.ScaleEvent;
@@ -194,13 +195,15 @@ public class AutoScaleProcessor {
                     ackFuture.get();
                 } catch (ExecutionException | InterruptedException e) {
                     log.error("Sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
-                    result.completeExceptionally(e);
+                    result.completeExceptionally(ExceptionHelpers.getRealException(e));
                 }
             }).whenComplete((r, e) -> {
                 if (e != null) {
                     log.error("Sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
                     result.completeExceptionally(e);
                 } else {
+                    log.info("Sending scale event succeeded {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
+
                     result.complete(null);
                 }
             });
