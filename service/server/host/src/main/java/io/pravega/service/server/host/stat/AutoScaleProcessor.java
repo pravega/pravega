@@ -262,5 +262,9 @@ public class AutoScaleProcessor {
         cache.put(streamSegmentName, lrImmutablePair);
     }
 
+    @VisibleForTesting
+    Pair<Long, Long> get(String streamSegmentName) {
+        return cache.getIfPresent(streamSegmentName);
+    }
 }
 

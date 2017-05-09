@@ -31,10 +31,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class AutoScaleProcessorTest {
@@ -113,6 +115,41 @@ public class AutoScaleProcessorTest {
         assertTrue(FutureHelpers.await(result));
         assertTrue(FutureHelpers.await(result));
         assertTrue(FutureHelpers.await(result3));
+    }
+
+    @Test (timeout = 10000)
+    public void writeFailureTest() {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        EventStreamWriter<ScaleEvent> writer = createWriter(event -> {
+            result.complete(null);
+            throw new RuntimeException("failing write");
+        });
+
+        AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
+                AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 100)
+                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 100).build(),
+                executor, maintenanceExecutor);
+
+        String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
+        monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
+
+        long twentyminutesback = System.currentTimeMillis() - Duration.ofMinutes(20).toMillis();
+        monitor.put(streamSegmentName1, new ImmutablePair<>(twentyminutesback, twentyminutesback));
+
+        monitor.report(streamSegmentName1, 10, WireCommands.CreateSegment.IN_EVENTS_PER_SEC,
+                twentyminutesback,
+                1001, 500, 200, 200);
+
+        assertTrue(FutureHelpers.await(result));
+
+        // verify that the reporting did not happen since write failed
+        Pair<Long, Long> lastReportsAt = monitor.get(streamSegmentName1);
+
+        assertEquals(lastReportsAt.getKey().longValue(), twentyminutesback);
+        assertEquals(lastReportsAt.getValue().longValue(), twentyminutesback);
     }
 
     private EventStreamWriter<ScaleEvent> createWriter(Consumer<ScaleEvent> consumer) {
