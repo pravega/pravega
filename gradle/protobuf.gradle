@@ -20,14 +20,19 @@ plugins.withId('com.google.protobuf') {
         delete protobuf.generatedFilesBaseDir
     }
 
-    sourceSets {
-        main.java.srcDirs "${protobuf.generatedFilesBaseDir}/main/java"
-        main.java.srcDirs "${protobuf.generatedFilesBaseDir}/main/grpc"
-    }
-
     dependencies {
         compile group: 'io.grpc', name: 'grpc-netty', version: grpcVersion
         compile group: 'io.grpc', name: 'grpc-protobuf', version: grpcVersion
         compile group: 'io.grpc', name: 'grpc-stub', version: grpcVersion
     }
+
+    idea {
+        module {
+            sourceDirs += file("${protobuf.generatedFilesBaseDir}/main/java")
+            sourceDirs += file("${protobuf.generatedFilesBaseDir}/main/grpc")
+        }
+    }
+
+    ideaModule.dependsOn(['generateProto', 'generateTestProto'])
+    eclipseClasspath.dependsOn(['generateProto', 'generateTestProto'])
 }
