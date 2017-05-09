@@ -28,16 +28,16 @@ public class MetricsConfig {
     //region Config Names
     public final static Property<Boolean> ENABLE_STATISTICS = Property.named("enableStatistics", true);
     public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 10000000L);
-    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("StatsOutputFrequencySeconds", 60);
-    public final static Property<String> METRICS_PREFIX = Property.named("MetricsPrefix", "pravega");
-    public final static Property<String> CSV_ENDPOINT = Property.named("CSVEndpoint", "/tmp/csv");
-    public final static Property<String> STATSD_HOST = Property.named("StatsDHost", "localhost");
-    public final static Property<Integer> STATSD_PORT = Property.named("StatsDPort", 8125);
-    public final static Property<String> GRAPHITE_HOST = Property.named("GraphiteHost", "localhost");
-    public final static Property<Integer> GRAPHITE_PORT = Property.named("GraphitePort", 2003);
-    public final static Property<String> JMX_DOMAIN = Property.named("JMXDomain", "domain");
-    public final static Property<String> GANGLIA_HOST = Property.named("GangliaHost", "localhost");
-    public final static Property<Integer> GANGLIA_PORT = Property.named("GangliaPort", 8649);
+    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("statsOutputFrequencySeconds", 60);
+    public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
+    public final static Property<String> CSV_ENDPOINT = Property.named("csvEndpoint", "/tmp/csv");
+    public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
+    public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
+    public final static Property<String> GRAPHITE_HOST = Property.named("graphiteHost", "localhost");
+    public final static Property<Integer> GRAPHITE_PORT = Property.named("graphitePort", 2003);
+    public final static Property<String> JMX_DOMAIN = Property.named("jmxDomain", "domain");
+    public final static Property<String> GANGLIA_HOST = Property.named("gangliaHost", "localhost");
+    public final static Property<Integer> GANGLIA_PORT = Property.named("gangliaPort", 8649);
     public final static Property<Boolean> ENABLE_CSV_REPORTER = Property.named("enableCSVReporter", true);
     public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("enableStatsdReporter", true);
     public final static Property<Boolean> ENABLE_GRAPHITE_REPORTER = Property.named("enableGraphiteReporter", false);
