@@ -23,6 +23,7 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalListeners;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
@@ -33,9 +34,7 @@ import io.pravega.shared.controller.event.ScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -185,18 +184,21 @@ public class AutoScaleProcessor {
 
     private CompletableFuture<Void> writeRequest(ScaleEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        CompletableFuture<Void> writeComplete = new CompletableFuture<>();
         try {
-            CompletableFuture.runAsync(() -> {
+            AckFuture ackFuture = writer.get().writeEvent(event.getKey(), event);
+            ackFuture.addListener(() -> writeComplete.complete(null), executor);
+            writeComplete.thenAcceptAsync((Void v) -> {
                 try {
-                    writer.get().writeEvent(event.getKey(), event).get();
+                    ackFuture.get();
                     result.complete(null);
-                } catch (InterruptedException | ExecutionException e) {
-                    log.error("error sending request to requeststream {}", e);
+                } catch (Exception e) {
+                    log.error("sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
                     result.completeExceptionally(e);
                 }
-            }, executor);
-        } catch (RejectedExecutionException e) {
-            log.error("our executor queue is full. failed to post scale event for {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
+            });
+        } catch (Exception e) {
+            log.error("exception while trying to write scale event {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
             result.completeExceptionally(e);
         }
 
