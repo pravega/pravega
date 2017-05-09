@@ -21,7 +21,7 @@ You may obtain a copy of the License at
 
   <!-- header -->
   <module name="RegexpHeader">
-    <property name="header" value="/\*\*\n *"/>
+    <property name="header" value="/\*\n *"/>
   </module>
   <module name="SuppressionFilter">
         <property name="file" value="checkstyle/suppressions.xml"/>
