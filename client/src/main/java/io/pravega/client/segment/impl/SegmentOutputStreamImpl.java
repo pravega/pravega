@@ -16,6 +16,7 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -96,7 +97,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @GuardedBy("lock")
         private final ConcurrentSkipListMap<Long, PendingEvent> inflight = new ConcurrentSkipListMap<>();
         @GuardedBy("lock")
-        private long eventNumber = 0;
+        private long eventNumber = -1;
         private final ReusableLatch connectionSetup = new ReusableLatch();
         @GuardedBy("lock")
         private CompletableFuture<Void> emptyInflightFuture = null;
@@ -350,23 +351,29 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     public void write(PendingEvent event) throws SegmentSealedException {
-        synchronized ($lock) {
-            ClientConnection connection = getConnection();
-            Long eventNumber = state.addToInflight(event);
-            if (eventNumber != null) {
-                try {
-                    connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
-                                               event.getExpectedOffset()));
-                } catch (ConnectionFailedException e) {
-                    log.warn("Connection failed due to: ", e);
-                    getConnection(); // As the messages is inflight, this will perform the retransmition.
-                }
-                return;
-            }
+        Preconditions.checkArgument(event.getSequence() >= 0, "Sequence number must be positive.");
+        if (!writeIfInSequence(event)) {
+            event.getAckFuture().complete(false);
         }
-        event.getAckFuture().complete(false);
     }
-    
+
+    @Synchronized
+    private boolean writeIfInSequence(PendingEvent event) throws SegmentSealedException {
+        ClientConnection connection = getConnection();
+        Long eventNumber = state.addToInflight(event);
+        if (eventNumber == null) {
+            return false;
+        }
+        try {
+            connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
+                                       event.getExpectedOffset()));
+        } catch (ConnectionFailedException e) {
+            log.warn("Connection failed due to: ", e);
+            getConnection(); // As the messages is inflight, this will perform the retransmition.
+        }
+        return true;
+    }
+
     /**
      * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
      */

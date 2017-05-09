@@ -128,7 +128,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             long eventNumber = info.getAttributes().getOrDefault(writer, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
                             if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
                                 // First append to this segment.
-                                eventNumber = 0;
+                                eventNumber = -1;
                             }
 
                             synchronized (lock) {

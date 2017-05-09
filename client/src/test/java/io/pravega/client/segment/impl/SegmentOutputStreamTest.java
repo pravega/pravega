@@ -27,6 +27,7 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -260,6 +261,26 @@ public class SegmentOutputStreamTest {
         }
         assertEquals(false, acked.isDone());
         verifyNoMoreInteractions(connection);
+    }
+    
+    @Test
+    public void testThrowsOnNegativeSequence() throws ConnectionFailedException, SegmentSealedException, InterruptedException, ExecutionException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        output.setupConnection();
+        verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, -1));
+        CompletableFuture<Boolean> acked = new CompletableFuture<>();
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                                      () -> output.write(new PendingEvent(null, -1, getBuffer("test"), acked, null)));
+        output.write(new PendingEvent(null, 0, getBuffer("test"), acked, null));
+        assertEquals(false, acked.isDone());
+        
     }
     
     @Test
