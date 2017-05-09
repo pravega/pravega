@@ -28,11 +28,11 @@ import static io.pravega.shared.metrics.NullStatsLogger.NULLMETER;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLOPSTATSLOGGER;
 
 @Slf4j
-public class YammerStatsLogger implements StatsLogger {
+public class StatsLoggerImpl implements StatsLogger {
     protected final String basename;
     private final MetricRegistry metrics;
 
-    YammerStatsLogger(MetricRegistry metrics, String basename) {
+    StatsLoggerImpl(MetricRegistry metrics, String basename) {
         Preconditions.checkNotNull(metrics, "metrics");
         this.metrics = metrics;
         this.basename = basename;
@@ -43,7 +43,7 @@ public class YammerStatsLogger implements StatsLogger {
         try {
             Timer success = metrics.timer(name(basename, statName));
             Timer failure = metrics.timer(name(basename, statName + "-fail"));
-            return new YammerOpStatsLogger(success, failure);
+            return new OpStatsLoggerImpl(success, failure);
         } catch (Exception e) {
             log.warn("createStats failure: {}", e);
             return NULLOPSTATSLOGGER;
@@ -100,7 +100,7 @@ public class YammerStatsLogger implements StatsLogger {
         } else {
             scopeName = name(basename, scope);
         }
-        return new YammerStatsLogger(metrics, scopeName);
+        return new StatsLoggerImpl(metrics, scopeName);
     }
 
     private static class CounterImpl implements Counter {

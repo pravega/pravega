@@ -25,7 +25,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 /**
- * The type Yammer provider test.
+ * Test for Stats provider.
  */
 @Slf4j
 public class MetricsProviderTest {
@@ -77,7 +77,7 @@ public class MetricsProviderTest {
         for (int i = 1; i < 10; i++) {
             sum += i;
             dynamicLogger.incCounterValue("dynamicCounter", i);
-            assertEquals(sum, MetricsProvider.YAMMERMETRICS.getCounters().get("DYNAMIC.dynamicCounter.Counter").getCount());
+            assertEquals(sum, MetricsProvider.METRIC_REGISTRY.getCounters().get("DYNAMIC.dynamicCounter.Counter").getCount());
         }
     }
 
@@ -98,7 +98,7 @@ public class MetricsProviderTest {
         for (int i = 1; i < 10; i++) {
             sum += i;
             dynamicLogger.recordMeterEvents("dynamicMeter", i);
-            assertEquals(sum, MetricsProvider.YAMMERMETRICS.getMeters().get("DYNAMIC.dynamicMeter.Meter").getCount());
+            assertEquals(sum, MetricsProvider.METRIC_REGISTRY.getMeters().get("DYNAMIC.dynamicMeter.Meter").getCount());
         }
     }
 
@@ -113,8 +113,8 @@ public class MetricsProviderTest {
         for (int i = 1; i < 10; i++) {
             value.set(i);
             dynamicLogger.reportGaugeValue("dynamicGauge", i);
-            assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("testGauge").getValue());
-            assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("DYNAMIC.dynamicGauge.Gauge").getValue());
+            assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("testGauge").getValue());
+            assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("DYNAMIC.dynamicGauge.Gauge").getValue());
         }
     }
 
@@ -129,7 +129,7 @@ public class MetricsProviderTest {
         MetricsProvider.initialize(config);
         statsLogger.createCounter("counterDisabled");
 
-        assertEquals(null, MetricsProvider.YAMMERMETRICS.getCounters().get("counterDisabled"));
+        assertEquals(null, MetricsProvider.METRIC_REGISTRY.getCounters().get("counterDisabled"));
 
         config = MetricsConfig.builder()
                               .with(MetricsConfig.ENABLE_STATISTICS, true)
@@ -137,7 +137,7 @@ public class MetricsProviderTest {
         MetricsProvider.initialize(config);
         statsLogger.createCounter("counterEnabled");
 
-        Assert.assertNotNull(MetricsProvider.YAMMERMETRICS.getCounters().get("counterEnabled"));
+        Assert.assertNotNull(MetricsProvider.METRIC_REGISTRY.getCounters().get("counterEnabled"));
     }
 
     /**
@@ -151,7 +151,7 @@ public class MetricsProviderTest {
                                             .build();
         MetricsProvider.initialize(config);
 
-        Assert.assertNotNull(null, MetricsProvider.YAMMERMETRICS.getCounters().get("continuity-counter"));
+        Assert.assertNotNull(null, MetricsProvider.METRIC_REGISTRY.getCounters().get("continuity-counter"));
     }
 
     /**

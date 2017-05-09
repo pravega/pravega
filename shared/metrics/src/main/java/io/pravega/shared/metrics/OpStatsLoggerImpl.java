@@ -23,11 +23,11 @@ import java.time.Duration;
 import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;
 
-class YammerOpStatsLogger implements OpStatsLogger {
+class OpStatsLoggerImpl implements OpStatsLogger {
     private final Timer success;
     private final Timer fail;
 
-    YammerOpStatsLogger(Timer success, Timer fail) {
+    OpStatsLoggerImpl(Timer success, Timer fail) {
         Preconditions.checkNotNull(success, "success");
         Preconditions.checkNotNull(fail, "fail");
         this.success = success;

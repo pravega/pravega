@@ -42,9 +42,9 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-public class YammerStatsProvider implements StatsProvider {
+public class StatsProviderImpl implements StatsProvider {
     @GuardedBy("$lock")
-    private MetricRegistry metrics = MetricsProvider.YAMMERMETRICS;
+    private MetricRegistry metrics = MetricsProvider.METRIC_REGISTRY;
     private final List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
     private final MetricsConfig conf;
 
@@ -158,12 +158,12 @@ public class YammerStatsProvider implements StatsProvider {
     @Override
     public StatsLogger createStatsLogger(String name) {
         init();
-        return new YammerStatsLogger(getMetrics(), name);
+        return new StatsLoggerImpl(getMetrics(), name);
     }
 
     @Override
     public DynamicLogger createDynamicLogger() {
         init();
-        return new YammerDynamicLogger(conf, metrics, new YammerStatsLogger(getMetrics(), "DYNAMIC"));
+        return new DynamicLoggerImpl(conf, metrics, new StatsLoggerImpl(getMetrics(), "DYNAMIC"));
     }
 }
