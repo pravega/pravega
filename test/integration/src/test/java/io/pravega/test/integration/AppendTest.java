@@ -129,7 +129,7 @@ public class AppendTest {
 
         DataAppended ack = (DataAppended) sendRequest(channel,
                                                       new Append(segment, uuid, data.readableBytes(), data, null));
-        assertEquals(uuid, ack.getConnectionId());
+        assertEquals(uuid, ack.getWriterId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
     }
 
