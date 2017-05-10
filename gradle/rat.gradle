@@ -25,6 +25,6 @@ rat {
             '**/build/**',
             '**/generated/**',
             '**/checkstyle/**',
-            'PravegaGroup.json'
+            '**/*.json'
     ]
 }
