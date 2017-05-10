@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -7,20 +7,19 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 
 // Apply the java plugin to add support for Java
 buildscript {
     repositories {
         jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
     }
     dependencies {
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
+        classpath "gradle.plugin.org.nosphere.apache:creadur-rat-gradle:0.3.0"
     }
 }
 
@@ -41,6 +40,7 @@ allprojects {
     apply from: "$rootDir/gradle/java.gradle"
     apply from: "$rootDir/gradle/maven.gradle"
     apply from: "$rootDir/gradle/protobuf.gradle"
+    apply plugin: "org.nosphere.apache.rat"
 
     repositories {
         jcenter()
@@ -50,6 +50,13 @@ allprojects {
 
     version = pravegaVersion
     group = "io.pravega"
+
+
+
+    rat {
+        // List of exclude directives, defaults to ['**/.gradle/**']
+        excludes = [ '**/build/**', '**/.gradle/**', '**/.idea/**', '**/gradle/wrapper/**', '**/.github/**', '**/generated/**', '**/checkstyle/**', 'PravegaGroup.json' ]
+    }
 }
 
 project('common') {
@@ -74,6 +81,7 @@ project('common') {
         }
     }
 }
+
 
 project ('shared') {
     dependencies {
