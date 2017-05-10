@@ -95,7 +95,9 @@ import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -136,6 +138,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
             .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
             .build();
+    @Rule
+    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
 
     @Override
     protected int getThreadPoolSize() {
@@ -145,7 +149,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the createSegment, append, updateAttributes, read, getSegmentInfo, getActiveSegments.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testSegmentRegularOperations() throws Exception {
         final UUID attributeAccumulate = UUID.randomUUID();
         final UUID attributeReplace = UUID.randomUUID();
@@ -238,7 +242,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Note: this is tested with a single segment. It could be tested with multiple segments, but different segments
      * are mostly independent of each other, so we would not be gaining much by doing so.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testConcurrentSegmentActivation() throws Exception {
         final UUID attributeAccumulate = UUID.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
@@ -336,7 +340,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the ability to make appends with offset.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testAppendWithOffset() throws Exception {
         @Cleanup
         TestContext context = new TestContext();
@@ -392,7 +396,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Test the seal operation on StreamSegments. Also tests the behavior of Reads (non-tailing) when encountering
      * the end of a sealed StreamSegment.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testSegmentSeal() throws Exception {
         final int appendsPerSegment = 1;
         @Cleanup
@@ -494,7 +498,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the behavior of various operations when the StreamSegment does not exist.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testInexistentSegment() {
         final String segmentName = "foo";
         @Cleanup
@@ -520,7 +524,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the ability to delete StreamSegments.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testSegmentDelete() throws Exception {
         final int appendsPerSegment = 1;
         @Cleanup
@@ -605,7 +609,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Test the createTransaction, append-to-Transaction, mergeTransaction methods.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testTransactionOperations() throws Exception {
         // Create Transaction and Append to Transaction were partially tested in the Delete test, so we will focus on merge Transaction here.
         @Cleanup
@@ -663,7 +667,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * * Segment sealing
      * * Transaction merging.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testFutureReads() throws Exception {
         final int nonSealReadLimit = 100;
         @Cleanup
@@ -780,7 +784,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * 5. Deletes the segment, waits for metadata to be cleared (via forcing another log truncation), re-creates the
      * same segment and validates that the old attributes did not "bleed in".
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testMetadataCleanup() throws Exception {
         final String segmentName = "segment";
         final UUID[] attributes = new UUID[]{ Attributes.CREATION_TIME, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID() };
@@ -864,9 +868,57 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability for the SegmentContainer to recover in the following scenario:
+     * 1. A segment is created and recorded in the metadata (with some optional operations on it)
+     * 2. The segment is evicted from the metadata.
+     * 3. The segment is reactivated (with a new metadata mapping). No truncations happened since #2 above.
+     * 4. Container shuts down and needs to recover. We need to ensure that recovery succeeds even with the new mapping
+     * of the segment.
+     */
+    @Test
+    public void testMetadataCleanupRecovery() throws Exception {
+        final String segmentName = "segment";
+        final byte[] appendData = "hello".getBytes();
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
+
+        @Cleanup
+        TestContext context = new TestContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        SegmentProperties originalInfo;
+        try (val container1 = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
+                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService())) {
+            container1.startAsync().awaitRunning();
+
+            // Create segment and make one append to it.
+            container1.createStreamSegment(segmentName, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            // Wait until the segment is forgotten.
+            container1.triggerMetadataCleanup(Collections.singleton(segmentName)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            // Add an append - this will force the segment to be reactivated, thus be registered with a different id.
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            originalInfo = container1.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.stopAsync().awaitTerminated();
+        }
+
+        // Restart container and verify it started successfully.
+        @Cleanup
+        val container2 = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
+                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService());
+        container2.startAsync().awaitRunning();
+        val recoveredInfo = container2.getStreamSegmentInfo(segmentName, false, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected length from recovered segment.", originalInfo.getLength(), recoveredInfo.getLength());
+
+        container2.stopAsync().awaitTerminated();
+    }
+
+    /**
      * Tests the case when the ContainerMetadata has filled up to capacity (with segments and we cannot map anymore segments).
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testForcedMetadataCleanup() throws Exception {
         final int maxSegmentCount = 3;
         final ContainerConfig containerConfig = ContainerConfig
@@ -956,7 +1008,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Tests the behavior of the SegmentContainer when another instance of the same container is activated and fences out
      * the first one.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testWriteFenceOut() throws Exception {
         final Duration shutdownTimeout = Duration.ofSeconds(5);
         @Cleanup
@@ -985,7 +1037,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the behavior when there is a startup failure (i.e., already started services need to shut down.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testStartFailure() throws Exception {
         final Duration shutdownTimeout = Duration.ofSeconds(5);
         @Cleanup
