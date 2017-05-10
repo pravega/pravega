@@ -17,7 +17,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-final class AckFutureImpl extends AbstractFuture<Void> implements AckFuture {
+final class AckFutureImpl extends AbstractFuture<Boolean> implements AckFuture {
 
     private final Runnable flush;
 
@@ -27,24 +27,20 @@ final class AckFutureImpl extends AbstractFuture<Void> implements AckFuture {
             if (exception != null) {
                 this.setException(exception);
             } else {
-                if (bool) {
-                    this.set(null);
-                } else {
-                    this.setException(new IllegalStateException("Condition failed for non-conditional write!?"));
-                }
+                this.set(bool);
             }
             return null;
         });
     }
 
     @Override
-    public Void get(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException, ExecutionException {
+    public Boolean get(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException, ExecutionException {
         flushIfNeeded();
         return super.get(timeout, unit);
     }
 
     @Override
-    public Void get() throws InterruptedException, ExecutionException {
+    public Boolean get() throws InterruptedException, ExecutionException {
         flushIfNeeded();
         return super.get();
     }

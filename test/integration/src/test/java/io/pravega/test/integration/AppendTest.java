@@ -22,6 +22,7 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
+import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.StreamConfiguration;
@@ -59,7 +60,6 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
@@ -119,11 +119,11 @@ public class AppendTest {
         AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment));
 
         assertEquals(segment, setup.getSegment());
-        assertEquals(uuid, setup.getConnectionId());
+        assertEquals(uuid, setup.getWriterId());
 
         DataAppended ack = (DataAppended) sendRequest(channel,
                                                       new Append(segment, uuid, data.readableBytes(), data, null));
-        assertEquals(uuid, ack.getConnectionId());
+        assertEquals(uuid, ack.getWriterId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
     }
 
@@ -162,6 +162,7 @@ public class AppendTest {
         String testString = "Hello world\n";
         String scope = "scope";
         String stream = "stream";
+        UUID writerId = UUID.randomUUID();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
@@ -176,9 +177,9 @@ public class AppendTest {
 
         Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment);
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(writerId, segment);
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
-        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
+        out.write(new PendingEvent(null, 0, ByteBuffer.wrap(testString.getBytes()), ack));
         assertTrue(ack.get(5, TimeUnit.SECONDS));
     }
 
@@ -198,7 +199,7 @@ public class AppendTest {
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
-        Future<Void> ack = producer.writeEvent(testString);
+        AckFuture ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
     }
     
@@ -231,7 +232,7 @@ public class AppendTest {
             throws InterruptedException, ExecutionException, TimeoutException {
         Timer timer = new Timer();
         for (int i = 0; i < number; i++) {
-            Future<Void> ack = producer.writeEvent(testString);
+            AckFuture ack = producer.writeEvent(testString);
             if (synchronous) {
                 ack.get(5, TimeUnit.SECONDS);
             }

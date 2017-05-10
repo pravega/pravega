@@ -12,7 +12,7 @@ package io.pravega.client.stream;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 
-public interface AckFuture extends Future<Void> {
+public interface AckFuture extends Future<Boolean> {
     
     /**
      * Adds a callback that will be invoked in a thread in the provided executor once this future has completed. 

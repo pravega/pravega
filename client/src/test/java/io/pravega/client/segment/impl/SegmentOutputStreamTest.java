@@ -21,10 +21,12 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -100,13 +102,13 @@ public class SegmentOutputStreamTest {
         
         output.setupConnection();
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
-        output.write(new PendingEvent(null, getBuffer("test1"), new CompletableFuture<>()));
-        output.write(new PendingEvent(null, getBuffer("test2"), new CompletableFuture<>()));
+        output.write(new PendingEvent(null, 1, getBuffer("test1"), new CompletableFuture<>()));
+        output.write(new PendingEvent(null, 2, getBuffer("test2"), new CompletableFuture<>()));
         answerSuccess(connection);
         cf.getProcessor(uri).connectionDropped();
-        Async.testBlocking(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
+        Async.testBlocking(() -> output.write(new PendingEvent(null, 3, getBuffer("test3"), new CompletableFuture<>())),
                            () -> cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0)));
-        output.write(new PendingEvent(null, getBuffer("test4"), new CompletableFuture<>()));
+        output.write(new PendingEvent(null, 4, getBuffer("test4"), new CompletableFuture<>()));
         
         Append append1 = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null);
         Append append2 = new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null);
@@ -138,7 +140,7 @@ public class SegmentOutputStreamTest {
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
             ByteBuffer data, int num, Long expectedLength) throws SegmentSealedException, ConnectionFailedException {
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
-        output.write(new PendingEvent(null, data, acked, expectedLength));
+        output.write(new PendingEvent(null, num, data, acked, expectedLength));
         verify(connection).send(new Append(SEGMENT, cid, num, Unpooled.wrappedBuffer(data), expectedLength));
         assertEquals(false, acked.isDone());
     }
@@ -159,7 +161,7 @@ public class SegmentOutputStreamTest {
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
-        output.write(new PendingEvent(null, data, acked));
+        output.write(new PendingEvent(null, 1, data, acked));
         verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked.isDone());
         Async.testBlocking(() -> output.close(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1)));
@@ -192,7 +194,7 @@ public class SegmentOutputStreamTest {
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Boolean> acked1 = new CompletableFuture<>();
-        output.write(new PendingEvent(null, data, acked1));
+        output.write(new PendingEvent(null, 1, data, acked1));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked1.isDone());
         Async.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1)));
@@ -201,7 +203,7 @@ public class SegmentOutputStreamTest {
         order.verify(connection).send(new WireCommands.KeepAlive());
         
         CompletableFuture<Boolean> acked2 = new CompletableFuture<>();
-        output.write(new PendingEvent(null, data, acked2));
+        output.write(new PendingEvent(null, 2, data, acked2));
         order.verify(connection).send(new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked2.isDone());
         Async.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 2)));
@@ -246,12 +248,60 @@ public class SegmentOutputStreamTest {
         ByteBuffer data = ByteBuffer.allocate(PendingEvent.MAX_WRITE_SIZE + 1);
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
         try {
-            output.write(new PendingEvent("routingKey", data, acked));
+            output.write(new PendingEvent("routingKey", 1, data, acked));
             fail("Did not throw");
         } catch (IllegalArgumentException e) {
             // expected
         }
         assertEquals(false, acked.isDone());
+        verifyNoMoreInteractions(connection);
+    }
+    
+    @Test
+    public void testThrowsOnNegativeSequence() throws ConnectionFailedException, SegmentSealedException, InterruptedException, ExecutionException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        output.setupConnection();
+        verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, -1));
+        CompletableFuture<Boolean> acked = new CompletableFuture<>();
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                                      () -> output.write(new PendingEvent(null, -1, getBuffer("test"), acked, null)));
+        output.write(new PendingEvent(null, 0, getBuffer("test"), acked, null));
+        assertEquals(false, acked.isDone());
+        
+    }
+    
+    @Test
+    public void testConnectCanAckFutureWrites() throws ConnectionFailedException, SegmentSealedException, InterruptedException, ExecutionException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        output.setupConnection();
+        verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 100));
+
+        CompletableFuture<Boolean> acked = new CompletableFuture<>();
+        output.write(new PendingEvent(null, 1, getBuffer("test"), acked, null));
+        assertEquals(true, acked.isDone());
+        assertEquals(false, acked.get());
+        acked = new CompletableFuture<>();
+        output.write(new PendingEvent(null, 2, getBuffer("test"), acked, null));
+        assertEquals(true, acked.isDone());
+        assertEquals(false, acked.get());
+        acked = new CompletableFuture<>();
+        output.write(new PendingEvent(null, 3, getBuffer("test"), acked, null));
+        assertEquals(true, acked.isDone());
+        assertEquals(false, acked.get());
         verifyNoMoreInteractions(connection);
     }
 }

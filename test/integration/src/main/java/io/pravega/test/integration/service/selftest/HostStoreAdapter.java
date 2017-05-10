@@ -9,6 +9,11 @@
  */
 package io.pravega.test.integration.service.selftest;
 
+import io.pravega.client.stream.AckFuture;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.impl.ByteArraySerializer;
+import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.service.contracts.AttributeUpdate;
 import io.pravega.service.contracts.ReadResult;
 import io.pravega.service.contracts.SegmentProperties;
@@ -16,10 +21,6 @@ import io.pravega.service.contracts.StreamSegmentExistsException;
 import io.pravega.service.contracts.StreamSegmentNotExistsException;
 import io.pravega.service.server.host.handler.PravegaConnectionListener;
 import io.pravega.service.server.store.ServiceBuilderConfig;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.impl.ByteArraySerializer;
-import io.pravega.client.stream.mock.MockStreamManager;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,7 +30,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.val;
@@ -134,7 +134,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
             }
 
             EventStreamWriter<byte[]> writer = segmentWriterCollection.next();
-            Future<Void> r = writer.writeEvent(streamSegmentName, data);
+            AckFuture r = writer.writeEvent(streamSegmentName, data);
             if (this.autoFlush) {
                 writer.flush();
             }

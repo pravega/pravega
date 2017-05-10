@@ -78,8 +78,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     
     @Data
     private static final class Session {
-        private final UUID id;
+        private final UUID writerId;
         private long lastEventNumber = -1L;
+        private int eventCount;
     }    
 
     @Override
@@ -88,7 +89,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (msg instanceof Append) {
             Append append = (Append) msg;
             Session session = setupSegments.get(append.segment);
-            if (session == null || !session.id.equals(append.getConnectionId())) {
+            if (session == null || !session.writerId.equals(append.getWriterId())) {
                 throw new InvalidMessageException("Sending appends without setting up the append.");
             }
             if (append.getEventNumber() <= session.lastEventNumber) {
@@ -97,7 +98,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             }
             if (append.isConditional()) {
                 breakFromAppend(out);
-                ConditionalAppend ca = new ConditionalAppend(append.connectionId,
+                ConditionalAppend ca = new ConditionalAppend(append.writerId,
                         append.eventNumber,
                         append.getExpectedLength(),
                         wrappedBuffer(serializeMessage(new Event(append.getData()))));
@@ -112,7 +113,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
                     bytesLeftInBlock = currentBlockSize;
                     segmentBeingAppendedTo = append.segment;
-                    writeMessage(new AppendBlock(session.id), out);
+                    writeMessage(new AppendBlock(session.writerId), out);
                     if (ctx != null) {
                         ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
                                                 blockSizeSupplier.getBatchTimeout(),
@@ -121,7 +122,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 }
 
                 session.lastEventNumber = append.getEventNumber();
-
+                session.eventCount++;
                 ByteBuf data = append.getData();
                 int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
                 // Is there enough space for a subsequent message after this one?
@@ -135,18 +136,21 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                                                            bytesInBlock,
                                                            serializedMessage.length - bytesInBlock);
                     writeMessage(new PartialEvent(dataInsideBlock), out);
-                    writeMessage(new AppendBlockEnd(session.id,
-                                                    session.lastEventNumber,
+                    writeMessage(new AppendBlockEnd(session.writerId,
                                                     currentBlockSize - bytesLeftInBlock,
-                                                    dataRemainging), out);
+                                                    dataRemainging,
+                                                    session.eventCount,
+                                                    session.lastEventNumber,
+                                                    session.lastEventNumber), out);
                     bytesLeftInBlock = 0;
+                    session.eventCount = 0;
                 }
             }
         } else if (msg instanceof SetupAppend) {
             breakFromAppend(out);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
-            setupSegments.put(setup.getSegment(), new Session(setup.getConnectionId()));
+            setupSegments.put(setup.getSegment(), new Session(setup.getWriterId()));
         } else if (msg instanceof Flush) {
             Flush flush = (Flush) msg;
             if (currentBlockSize == flush.getBlockSize()) {
@@ -164,12 +168,15 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (bytesLeftInBlock != 0) {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
             Session session = setupSegments.get(segmentBeingAppendedTo);
-            writeMessage(new AppendBlockEnd(session.id,
-                    session.lastEventNumber,
+            writeMessage(new AppendBlockEnd(session.writerId,
                     currentBlockSize - bytesLeftInBlock,
-                    null), out);
+                    null,
+                    session.eventCount,
+                    session.lastEventNumber,
+                    session.lastEventNumber), out);
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
+            session.eventCount = 0;
         }
         segmentBeingAppendedTo = null;
     }

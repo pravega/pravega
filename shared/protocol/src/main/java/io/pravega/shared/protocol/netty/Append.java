@@ -9,15 +9,14 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import java.util.UUID;
-
 import io.netty.buffer.ByteBuf;
+import java.util.UUID;
 import lombok.Data;
 
 @Data
 public class Append implements Request, Comparable<Append> {
     final String segment;
-    final UUID connectionId;
+    final UUID writerId;
     final long eventNumber;
     final ByteBuf data;
     final Long expectedLength;

@@ -12,7 +12,6 @@ package io.pravega.client.netty.impl;
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 

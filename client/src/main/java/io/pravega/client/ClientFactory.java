@@ -19,6 +19,7 @@ import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.IdempotentEventStreamWriter;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
@@ -26,6 +27,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import java.net.URI;
+import java.util.UUID;
 
 /**
  * Used to create Writers, Readers, and Synchronizers operating on a stream.
@@ -70,6 +72,20 @@ public interface ClientFactory extends AutoCloseable {
      * @return Newly created writer object
      */
     <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
+    
+    /**
+     * Creates a new writer that can write to the specified stream with a strictly increasing
+     * sequence associated with each one.
+     *
+     * @param streamName The name of the stream to write to.
+     * @param writerId The name of this writer (to distinguish it from others).
+     * @param config The writer configuration.
+     * @param s The Serializer.
+     * @param <T> The type of events.
+     * @return Newly created idempotent writer object
+     */
+    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, UUID writerId, Serializer<T> s,
+                                                                   EventWriterConfig config);
 
     /**
      * Creates (or recreates) a new reader that is part of a {@link ReaderGroup}. The reader

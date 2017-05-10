@@ -10,12 +10,16 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.Retry;
+import io.pravega.common.util.Retry.RetryWithBackoff;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
@@ -28,9 +32,6 @@ import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.common.util.Retry;
-import io.pravega.common.util.Retry.RetryWithBackoff;
-import io.pravega.common.util.ReusableLatch;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -60,7 +61,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
  */
 @RequiredArgsConstructor
 @Slf4j
-@ToString(of = {"segmentName", "connectionId", "state"})
+@ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
@@ -69,7 +70,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final Supplier<Long> requestIdGenerator = new AtomicLong(0)::incrementAndGet;
-    private final UUID connectionId;
+    private final UUID writerId;
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
@@ -90,7 +91,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @GuardedBy("lock")
         private final ConcurrentSkipListMap<Long, PendingEvent> inflight = new ConcurrentSkipListMap<>();
         @GuardedBy("lock")
-        private long eventNumber = 0;
+        private long eventNumber = -1;
         private final ReusableLatch connectionSetup = new ReusableLatch();
         @GuardedBy("lock")
         private CompletableFuture<Void> emptyInflightFuture = null;
@@ -184,14 +185,23 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 throw new RuntimeException(e);
             }
         }
+        
+        private void setEventNumber(long minEventNumber) {
+            synchronized (lock) {
+                eventNumber = minEventNumber;
+            }
+        }
 
         /**
          * Add event to the infight
          * @return The EventNumber for the event.
          */
-        private long addToInflight(PendingEvent event) {
+        private Long addToInflight(PendingEvent event) {
             synchronized (lock) {
-                eventNumber++;
+                if (eventNumber >= event.getSequence()) {
+                    return null;
+                }
+                eventNumber = event.getSequence();
                 inflight.put(eventNumber, event);
                 if (emptyInflightFuture != null && emptyInflightFuture.isDone()) {
                     emptyInflightFuture = null;
@@ -286,10 +296,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void appendSetup(AppendSetup appendSetup) {
             long ackLevel = appendSetup.getLastEventNumber();
+            state.setEventNumber(ackLevel);
             ackUpTo(ackLevel);
             List<Append> toRetransmit = state.getAllInflight()
                                              .stream()
-                                             .map(entry -> new Append(segmentName, connectionId, entry.getKey(),
+                                             .map(entry -> new Append(segmentName, writerId,
+                                                                      entry.getKey(),
                                                                       Unpooled.wrappedBuffer(entry.getValue()
                                                                                                   .getData()),
                                                                       entry.getValue().getExpectedOffset()))
@@ -329,29 +341,39 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
     
     /**
-     * @see SegmentOutputStream#write(java.nio.ByteBuffer,
-     *      java.util.concurrent.CompletableFuture)
+     * @see SegmentOutputStream#write
      */
     @Override
-    @Synchronized
     public void write(PendingEvent event) throws SegmentSealedException {
-        ClientConnection connection = getConnection();
-        long eventNumber = state.addToInflight(event);
-        try {
-            connection.send(new Append(segmentName, connectionId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
-                                       event.getExpectedOffset()));
-        } catch (ConnectionFailedException e) {
-            log.warn("Connection failed due to: ", e);
-            getConnection(); // As the messages is inflight, this will perform the retransmition.
+        Preconditions.checkArgument(event.getSequence() >= 0, "Sequence number must be a non-negative number.");
+        if (!writeIfInSequence(event)) {
+            event.getAckFuture().complete(false);
         }
     }
-    
+
+    @Synchronized
+    private boolean writeIfInSequence(PendingEvent event) throws SegmentSealedException {
+        ClientConnection connection = getConnection();
+        Long eventNumber = state.addToInflight(event);
+        boolean inSequence = eventNumber != null;
+        if (inSequence) {
+            try {
+                connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
+                                           event.getExpectedOffset()));
+            } catch (Exception e) {
+                state.failConnection(e);
+                getConnection(); // As the messages is inflight, this will perform the retransmition.
+            } 
+        }
+        return inSequence;
+    }
+
     /**
      * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
      */
     @Synchronized
     ClientConnection getConnection() throws SegmentSealedException {
-        checkState(!state.isClosed(), "LogOutputStream was already closed");
+        checkState(!state.isClosed(), "SegmentOutputStream was already closed");
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
             setupConnection();
             return state.waitForConnection();
@@ -368,7 +390,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 });
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
-            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), connectionId, segmentName);
+            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
             connection.send(cmd);
         }
     }

@@ -79,8 +79,8 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
-        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID());
+    public SegmentOutputStream createOutputStreamForSegment(UUID writerId, Segment segment) {
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, writerId);
         try {
             result.getConnection();
         } catch (RetriesExhaustedException | SegmentSealedException e) {
