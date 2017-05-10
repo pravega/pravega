@@ -1,25 +1,29 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Frequently Asked Questions
 
 **What is Pravega?**
 Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data.  See [here](terminology.md) for more definitions of terms related to Pravega.
 
 **What does "Pravega" mean?**
-"Pravega" is a word from Sanskrit referring to "high speed", "velocity" or "acceleration"; typically associated with a positive connotation.
+"Pravega" is a word from Sanskrit referring to "good speed".
 
 **Is Pravega similiar to systems such as Kafka and Kinesis?**
-Sort of.  Although Pravega is a great messaging (pub/sub) system, unlike Kafka and Kinesis, Pravega is also a storage primitive and can be used as a distributed computing synchronization mechanism.
+Pravega is built from the ground up as an enterprise grade storage system to support features such as exactly once, durability etc.  Pravega is an ideal store for streaming data, data from real-time applications and IoT data.
 
 **How can I participate in open source?**
+Disruptive innovation is accelerated by open source.  When Pravega was created, there was no question it made sense to make it open source.
 We welcome contributions from experienced and new developers alike.  Check out the code in [Github](https://github.com/pravega/pravega) .  More detail about how to get involved can be found [here](contributing.md).
 
 **How do I get started?**
-Read the [Getting Started](getting-started.md) guide for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for some sample applications.  
-
-**Is Pravega production ready?**
-Not yet.  We just started several months ago and some features, such as auto scaling are still experimental.  With the support of the community, we can make Pravega production ready soon.
-
-**Does Pravega run on Windows?**
-Yes.  
+Read the [Getting Started](getting-started.md) guide for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for some sample applications.   
 
 **I am stuck. Where can I get help?**
 Don’t hesitate to ask! Contact the developers and community on the mailing lists

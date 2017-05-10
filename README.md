@@ -1,6 +1,15 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Pravega [![Build Status](https://travis-ci.com/pravega/pravega.svg?token=qhH3WLZqyhzViixpn6ZT&branch=master)](https://travis-ci.com/pravega/pravega) [![codecov](https://codecov.io/gh/pravega/pravega/branch/master/graph/badge.svg?token=6xOvaR0sIa)](https://codecov.io/gh/pravega/pravega)
 
-Pravega is an open source distributed storage service implementing **Streams**. It offers Stream as the main primitive for the foundation of reliable storage systems: a *high-performance, durable, elastic, and infinite append-only byte stream with strict ordering and consistency*.
+Pravega is an open source distributed storage service implementing **Streams**. It offers Stream as the main primitive for the foundation of reliable storage systems: a *high-performance, durable, elastic, and unlimited append-only byte stream with strict ordering and consistency*.
 
 To learn more about Pravega, visit http://pravega.io
 
@@ -62,8 +71,8 @@ Pravega can be installed locally or in a distributed environment. The installati
 
 ## Support
 
-Don’t hesitate to ask! Contact the developers and community on the mailing lists
-if you need any help. Open an issue if you found a bug on [Github
+Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://codecommunity.slack.com/#pravega) if you need any help. 
+Open an issue if you found a bug on [Github
 Issues](https://github.com/pravega/pravega/issues)
 
 ## Documentation
@@ -75,8 +84,8 @@ The Pravega documentation of is hosted on the website:
 
 Become one of the contributors! We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
-[Here](docs/contributing.md) we describe how to
-contribute to Pravega!
+[Here](docs/contributing.md) we describe how to contribute to Pravega!
+You can see the roadmap document [here](docs/roadmap.md)
 
 ## About
 

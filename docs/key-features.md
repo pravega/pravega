@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Pravega Key Features
 
 This document explains some of the key features of Pravega.  It may be
@@ -242,7 +251,7 @@ that Streams are usually read in large contiguous chunks and that HDFS is well
 suited for those sort of large, high-throughput reads.  It is also worth noting
 that tail reads do not impact the performance of writes.
 
-## Infinite Retention
+## Unlimited Retention
 
 Data in Streams can be retained for as long as the application needs it, 
 constrained to the amount of data available, which is unbounded given the use

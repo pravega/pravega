@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 site_name: 'Exploring Pravega'
 site_url: 'http://pravega.io/docs'
 site_description: 'Documentation to help you get familiar with Pravega'
@@ -14,6 +23,7 @@ pages:
       - 'Pravega Concepts': 'pravega-concepts.md'
       - 'Terminology': 'terminology.md'
       - 'Key Features': 'key-features.md'
+      - 'Pravega FAQ': 'faq.md'
   - Developing Pravega Applications:
       - 'Java API Reference': 'javadoc.md'
       - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
@@ -29,6 +39,7 @@ pages:
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
+      - 'Pravega Roadmap': 'roadmap.md'
       - 'Join the Community': 'join-community.md'
 extra:
     version: 0.1
