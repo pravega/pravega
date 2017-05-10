@@ -119,6 +119,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 return emptyInflightFuture;
             }
         }
+        
+        private boolean isAlreadySealed() {
+            synchronized (lock) {
+                return connection == null && exception != null && exception instanceof SegmentSealedException;
+            }
+        }
 
         private boolean isInflightEmpty() {
             synchronized (lock) {
@@ -360,6 +366,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Synchronized
     ClientConnection getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "LogOutputStream was already closed");
+        if (state.isAlreadySealed()) {
+            throw new SegmentSealedException();
+        }
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
             setupConnection();
             return state.waitForConnection();
