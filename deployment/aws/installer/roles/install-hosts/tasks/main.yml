@@ -1,0 +1,9 @@
+---
+- name: Copy config.properties
+  copy:
+      src: data/config.properties
+      dest: /home/ubuntu
+
+- name: Run hosts
+  shell: nohup /opt/pravega/bin/pravega-segmentstore 2>&1 &> /tmp/host.log &
+  sudo: yes
