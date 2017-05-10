@@ -1,0 +1,275 @@
+{
+  "id": "/pravega",
+  "apps": [
+    {
+      "id": "/pravega/hdfs",
+      "cpus": 0.1,
+      "mem": 2048,
+      "instances": 1,
+      "ipAddress": {
+        "networkName": "dcos"
+      },
+      "container": {
+        "type": "DOCKER",
+        "volumes": [
+          {
+            "containerPath": "/opt/hadoop/logs",
+            "hostPath": "logs",
+            "mode": "RW"
+          }
+        ],
+        "docker": {
+          "image": "dsrw/hdfs:2.7.3-1",
+          "forcePullImage": true,
+          "network": "USER",
+          "portMappings": [
+            {
+              "name": "hdfs",
+              "containerPort": 8020
+            },
+            {
+              "name": "hdfs-secondary",
+              "containerPort": 50090
+            },
+            {
+              "name": "hdfs-datanode",
+              "containerPort": 50010
+            },
+            {
+              "name": "hdfs-datanode-ipc",
+              "containerPort": 50020
+            },
+            {
+              "name": "hdfs-datanode-http",
+              "containerPort": 50075
+            },
+            {
+              "name": "hdfs-web",
+              "containerPort": 50070
+            }
+          ]
+        }
+      },
+      "healthChecks": [
+        {
+          "protocol": "TCP",
+          "portIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "/pravega/zookeeper",
+      "cpus": 0.1,
+      "mem": 2048,
+      "instances": 1,
+      "ipAddress": {
+        "networkName": "dcos"
+      },
+      "container": {
+        "type": "DOCKER",
+        "docker": {
+          "image": "jplock/zookeeper:3.5.2-alpha",
+          "forcePullImage": true,
+          "network": "USER",
+          "portMappings": [
+            {
+              "name": "zookeeper",
+              "containerPort": 2181
+            }
+          ]
+        }
+      },
+      "healthChecks": [
+        {
+          "protocol": "TCP",
+          "portIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "/pravega/bookkeeper",
+      "depencencies": [
+        "/pravega/zookeeper"
+      ],
+      "cpus": 0.1,
+      "mem": 1000,
+      "instances": 5,
+      "constraints": [
+        [
+          "hostname",
+          "UNIQUE"
+        ]
+      ],
+      "container": {
+        "type": "DOCKER",
+        "volumes": [
+          {
+            "containerPath": "/bk/journal",
+            "hostPath": "/mnt/journal",
+            "mode": "RW"
+          },
+          {
+            "containerPath": "/bk/index",
+            "hostPath": "/mnt/index",
+            "mode": "RW"
+          },
+          {
+            "containerPath": "/bk/ledgers",
+            "hostPath": "/mnt/ledgers",
+            "mode": "RW"
+          },
+          {
+            "containerPath": "/opt/dl_all/distributedlog-service/logs/",
+            "hostPath": "/mnt/logs",
+            "mode": "RW"
+          },
+          {
+            "containerPath": "persist",
+            "mode": "RW",
+            "persistent": {
+              "size": 7000
+            }
+          }
+        ],
+        "docker": {
+          "image": "pravega/bookkeeper",
+          "network": "HOST",
+          "parameters": [
+            {
+              "key": "env",
+              "value": "DLOG_EXTRA_OPTS=-Xms512m "
+            }
+          ]
+        }
+      },
+      "portDefinitions": [
+        {
+          "protocol": "tcp",
+          "port": 3181
+        }
+      ],
+      "requirePorts": true,
+      "env": {
+        "ZK_URL": "zookeeper-pravega.marathon.containerip.dcos.thisdcos.directory:2181"
+      },
+      "healthChecks": [
+        {
+          "protocol": "TCP",
+          "portIndex": 0,
+          "gracePeriodSeconds": 900,
+          "intervalSeconds": 60,
+          "timeoutSeconds": 20,
+          "maxConsecutiveFailures": 0,
+          "ignoreHttp1xx": false
+        }
+      ]
+    },
+    {
+      "id": "/pravega/controller",
+      "dependencies": [
+        "/pravega/zookeeper"
+      ],
+      "cpus": 0.1,
+      "mem": 600,
+      "instances": 2,
+      "constraints": [
+        [
+          "hostname",
+          "UNIQUE"
+        ]
+      ],
+      "container": {
+        "type": "MESOS",
+        "docker": {
+          "image": "pravega/pravega"
+        }
+      },
+      "args": [
+        "controller"
+      ],
+      "env": {
+        "REST_SERVER_PORT": "10080",
+        "CONTROLLER_SERVER_PORT": "9090",
+        "ZK_URL": "zookeeper-pravega.marathon.containerip.dcos.thisdcos.directory:2181",
+        "HOST_STORE_TYPE": "Zookeeper",
+        "HOST_MONITOR_ENABLE": "true",
+        "JAVA_OPTS": "-Dconfig.controller.metricenableCSVReporter=false -Dconfig.controller.metricenableStatistics=true -Dconfig.controller.metricyammerStatsDHost=$STATSD_UDP_HOST -Dconfig.controller.metricyammerStatsDPort=$STATSD_UDP_PORT -Dconfig.controller.metricyammerStatsOutputFrequencySeconds=10 -Xmx512m"
+      },
+      "portDefinitions": [
+        {
+          "protocol": "tcp",
+          "port": 9090
+        },
+        {
+          "protocol": "tcp",
+          "port": 10080
+        }
+      ],
+      "requirePorts": true,
+      "healthChecks": [
+        {
+          "protocol": "TCP",
+          "portIndex": 0,
+          "gracePeriodSeconds": 900,
+          "intervalSeconds": 60,
+          "timeoutSeconds": 20,
+          "maxConsecutiveFailures": 0,
+          "ignoreHttp1xx": false
+        }
+      ],
+      "upgradeStrategy": {
+        "maximumOverCapacity": 0,
+        "minimumHealthCapacity": 0
+      }
+    },
+    {
+      "id": "/pravega/segmentstore",
+      "dependencies": [
+        "/pravega/bookkeeper",
+        "/pravega/hdfs"
+      ],
+      "cpus": 0.1,
+      "mem": 1000,
+      "instances": 2,
+      "constraints": [
+        [
+          "hostname",
+          "UNIQUE"
+        ]
+      ],
+      "container": {
+        "type": "MESOS",
+        "docker": {
+          "image": "pravega/pravega"
+        }
+      },
+      "args": [
+        "segmentstore"
+      ],
+      "env": {
+        "ZK_URL": "zookeeper-pravega.marathon.containerip.dcos.thisdcos.directory:2181",
+        "HDFS_URL": "hdfs-pravega.marathon.containerip.dcos.thisdcos.directory:8020",
+        "CONTROLLER_URL": "tcp://controller.pravega.marathon.mesos:9091",
+        "JAVA_OPTS": "-Dmetrics.enableCSVReporter=false -Dmetrics.enableStatistics=true -Dmetrics.yammerStatsDHost=$STATSD_UDP_HOST -Dmetrics.yammerStatsDPort=$STATSD_UDP_PORT -Dmetrics.yammerStatsOutputFrequencySeconds=10 -Xmx900m"
+      },
+      "portDefinitions": [
+        {
+          "protocol": "tcp",
+          "port": 12345
+        }
+      ],
+      "requirePorts": true,
+      "healthChecks": [
+        {
+          "protocol": "TCP",
+          "portIndex": 0,
+          "gracePeriodSeconds": 900,
+          "intervalSeconds": 60,
+          "timeoutSeconds": 20,
+          "maxConsecutiveFailures": 0,
+          "ignoreHttp1xx": false
+        }
+      ]
+    }
+  ]
+}
