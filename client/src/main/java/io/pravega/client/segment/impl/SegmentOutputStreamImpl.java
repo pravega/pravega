@@ -99,17 +99,17 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private long eventNumber = 0;
         private final ReusableLatch connectionSetup = new ReusableLatch();
         @GuardedBy("lock")
-        private CompletableFuture<Void> emptyInflightFuture = null;
+        private CompletableFuture<Exception> emptyInflightFuture = null;
 
         /**
          * Returns a future that will complete successfully once all the inflight events are acked
          * and will fail if that is not possible for some reason. IE: because the connection
          * dropped, or the segment was sealed.
          */
-        private CompletableFuture<Void> getEmptyInflightFuture() {
+        private CompletableFuture<Exception> getEmptyInflightFuture() {
             synchronized (lock) {
                 if (emptyInflightFuture == null) {
-                    emptyInflightFuture = new CompletableFuture<Void>();
+                    emptyInflightFuture = new CompletableFuture<Exception>();
                     if (inflight.isEmpty()) {
                         emptyInflightFuture.complete(null);
                     }
@@ -163,7 +163,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     log.warn("Connection failed due to: {}", e.getMessage());
                 }
                 if (emptyInflightFuture != null) {
-                    emptyInflightFuture.completeExceptionally(exception);
+                    emptyInflightFuture.complete(exception);
                 }
             }
             connectionSetupComplete();
@@ -406,9 +406,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                           .throwingOn(SegmentSealedException.class)
                           .run(() -> {
+                              CompletableFuture<Exception> inflightFuture = state.getEmptyInflightFuture();
                               ClientConnection connection = getConnection();
                               connection.send(new KeepAlive());
-                              state.getEmptyInflightFuture().get();
+                              Exception exception = inflightFuture.get();
+                              if (exception != null) {
+                                  throw exception;
+                              }
                               return null;
                           });
         }
