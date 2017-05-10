@@ -282,9 +282,9 @@ public class SegmentOutputStreamTest {
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
         cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
-        AssertExtensions.assertThrows(SegmentSealedException.class, ()->output.flush());
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
-    
+
     @Test(timeout = 10000)
     public void testSealedAfterFlush() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
@@ -304,12 +304,12 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, data, ack));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
-        Async.testBlocking(()->{
-            AssertExtensions.assertThrows(SegmentSealedException.class, ()->output.flush());
-        }, ()-> {            
+        Async.testBlocking(() -> {
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        }, () -> {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
         });
-        AssertExtensions.assertThrows(SegmentSealedException.class, ()->output.flush());
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
     
 }
