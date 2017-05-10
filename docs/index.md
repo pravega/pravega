@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Pravega Overview
 
 Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data. A Pravega stream is a durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.  
@@ -14,7 +23,7 @@ Read [Pravega Concepts](pravega-concepts.md) for more details.
 
 -   Write Efficiency - Pravega shrinks write latency to milliseconds, and seamlessly scales to handle high throughput reads and writes from thousands of concurrent clients, making it ideal for IoT and other time sensitive applications.
 
--   Infinite Retention - Ingest, process and retain data in streams forever. Use same paradigm to access both real-time and historical events stored in Pravega.
+-   Unlimited Retention - Ingest, process and retain data in streams forever. Use same paradigm to access both real-time and historical events stored in Pravega.
 
 -   Storage Efficiency - Use Pravega to build pipelines of data processing, combining batch, real-time and other applications without duplicating data for every step of the pipeline.
 
