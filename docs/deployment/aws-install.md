@@ -9,15 +9,18 @@ You may obtain a copy of the License at
 -->
 # Running on AWS
 
-Pre-reqs: terraform installed, and create a AWS account
-
-Terraform can be downloaded from https://www.terraform.io/downloads.html
+Pre-reqs: Have an AWS account and have Terraform installed. To install and download Terraform, follow the instructions here:
+https://www.terraform.io/downloads.html
 
 ### Deploy Steps
 - Define the nodes layout in installer/hosts-template.
 
-There are three sections of hosts-template, common-services is for zookeeper and bookkeeper, pravega-controller is for pravega controller node, and pravega-hosts is for pravega segmentstore node.
-Here is a example of hosts-template:
+There are three sections of hosts-template:
+- common-services is the section for zookeeper and bookkeeper
+- pravega-controller is the section for pravega controller node
+- pravega-hosts is the section for the pravega segment store node.
+
+Here is an example of hosts-template:
 
 [common-services]
 N0 myid=0
@@ -32,10 +35,10 @@ N0
 N1
 N2
 
-- Put you AWS keypair file under installer directory
-- Run "terraform apply" under deployment directory, then follow prompts, enter AWS account credentials.
+- Put you AWS keypair file under the installer directory
+- Run "terraform apply" under the deployment directory, and then following the prompt instructions, enter the AWS account credentials.
 
-For now, only two region is supported: us-east-1 and us-west-1. Below is recommended instance type for them.
+Currently, we only support two regions: us-east-1 and us-west-1. We list below the instance types we recommend for them.
 
 ### Region us-east-1
 - Three m3.xlarge for EMR
@@ -47,4 +50,4 @@ For now, only two region is supported: us-east-1 and us-west-1. Below is recomme
 - Three i3.4xlarge for Pravega
 - One i3.xlarge for bootstrap, also as client
 
-Other instance type might have conflict with the Linux Images used.
+Other instance type mights present conflicts with the Linux Images used.
