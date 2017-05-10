@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -254,10 +255,11 @@ public final class Retry {
         }
 
         private Class<? extends Throwable> getErrorType(final Throwable e) {
-            if (retryType.equals(CompletionException.class) || throwType.equals(CompletionException.class)) {
+            if (retryType.equals(CompletionException.class) || retryType.equals(ExecutionException.class)
+                    || throwType.equals(CompletionException.class) || throwType.equals(ExecutionException.class)) {
                 return e.getClass();
             } else {
-                if (e instanceof CompletionException && e.getCause() != null) {
+                if ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
                     return e.getCause().getClass();
                 } else {
                     return e.getClass();
