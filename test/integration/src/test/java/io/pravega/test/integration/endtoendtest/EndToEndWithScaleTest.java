@@ -92,7 +92,7 @@ public class EndToEndWithScaleTest {
         zkTestServer.close();
     }
 
-    @Test//(timeout = 10000)
+    @Test(timeout = 20000)
     public void testScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope("test")

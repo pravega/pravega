@@ -112,6 +112,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     emptyInflightFuture = new CompletableFuture<Exception>();
                     if (inflight.isEmpty()) {
                         emptyInflightFuture.complete(null);
+                    } else if (exception != null) {
+                        emptyInflightFuture.complete(exception);
                     }
                 }
                 return emptyInflightFuture;
@@ -406,10 +408,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                           .throwingOn(SegmentSealedException.class)
                           .run(() -> {
-                              CompletableFuture<Exception> inflightFuture = state.getEmptyInflightFuture();
                               ClientConnection connection = getConnection();
                               connection.send(new KeepAlive());
-                              Exception exception = inflightFuture.get();
+                              Exception exception = state.getEmptyInflightFuture().get();
                               if (exception != null) {
                                   throw exception;
                               }
