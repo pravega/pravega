@@ -193,7 +193,7 @@
         "ZK_URL": "zookeeper-pravega.marathon.containerip.dcos.thisdcos.directory:2181",
         "HOST_STORE_TYPE": "Zookeeper",
         "HOST_MONITOR_ENABLE": "true",
-        "JAVA_OPTS": "-Dconfig.controller.metricenableCSVReporter=false -Dconfig.controller.metricenableStatistics=true -Dconfig.controller.metricyammerStatsDHost=$STATSD_UDP_HOST -Dconfig.controller.metricyammerStatsDPort=$STATSD_UDP_PORT -Dconfig.controller.metricyammerStatsOutputFrequencySeconds=10 -Xmx512m"
+        "JAVA_OPTS": "-Dconfig.controller.metricenableCSVReporter=false -Dconfig.controller.metricenableStatistics=true -Dconfig.controller.metricstatsDHost=$STATSD_UDP_HOST -Dconfig.controller.metricstatsDPort=$STATSD_UDP_PORT -Dconfig.controller.metricstatsOutputFrequencySeconds=10 -Xmx512m"
       },
       "portDefinitions": [
         {
@@ -250,7 +250,7 @@
         "ZK_URL": "zookeeper-pravega.marathon.containerip.dcos.thisdcos.directory:2181",
         "HDFS_URL": "hdfs-pravega.marathon.containerip.dcos.thisdcos.directory:8020",
         "CONTROLLER_URL": "tcp://controller.pravega.marathon.mesos:9091",
-        "JAVA_OPTS": "-Dmetrics.enableCSVReporter=false -Dmetrics.enableStatistics=true -Dmetrics.yammerStatsDHost=$STATSD_UDP_HOST -Dmetrics.yammerStatsDPort=$STATSD_UDP_PORT -Dmetrics.yammerStatsOutputFrequencySeconds=10 -Xmx900m"
+        "JAVA_OPTS": "-Dmetrics.enableCSVReporter=false -Dmetrics.enableStatistics=true -Dmetrics.statsDHost=$STATSD_UDP_HOST -Dmetrics.statsDPort=$STATSD_UDP_PORT -Dmetrics.statsOutputFrequencySeconds=10 -Xmx900m"
       },
       "portDefinitions": [
         {
