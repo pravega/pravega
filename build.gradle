@@ -55,7 +55,7 @@ allprojects {
 
     rat {
         // List of exclude directives, defaults to ['**/.gradle/**']
-        excludes = [ '**/build/**', '**/.gradle/**', '**/.idea/**', '**/gradle/wrapper/**', '**/.github/**', '**/generated/**'  ]
+        excludes = [ '**/build/**', '**/.gradle/**', '**/.idea/**', '**/gradle/wrapper/**', '**/.github/**', '**/generated/**', '**/checkstyle/**'  ]
     }
 }
 
