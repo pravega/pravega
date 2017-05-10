@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 In Pravega Metrics Framework, we use [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
 # 1. Metrics interfaces and use example
 There are three basic interfaces: StatsProvider, StatsLogger (short for Statistics Logger) and OpStatsLogger (short for Operation Statistics Logger, and it is included in StatsLogger).
@@ -194,11 +203,11 @@ public class MetricsConfig extends ComponentConfig {
     //region Members
     public static final String COMPONENT_CODE = "metrics";
     public final static String ENABLE_STATISTICS = "enableStatistics"; < === enable metric, or will report nothing
-    public final static String OUTPUT_FREQUENCY = "StatsOutputFrequencySeconds"; < === reporter output frequency
-    public final static String METRICS_PREFIX = "MetricsPrefix"; 
-    public final static String CSV_ENDPOINT = "CSVEndpoint"; < === CSV reporter output dir
-    public final static String STATSD_HOST = "StatsDHost"; < === StatsD server host for the reporting
-    public final static String STATSD_PORT = "StatsDPort"; < === StatsD server port
+    public final static String OUTPUT_FREQUENCY = "statsOutputFrequencySeconds"; < === reporter output frequency
+    public final static String METRICS_PREFIX = "metricsPrefix"; 
+    public final static String CSV_ENDPOINT = "csvEndpoint"; < === CSV reporter output dir
+    public final static String STATSD_HOST = "statsDHost"; < === StatsD server host for the reporting
+    public final static String STATSD_PORT = "statsDPort"; < === StatsD server port
     public final static boolean DEFAULT_ENABLE_STATISTICS = true;
     public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
     public final static String DEFAULT_METRICS_PREFIX = "host";

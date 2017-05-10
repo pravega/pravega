@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 site_name: 'Exploring Pravega'
 site_url: 'http://pravega.io/docs'
 site_description: 'Documentation to help you get familiar with Pravega'
@@ -13,11 +22,8 @@ pages:
   - Understanding Pravega:
       - 'Pravega Concepts': 'pravega-concepts.md'
       - 'Terminology': 'terminology.md'
-#      - 'Segment Store Service': 'segment-store-service.md'
-#      - 'Segment Container': 'segment-containers.md'
-#      - 'Reader Groups': 'reader-groups-design.md'
-#      - 'State Syncronizer': 'state-synchronizer-design.md'
-#      - 'Wire Protocol': 'wire-protocol.md'
+      - 'Key Features': 'key-features.md'
+      - 'Pravega FAQ': 'faq.md'
   - Developing Pravega Applications:
       - 'Java API Reference': 'javadoc.md'
       - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
@@ -31,11 +37,9 @@ pages:
       - 'Deployment in Docker Swarm': 'deployment/docker-swarm.md'
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
-      - 'Pravega Metrics': 'metrics.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
-      - 'Issue Triaging': 'contributing.md'
-      - 'Pull Request Reviews': 'contributing.md'
+      - 'Pravega Roadmap': 'roadmap.md'
       - 'Join the Community': 'join-community.md'
 extra:
     version: 0.1

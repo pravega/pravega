@@ -1,17 +1,11 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 package io.pravega.shared.metrics;
 
@@ -28,16 +22,16 @@ public class MetricsConfig {
     //region Config Names
     public final static Property<Boolean> ENABLE_STATISTICS = Property.named("enableStatistics", true);
     public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 10000000L);
-    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("yammerStatsOutputFrequencySeconds", 60);
-    public final static Property<String> METRICS_PREFIX = Property.named("yammerMetricsPrefix", "pravega");
-    public final static Property<String> CSV_ENDPOINT = Property.named("yammerCSVEndpoint", "/tmp/csv");
-    public final static Property<String> STATSD_HOST = Property.named("yammerStatsDHost", "localhost");
-    public final static Property<Integer> STATSD_PORT = Property.named("yammerStatsDPort", 8125);
-    public final static Property<String> GRAPHITE_HOST = Property.named("yammerGraphiteHost", "localhost");
-    public final static Property<Integer> GRAPHITE_PORT = Property.named("yammerGraphitePort", 2003);
-    public final static Property<String> JMX_DOMAIN = Property.named("yammerJMXDomain", "domain");
-    public final static Property<String> GANGLIA_HOST = Property.named("yammerGangliaHost", "localhost");
-    public final static Property<Integer> GANGLIA_PORT = Property.named("yammerGangliaPort", 8649);
+    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("statsOutputFrequencySeconds", 60);
+    public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
+    public final static Property<String> CSV_ENDPOINT = Property.named("csvEndpoint", "/tmp/csv");
+    public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
+    public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
+    public final static Property<String> GRAPHITE_HOST = Property.named("graphiteHost", "localhost");
+    public final static Property<Integer> GRAPHITE_PORT = Property.named("graphitePort", 2003);
+    public final static Property<String> JMX_DOMAIN = Property.named("jmxDomain", "domain");
+    public final static Property<String> GANGLIA_HOST = Property.named("gangliaHost", "localhost");
+    public final static Property<Integer> GANGLIA_PORT = Property.named("gangliaPort", 8649);
     public final static Property<Boolean> ENABLE_CSV_REPORTER = Property.named("enableCSVReporter", true);
     public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("enableStatsdReporter", true);
     public final static Property<Boolean> ENABLE_GRAPHITE_REPORTER = Property.named("enableGraphiteReporter", false);

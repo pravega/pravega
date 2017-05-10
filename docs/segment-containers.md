@@ -1,8 +1,17 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Segment Containers in a Pravega Cluster
 
 This document describes the high level design of how we are managing the lifecyle of Segment Containers in a Pravega Cluster.
 
-![Balancing Segment Containers](https://github.com/emccode/pravega/raw/feature-wiki-image/doc/img/segment.container.management.png)
+![Balancing Segment Containers](img/segment.container.management.png)
 
 ## Segment Containers
 In this document we refer to a **segment container** as **container**. The total number of containers is fixed for a given deployment. Each container can be owned by only one Pravega host and all containers in the cluster should be running at any given point in time. 

@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Getting started
 
 
@@ -37,6 +46,8 @@ $ bin/pravega-standalone
 
 That's it.  Pravega should be up and running very soon.
 
+You can find additional ways to run Pravega in [Running Pravega](deployment/deployment.md).
+
 ## Running a sample Pravega App is simple too
 
 Pravega maintains a separate github repository for sample applications.  It is located at:
@@ -51,15 +62,13 @@ about this see the note on maven publishing in the [README.md](https://github.co
 **Download the Pravega-Samples git repo**
 
 ```
-$ mkdir pravega-samples
-$ cd pravega-samples
 $ git clone https://github.com/pravega/pravega-samples
+$ cd pravega-samples
 ```
 
 **Generate the scripts to run the apps**
 
 ```
-$ cd pravega-samples/pravega-samples
 $ ./gradlew installDist
 ```
 
@@ -67,7 +76,7 @@ $ ./gradlew installDist
 This runs a simple Java application that writes a "hello world" message
         as an event into a Pravega stream.
 ```
-$ cd pravega-samples/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
+$ cd pravega-samples/standalone-examples/build/install/pravega-standalone-examples
 $ bin/helloWorldWriter
 ```
 _Example HelloWorldWriter output_
@@ -82,7 +91,7 @@ See the [readme.md](https://github.com/pravega/pravega-samples/blob/master/stand
 **Run the sample "HelloWorldReader"**
 
 ```
-$ cd pravega-samples/pravega-samples/standalone-examples/build/install/pravega-standalone-examples
+$ cd pravega-samples/standalone-examples/build/install/pravega-standalone-examples
 $ bin/helloWorldReader
 ```
 
@@ -98,5 +107,3 @@ No more events from examples/helloStream
 
 See the readme.md file in the standalone-examples for more details on running the
     HelloWorldReader application
-
-**Congratulations!**  You have successfully installed Pravega and ran a couple of simple Pravega applications.
