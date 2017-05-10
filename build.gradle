@@ -40,7 +40,7 @@ allprojects {
     apply from: "$rootDir/gradle/java.gradle"
     apply from: "$rootDir/gradle/maven.gradle"
     apply from: "$rootDir/gradle/protobuf.gradle"
-    apply plugin: "org.nosphere.apache.rat"
+    apply from: "$rootDir/gradle/rat.gradle"
 
     repositories {
         jcenter()
@@ -50,13 +50,6 @@ allprojects {
 
     version = pravegaVersion
     group = "io.pravega"
-
-
-
-    rat {
-        // List of exclude directives, defaults to ['**/.gradle/**']
-        excludes = [ '**/build/**', '**/.gradle/**', '**/.idea/**', '**/gradle/wrapper/**', '**/.github/**', '**/generated/**', '**/checkstyle/**', 'PravegaGroup.json' ]
-    }
 }
 
 project('common') {
