@@ -27,8 +27,8 @@ import io.pravega.service.contracts.StreamSegmentNotExistsException;
 import io.pravega.service.contracts.StreamSegmentSealedException;
 import io.pravega.service.contracts.TooManyActiveSegmentsException;
 import io.pravega.service.server.ContainerMetadata;
-import io.pravega.service.server.MetadataBuilder;
 import io.pravega.service.server.ManualTimer;
+import io.pravega.service.server.MetadataBuilder;
 import io.pravega.service.server.SegmentMetadata;
 import io.pravega.service.server.SegmentMetadataComparer;
 import io.pravega.service.server.UpdateableContainerMetadata;
@@ -37,6 +37,7 @@ import io.pravega.service.server.containers.StreamSegmentMetadata;
 import io.pravega.service.server.logs.operations.MergeTransactionOperation;
 import io.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.service.server.logs.operations.Operation;
+import io.pravega.service.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.service.server.logs.operations.StorageOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentMapOperation;
@@ -56,7 +57,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Before;
@@ -761,7 +761,7 @@ public class OperationMetadataUpdaterTests {
     @Test
     public void testProcessMetadataCheckpoint() throws Exception {
         // When encountering MetadataCheckpoint in non-Recovery Mode, the OperationMetadataUpdater serializes a snapshot
-        // of the current metadata inside the MetadataPersisted.
+        // of the current metadata inside the Operation.
         // When encountering MetadataCheckpoint in Recovery Mode, the OperationMetadataUpdater deserializes the snapshot-ted
         // metadata in it and applies it to the container metadata (inside the transaction). All existing metadata updates
         // are cleared.
@@ -775,8 +775,8 @@ public class OperationMetadataUpdaterTests {
 
         // Checkpoint 1: original metadata.
         // Checkpoint 2: Checkpoint 1 + 1 StreamSegment and 1 Transaction + 1 Append
-        MetadataCheckpointOperation checkpoint1 = createMetadataPersisted();
-        MetadataCheckpointOperation checkpoint2 = createMetadataPersisted();
+        MetadataCheckpointOperation checkpoint1 = createMetadataCheckpoint();
+        MetadataCheckpointOperation checkpoint2 = createMetadataCheckpoint();
 
         // Checkpoint 1 Should have original metadata.
         processOperation(checkpoint1, updater, seqNo::incrementAndGet);
@@ -797,6 +797,53 @@ public class OperationMetadataUpdaterTests {
     }
 
     /**
+     * Tests the processMetadataOperation method with StorageMetadataCheckpoint operations.
+     */
+    @Test
+    public void testProcessStorageMetadataCheckpoint() throws Exception {
+        // When encountering StorageMetadataCheckpoint in non-Recovery Mode, the OperationMetadataUpdater serializes a
+        // snapshot of the relevant metadata fields inside the Operation.
+        // When encountering StorageMetadataCheckpoint in Recovery Mode, the OperationMetadataUpdater deserializes the
+        // snapshot-ted metadata in it and applies it to the container metadata (inside the transaction).
+        AtomicLong seqNo = new AtomicLong();
+
+        // Create a non-empty metadata and seal a segment.
+        this.timeProvider.setElapsedMillis(1234);
+        val metadata1 = createMetadata();
+        val updater1 = createUpdater(metadata1);
+        val segmentMetadata1 = metadata1.getStreamSegmentMetadata(SEGMENT_ID);
+        segmentMetadata1.markSealed(); // Need to mark segment sealed before being able to set sealed in storage.
+
+        // Take a full snapshot of the metadata before making any changes.
+        val fullCheckpoint1 = createMetadataCheckpoint();
+        processOperation(fullCheckpoint1, updater1, seqNo::incrementAndGet);
+
+        // Update the storage state for this segment: increment its length and mark it as sealed in storage.
+        segmentMetadata1.setStorageLength(segmentMetadata1.getStorageLength() + 1);
+        segmentMetadata1.markSealedInStorage();
+
+        // Take a storage checkpoint.
+        val storageCheckpoint = createStorageMetadataCheckpoint();
+        processOperation(storageCheckpoint, updater1, seqNo::incrementAndGet);
+
+        // Apply current metadata.
+        updater1.commit();
+
+        // Create a new metadata and apply the checkpoint during recovery.
+        val metadata2 = createBlankMetadata();
+        metadata2.enterRecoveryMode();
+        val updater2 = createUpdater(metadata2);
+        processOperation(fullCheckpoint1, updater2, () -> 1L);
+        updater2.preProcessOperation(storageCheckpoint);
+        boolean success = updater2.commit();
+        Assert.assertTrue("OperationMetadataUpdater.commit() did not make any modifications.", success);
+        metadata2.exitRecoveryMode();
+
+        // Verify that the Storage Length & StorageSealed status are applied correctly.
+        assertMetadataEquals("Unexpected metadata after applying storage checkpoint.", metadata1, metadata2);
+    }
+
+    /**
      * Tests the processMetadataOperation method with MetadataCheckpoint operations, when such checkpoints are skipped over
      * because they are after other operations.
      */
@@ -809,7 +856,7 @@ public class OperationMetadataUpdaterTests {
         // Create a non-empty metadata.
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
-        MetadataCheckpointOperation checkpointedMetadata = createMetadataPersisted();
+        MetadataCheckpointOperation checkpointedMetadata = createMetadataCheckpoint();
         processOperation(checkpointedMetadata, updater, seqNo::incrementAndGet);
 
         // Create a blank metadata, and add an operation to the updater (which would result in mapping a new StreamSegment).
@@ -1110,8 +1157,12 @@ public class OperationMetadataUpdaterTests {
         return new TransactionMapOperation(parentId, new StreamSegmentInformation(name, SEALED_TRANSACTION_LENGTH, true, false, createAttributes(), new ImmutableDate()));
     }
 
-    private MetadataCheckpointOperation createMetadataPersisted() {
+    private MetadataCheckpointOperation createMetadataCheckpoint() {
         return new MetadataCheckpointOperation();
+    }
+
+    private StorageMetadataCheckpointOperation createStorageMetadataCheckpoint() {
+        return new StorageMetadataCheckpointOperation();
     }
 
     private void checkNoSequenceNumberAssigned(Operation op, String context) {

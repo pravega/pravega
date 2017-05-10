@@ -15,6 +15,7 @@
  */
 package io.pravega.service.server.reading;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.service.contracts.ReadResult;
 import io.pravega.service.server.ContainerMetadata;
@@ -24,7 +25,6 @@ import io.pravega.service.server.SegmentMetadata;
 import io.pravega.service.storage.Cache;
 import io.pravega.service.storage.CacheFactory;
 import io.pravega.service.storage.ReadOnlyStorage;
-import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -38,7 +38,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -275,7 +274,7 @@ public class ContainerReadIndex implements ReadIndex {
 
         synchronized (this.lock) {
             assert this.preRecoveryMetadata != null
-                    : "preRecoveryMetadata not null, which should only be the case when we are not in recovery mode";
+                    : "preRecoveryMetadata is null, which should only be the case when we are not in recovery mode";
             Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(),
                     "Cannot take ReadIndex out of recovery: ContainerMetadata is still in recovery mode.");
 

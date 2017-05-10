@@ -39,6 +39,7 @@ import io.pravega.service.server.UpdateableSegmentMetadata;
 import io.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.service.server.logs.operations.Operation;
 import io.pravega.service.server.logs.operations.OperationComparer;
+import io.pravega.service.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.service.server.logs.operations.StorageOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentMapOperation;
@@ -975,9 +976,13 @@ public class DurableLogTests extends OperationLogTestBase {
 
             durableLog.add(newOp, TIMEOUT).join();
             List<Operation> newOperations = readAllDurableLog(durableLog);
-            Assert.assertEquals("Unexpected number of operations added after full truncation.", 2, newOperations.size());
-            Assert.assertTrue("Expecting the first operation after full truncation to be a MetadataCheckpointOperation.", newOperations.get(0) instanceof MetadataCheckpointOperation);
-            Assert.assertEquals("Unexpected Operation encountered after full truncation.", newOp, newOperations.get(1));
+            final int expectedOperationCount = 3; // Full Checkpoint + Storage Checkpoint (auto-added)+ new op
+            Assert.assertEquals("Unexpected number of operations added after full truncation.", expectedOperationCount, newOperations.size());
+            Assert.assertTrue("Expecting the first operation after full truncation to be a MetadataCheckpointOperation.",
+                    newOperations.get(0) instanceof MetadataCheckpointOperation);
+            Assert.assertTrue("Expecting a StorageMetadataCheckpointOperation to be auto-added after full truncation.",
+                    newOperations.get(1) instanceof StorageMetadataCheckpointOperation);
+            Assert.assertEquals("Unexpected Operation encountered after full truncation.", newOp, newOperations.get(2));
 
             // Stop the processor.
             durableLog.stopAsync().awaitTerminated();
@@ -1068,6 +1073,92 @@ public class DurableLogTests extends OperationLogTestBase {
         } finally {
             // This closes whatever current instance this variable refers to, not necessarily the first one.
             durableLog.close();
+        }
+    }
+
+    /**
+     * Tests the ability of the truncate() method to auto-queue (and wait for) mini-metadata checkpoints containing items
+     * that are not updated via normal operations. Such items include StorageLength and IsSealedInStorage.
+     */
+    @Test
+    public void testTruncateWithStorageMetadataCheckpoints() {
+        int streamSegmentCount = 50;
+        int appendsPerStreamSegment = 20;
+
+        // Setup a DurableLog and start it.
+        @Cleanup
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        @Cleanup
+        Storage storage = new InMemoryStorage(executorService());
+        storage.initialize(1);
+        val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
+
+        @Cleanup
+        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+        @Cleanup
+        val readIndex1 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, cacheFactory, storage, cacheManager, executorService());
+        HashSet<Long> streamSegmentIds;
+        List<OperationWithCompletion> completionFutures;
+
+        // First DurableLog. We use this for generating data.
+        try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata1, dataLogFactory, readIndex1, executorService())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Generate some test data (we need to do this after we started the DurableLog because in the process of
+            // recovery, it wipes away all existing metadata).
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata1, durableLog, storage);
+            List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+            completionFutures = processOperations(queuedOperations, durableLog);
+            OperationWithCompletion.allOf(completionFutures).join();
+
+            // Update the metadata with Storage-related data. Set some arbitrary StorageOffsets and seal 50% of the segments in storage.
+            long storageOffset = 0;
+            for (long segmentId : streamSegmentIds) {
+                val sm = metadata1.getStreamSegmentMetadata(segmentId);
+                sm.setStorageLength(Math.min(storageOffset, sm.getDurableLogLength()));
+                storageOffset++;
+                if (sm.isSealed() && storageOffset % 2 == 0) {
+                    sm.markSealedInStorage();
+                }
+            }
+
+            // Truncate at the last possible truncation point.
+            val originalOperations = readAllDurableLog(durableLog);
+            long lastCheckpointSeqNo = -1;
+            for (Operation o : originalOperations) {
+                if (o instanceof MetadataCheckpointOperation) {
+                    lastCheckpointSeqNo = o.getSequenceNumber();
+                }
+            }
+
+            AssertExtensions.assertGreaterThan("Could not find any truncation points.", 0, lastCheckpointSeqNo);
+            durableLog.truncate(lastCheckpointSeqNo, TIMEOUT).join();
+
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
+        }
+
+        // Start a second DurableLog and then verify the metadata.
+        val metadata2 = new MetadataBuilder(CONTAINER_ID).build();
+        @Cleanup
+        val readIndex2 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, cacheFactory, storage, cacheManager, executorService());
+        try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata2, dataLogFactory, readIndex2, executorService())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Check Metadata1 vs Metadata2
+            for (long segmentId : streamSegmentIds) {
+                val sm1 = metadata1.getStreamSegmentMetadata(segmentId);
+                val sm2 = metadata2.getStreamSegmentMetadata(segmentId);
+                Assert.assertEquals("StorageLength differs for recovered segment " + segmentId,
+                        sm1.getStorageLength(), sm2.getStorageLength());
+                Assert.assertEquals("IsSealedInStorage differs for recovered segment " + segmentId,
+                        sm1.isSealedInStorage(), sm2.isSealedInStorage());
+            }
+
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
         }
     }
 

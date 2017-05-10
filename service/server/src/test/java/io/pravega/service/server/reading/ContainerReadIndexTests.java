@@ -953,61 +953,6 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         Assert.assertArrayEquals("Unexpected data read from parent segment.", writeData, readData);
     }
 
-    /**
-     * Tests the following scenario, where the ReadIndex would return a Future read result for a non-future offset which
-     * would never be completed:
-     * * A Segment has StorageLength < DurableLogLength.
-     * * Recovery happens. At this point StorageLength is likely smaller than the original StorageLength, since the last
-     * actions by the Writer may not have been persisted in the metadata checkpoint)
-     * * Immediately after recovery (but before the Writer has a chance to update StorageLength to the correct value),
-     * we get a read request for data that does not exist in the cache (truncated out) but is after the recovered value
-     * of StorageLength.
-     * * The correct behavior would be to return a StorageRead (not a FutureRead), which, when completed, would fill up
-     * the cache with the requested offset.
-     */
-    @Test
-    public void testStorageReadAfterRecovery() throws Exception {
-        final long segmentLength = 1000;
-        final long realStorageLength = segmentLength / 2;
-        final long metadataStorageLength = realStorageLength / 2;
-        final Random rnd = new Random(0);
-
-        @Cleanup
-        TestContext context = new TestContext();
-
-        // Create segment and configure its metadata as described in this test's documentation.
-        long segmentId = createSegment(0, context);
-        UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
-        segmentMetadata.setDurableLogLength(segmentLength);
-        segmentMetadata.setStorageLength(metadataStorageLength);
-
-        // Write some arbitrary data to the segment in storage.
-        byte[] storageData = new byte[(int) realStorageLength];
-        rnd.nextBytes(storageData);
-        context.storage.create(segmentMetadata.getName(), TIMEOUT).join();
-        val writeHandle = context.storage.openWrite(segmentMetadata.getName()).join();
-        context.storage.write(writeHandle, 0, new ByteArrayInputStream(storageData), storageData.length, TIMEOUT).join();
-
-        // Add some data to the ReadIndex for that offset range that is beyond the real Storage length.
-        byte[] postStorageData = new byte[(int) (segmentLength - realStorageLength)];
-        rnd.nextBytes(postStorageData);
-        context.readIndex.append(segmentId, realStorageLength, postStorageData);
-
-        // Now issue a read with an offset just after the metadataStorageLength (i.e, outside of the known storage bounds
-        // of the segment).
-        @Cleanup
-        val reader = context.readIndex.read(segmentId, metadataStorageLength + 1, (int) (realStorageLength - metadataStorageLength - 2), TIMEOUT);
-        Assert.assertTrue("Empty read result. ", reader.hasNext());
-        val entry = reader.next();
-        Assert.assertEquals("Unexpected ReadResultEntryType for data that is not in index.", ReadResultEntryType.Storage, entry.getType());
-        entry.requestContent(TIMEOUT);
-        val contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        byte[] readData = StreamHelpers.readAll(contents.getData(), contents.getLength());
-        AssertExtensions.assertArrayEquals("Unexpected data fetched from storage.", storageData,
-                (int) metadataStorageLength + 1, readData, 0, readData.length);
-    }
-
     //endregion
 
     //region Helpers

@@ -15,6 +15,7 @@
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ImmutableDate;
@@ -40,6 +41,7 @@ import io.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.service.server.logs.operations.MetadataOperation;
 import io.pravega.service.server.logs.operations.Operation;
 import io.pravega.service.server.logs.operations.SegmentOperation;
+import io.pravega.service.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.service.server.logs.operations.StorageOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentMapOperation;
@@ -47,7 +49,6 @@ import io.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.service.server.logs.operations.TransactionMapOperation;
 import io.pravega.service.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.service.storage.LogAddress;
-import com.google.common.base.Preconditions;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -63,7 +64,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -413,6 +413,9 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 } else if (operation instanceof MetadataCheckpointOperation) {
                     // MetadataCheckpointOperations do not require preProcess and accept; they can be handled in a single stage.
                     processMetadataOperation((MetadataCheckpointOperation) operation);
+                } else if (operation instanceof StorageMetadataCheckpointOperation) {
+                    // StorageMetadataCheckpointOperation do not require preProcess and accept; they can be handled in a single stage.
+                    processMetadataOperation((StorageMetadataCheckpointOperation) operation);
                 }
             }
         }
@@ -538,6 +541,19 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
         }
 
+        private void processMetadataOperation(StorageMetadataCheckpointOperation operation) throws MetadataUpdateException {
+            try {
+                if (this.containerMetadata.isRecoveryMode()) {
+                    updateFrom(operation);
+                } else {
+                    serializeTo(operation);
+                }
+            } catch (IOException | SerializationException ex) {
+                throw new MetadataUpdateException(this.containerMetadata.getContainerId(),
+                        "Unable to process StorageMetadataCheckpointOperation " + operation.toString(), ex);
+            }
+        }
+
         private void acceptMetadataOperation(StreamSegmentMapOperation operation) throws MetadataUpdateException {
             if (operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
                 throw new MetadataUpdateException(this.containerMetadata.getContainerId(),
@@ -652,13 +668,13 @@ class OperationMetadataUpdater implements ContainerMetadata {
         /**
          * Deserializes the Metadata from the given stream.
          *
-         * @param operation The MetadataCheckpointOperation to deserialize from..
+         * @param operation The MetadataCheckpointOperation to deserialize from.
          * @throws IOException            If the stream threw one.
          * @throws SerializationException If the given Stream is an invalid metadata serialization.
          * @throws IllegalStateException  If the Metadata is not in Recovery Mode.
          */
         private void deserializeFrom(MetadataCheckpointOperation operation) throws IOException, SerializationException {
-            Preconditions.checkState(this.containerMetadata.isRecoveryMode(), "Cannot deserialize Metadata in recovery mode.");
+            Preconditions.checkState(this.containerMetadata.isRecoveryMode(), "Cannot deserialize Metadata in non-recovery mode.");
 
             DataInputStream stream = new DataInputStream(new GZIPInputStream(operation.getContents().getReader()));
 
@@ -693,6 +709,32 @@ class OperationMetadataUpdater implements ContainerMetadata {
             segmentCount = stream.readInt();
             for (int i = 0; i < segmentCount; i++) {
                 deserializeSegmentMetadata(stream);
+            }
+        }
+
+        /**
+         * Applies the updates stored in the given StorageMetadataCheckpointOperation.
+         *
+         * @param operation The StorageMetadataCheckpointOperation to update from.
+         * @throws IOException            If the stream threw one.
+         * @throws SerializationException If the given Stream is an invalid metadata serialization.
+         * @throws IllegalStateException  If the Metadata is not in Recovery Mode.
+         */
+        private void updateFrom(StorageMetadataCheckpointOperation operation) throws IOException, SerializationException, MetadataUpdateException {
+            Preconditions.checkState(this.containerMetadata.isRecoveryMode(), "Cannot bulk-update Metadata in non-recovery mode.");
+
+            DataInputStream stream = new DataInputStream(new GZIPInputStream(operation.getContents().getReader()));
+
+            // 1. Version.
+            byte version = stream.readByte();
+            if (version != CURRENT_SERIALIZATION_VERSION) {
+                throw new SerializationException("Metadata.updateFrom", String.format("Unsupported version: %d.", version));
+            }
+
+            // 2. Segments
+            int segmentCount = stream.readInt();
+            for (int i = 0; i < segmentCount; i++) {
+                deserializeStorageSegmentMetadata(stream);
             }
         }
 
@@ -732,6 +774,27 @@ class OperationMetadataUpdater implements ContainerMetadata {
             // 5. Changed Segment Metadata.
             stream.writeInt(this.streamSegmentUpdates.size());
             this.streamSegmentUpdates.values().forEach(sm -> serializeSegmentMetadata(sm, stream));
+
+            zipStream.finish();
+            operation.setContents(byteStream.getData());
+        }
+
+        private void serializeTo(StorageMetadataCheckpointOperation operation) throws IOException {
+            assert operation != null : "operation is null";
+            Preconditions.checkState(!this.containerMetadata.isRecoveryMode(), "Cannot serialize Metadata in recovery mode.");
+
+            EnhancedByteArrayOutputStream byteStream = new EnhancedByteArrayOutputStream();
+            GZIPOutputStream zipStream = new GZIPOutputStream(byteStream);
+            DataOutputStream stream = new DataOutputStream(zipStream);
+
+            // 1. Version.
+            stream.writeByte(CURRENT_SERIALIZATION_VERSION);
+
+            // 2. Segment Metadata (there is no point in adding the new ones as those ones have not yet had
+            // a chance to be updated in Storage)
+            Collection<Long> segmentIds = this.containerMetadata.getAllStreamSegmentIds();
+            stream.writeInt(segmentIds.size());
+            segmentIds.forEach(segmentId -> serializeStorageSegmentMetadata(this.containerMetadata.getStreamSegmentMetadata(segmentId), stream));
 
             zipStream.finish();
             operation.setContents(byteStream.getData());
@@ -804,6 +867,31 @@ class OperationMetadataUpdater implements ContainerMetadata {
             // S11. Attributes.
             val attributes = AttributeSerializer.deserialize(stream);
             metadata.updateAttributes(attributes);
+        }
+
+        @SneakyThrows(IOException.class)
+        private void serializeStorageSegmentMetadata(SegmentMetadata sm, DataOutputStream stream) {
+            // S1. StreamSegmentId.
+            stream.writeLong(sm.getId());
+            // S2. StorageLength.
+            stream.writeLong(sm.getStorageLength());
+            // S3. SealedInStorage.
+            stream.writeBoolean(sm.isSealedInStorage());
+            // S4. Deleted.
+            stream.writeBoolean(sm.isDeleted());
+        }
+
+        private void deserializeStorageSegmentMetadata(DataInputStream stream) throws IOException, MetadataUpdateException {
+            // S1. StreamSegmentId.
+            long segmentId = stream.readLong();
+            TemporaryStreamSegmentMetadata metadata = getStreamSegmentMetadata(segmentId);
+            // S2. StorageLength.
+            long storageLength = stream.readLong();
+            // S3. SealedInStorage.
+            boolean sealedInStorage = stream.readBoolean();
+            // S4. Deleted.
+            boolean deleted = stream.readBoolean();
+            metadata.updateStorageState(storageLength, sealedInStorage, deleted);
         }
     }
 
@@ -1289,6 +1377,29 @@ class OperationMetadataUpdater implements ContainerMetadata {
         //endregion
 
         //region Operations
+
+        /**
+         * Updates the base metadata directly with the given state of the segment in storage. Note that, as opposed from
+         * the rest of the methods in this class, this does not first update the transaction and then apply it to the
+         * base segment, instead it modifies it directly.
+         *
+         * This method is only meant to be used during recovery mode when we need to restore the state of a segment.
+         * During normal operations, these values are set asynchronously by the Writer.
+         *
+         * @param storageLength The value to set as StorageLength.
+         * @param storageSealed The value to set as SealedInStorage.
+         * @param deleted       The value to set as Deleted.
+         */
+        void updateStorageState(long storageLength, boolean storageSealed, boolean deleted) {
+            this.baseMetadata.setStorageLength(storageLength);
+            if (storageSealed) {
+                this.baseMetadata.markSealedInStorage();
+            }
+
+            if (deleted) {
+                this.baseMetadata.markDeleted();
+            }
+        }
 
         /**
          * Applies all the outstanding changes to the base StreamSegmentMetadata object.

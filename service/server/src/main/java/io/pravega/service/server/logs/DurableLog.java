@@ -39,6 +39,7 @@ import io.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.service.server.logs.operations.Operation;
 import io.pravega.service.server.logs.operations.OperationFactory;
 import io.pravega.service.server.logs.operations.ProbeOperation;
+import io.pravega.service.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.service.storage.DurableDataLog;
 import io.pravega.service.storage.DurableDataLogFactory;
 import io.pravega.service.storage.LogAddress;
@@ -240,8 +241,11 @@ public class DurableLog extends AbstractService implements OperationLog {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         log.info("{}: Truncate (OperationSequenceNumber = {}, DataFrameAddress = {}).", this.traceObjectId, upToSequenceNumber, truncationFrameAddress);
 
-        return this.durableDataLog
-                .truncate(truncationFrameAddress, timer.getRemaining())
+        // Before we do any real truncation, we need to mini-snapshot the metadata with only those fields that are updated
+        // asynchronously for us (i.e., not via normal Log Operations) such as the Storage State. That ensures that this
+        // info will be readily available upon recovery without delay.
+        return add(new StorageMetadataCheckpointOperation(), timer.getRemaining())
+                .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
                 .thenRunAsync(() -> {
                     // Truncate InMemory Transaction Log.
                     this.inMemoryOperationLog.truncate(actualTruncationSequenceNumber);
