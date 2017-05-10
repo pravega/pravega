@@ -22,6 +22,9 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.Retry;
+import io.pravega.common.util.Retry.RetryWithBackoff;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
@@ -34,9 +37,6 @@ import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.common.util.Retry;
-import io.pravega.common.util.Retry.RetryWithBackoff;
-import io.pravega.common.util.ReusableLatch;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -163,7 +163,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     log.warn("Connection failed due to: {}", e.getMessage());
                 }
                 if (emptyInflightFuture != null) {
-                    emptyInflightFuture.completeExceptionally(e);
+                    emptyInflightFuture.completeExceptionally(exception);
                 }
             }
             connectionSetupComplete();
