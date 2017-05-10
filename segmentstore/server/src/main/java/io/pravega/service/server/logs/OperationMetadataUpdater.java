@@ -9,6 +9,7 @@
  */
 package io.pravega.service.server.logs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ImmutableDate;
@@ -37,11 +38,11 @@ import io.pravega.service.server.logs.operations.SegmentOperation;
 import io.pravega.service.server.logs.operations.StorageOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.service.server.logs.operations.StreamSegmentMapOperation;
+import io.pravega.service.server.logs.operations.StreamSegmentMapping;
 import io.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.service.server.logs.operations.TransactionMapOperation;
 import io.pravega.service.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.service.storage.LogAddress;
-import com.google.common.base.Preconditions;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -57,7 +58,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -454,22 +454,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         private void preProcessMetadataOperation(StreamSegmentMapOperation operation) throws ContainerException {
-            // Verify StreamSegment Name is not already mapped somewhere else.
-            long existingStreamSegmentId = getExistingStreamSegmentId(operation.getStreamSegmentName());
-            if (existingStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                throw new MetadataUpdateException(this.containerMetadata.getContainerId(),
-                        String.format("Operation %d wants to map a StreamSegment Name that is already mapped in the metadata. Name = '%s', Existing Id = %d.",
-                                operation.getSequenceNumber(), operation.getStreamSegmentName(), existingStreamSegmentId));
-            }
-
-            if (!this.containerMetadata.isRecoveryMode()) {
-                if (this.containerMetadata.getActiveSegmentCount() + this.newStreamSegments.size() >= this.containerMetadata.getMaximumActiveSegmentCount()) {
-                    throw new TooManyActiveSegmentsException(this.containerMetadata.getContainerId(), this.containerMetadata.getMaximumActiveSegmentCount());
-                }
-
-                // Assign the SegmentId, but only in non-recovery mode.
-                operation.setStreamSegmentId(generateUniqueStreamSegmentId());
-            }
+            // Verify that the segment is not already mapped. If it is mapped, then it needs to have the exact same
+            // segment id as the one the operation is trying to set.
+            checkExistingMapping(operation);
+            assignUniqueStreamSegmentId(operation);
         }
 
         private void preProcessMetadataOperation(TransactionMapOperation operation) throws ContainerException {
@@ -479,28 +467,15 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 throw new MetadataUpdateException(
                         this.containerMetadata.getContainerId(),
                         String.format(
-                                "Operation %d wants to map a StreamSegment to a Parent StreamSegment Id that does not exist. Parent StreamSegmentId = %d, Transaction Name = %s.",
+                                "Operation %d wants to map a StreamSegment to a Parent StreamSegment Id that does " +
+                                        "not exist. Parent StreamSegmentId = %d, Transaction Name = %s.",
                                 operation.getSequenceNumber(), operation.getParentStreamSegmentId(), operation.getStreamSegmentName()));
             }
 
-            // Verify StreamSegment Name is not already mapped somewhere else.
-            long existingStreamId = getExistingStreamSegmentId(operation.getStreamSegmentName());
-            if (existingStreamId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                throw new MetadataUpdateException(
-                        this.containerMetadata.getContainerId(),
-                        String.format(
-                                "Operation %d wants to map a Transaction StreamSegment Name that is already mapped in the metadata. Transaction Name = '%s', Existing Id = %d.",
-                                operation.getSequenceNumber(), operation.getStreamSegmentName(), existingStreamId));
-            }
-
-            if (!this.containerMetadata.isRecoveryMode()) {
-                if (this.containerMetadata.getActiveSegmentCount() + this.newStreamSegments.size() >= this.containerMetadata.getMaximumActiveSegmentCount()) {
-                    throw new TooManyActiveSegmentsException(this.containerMetadata.getContainerId(), this.containerMetadata.getMaximumActiveSegmentCount());
-                }
-
-                // Assign the SegmentId.
-                operation.setStreamSegmentId(generateUniqueStreamSegmentId());
-            }
+            // Verify that the segment is not already mapped. If it is mapped, then it needs to have the exact same
+            // segment id as the one the operation is trying to set.
+            checkExistingMapping(operation);
+            assignUniqueStreamSegmentId(operation);
         }
 
         private void processMetadataOperation(MetadataCheckpointOperation operation) throws MetadataUpdateException {
@@ -588,6 +563,31 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             return existingSegmentId;
+        }
+
+        private void checkExistingMapping(StreamSegmentMapping operation) throws MetadataUpdateException {
+            long existingStreamSegmentId = getExistingStreamSegmentId(operation.getStreamSegmentName());
+            if (existingStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID
+                    && existingStreamSegmentId != operation.getStreamSegmentId()) {
+                throw new MetadataUpdateException(
+                        this.containerMetadata.getContainerId(),
+                        String.format("Operation '%s' wants to map a Segment that is already mapped in the metadata. Existing Id = %d.",
+                                operation, existingStreamSegmentId));
+            }
+        }
+
+        private void assignUniqueStreamSegmentId(StreamSegmentMapping mapping) throws TooManyActiveSegmentsException {
+            if (!this.containerMetadata.isRecoveryMode()) {
+                int maxCount = this.containerMetadata.getMaximumActiveSegmentCount();
+                if (this.containerMetadata.getActiveSegmentCount() + this.newStreamSegments.size() >= maxCount) {
+                    throw new TooManyActiveSegmentsException(this.containerMetadata.getContainerId(), maxCount);
+                }
+
+                // Assign the SegmentId, but only in non-recovery mode and only if not already assigned.
+                if (mapping.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+                    mapping.setStreamSegmentId(generateUniqueStreamSegmentId());
+                }
+            }
         }
 
         private long generateUniqueStreamSegmentId() {
