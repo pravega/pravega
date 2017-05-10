@@ -19,9 +19,23 @@ public class Append implements Request, Comparable<Append> {
     final String segment;
     final UUID connectionId;
     final long eventNumber;
+    final int eventCount;
     final ByteBuf data;
     final Long expectedLength;
-    
+
+    public Append(String segment, UUID connectionId, long eventNumber, ByteBuf data, Long expectedLength) {
+        this(segment, connectionId, eventNumber, 1, data, expectedLength);
+    }
+
+    public Append(String segment, UUID connectionId, long eventNumber, int eventCount, ByteBuf data, Long expectedLength) {
+        this.segment = segment;
+        this.connectionId = connectionId;
+        this.eventNumber = eventNumber;
+        this.eventCount = eventCount;
+        this.data = data;
+        this.expectedLength = expectedLength;
+    }
+
     public boolean isConditional() {
         return expectedLength != null;
     }

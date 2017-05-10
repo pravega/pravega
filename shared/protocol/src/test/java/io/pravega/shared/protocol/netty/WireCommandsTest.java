@@ -37,7 +37,7 @@ public class WireCommandsTest {
     public void testHello() throws IOException {
         testCommand(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
     }
-    
+
     @Test
     public void testPadding() throws IOException {
         testCommand(new WireCommands.Padding(length));
@@ -60,7 +60,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAppendBlockEnd() throws IOException {
-        testCommand(new WireCommands.AppendBlockEnd(uuid, l, i, buf));
+        testCommand(new WireCommands.AppendBlockEnd(uuid, i, buf, i, i, l));
     }
 
     @Test

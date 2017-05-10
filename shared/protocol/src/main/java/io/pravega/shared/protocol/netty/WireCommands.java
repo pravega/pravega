@@ -33,10 +33,10 @@ import lombok.experimental.Accessors;
  * Each command is self-contained providing both it's serialization and deserialization logic.
  * Commands are not nested and contain only primitive types. The types are serialized in the obvious
  * way using Java's DataOutput and DataInput. All data is written BigEndian.
- * 
+ *
  * Because length and type are detected externally these are not necessary for the classes to
  * supply.
- * 
+ *
  * Compatible changes (i.e. Adding new members) that would not cause breakage if either the client or
  * the server were running older code can be made at any time.
  * Incompatible changes should instead create a new WireCommand object.
@@ -75,7 +75,7 @@ public final class WireCommands {
         public void process(RequestProcessor cp) {
             cp.hello(this);
         }
-        
+
         @Override
         public void process(ReplyProcessor cp) {
             cp.hello(this);
@@ -93,7 +93,7 @@ public final class WireCommands {
             return new Hello(highVersion, lowVersion);
         }
     }
-    
+
     @Data
     public static final class WrongHost implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.WRONG_HOST;
@@ -361,16 +361,17 @@ public final class WireCommands {
     @Data
     public static final class AppendBlockEnd implements WireCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK_END;
-        final UUID connectionId;
-        final long lastEventNumber;
+        final UUID writerId;
         final int sizeOfWholeEvents;
         final ByteBuf data;
+        final int numEvents;
+        final long lastEventNumber;
+        final long unused; // Will be used by AppendSequence:  
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(connectionId.getMostSignificantBits());
-            out.writeLong(connectionId.getLeastSignificantBits());
-            out.writeLong(lastEventNumber);
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
             out.writeInt(sizeOfWholeEvents);
             if (data == null) {
                 out.writeInt(0);
@@ -378,11 +379,13 @@ public final class WireCommands {
                 out.writeInt(data.readableBytes());
                 out.write(data.array(), data.arrayOffset(), data.readableBytes());
             }
+            out.writeInt(numEvents);
+            out.writeLong(lastEventNumber);
+            out.writeLong(unused);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            UUID connectionId = new UUID(in.readLong(), in.readLong());
-            long lastEventNumber = in.readLong();
+            UUID writerId = new UUID(in.readLong(), in.readLong());
             int sizeOfHeaderlessAppends = in.readInt();
             int dataLength = in.readInt();
             byte[] data;
@@ -392,10 +395,13 @@ public final class WireCommands {
             } else {
                 data = new byte[0];
             }
-            return new AppendBlockEnd(connectionId, lastEventNumber, sizeOfHeaderlessAppends, wrappedBuffer(data));
+            int numEvents = in.readInt();
+            long lastEventNumber = in.readLong();
+            long unused = in.readLong();
+            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, wrappedBuffer(data), numEvents, lastEventNumber, unused);
         }
     }
-    
+
     @Data
     public static final class ConditionalAppend implements WireCommand {
         final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
@@ -403,7 +409,7 @@ public final class WireCommands {
         final long eventNumber;
         final long expectedOffset;
         final ByteBuf data;
-        
+
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
@@ -434,7 +440,7 @@ public final class WireCommands {
             return new ConditionalAppend(connectionId, eventNumber, expectedOffset, wrappedBuffer(data));
         }
     }
-    
+
     @Data
     public static final class AppendSetup implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.APPEND_SETUP;
@@ -490,7 +496,7 @@ public final class WireCommands {
             return new DataAppended(connectionId, offset);
         }
     }
-    
+
     @Data
     public static final class ConditionalCheckFailed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.CONDITIONAL_CHECK_FAILED;
@@ -556,7 +562,7 @@ public final class WireCommands {
         public void process(ReplyProcessor cp) {
             cp.segmentRead(this);
         }
-        
+
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segment);
@@ -601,7 +607,7 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();            
+            long requestId = in.readLong();
             String segment = in.readUTF();
             return new GetStreamSegmentInfo(requestId, segment);
         }
@@ -645,7 +651,7 @@ public final class WireCommands {
             return new StreamSegmentInfo(requestId, segmentName, exists, isSealed, isDeleted, lastModified, segmentLength);
         }
     }
-    
+
     @Data
     public static final class GetTransactionInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_TRANSACTION_INFO;
@@ -1001,7 +1007,7 @@ public final class WireCommands {
         }
     }
 
-    
+
     @Data
     public static final class SealSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
@@ -1055,7 +1061,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
         final long requestId;
         final String segment;
-        
+
         @Override
         public void process(RequestProcessor cp) {
             cp.deleteSegment(this);
@@ -1097,7 +1103,7 @@ public final class WireCommands {
             return new SegmentDeleted(requestId, segment);
         }
     }
-    
+
     @Data
     public static final class KeepAlive implements Request, Reply, WireCommand {
         final WireCommandType type = WireCommandType.KEEP_ALIVE;
@@ -1121,12 +1127,12 @@ public final class WireCommands {
             return new KeepAlive();
         }
     }
-    
+
     @Data
     public static final class Flush implements WireCommand {
         final WireCommandType type = WireCommandType.KEEP_ALIVE;
         private final int blockSize;
-        
+
         @Override
         public void writeFields(DataOutput out) {
             throw new IllegalStateException("This command is not sent over the wire.");
