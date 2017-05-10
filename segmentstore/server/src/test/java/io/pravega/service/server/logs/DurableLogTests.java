@@ -513,6 +513,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Create a segment, which will be used for testing later.
         UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
         segmentMetadata.setDurableLogLength(0);
+        segmentMetadata.setStorageLength(0);
 
         // Setup a bunch of read operations, and make sure they are blocked (since there is no data).
         ArrayList<CompletableFuture<Iterator<Operation>>> readFutures = new ArrayList<>();

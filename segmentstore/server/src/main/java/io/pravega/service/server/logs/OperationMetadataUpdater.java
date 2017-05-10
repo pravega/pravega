@@ -909,7 +909,9 @@ class OperationMetadataUpdater implements ContainerMetadata {
         private final boolean isRecoveryMode;
         private final Map<UUID, Long> updatedAttributeValues;
         private long currentDurableLogLength;
+        private long currentStorageLength;
         private boolean sealed;
+        private boolean sealedInStorage;
         private boolean merged;
         private boolean deleted;
         private long lastUsed;
@@ -930,7 +932,9 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.baseMetadata = baseMetadata;
             this.isRecoveryMode = isRecoveryMode;
             this.currentDurableLogLength = this.baseMetadata.getDurableLogLength();
+            this.currentStorageLength = -1;
             this.sealed = this.baseMetadata.isSealed();
+            this.sealedInStorage = this.baseMetadata.isSealedInStorage();
             this.merged = this.baseMetadata.isMerged();
             this.deleted = this.baseMetadata.isDeleted();
             this.updatedAttributeValues = new HashMap<>();
@@ -992,12 +996,12 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
         @Override
         public boolean isSealedInStorage() {
-            return this.baseMetadata.isSealedInStorage();
+            return this.sealedInStorage;
         }
 
         @Override
         public long getStorageLength() {
-            return this.baseMetadata.getStorageLength();
+            return this.currentStorageLength < 0 ? this.baseMetadata.getStorageLength() : this.currentStorageLength;
         }
 
         @Override
@@ -1391,14 +1395,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @param deleted       The value to set as Deleted.
          */
         void updateStorageState(long storageLength, boolean storageSealed, boolean deleted) {
-            this.baseMetadata.setStorageLength(storageLength);
-            if (storageSealed) {
-                this.baseMetadata.markSealedInStorage();
-            }
-
-            if (deleted) {
-                this.baseMetadata.markDeleted();
-            }
+            this.currentStorageLength = storageLength;
+            this.sealedInStorage = storageSealed;
+            this.deleted = deleted;
+            this.isChanged = true;
         }
 
         /**
@@ -1414,14 +1414,20 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.baseMetadata.setLastUsed(this.lastUsed);
             this.baseMetadata.updateAttributes(this.updatedAttributeValues);
             this.baseMetadata.setDurableLogLength(this.currentDurableLogLength);
-            if (this.isSealed()) {
+            if (this.currentStorageLength >= 0) {
+                // Only update this if it really was set. Otherwise we might revert back to an old value if the Writer
+                // has already made progress on it.
+                this.baseMetadata.setStorageLength(this.currentStorageLength);
+            }
+
+            if (this.sealed) {
                 this.baseMetadata.markSealed();
-                if (this.isSealedInStorage()) {
-                    this.baseMetadata.isSealedInStorage();
+                if (this.sealedInStorage) {
+                    this.baseMetadata.markSealedInStorage();
                 }
             }
 
-            if (this.isMerged()) {
+            if (this.merged) {
                 this.baseMetadata.markMerged();
             }
         }
