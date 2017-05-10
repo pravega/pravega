@@ -75,7 +75,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     @Rule
-    public Timeout globalTimeout = new Timeout(15, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Override
     protected int getThreadPoolSize() {
