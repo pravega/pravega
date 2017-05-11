@@ -12,22 +12,18 @@ apply plugin: "org.nosphere.apache.rat"
 
 rat {
     excludes = [
-            '**/.github/**',
-            '**/.gradle/**',
-            '**/.classpath',
-            '**/.project',
-            '**/.settings/**',
-            '**/.idea/**',
+            '**/.*/**',
             '**/*.iml',
             '**/*.iws',
             '**/*.ipr',
             '**/gradle/wrapper/**',
             '**/build/**',
-            'out/**',
+            '**/out/**',
             '**/generated/**',
             '**/checkstyle/**',
             'deployment/aws/installer/hosts-template',
             '**/*.log',
+            '**/*.lock',
             '**/*.json'
     ]
 }
