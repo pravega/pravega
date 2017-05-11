@@ -686,7 +686,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the DurableLog recovery process in a scenario when there are no failures during the process.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testRecoveryWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
         int transactionsPerStreamSegment = 2;
@@ -755,7 +755,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the DurableLog recovery process in a scenario when there are failures during the process
      * (these may or may not be DataCorruptionExceptions).
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testRecoveryFailures() throws Exception {
         int streamSegmentCount = 50;
         int appendsPerStreamSegment = 20;
@@ -870,7 +870,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * 3. The segment is reactivated (with a new metadata mapping) - possibly due to an append. No truncation since #2.
      * 4. Recovery.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testRecoveryWithMetadataCleanup() throws Exception {
         final long truncatedSeqNo = Integer.MAX_VALUE;
         // Setup a DurableLog and start it.
