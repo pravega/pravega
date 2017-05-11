@@ -23,8 +23,11 @@ rat {
             '**/*.ipr',
             '**/gradle/wrapper/**',
             '**/build/**',
+            'out/**',
             '**/generated/**',
             '**/checkstyle/**',
+            'deployment/aws/installer/hosts-template',
+            '**/*.log',
             '**/*.json'
     ]
 }

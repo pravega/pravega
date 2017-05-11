@@ -62,10 +62,10 @@ The crucial bit being `--network=pravega_default`. Your client should talk to Pr
 ## Deploying (external clients)
 
 If you intend to run clients outside the swarm, you must provide two additional environment variables, 
-`PUBLISHED_ADDRESS` and `LISTEN_ADDRESS`. `PUBLISHED_ADDRESS` must be an IP or hostname that resolves to one or more
-swarm nodes (or a load balancer that sits in front of them). `LISTEN_ADDRESS` should always be `0`, or `0.0.0.0`.
+`PUBLISHED_ADDRESS` and `LISTENING_ADDRESS`. `PUBLISHED_ADDRESS` must be an IP or hostname that resolves to one or more
+swarm nodes (or a load balancer that sits in front of them). `LISTENING_ADDRESS` should always be `0`, or `0.0.0.0`.
 
-`PUBLISHED_ADDRESS=1.2.3.4 LISTEN_ADDRESS=0 ZK_URL=zookeeper:2181 HDFS_URL=hdfs:8020 docker stack up --compose-file pravega.yml pravega`
+`PUBLISHED_ADDRESS=1.2.3.4 LISTENING_ADDRESS=0 ZK_URL=zookeeper:2181 HDFS_URL=hdfs:8020 docker stack up --compose-file pravega.yml pravega`
 
 As above, `ZK_URL` and `HDFS_URL` can be omitted if the services are at their default locations.
 

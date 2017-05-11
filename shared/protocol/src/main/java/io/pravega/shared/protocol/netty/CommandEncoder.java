@@ -43,12 +43,12 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Encodes data so that it can go out onto the wire.
  * For more details about the various commands @see WireCommands.
- * 
+ *
  * The general encoding for commands is:
  * Type - 4 byte tag
  * Length - 4 byte length
  * Data - Which is obtained by calling the serializer for the specific wire command.
- * 
+ *
  * Most commands are that simple. For performance Appends however are handled differently.
  * Appends are written in blocks so that the server does not need to decode the contents of the
  * block.
@@ -58,11 +58,11 @@ import lombok.extern.slf4j.Slf4j;
  * Length). If an event does not fully fit inside of a block it can be wrapped in a PartialEvent
  * command. In this case the fist part of the Event is written as the value of the PartialEvent and
  * the remainder goes in the AppendBlockEnd.
- * 
+ *
  * The AppendBlockEnd contains metadata about the block that was just appended so that it does not
  * need to be parsed out of individual messages. Notably this includes the event number of the last
  * event in the block, so that it can be acknowledged.
- * 
+ *
  */
 @NotThreadSafe
 @RequiredArgsConstructor
@@ -75,12 +75,13 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private String segmentBeingAppendedTo;
     private int currentBlockSize;
     private int bytesLeftInBlock;
-    
+
     @Data
     private static final class Session {
         private final UUID id;
         private long lastEventNumber = -1L;
-    }    
+        private int eventCount;
+    }
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
@@ -121,7 +122,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 }
 
                 session.lastEventNumber = append.getEventNumber();
-
+                session.eventCount++;
                 ByteBuf data = append.getData();
                 int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
                 // Is there enough space for a subsequent message after this one?
@@ -136,10 +137,13 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                                                            serializedMessage.length - bytesInBlock);
                     writeMessage(new PartialEvent(dataInsideBlock), out);
                     writeMessage(new AppendBlockEnd(session.id,
-                                                    session.lastEventNumber,
                                                     currentBlockSize - bytesLeftInBlock,
-                                                    dataRemainging), out);
+                                                    dataRemainging,
+                                                    session.eventCount,
+                                                    session.lastEventNumber,
+                                                    0L), out);
                     bytesLeftInBlock = 0;
+                    session.eventCount = 0;
                 }
             }
         } else if (msg instanceof SetupAppend) {
@@ -165,11 +169,13 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
             Session session = setupSegments.get(segmentBeingAppendedTo);
             writeMessage(new AppendBlockEnd(session.id,
-                    session.lastEventNumber,
                     currentBlockSize - bytesLeftInBlock,
-                    null), out);
+                    null,
+                    session.eventCount,
+                    session.lastEventNumber, 0L), out);
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
+            session.eventCount = 0;
         }
         segmentBeingAppendedTo = null;
     }
@@ -202,7 +208,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
         out.setInt(startIdx + TYPE_SIZE, fieldsSize + currentBlockSize);
     }
-    
+
     @SneakyThrows(IOException.class)
     private int writeMessage(WireCommand msg, ByteBuf out) {
         int startIdx = out.writerIndex();
@@ -217,16 +223,16 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         out.setInt(startIdx + TYPE_SIZE, fieldsSize);
         return endIdx - startIdx;
     }
-    
+
     @RequiredArgsConstructor
     private static class Flusher implements Runnable {
         private final Channel channel;
         private final int blockSize;
-  
+
         @Override
         public void run() {
             channel.writeAndFlush(new Flush(blockSize));
         }
     }
-    
+
 }
