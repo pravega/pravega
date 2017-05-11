@@ -302,8 +302,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * @return The same SegmentAggregator.
      */
     private SegmentAggregator closeIfNecessary(SegmentAggregator aggregator) {
-        if (aggregator.getMetadata().isDeleted()
-                || this.dataSource.getStreamSegmentMetadata(aggregator.getMetadata().getId()) == null) {
+        if (aggregator.getMetadata().isDeleted() || !aggregator.getMetadata().isActive()) {
             aggregator.close();
         }
 
@@ -346,8 +345,14 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * @throws DataCorruptionException If the Operation refers to a StreamSegmentId that does not exist in Metadata.
      */
     private SegmentAggregator getSegmentAggregator(long streamSegmentId) throws DataCorruptionException {
-        SegmentAggregator result;
-        result = this.aggregators.getOrDefault(streamSegmentId, null);
+        SegmentAggregator result = this.aggregators.getOrDefault(streamSegmentId, null);
+        if (result != null && closeIfNecessary(result).isClosed()) {
+            // Existing SegmentAggregator has become stale (most likely due to its SegmentMetadata being evicted),
+            // so it has been closed and we need to create a new one.
+            this.aggregators.remove(streamSegmentId);
+            result = null;
+        }
+
         if (result == null) {
             // We do not yet have this aggregator. First, get its metadata.
             UpdateableSegmentMetadata segmentMetadata = this.dataSource.getStreamSegmentMetadata(streamSegmentId);

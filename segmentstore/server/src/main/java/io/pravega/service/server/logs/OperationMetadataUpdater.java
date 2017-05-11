@@ -936,6 +936,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         @Override
+        public boolean isActive() {
+            return this.baseMetadata.isActive();
+        }
+
+        @Override
         public Map<UUID, Long> getAttributes() {
             // Important: This only returns the updated attributes, not the whole set of attributes. If it also returned
             // the base attributes, upon commit() they would be unnecessarily re-applied to the same segment.

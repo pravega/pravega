@@ -9,19 +9,18 @@
  */
 package io.pravega.service.server.containers;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.service.server.ContainerMetadata;
 import io.pravega.service.server.SegmentMetadata;
 import io.pravega.service.server.UpdateableSegmentMetadata;
-import com.google.common.base.Preconditions;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -55,6 +54,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private ImmutableDate lastModified;
     @GuardedBy("this")
     private long lastUsed;
+    @GuardedBy("this")
+    private boolean active;
 
     //endregion
 
@@ -100,6 +101,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.attributes = new HashMap<>();
         this.lastModified = new ImmutableDate(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
         this.lastUsed = 0;
+        this.active = true;
     }
 
     //endregion
@@ -293,6 +295,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized long getLastUsed() {
         return this.lastUsed;
+    }
+
+    @Override
+    public synchronized boolean isActive() {
+        return this.active;
+    }
+
+    synchronized void markInactive() {
+        this.active = false;
     }
 
     //endregion
