@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import com.google.common.base.Preconditions;
@@ -249,8 +250,7 @@ public final class Retry {
         }
 
         private Class<? extends Throwable> getErrorType(final Throwable e) {
-            if (retryType.equals(CompletionException.class) || retryType.equals(ExecutionException.class)
-                    || throwType.equals(CompletionException.class) || throwType.equals(ExecutionException.class)) {
+            if (ExceptionHelpers.shouldUnwrap(retryType) || ExceptionHelpers.shouldUnwrap(throwType)) {
                 return e.getClass();
             } else {
                 if ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {

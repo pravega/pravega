@@ -45,6 +45,13 @@ public class ExceptionHelpers {
         return ex;
     }
 
+    /**
+     * Returns true if the provided class is CompletionException or ExecutionException which need to be unwrapped.
+     */
+    public static boolean shouldUnwrap(Class<? extends Exception> c) {
+        return c.equals(CompletionException.class) || c.equals(ExecutionException.class);
+    }
+    
     private static boolean canInspectCause(Throwable ex) {
         return ex instanceof CompletionException
                 || ex instanceof ExecutionException
