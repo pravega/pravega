@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Deploying in a Docker Swarm
 
 Docker Swarm can be used to quickly spin up a distributed Pravega cluster that can easily scale up and down. Unlike
@@ -53,10 +62,10 @@ The crucial bit being `--network=pravega_default`. Your client should talk to Pr
 ## Deploying (external clients)
 
 If you intend to run clients outside the swarm, you must provide two additional environment variables, 
-`PUBLISHED_ADDRESS` and `LISTEN_ADDRESS`. `PUBLISHED_ADDRESS` must be an IP or hostname that resolves to one or more
-swarm nodes (or a load balancer that sits in front of them). `LISTEN_ADDRESS` should always be `0`, or `0.0.0.0`.
+`PUBLISHED_ADDRESS` and `LISTENING_ADDRESS`. `PUBLISHED_ADDRESS` must be an IP or hostname that resolves to one or more
+swarm nodes (or a load balancer that sits in front of them). `LISTENING_ADDRESS` should always be `0`, or `0.0.0.0`.
 
-`PUBLISHED_ADDRESS=1.2.3.4 LISTEN_ADDRESS=0 ZK_URL=zookeeper:2181 HDFS_URL=hdfs:8020 docker stack up --compose-file pravega.yml pravega`
+`PUBLISHED_ADDRESS=1.2.3.4 LISTENING_ADDRESS=0 ZK_URL=zookeeper:2181 HDFS_URL=hdfs:8020 docker stack up --compose-file pravega.yml pravega`
 
 As above, `ZK_URL` and `HDFS_URL` can be omitted if the services are at their default locations.
 
