@@ -17,6 +17,7 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import io.pravega.controller.store.task.TxnResource;
 import io.pravega.shared.MetricsNames;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.metrics.DynamicLogger;
@@ -74,6 +75,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
     private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
     private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
+    private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
@@ -449,13 +451,29 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> addTransaction(String hostId, UUID txnId, int version) {
-        return hostIndex.addEntity(hostId, txnId.toString(), ByteBuffer.allocate(4).putInt(version).array());
+    public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, int version) {
+        return hostIndex.addEntity(hostId, getTxnResourceString(txn), ByteBuffer.allocate(4).putInt(version).array());
     }
 
     @Override
-    public CompletableFuture<Void> removeTransaction(String hostId, UUID txnId, boolean deleteEmptyParent) {
-        return hostIndex.removeEntity(hostId, txnId.toString(), deleteEmptyParent);
+    public CompletableFuture<Void> removeTxnFromIndex(String hostId, TxnResource txn, boolean deleteEmptyParent) {
+        return hostIndex.removeEntity(hostId, getTxnResourceString(txn), deleteEmptyParent);
+    }
+
+    @Override
+    public CompletableFuture<Optional<TxnResource>> getRandomTxnFromIndex(final String hostId) {
+        return hostIndex.getRandomEntity(hostId).thenApply(strOpt -> strOpt.map(this::getTxnResource));
+    }
+
+    @Override
+    public CompletableFuture<Integer> getTxnVersionFromIndex(final String hostId, final TxnResource resource) {
+        return hostIndex.getEntityData(hostId, getTxnResourceString(resource)).thenApply(data ->
+            data != null ? ByteBuffer.wrap(data).getInt() : null);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeHostFromIndex(String hostId) {
+        return hostIndex.removeHost(hostId);
     }
 
     @Override
@@ -555,5 +573,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     abstract Stream newStream(final String scope, final String name);
+
+    private String getTxnResourceString(TxnResource txn) {
+        return txn.toString(RESOURCE_PART_SEPARATOR);
+    }
+
+    private TxnResource getTxnResource(String str) {
+        return TxnResource.parse(str, RESOURCE_PART_SEPARATOR);
+    }
 }
 

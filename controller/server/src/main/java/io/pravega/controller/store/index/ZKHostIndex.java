@@ -76,6 +76,23 @@ public class ZKHostIndex implements HostIndex {
     }
 
     @Override
+    public CompletableFuture<byte[]> getEntityData(String hostId, String entity) {
+        return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(hostId);
+            Preconditions.checkNotNull(entity);
+            String path = getHostPath(hostId, entity);
+            try {
+                return client.getData().forPath(path);
+            } catch (KeeperException.NoNodeException e) {
+                log.debug("Node {} does not exist.", path);
+                return null;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, executor);
+    }
+
+    @Override
     public CompletableFuture<Void> removeEntity(final String hostId, final String entity, final boolean deleteEmptyHost) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(hostId);

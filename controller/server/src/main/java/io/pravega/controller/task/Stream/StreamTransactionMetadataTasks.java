@@ -34,6 +34,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.controller.store.task.TxnResource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -193,7 +194,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final Integer version, final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-            return abortTxnBody(scope, stream, txId, version, context);
+            return abortTxnBody(hostId, scope, stream, txId, version, context);
         }, executor);
     }
 
@@ -210,7 +211,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                   final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-            return commitTxnBody(scope, stream, txId, context);
+            return commitTxnBody(hostId, scope, stream, txId, context);
         }, executor);
     }
 
@@ -229,7 +230,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                            final long scaleGracePeriod,
                                                                                            final OperationContext ctx) {
         UUID txnId = UUID.randomUUID();
-        CompletableFuture<Void> addIndex = streamMetadataStore.addTransaction(hostId, txnId, 0);
+        TxnResource resource = new TxnResource(scope, stream, txnId);
+        CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, 0);
         return addIndex.thenComposeAsync(x -> streamMetadataStore.createTransaction(scope, stream, txnId, lease,
                 maxExecutionPeriod, scaleGracePeriod, ctx, executor).thenComposeAsync(txData ->
                 streamMetadataStore.getActiveSegments(scope, stream, ctx, executor).thenComposeAsync(activeSegments ->
@@ -243,36 +245,55 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         return streamMetadataStore.pingTransaction(scope, stream, txId, lease, ctx, executor);
     }
 
-    private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
-                                                      final Integer version, final OperationContext ctx) {
+    private CompletableFuture<TxnStatus> abortTxnBody(final String host,
+                                                      final String scope,
+                                                      final String stream,
+                                                      final UUID txid,
+                                                      final Integer version,
+                                                      final OperationContext ctx) {
+        TxnResource resource = new TxnResource(scope, stream, txid);
+        AbortEvent event = new AbortEvent(scope, stream, txid);
+        String key = txid.toString();
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), ctx, executor)
                 .thenComposeAsync(status -> {
                     if (status == TxnStatus.ABORTING) {
-                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter,
-                                        abortStreamName, txid.toString(), new AbortEvent(scope, stream, txid), txid, status),
-                                executor);
+                        return writeEventWithRetries(abortEventEventStreamWriter, abortStreamName, key, event, txid, status);
                     } else {
                         // Status is ABORTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
                 }, executor).thenComposeAsync(status ->
-                        streamMetadataStore.removeTransaction(hostId, txid, true).thenApply(x -> status), executor);
+                        streamMetadataStore.removeTxnFromIndex(host, resource, true).thenApply(x -> status), executor);
     }
 
-    private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
+    private CompletableFuture<TxnStatus> commitTxnBody(final String host,
+                                                       final String scope,
+                                                       final String stream,
+                                                       final UUID txid,
                                                        final OperationContext ctx) {
+        TxnResource resource = new TxnResource(scope, stream, txid);
+        CommitEvent event = new CommitEvent(scope, stream, txid);
+        String key = scope + stream;
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), ctx, executor)
                 .thenComposeAsync(status -> {
                     if (status == TxnStatus.COMMITTING) {
-                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter,
-                                commitStreamName, scope + stream, new CommitEvent(scope, stream, txid), txid, status),
-                                executor);
+                        return writeEventWithRetries(commitEventEventStreamWriter, commitStreamName, key, event, txid, status);
                     } else {
                         // Status is COMMITTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
                 }, executor).thenComposeAsync(status ->
-                        streamMetadataStore.removeTransaction(hostId, txid, true).thenApply(x -> status), executor);
+                        streamMetadataStore.removeTxnFromIndex(host, resource, true).thenApply(x -> status), executor);
+    }
+
+    private <T> CompletableFuture<TxnStatus> writeEventWithRetries(final EventStreamWriter<T> streamWriter,
+                                                                   final String streamName,
+                                                                   final String key,
+                                                                   final T event,
+                                                                   final UUID txid,
+                                                                   final TxnStatus txnStatus) {
+        return TaskStepsRetryHelper.withRetries(() -> writeEvent(streamWriter, streamName, key, event, txid, txnStatus),
+                executor);
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
@@ -324,6 +345,60 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 txid,
                 this.hostControllerStore,
                 this.connectionFactory), executor);
+    }
+
+    public CompletableFuture<Void> failOverHost(String failedHost) {
+        return streamMetadataStore.getRandomTxnFromIndex(failedHost).thenCompose(resourceOpt -> {
+            if (resourceOpt.isPresent()) {
+                TxnResource resource = resourceOpt.get();
+                // Get the txn's status
+                // If it is aborting or committing send an abortEvent or commitEvent to respective streams
+                // Else if it is open try to abort it
+                // Else ignore it
+                return failOverTransaction(failedHost, resource);
+            } else {
+                // delete hostId from the index.
+                return streamMetadataStore.removeHostFromIndex(failedHost);
+            }
+        });
+    }
+
+    private CompletableFuture<Void> failOverTransaction(String failedHost, TxnResource resource) {
+        UUID txnId = resource.getTxnId();
+        return streamMetadataStore.transactionStatus("scope", "stream", txnId, null, executor).thenCompose(status -> {
+            switch (status) {
+                case OPEN:
+                    return failOverOpenTxn(failedHost, resource);
+                case ABORTING:
+                    return failOverAbortingTxn(failedHost, resource);
+                case COMMITTING:
+                    return failOverCommittingTxn(failedHost, resource);
+                default:
+                    return CompletableFuture.completedFuture(null);
+            }
+        });
+    }
+
+    private CompletableFuture<Void> failOverCommittingTxn(String failedHost, TxnResource resource) {
+        UUID txnId = resource.getTxnId();
+        CommitEvent event = new CommitEvent(resource.getScope(), resource.getStream(), txnId);
+        return writeEventWithRetries(commitEventEventStreamWriter, commitStreamName, txnId.toString(), event, txnId,
+                        TxnStatus.COMMITTING).thenComposeAsync(status ->
+                streamMetadataStore.removeTxnFromIndex(failedHost, resource, true), executor);
+    }
+
+    private CompletableFuture<Void> failOverAbortingTxn(String failedHost, TxnResource resource) {
+        UUID txnId = resource.getTxnId();
+        AbortEvent event = new AbortEvent(resource.getScope(), resource.getStream(), txnId);
+        return writeEvent(abortEventEventStreamWriter, abortStreamName, txnId.toString(), event, txnId,
+                        TxnStatus.ABORTING).thenComposeAsync(status ->
+                streamMetadataStore.removeTxnFromIndex(failedHost, resource, true), executor);
+    }
+
+    private CompletableFuture<Void> failOverOpenTxn(String failedHost, TxnResource resource) {
+        return streamMetadataStore.getTxnVersionFromIndex(failedHost, resource).thenCompose((Integer version) ->
+                this.abortTxnBody(failedHost, resource.getScope(), resource.getStream(), resource.getTxnId(),
+                        version, null).thenApply(status -> null));
     }
 
     @Override

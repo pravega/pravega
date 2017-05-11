@@ -50,6 +50,15 @@ public interface HostIndex {
     CompletableFuture<Void> addEntity(final String hostId, final String entity, final byte[] entityData);
 
     /**
+     * Fetches data for specified entity stored under the specified host in the index.
+     *
+     * @param hostId  Host.
+     * @param entity  Entity whose data is to be retrieved.
+     * @return data for specified entity stored under the specified host in the index.
+     */
+    CompletableFuture<byte[]> getEntityData(final String hostId, final String entity);
+
+    /**
      * Removes the specified entity from the set of entities being managed by the specified host.
      * This is an idempotent operation. If deleteEmptyHost is true and the host has not more entities
      * to manage after removal of specified entity, then the host is removed from the index.

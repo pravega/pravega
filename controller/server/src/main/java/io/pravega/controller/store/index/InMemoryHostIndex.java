@@ -56,6 +56,18 @@ public class InMemoryHostIndex implements HostIndex {
     }
 
     @Override
+    public CompletableFuture<byte[]> getEntityData(String hostId, String entity) {
+        ConcurrentSkipListSet<Pair<String, byte[]>> value = hostTable.get(hostId);
+        if (value != null) {
+            Optional<Pair<String, byte[]>> pairOpt = value.stream().filter(pair -> pair.getKey().equals(entity)).findAny();
+            if (pairOpt.isPresent()) {
+                return CompletableFuture.completedFuture(pairOpt.get().getValue());
+            }
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     public CompletableFuture<Void> removeEntity(final String hostId,
                                                 final String entity,
                                                 final boolean deleteEmptyHost) {
