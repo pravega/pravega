@@ -1,0 +1,4 @@
+---
+- name: Run controller
+  shell: nohup /opt/pravega/bin/pravega-controller 2>&1 &> /tmp/controller.log &
+  sudo: yes

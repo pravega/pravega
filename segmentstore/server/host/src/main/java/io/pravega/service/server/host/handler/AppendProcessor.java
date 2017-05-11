@@ -1,17 +1,11 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 package io.pravega.service.server.host.handler;
 
@@ -103,7 +97,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         this.next = next;
         this.statsRecorder = statsRecorder;
     }
-    
+
     @Override
     public void hello(Hello hello) {
         connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
@@ -149,7 +143,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     public void performNextWrite() {
         Append append;
-        long numOfEvents = 1;
 
         synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
@@ -162,8 +155,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 append = appends.remove(0);
             } else {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
-                Append first = appends.get(0);
-                Append last = first;
+                Append last = appends.get(0);
+                int eventCount = 0;
+
                 int i = -1;
                 for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
                     Append a = iterator.next();
@@ -173,26 +167,24 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     i++;
                     toAppend[i] = a.getData();
                     last = a;
+                    eventCount += a.getEventCount();
                     iterator.remove();
                 }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
-                if (last != null) {
-                    numOfEvents = last.getEventNumber() - first.getEventNumber() + 1;
-                }
 
-                String segment = last != null ? last.getSegment() : first.getSegment();
-                long eventNumber = last != null ? last.getEventNumber() : first.getEventNumber();
-                append = new Append(segment, writer, eventNumber, data, null);
+                String segment = last.getSegment();
+                long eventNumber = last.getEventNumber();
+                append = new Append(segment, writer, eventNumber, eventCount, data, null);
             }
             outstandingAppend = append;
         }
-        write(append, numOfEvents);
+        write(append);
     }
 
     /**
      * Write the provided append to the store, and upon completion ack it back to the producer.
      */
-    private void write(final Append toWrite, long numOfEvents) {
+    private void write(final Append toWrite) {
         Timer timer = new Timer();
         ByteBuf buf = toWrite.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
@@ -202,7 +194,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         toWrite.getConnectionId(),
                         AttributeUpdateType.ReplaceIfGreater,
                         toWrite.getEventNumber()),
-                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, numOfEvents));
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, toWrite.getEventCount()));
 
         CompletableFuture<Void> future;
         String segment = toWrite.getSegment();
@@ -240,7 +232,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
 
                     if (statsRecorder != null) {
-                        statsRecorder.record(segment, bytes.length, (int) numOfEvents);
+                        statsRecorder.record(segment, bytes.length, toWrite.getEventCount());
                     }
                 }
 
