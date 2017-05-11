@@ -55,16 +55,17 @@ allprojects {
 
     rat {
         // List of exclude directives, defaults to ['**/.gradle/**']
-        excludes = [ '**/build/**',
-		     '**/.gradle/**',
-                     '**/.idea/**',
-                     '**/gradle/wrapper/**',
-                     '**/.github/**',
-                     '**/generated/**',
+        excludes = [ '**/.*/**',
+                     '**/bin/**',
+                     '**/build/**',
                      '**/checkstyle/**',
+                     '**/generated/**',
+                     '**/gradle/**',
+                     '**/out/**',
                      'PravegaGroup.json',
                      'deployment/aws/installer/hosts-template',
-                     '**/*.log' ]
+                     '**/*.log',
+                     '**/*.lock']
     }
 }
 
