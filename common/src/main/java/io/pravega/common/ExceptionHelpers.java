@@ -47,6 +47,8 @@ public class ExceptionHelpers {
 
     /**
      * Returns true if the provided class is CompletionException or ExecutionException which need to be unwrapped.
+     * @param c The class to be tested
+     * @return True if {@link #getRealException(Throwable)} should be called on exceptions of this type
      */
     public static boolean shouldUnwrap(Class<? extends Exception> c) {
         return c.equals(CompletionException.class) || c.equals(ExecutionException.class);
