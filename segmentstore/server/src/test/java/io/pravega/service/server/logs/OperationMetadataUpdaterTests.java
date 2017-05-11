@@ -21,8 +21,8 @@ import io.pravega.service.contracts.StreamSegmentNotExistsException;
 import io.pravega.service.contracts.StreamSegmentSealedException;
 import io.pravega.service.contracts.TooManyActiveSegmentsException;
 import io.pravega.service.server.ContainerMetadata;
-import io.pravega.service.server.MetadataBuilder;
 import io.pravega.service.server.ManualTimer;
+import io.pravega.service.server.MetadataBuilder;
 import io.pravega.service.server.SegmentMetadata;
 import io.pravega.service.server.SegmentMetadataComparer;
 import io.pravega.service.server.UpdateableContainerMetadata;
@@ -50,7 +50,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Before;
@@ -621,7 +620,7 @@ public class OperationMetadataUpdaterTests {
         Assert.assertEquals("Unexpected value for isSealed after call to acceptOperation (in transaction).", mapOp.isSealed(), updaterMetadata.isSealed());
         Assert.assertNull("acceptOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
-        // StreamSegmentName already exists (transaction).
+        // StreamSegmentName already exists (transaction) and we try to map with new id.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists (in transaction).",
                 () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
@@ -633,11 +632,30 @@ public class OperationMetadataUpdaterTests {
         val segmentMetadata = metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         AssertExtensions.assertMapEquals("Unexpected attributes in SegmentMetadata after call to commit().", mapOp.getAttributes(), segmentMetadata.getAttributes());
 
-        // StreamSegmentName already exists (metadata).
+        // StreamSegmentName already exists (metadata) and we try to map with new id.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists (in metadata).",
                 () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
+
+        val durableLogLength = segmentMetadata.getDurableLogLength() + 5;
+        val storageLength = segmentMetadata.getStorageLength() + 1;
+        segmentMetadata.setDurableLogLength(durableLogLength);
+
+        // StreamSegmentName already exists and we try to map with the same id. Verify that we are able to update its
+        // StorageLength (if different).
+        val updateMap = new StreamSegmentMapOperation(new StreamSegmentInformation(mapOp.getStreamSegmentName(),
+                storageLength, true, false, createAttributes(), new ImmutableDate()));
+        updateMap.setStreamSegmentId(mapOp.getStreamSegmentId());
+        updater.preProcessOperation(updateMap);
+        updater.acceptOperation(updateMap);
+        Assert.assertEquals("Unexpected StorageLength after call to acceptOperation with remap (in transaction).",
+                storageLength, updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
+        updater.commit();
+        Assert.assertEquals("Unexpected StorageLength after call to acceptOperation with remap (post-commit).",
+                storageLength, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
+        Assert.assertEquals("Unexpected DurableLogLength after call to acceptOperation with remap (post-commit).",
+                durableLogLength, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getDurableLogLength());
     }
 
     /**
@@ -675,7 +693,7 @@ public class OperationMetadataUpdaterTests {
         updater.acceptOperation(mapOp);
         val updaterMetadata = updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         Assert.assertEquals("Unexpected StorageLength after call to processMetadataOperation (in transaction).", mapOp.getLength(), updaterMetadata.getStorageLength());
-        Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).", 0, updaterMetadata.getDurableLogLength());
+        Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).", mapOp.getLength(), updaterMetadata.getDurableLogLength());
         Assert.assertEquals("Unexpected value for isSealed after call to processMetadataOperation (in transaction).", mapOp.isSealed(), updaterMetadata.isSealed());
         Assert.assertNull("processMetadataOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
@@ -696,6 +714,20 @@ public class OperationMetadataUpdaterTests {
                 "Unexpected behavior from preProcessOperation when a TransactionStreamSegment with the same Name already exists (in metadata).",
                 () -> updater.preProcessOperation(createTransactionMap(mapParent.getStreamSegmentId(), mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
+
+        // StreamSegmentName already exists and we try to map with the same id. Verify that we are able to update its
+        // StorageLength (if different).
+        val updateMap = new TransactionMapOperation(mapOp.getParentStreamSegmentId(),
+                new StreamSegmentInformation(mapOp.getStreamSegmentName(), mapOp.getLength() + 1, true, false, createAttributes(), new ImmutableDate()));
+        updateMap.setStreamSegmentId(mapOp.getStreamSegmentId());
+        updater.preProcessOperation(updateMap);
+        updater.acceptOperation(updateMap);
+        Assert.assertEquals("Unexpected StorageLength after call to acceptOperation with remap (in transaction).",
+                updateMap.getLength(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getLength());
+        updater.commit();
+        Assert.assertEquals("Unexpected StorageLength after call to acceptOperation with remap (post-commit).",
+                updateMap.getLength(), metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getLength());
+
     }
 
     /**

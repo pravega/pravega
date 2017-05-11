@@ -513,18 +513,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
                         "StreamSegmentMapOperation does not have a StreamSegmentId assigned: " + operation.toString());
             }
 
-            // Create StreamSegment metadata here - we need to do this as part of the transaction.
-            UpdateableSegmentMetadata streamSegmentMetadata = recordNewStreamSegment(operation.getStreamSegmentName(), operation.getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID);
-            streamSegmentMetadata.setStorageLength(operation.getLength());
-            streamSegmentMetadata.setDurableLogLength(operation.getLength()); // DurableLogLength must be at least StorageLength.
-            if (operation.isSealed()) {
-                // MapOperations represent the state of the StreamSegment in Storage. If it is sealed in storage, both
-                // Seal flags need to be set.
-                streamSegmentMetadata.markSealed();
-                streamSegmentMetadata.markSealedInStorage();
-            }
-
-            streamSegmentMetadata.updateAttributes(operation.getAttributes());
+            // Create or reuse an existing Segment Metadata.
+            UpdateableSegmentMetadata segmentMetadata = getOrCreateSegmentMetadata(operation.getStreamSegmentName(),
+                    operation.getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID);
+            updateMetadata(operation, segmentMetadata);
         }
 
         private void acceptMetadataOperation(TransactionMapOperation operation) throws MetadataUpdateException {
@@ -533,18 +525,25 @@ class OperationMetadataUpdater implements ContainerMetadata {
                         "TransactionMapOperation does not have a StreamSegmentId assigned: " + operation.toString());
             }
 
-            // Create stream metadata here - we need to do this as part of the transaction.
-            UpdateableSegmentMetadata transactionMetadata = recordNewStreamSegment(operation.getStreamSegmentName(), operation.getStreamSegmentId(), operation.getParentStreamSegmentId());
-            transactionMetadata.setStorageLength(operation.getLength());
-            transactionMetadata.setDurableLogLength(0);
-            if (operation.isSealed()) {
+            // Create or reuse an existing Transaction Metadata.
+            UpdateableSegmentMetadata transactionMetadata = getOrCreateSegmentMetadata(operation.getStreamSegmentName(),
+                    operation.getStreamSegmentId(), operation.getParentStreamSegmentId());
+            updateMetadata(operation, transactionMetadata);
+        }
+
+        private void updateMetadata(StreamSegmentMapping mapping, UpdateableSegmentMetadata metadata) {
+            metadata.setStorageLength(mapping.getLength());
+
+            // DurableLogLength must be at least StorageLength.
+            metadata.setDurableLogLength(Math.max(mapping.getLength(), metadata.getDurableLogLength()));
+            if (mapping.isSealed()) {
                 // MapOperations represent the state of the StreamSegment in Storage. If it is sealed in storage, both
                 // Seal flags need to be set.
-                transactionMetadata.markSealed();
-                transactionMetadata.markSealedInStorage();
+                metadata.markSealed();
+                metadata.markSealedInStorage();
             }
 
-            transactionMetadata.updateAttributes(operation.getAttributes());
+            metadata.updateAttributes(mapping.getAttributes());
         }
 
         private void rollback() {
@@ -602,6 +601,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
             return streamSegmentId;
         }
 
+        /**
+         * Gets an UpdateableSegmentMetadata for the given segment id, if it is already registered in the base metadata
+         * or added as a new segment in this transaction.
+         */
         private UpdateableSegmentMetadata getExistingMetadata(long streamSegmentId) {
             UpdateableSegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
             if (sm == null) {
@@ -611,7 +614,23 @@ class OperationMetadataUpdater implements ContainerMetadata {
             return sm;
         }
 
-        private UpdateableSegmentMetadata recordNewStreamSegment(String streamSegmentName, long streamSegmentId, long parentId) {
+        /**
+         * Gets an UpdateableSegmentMetadata for the given Segment. If already registered, it returns that instance,
+         * otherwise it creates and records a new Segment metadata.
+         */
+        private UpdateableSegmentMetadata getOrCreateSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentId) {
+            UpdateableSegmentMetadata metadata = getExistingMetadata(streamSegmentId);
+            if (metadata == null) {
+                metadata = createSegmentMetadata(streamSegmentName, streamSegmentId, parentId);
+            }
+
+            return metadata;
+        }
+
+        /**
+         * Creates a new UpdateableSegmentMetadata for the given Segment and registers it.
+         */
+        private UpdateableSegmentMetadata createSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentId) {
             UpdateableSegmentMetadata metadata;
             if (parentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
                 metadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, this.containerMetadata.getContainerId());
@@ -765,7 +784,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             // S3. Name.
             String name = stream.readUTF();
 
-            UpdateableSegmentMetadata metadata = recordNewStreamSegment(name, segmentId, parentId);
+            UpdateableSegmentMetadata metadata = createSegmentMetadata(name, segmentId, parentId);
 
             // S4. DurableLogLength.
             metadata.setDurableLogLength(stream.readLong());

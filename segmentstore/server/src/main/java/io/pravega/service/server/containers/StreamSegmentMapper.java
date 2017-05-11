@@ -302,13 +302,13 @@ public class StreamSegmentMapper {
     private SegmentState getState(SegmentProperties source, Collection<AttributeUpdate> attributeUpdates) {
         if (attributeUpdates == null) {
             // Nothing to do.
-            return new SegmentState(source);
+            return new SegmentState(ContainerMetadata.NO_STREAM_SEGMENT_ID, source);
         }
 
         // Merge updates into the existing attributes.
         Map<UUID, Long> attributes = new HashMap<>(source.getAttributes());
         attributeUpdates.forEach(au -> attributes.put(au.getAttributeId(), au.getValue()));
-        return new SegmentState(new StreamSegmentInformation(source, attributes));
+        return new SegmentState(ContainerMetadata.NO_STREAM_SEGMENT_ID, new StreamSegmentInformation(source, attributes));
     }
 
     /**
@@ -326,7 +326,7 @@ public class StreamSegmentMapper {
                 .thenApply(state -> {
                     if (state == null) {
                         // Nothing to change.
-                        return new SegmentInfo(-1, source);
+                        return new SegmentInfo(ContainerMetadata.NO_STREAM_SEGMENT_ID, source);
                     }
 
                     if (!source.getName().equals(state.getSegmentName())) {

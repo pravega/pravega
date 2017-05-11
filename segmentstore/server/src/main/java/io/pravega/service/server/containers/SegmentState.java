@@ -11,7 +11,6 @@ package io.pravega.service.server.containers;
 
 import io.pravega.service.contracts.SegmentProperties;
 import io.pravega.service.server.AttributeSerializer;
-import io.pravega.service.server.ContainerMetadata;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -36,15 +35,6 @@ class SegmentState {
     //endregion
 
     //region Constructor
-
-    /**
-     * Creates a new instance of the SegmentState class.
-     *
-     * @param segmentProperties The SegmentProperties to create from.
-     */
-    SegmentState(SegmentProperties segmentProperties) {
-        this(ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentProperties.getName(), segmentProperties.getAttributes());
-    }
 
     /**
      * Creates a new instance of the SegmentState class.

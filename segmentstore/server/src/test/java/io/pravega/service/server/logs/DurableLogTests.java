@@ -904,13 +904,15 @@ public class DurableLogTests extends OperationLogTestBase {
             Assert.assertEquals("Unexpected number of segments evicted.", 1, cleanedUpSegments.size());
 
             // Map the segment again.
-            durableLog.add(new StreamSegmentMapOperation(originalSegmentInfo), TIMEOUT).join();
+            val reMapOp = new StreamSegmentMapOperation(originalSegmentInfo);
+            reMapOp.setStreamSegmentId(segmentId);
+            durableLog.add(reMapOp, TIMEOUT).join();
 
             // Stop.
             durableLog.stopAsync().awaitTerminated();
         }
 
-        // Recovery
+        // Recovery #1. This should work well.
         val metadata2 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
         try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, cacheFactory, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata2, dataLogFactory, readIndex, executorService())) {
@@ -920,8 +922,29 @@ public class DurableLogTests extends OperationLogTestBase {
             val recoveredSegmentInfo = metadata1.getStreamSegmentMetadata(segmentId).getSnapshot();
             Assert.assertEquals("Unexpected length from recovered segment.", originalSegmentInfo.getLength(), recoveredSegmentInfo.getLength());
 
+            // Now evict the segment again ...
+            val sm = metadata2.getStreamSegmentMetadata(segmentId);
+            metadata2.removeTruncationMarkers(truncatedSeqNo); // Simulate a truncation. This is needed in order to trigger a cleanup.
+            val cleanedUpSegments = metadata2.cleanup(Collections.singleton(sm), truncatedSeqNo);
+            Assert.assertEquals("Unexpected number of segments evicted.", 1, cleanedUpSegments.size());
+
+            // ... and re-map it with a new Id. This is a perfectly valid operation, and we can't prevent it.
+            durableLog.add(new StreamSegmentMapOperation(originalSegmentInfo), TIMEOUT).join();
+
             // Stop.
             durableLog.stopAsync().awaitTerminated();
+        }
+
+        // Recovery #2. This should fail due to the same segment mapped multiple times with different ids.
+        val metadata3 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata3, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata3, dataLogFactory, readIndex, executorService())) {
+            AssertExtensions.assertThrows(
+                    "Recovery did not fail with the expected exception in case of multi-mapping",
+                    () -> durableLog.startAsync().awaitRunning(),
+                    ex -> ex instanceof IllegalStateException
+                            && ex.getCause() instanceof DataCorruptionException
+                            && ex.getCause().getCause() instanceof MetadataUpdateException);
         }
     }
 
