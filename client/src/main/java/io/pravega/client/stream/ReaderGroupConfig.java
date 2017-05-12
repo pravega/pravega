@@ -20,9 +20,11 @@ import lombok.Getter;
 public class ReaderGroupConfig implements Serializable {
    @Getter
    private final Sequence startingPosition;
+   @Getter
    private final long groupRefreshTimeMillis;
 
    public static final class ReaderGroupConfigBuilder {
+       long groupRefreshTimeMillis = 3000;
 
        /**
          * Returns a config builder that started at  a given time.

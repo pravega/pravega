@@ -64,7 +64,6 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 public class ReaderGroupStateManager {
     
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
-    static final Duration FETCH_STATE_INTERVAL = Duration.ofMillis(3000);
     static final Duration UPDATE_WINDOW = Duration.ofMillis(30000);
     private final Object decisionLock = new Object();
     private final HashHelper hashHelper;
@@ -253,8 +252,9 @@ public class ReaderGroupStateManager {
 
     private void fetchUpdatesIfNeeded() {
         if (!fetchStateTimer.hasRemaining()) {
-            fetchStateTimer.reset(FETCH_STATE_INTERVAL);
             sync.fetchUpdates();
+            long groupRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
+            fetchStateTimer.reset(Duration.ofMillis(groupRefreshTimeMillis));
         }
     }
     
