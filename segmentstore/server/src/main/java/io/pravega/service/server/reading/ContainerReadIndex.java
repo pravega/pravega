@@ -268,7 +268,7 @@ public class ContainerReadIndex implements ReadIndex {
 
         synchronized (this.lock) {
             assert this.preRecoveryMetadata != null
-                    : "preRecoveryMetadata not null, which should only be the case when we are not in recovery mode";
+                    : "preRecoveryMetadata is null, which should only be the case when we are not in recovery mode";
             Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(),
                     "Cannot take ReadIndex out of recovery: ContainerMetadata is still in recovery mode.");
 

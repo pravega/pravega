@@ -1,0 +1,26 @@
+# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+---
+- name: Untar zookeeper
+  command: tar -xvf zookeeper-3.5.1-alpha.tar.gz
+
+- name: Configure Zookeeper
+  template: src=zoo.cfg.j2 dest=zookeeper-3.5.1-alpha/conf/zoo.cfg
+
+- name: Check if Zookeeper has been initialized
+  stat: path={{ zookeeper_data_dir }}/myid
+  register: zookeeper_id_file
+
+- name: Initialize Zookeeper
+  command: zookeeper-3.5.1-alpha/bin/zkServer-initialize.sh init --force --myid={{ myid }}
+  when: not zookeeper_id_file.stat.exists
+  sudo: yes
+
+- name: Run zookeeper
+  command: zookeeper-3.5.1-alpha/bin/zkServer.sh start
+  sudo: yes

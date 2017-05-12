@@ -11,7 +11,6 @@ package io.pravega.service.server.logs.operations;
 
 import io.pravega.service.server.logs.SerializationException;
 import java.io.DataInputStream;
-
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +28,8 @@ public enum OperationType {
     SegmentMap((byte) 4, StreamSegmentMapOperation::new),
     TransactionMap((byte) 5, TransactionMapOperation::new),
     MetadataCheckpoint((byte) 6, MetadataCheckpointOperation::new),
-    UpdateAttributes((byte) 7, UpdateAttributesOperation::new);
+    UpdateAttributes((byte) 7, UpdateAttributesOperation::new),
+    StorageMetadataCheckpoint((byte) 8, StorageMetadataCheckpointOperation::new);
 
     final byte type;
     final DeserializationConstructor deserializationConstructor;
