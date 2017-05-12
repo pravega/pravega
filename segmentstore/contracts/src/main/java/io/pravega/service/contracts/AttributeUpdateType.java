@@ -40,7 +40,14 @@ public enum AttributeUpdateType {
     /**
      * Accumulates the new value to the existing attribute value (i.e., adds two numbers).
      */
-    Accumulate((byte) 3);
+    Accumulate((byte) 3),
+
+    /**
+     * Any updates will replace the current attribute value, but only if the existing value matches an expected value
+     * (or if there is no value defined currently). This is essentially Compare-And-Set.
+     */
+    ReplaceIfEquals((byte) 4);
+
 
     private static final AttributeUpdateType[] MAPPING = EnumHelpers.indexById(AttributeUpdateType.class, AttributeUpdateType::getTypeId);
     @Getter

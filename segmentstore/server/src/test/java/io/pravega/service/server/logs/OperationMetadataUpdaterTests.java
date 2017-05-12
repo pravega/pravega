@@ -259,6 +259,7 @@ public class OperationMetadataUpdaterTests {
         final UUID attributeAccumulate = UUID.randomUUID();
         final UUID attributeReplace = UUID.randomUUID();
         final UUID attributeReplaceIfGreater = UUID.randomUUID();
+        final UUID attributeReplaceIfEquals = UUID.randomUUID();
 
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
@@ -269,6 +270,7 @@ public class OperationMetadataUpdaterTests {
         attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
         attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 1));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.Replace, 1)); // Need to initialize to something.
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
 
         Operation op = createOperation.apply(attributeUpdates);
@@ -284,9 +286,11 @@ public class OperationMetadataUpdaterTests {
         attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1)); // 1 + 1 = 2
         attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 2));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 2, 1));
         expectedValues.put(attributeAccumulate, 2L);
         expectedValues.put(attributeReplace, 2L);
         expectedValues.put(attributeReplaceIfGreater, 2L);
+        expectedValues.put(attributeReplaceIfEquals,2L);
 
         op = createOperation.apply(attributeUpdates);
         updater.preProcessOperation(op);
@@ -303,9 +307,11 @@ public class OperationMetadataUpdaterTests {
         attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1)); // 2 + 1 = 3
         attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 3));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 3));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 3, 2));
         expectedValues.put(attributeAccumulate, 3L);
         expectedValues.put(attributeReplace, 3L);
         expectedValues.put(attributeReplaceIfGreater, 3L);
+        expectedValues.put(attributeReplaceIfEquals, 3L);
 
         op = createOperation.apply(attributeUpdates);
         updater.preProcessOperation(op);
@@ -324,6 +330,7 @@ public class OperationMetadataUpdaterTests {
     private void testWithBadAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeReplaceIfGreater = UUID.randomUUID();
+        final UUID attributeReplaceIfEquals = UUID.randomUUID();
 
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
@@ -332,6 +339,7 @@ public class OperationMetadataUpdaterTests {
         Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 2)); // Initial add, so it's ok.
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.Replace, 2)); // Initial Add.
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
 
         Operation op = createOperation.apply(attributeUpdates);
@@ -354,10 +362,19 @@ public class OperationMetadataUpdaterTests {
                 () -> updater.preProcessOperation(createOperation.apply(attributeUpdates)),
                 ex -> ex instanceof BadAttributeUpdateException);
 
+        // Append #4: Try to update attribute with bad value for ReplaceIfEquals attribute.
+        attributeUpdates.clear();
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 3,3));
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted an operation that was trying to update an attribute with the wrong comparison value for ReplaceIfGreater.",
+                () -> updater.preProcessOperation(createOperation.apply(attributeUpdates)),
+                ex -> ex instanceof BadAttributeUpdateException);
+
         // Reset the attribute update list to its original state so we can do the final verification.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 2));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfGreater, 2, 2));
         verifyAttributeUpdates("after rejected operations", updater, attributeUpdates, expectedValues);
         updater.commit();
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after commit.",

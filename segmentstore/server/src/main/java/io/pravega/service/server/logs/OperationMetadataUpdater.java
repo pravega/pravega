@@ -1210,14 +1210,24 @@ class OperationMetadataUpdater implements ContainerMetadata {
             for (AttributeUpdate u : attributeUpdates) {
                 AttributeUpdateType updateType = u.getUpdateType();
                 long previousValue = getAttributeValue(u.getAttributeId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                boolean hasValue = previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE;
 
                 // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
                 switch (updateType) {
                     case ReplaceIfGreater:
                         // Verify value against existing value, if any.
-                        if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE && u.getValue() <= previousValue) {
+                        if (hasValue && u.getValue() <= previousValue) {
                             throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
                                     String.format("Expected greater than '%s'.", previousValue));
+                        }
+
+                        break;
+                    case ReplaceIfEquals:
+                        // Verify value against existing value, if any.
+                        if (!hasValue || u.getComparisonValue() != previousValue) {
+                            throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
+                                    String.format("Expected existing value to be '%s', actual '%s'.",
+                                            u.getComparisonValue(), hasValue ? previousValue : "(not set)"));
                         }
 
                         break;
@@ -1236,6 +1246,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
                         break;
                     case Replace:
+                        break;
                     default:
                         log.error("Unexpected update type: {}", updateType);
                         break;
