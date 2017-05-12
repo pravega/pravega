@@ -11,6 +11,11 @@
 import java.util.regex.Matcher
 
 plugins.withId('application') {
+    configurations.archives.with {
+        artifacts.remove artifacts.find { it.archiveTask.is distZip }
+        artifacts.remove artifacts.find { it.archiveTask.is distTar }
+    }
+
     task pathingJar(type: Jar) {
         appendix = 'pathing'
 
