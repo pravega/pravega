@@ -1232,10 +1232,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
                         break;
                     case None:
-                        // Attribute cannot be updated once set.
+                        // Verify value is not already set.
                         if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
                             throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
-                                    String.format("Attribute value already exists and cannot be updated (%s).", previousValue));
+                                    String.format("Attribute value already set (%s).", previousValue));
                         }
 
                         break;

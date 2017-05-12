@@ -25,7 +25,8 @@ public enum AttributeUpdateType {
     None((byte) 0),
 
     /**
-     * Any updates will replace the current attribute value.
+     * Replaces the current value of the attribute with the one given. If no value is currently set, it sets the value
+     * to the given one.
      */
     Replace((byte) 1),
 
@@ -38,7 +39,8 @@ public enum AttributeUpdateType {
     ReplaceIfGreater((byte) 2),
 
     /**
-     * Accumulates the new value to the existing attribute value (i.e., adds two numbers).
+     * Replaces the current value of the attribute with the sum of the current value and the one given. If no value is
+     * currently set, it sets the given value as the attribute value.
      */
     Accumulate((byte) 3),
 
