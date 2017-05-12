@@ -290,7 +290,7 @@ public class OperationMetadataUpdaterTests {
         expectedValues.put(attributeAccumulate, 2L);
         expectedValues.put(attributeReplace, 2L);
         expectedValues.put(attributeReplaceIfGreater, 2L);
-        expectedValues.put(attributeReplaceIfEquals,2L);
+        expectedValues.put(attributeReplaceIfEquals, 2L);
 
         op = createOperation.apply(attributeUpdates);
         updater.preProcessOperation(op);
@@ -364,7 +364,7 @@ public class OperationMetadataUpdaterTests {
 
         // Append #4: Try to update attribute with bad value for ReplaceIfEquals attribute.
         attributeUpdates.clear();
-        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 3,3));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 3, 3));
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an attribute with the wrong comparison value for ReplaceIfGreater.",
                 () -> updater.preProcessOperation(createOperation.apply(attributeUpdates)),
