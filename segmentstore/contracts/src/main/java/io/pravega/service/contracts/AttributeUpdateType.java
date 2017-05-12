@@ -20,7 +20,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum AttributeUpdateType {
     /**
-     * No updates allowed: attribute value is fixed once set.
+     * Only allows setting the value if it has not already been set. If it is set, the update will fail.
      */
     None((byte) 0),
 
