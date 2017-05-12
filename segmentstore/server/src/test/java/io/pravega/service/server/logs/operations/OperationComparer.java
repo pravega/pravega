@@ -13,7 +13,6 @@ import io.pravega.service.contracts.AttributeUpdate;
 import io.pravega.test.common.AssertExtensions;
 import java.util.Collection;
 import java.util.stream.Collectors;
-
 import lombok.val;
 import org.junit.Assert;
 
@@ -155,8 +154,8 @@ public class OperationComparer {
     }
 
     private void assertSame(String message, MetadataOperation expected, MetadataOperation actual) {
-        if (expected instanceof MetadataCheckpointOperation) {
-            assertSame(message, (MetadataCheckpointOperation) expected, (MetadataCheckpointOperation) actual);
+        if (expected instanceof CheckpointOperationBase) {
+            assertSame(message, (CheckpointOperationBase) expected, (CheckpointOperationBase) actual);
         } else if (expected instanceof StreamSegmentMapOperation) {
             assertSame(message, (StreamSegmentMapOperation) expected, (StreamSegmentMapOperation) actual);
         } else if (expected instanceof TransactionMapOperation) {
@@ -187,7 +186,7 @@ public class OperationComparer {
         assertSame(message + "Unexpected attributes.", expected.getAttributeUpdates(), actual.getAttributeUpdates());
     }
 
-    private void assertSame(String message, MetadataCheckpointOperation expected, MetadataCheckpointOperation actual) {
+    private void assertSame(String message, CheckpointOperationBase expected, CheckpointOperationBase actual) {
         Assert.assertEquals(message + " Lengths mismatch.", expected.getContents().getLength(), actual.getContents().getLength());
         for (int j = 0; j < expected.getContents().getLength(); j++) {
             if (expected.getContents().get(j) != actual.getContents().get(j)) {
