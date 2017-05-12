@@ -184,7 +184,10 @@ public class StreamSegmentMapper {
 
     /**
      * Attempts to get an existing StreamSegmentId for the given case-sensitive StreamSegment Name.
-     * If no such mapping exists, atomically assigns a new one and stores it in the Metadata and DurableLog.
+     * * If the Segment is already mapped in the Metadata, the existing Id is returned.
+     * * Otherwise if the Segment had previously been assigned an id (and saved in the State Store), that Id will be
+     * reused.
+     * * Otherwise, it atomically assigns a new Id and stores it in the Metadata and DurableLog.
      * <p>
      * If multiple requests for assignment arrive for the same StreamSegment in parallel, the subsequent ones (after the
      * first one) will wait for the first one to complete and return the same result (this will not result in double-assignment).
@@ -237,7 +240,7 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process).
+     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process, if needed).
      *
      * @param transactionSegmentName The Name for the Transaction to assign Id for.
      * @param parentSegmentName      The Name of the Parent StreamSegment.
@@ -263,7 +266,7 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process).
+     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process, if needed).
      *
      * @param transInfo             The SegmentInfo for the Transaction to assign id for.
      * @param parentStreamSegmentId The ID of the Parent StreamSegment.
@@ -278,7 +281,8 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Attempts to map a StreamSegment to an Id.
+     * Attempts to map a StreamSegment to an Id, by first trying to retrieve an existing id, and, should that not exist,
+     * assign a new one.
      *
      * @param streamSegmentName The name of the StreamSegment to map.
      * @param timeout           Timeout for the operation.
@@ -349,8 +353,8 @@ public class StreamSegmentMapper {
      * @param parentStreamSegmentId If different from ContainerMetadata.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
      *                              will be mapped as a transaction. Otherwise, this will be registered as a standalone StreamSegment.
      * @param timeout               Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned. If the operation
-     * failed, then this Future will complete with that exception.
+     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned (or the
+     * one supplied via SegmentInfo, if any). If the operation failed, then this Future will complete with that exception.
      */
     private CompletableFuture<Long> submitToOperationLogWithRetry(SegmentInfo segmentInfo, long parentStreamSegmentId, Duration timeout) {
         return retryWithCleanup(() -> submitToOperationLog(segmentInfo, parentStreamSegmentId, timeout));
@@ -358,14 +362,16 @@ public class StreamSegmentMapper {
 
     /**
      * Submits a StreamSegmentMapOperation or TransactionMapOperation to the OperationLog. Upon completion, this operation
-     * will have mapped the given Segment to a new internal Segment Id.
+     * will have mapped the given Segment to a new internal Segment Id if none was provided in the given SegmentInfo.
+     * If the given SegmentInfo already has a SegmentId set, then all efforts will be made to map that Segment with the
+     * requested Segment Id.
      *
      * @param segmentInfo           The SegmentInfo for the StreamSegment to generate and persist.
      * @param parentStreamSegmentId If different from ContainerMetadata.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
      *                              will be mapped as a transaction. Otherwise, this will be registered as a standalone StreamSegment.
      * @param timeout               Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned. If the operation
-     * failed, then this Future will complete with that exception.
+     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned (or the
+     * one supplied via SegmentInfo, if any). If the operation failed, then this Future will complete with that exception.
      */
     private CompletableFuture<Long> submitToOperationLog(SegmentInfo segmentInfo, long parentStreamSegmentId, Duration timeout) {
         SegmentProperties properties = segmentInfo.getProperties();
@@ -388,12 +394,12 @@ public class StreamSegmentMapper {
                 SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
                 assert parentMetadata != null : "parentMetadata is null";
                 TransactionMapOperation op = new TransactionMapOperation(parentStreamSegmentId, properties);
-                mapping = transferSegmentId(segmentInfo, op);
+                mapping = applySegmentId(segmentInfo, op);
                 logAddResult = this.durableLog.add(op, timeout);
             } else {
                 // Standalone StreamSegment.
                 StreamSegmentMapOperation op = new StreamSegmentMapOperation(properties);
-                mapping = transferSegmentId(segmentInfo, op);
+                mapping = applySegmentId(segmentInfo, op);
                 logAddResult = this.durableLog.add(op, timeout);
             }
 
@@ -403,12 +409,12 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Transfers the segment id from the given segment info to the given mapping, if any,
+     * Copies the Segment Id from the given SegmentInfo to the given Mapping, if any is defined.
      *
      * @param segmentInfo The source SegmentInfo to get the StreamSegmentId.
-     * @param mapping     The mapping to transfer to.
+     * @param mapping     The StreamSegmentMapping to set the StreamSegmentId to.
      */
-    private StreamSegmentMapping transferSegmentId(SegmentInfo segmentInfo, StreamSegmentMapping mapping) {
+    private StreamSegmentMapping applySegmentId(SegmentInfo segmentInfo, StreamSegmentMapping mapping) {
         if (segmentInfo.getSegmentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
             mapping.setStreamSegmentId(segmentInfo.getSegmentId());
         }
