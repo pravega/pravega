@@ -99,7 +99,7 @@ public class ReaderGroupStateManager {
     /**
      * Add this reader to the reader group so that it is able to acquire segments
      */
-    void initializeReader() {
+    void initializeReader(long initialAllocationDelay) {
         AtomicBoolean alreadyAdded = new AtomicBoolean(false);
         sync.updateState(state -> {
             if (state.getSegments(readerId) == null) {
@@ -113,7 +113,7 @@ public class ReaderGroupStateManager {
             throw new IllegalStateException("The requested reader: " + readerId
                     + " cannot be added to the group because it is already in the group. Perhaps close() was not called?");
         }
-        acquireTimer.zero();
+        acquireTimer.reset(Duration.ofMillis(initialAllocationDelay));
     }
     
     /**
