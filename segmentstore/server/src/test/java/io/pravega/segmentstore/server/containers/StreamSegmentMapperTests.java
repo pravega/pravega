@@ -441,7 +441,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         Collection<AttributeUpdate> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             AttributeUpdateType ut = AttributeUpdateType.values()[i % AttributeUpdateType.values().length];
-            result.add(new AttributeUpdate(UUID.randomUUID(), ut, i));
+            result.add(new AttributeUpdate(UUID.randomUUID(), ut, i, i));
         }
 
         return result;

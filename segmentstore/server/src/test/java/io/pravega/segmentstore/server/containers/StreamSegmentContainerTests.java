@@ -104,10 +104,10 @@ import org.junit.Test;
  * DurableDataLog.
  */
 public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
-    private static final int SEGMENT_COUNT = 1;
+    private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
-    private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 1;
+    private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 50;
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final int TEST_TIMEOUT_MILLIS = 100 * 1000;
@@ -150,6 +150,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         final UUID attributeAccumulate = UUID.randomUUID();
         final UUID attributeReplace = UUID.randomUUID();
         final UUID attributeReplaceIfGreater = UUID.randomUUID();
+        final UUID attributeReplaceIfEquals = UUID.randomUUID();
         final UUID attributeNoUpdate = UUID.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
 
@@ -174,6 +175,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, i + 1));
+                attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals,
+                        i == 0 ? AttributeUpdateType.Replace : AttributeUpdateType.ReplaceIfEquals, i + 1, i));
                 byte[] appendData = getAppendData(segmentName, i);
                 opFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT));
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
@@ -194,6 +197,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, APPENDS_PER_SEGMENT + i + 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, APPENDS_PER_SEGMENT + i + 1));
+                attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals,
+                        APPENDS_PER_SEGMENT + i + 1, APPENDS_PER_SEGMENT + i));
                 opFutures.add(context.container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
             }
         }
@@ -218,6 +223,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplace, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplaceIfGreater + " for segment " + segmentName,
                     expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+            Assert.assertEquals("Unexpected value for attribute " + attributeReplaceIfEquals + " for segment " + segmentName,
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplaceIfEquals, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
         }
 
         checkActiveSegments(context.container, segmentNames.size());

@@ -20,12 +20,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum AttributeUpdateType {
     /**
-     * No updates allowed: attribute value is fixed once set.
+     * Only allows setting the value if it has not already been set. If it is set, the update will fail.
      */
     None((byte) 0),
 
     /**
-     * Any updates will replace the current attribute value.
+     * Replaces the current value of the attribute with the one given. If no value is currently set, it sets the value
+     * to the given one.
      */
     Replace((byte) 1),
 
@@ -38,9 +39,17 @@ public enum AttributeUpdateType {
     ReplaceIfGreater((byte) 2),
 
     /**
-     * Accumulates the new value to the existing attribute value (i.e., adds two numbers).
+     * Replaces the current value of the attribute with the sum of the current value and the one given. If no value is
+     * currently set, it sets the given value as the attribute value.
      */
-    Accumulate((byte) 3);
+    Accumulate((byte) 3),
+
+    /**
+     * Any updates will replace the current attribute value, but only if the existing value matches an expected value
+     * (or if there is no value defined currently). This is essentially Compare-And-Set.
+     */
+    ReplaceIfEquals((byte) 4);
+
 
     private static final AttributeUpdateType[] MAPPING = EnumHelpers.indexById(AttributeUpdateType.class, AttributeUpdateType::getTypeId);
     @Getter
