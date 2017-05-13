@@ -16,12 +16,10 @@ import java.io.ByteArrayOutputStream;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
  * Base class for testing any implementation of the TruncateableStorage interface.
