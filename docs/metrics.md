@@ -25,7 +25,7 @@ public interface StatsProvider {
 * createStatsLogger(): Creates and returns a StatsLogger instance, which is used to retrieve a metric and do metric insertion and collection in Pravega code. 
 
 ## 1.2. Example for starting a Metric service
-This example is from file io.pravega.service.server.host.ServiceStarter. It starts Pravega service and a Metrics service is started as a sub service.
+This example is from file io.pravega.segmentstore.server.host.ServiceStarter. It starts Pravega service and a Metrics service is started as a sub service.
 ```
 public final class ServiceStarter {
     ...
@@ -80,7 +80,7 @@ public interface OpStatsLogger {
 * reportFailValue() : Used to track Histogram of a failed value. 
 
 ### 1.3.2. Example for Counter and OpStatsLogger(Timer/Histograms)
-This is an example from io.pravega.service.server.host.handler.PravegaRequestProcessor. In this class, we registered four metrics: Two timers (createSegment/readSegment), one histograms (segmentReadBytes) and one counter (allReadBytes).
+This is an example from io.pravega.segmentstore.server.host.PravegaRequestProcessor. In this class, we registered four metrics: Two timers (createSegment/readSegment), one histograms (segmentReadBytes) and one counter (allReadBytes).
 ```
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
     …
@@ -146,7 +146,7 @@ static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREA
 ```
 Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsedNanos());
 ```
-Here CREATE_SEGMENT is the name of this metric, we put all the Metric for host in file io.pravega.service.server.host.PravegaRequestStats, and CREATE_STREAM_SEGMENT is the name of our Metrics logger, it will track operations of createSegment, and we will get the time of each createSegment operation happened, how long each operation takes, and other numbers computed based on them.
+Here CREATE_SEGMENT is the name of this metric, we put all the Metric for host in file io.pravega.segmentstore.server.host.PravegaRequestStats, and CREATE_STREAM_SEGMENT is the name of our Metrics logger, it will track operations of createSegment, and we will get the time of each createSegment operation happened, how long each operation takes, and other numbers computed based on them.
 
 ### 1.3.3 Output example of OpStatsLogger and Counter
 An example output of OpStatsLogger CREATE_SEGMENT reported through CSV reporter:
@@ -166,7 +166,7 @@ t,count
 ```
 
 ### 1.3.4. Example for Gauge metrics
-This is an example from io.pravega.service.server.host.handler.AppendProcessor. In this class, we registered a Gauge which represent current PendingReadBytes.
+This is an example from io.pravega.segmentstore.server.host.AppendProcessor. In this class, we registered a Gauge which represent current PendingReadBytes.
 ```
 public class AppendProcessor extends DelegatingRequestProcessor {
     ...
@@ -202,12 +202,12 @@ The reporter could be configured through MetricsConfig.
 public class MetricsConfig extends ComponentConfig {
     //region Members
     public static final String COMPONENT_CODE = "metrics";
-    public final static String ENABLE_STATISTICS = "enableStatistics"; < === enable Yammer metric, or will report nothing
-    public final static String OUTPUT_FREQUENCY = "yammerStatsOutputFrequencySeconds"; < === reporter output frequency
-    public final static String METRICS_PREFIX = "yammerMetricsPrefix"; 
-    public final static String CSV_ENDPOINT = "yammerCSVEndpoint"; < === CSV reporter output dir
-    public final static String STATSD_HOST = "yammerStatsDHost"; < === StatsD server host for the reporting
-    public final static String STATSD_PORT = "yammerStatsDPort"; < === StatsD server port
+    public final static String ENABLE_STATISTICS = "enableStatistics"; < === enable metric, or will report nothing
+    public final static String OUTPUT_FREQUENCY = "statsOutputFrequencySeconds"; < === reporter output frequency
+    public final static String METRICS_PREFIX = "metricsPrefix"; 
+    public final static String CSV_ENDPOINT = "csvEndpoint"; < === CSV reporter output dir
+    public final static String STATSD_HOST = "statsDHost"; < === StatsD server host for the reporting
+    public final static String STATSD_PORT = "statsDPort"; < === StatsD server port
     public final static boolean DEFAULT_ENABLE_STATISTICS = true;
     public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
     public final static String DEFAULT_METRICS_PREFIX = "host";
@@ -236,10 +236,35 @@ public class MetricsConfig extends ComponentConfig {
     ...
     Metrics.CREATE_STREAM_SEGMENT.reportFailure(timer.getElapsedNanos()); < === 3
 ```
-# 4. Available Metrics 
+# 4. Available Metrics and their names
 * Segment Store: Bytes In/Out Rate, Read/Write Latency.
+````
+DYNAMIC.$scope.$stream.$segment.segment_read_bytes
+DYNAMIC.$scope.$stream.$segment.segment_write_bytes
+host.segment_read_latency_ms
+host.segment_write_latency_ms 
+````
+
 * Stream Controllers: Stream creation/deletion/sealed, Segment Merging/Splitting Rate, Transactions Open/Commit/Drop/Abort
+````
+controller.stream_created
+controller.stream_sealed
+controller.stream_deleted
+DYNAMIC.$scope.$stream.segments_count
+DYNAMIC.$scope.$stream.segments_splits
+DYNAMIC.$scope.$stream.segments_merges
+DYNAMIC.$scope.$stream.transactions_created
+DYNAMIC.$scope.$stream.transactions_committed
+DYNAMIC.$scope.$stream.transactions_aborted
+DYNAMIC.$scope.$stream.transactions_opened
+````
 * Tier-2 Storage Metrics: Read/Write Latency, Read/Write Rate	
+````
+hdfs.hdfs_read_latency_ms
+hdfs.hdfs_write_latency_ms
+hdfs.hdfs_read_bytes
+hdfs.hdfs_write_bytes
+````
 
 # 5. Useful links
 * [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs)

@@ -11,10 +11,10 @@ package io.pravega.test.integration;
 
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import io.pravega.service.contracts.StreamSegmentStore;
-import io.pravega.service.server.host.handler.PravegaConnectionListener;
-import io.pravega.service.server.store.ServiceBuilder;
-import io.pravega.service.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
