@@ -79,6 +79,7 @@ public final class AttributeSerializer {
                 stream.writeLong(attributeId.getLeastSignificantBits());
                 stream.writeByte(au.getUpdateType().getTypeId());
                 stream.writeLong(au.getValue());
+                stream.writeLong(au.getComparisonValue());
             }
         }
     }
@@ -102,7 +103,8 @@ public final class AttributeSerializer {
                 UUID attributeId = new UUID(idMostSig, idLeastSig);
                 AttributeUpdateType updateType = AttributeUpdateType.get(stream.readByte());
                 long value = stream.readLong();
-                result.add(new AttributeUpdate(attributeId, updateType, value));
+                long comparisonValue = stream.readLong();
+                result.add(new AttributeUpdate(attributeId, updateType, value, comparisonValue));
             }
         } else {
             result = Collections.emptyList();

@@ -9,6 +9,7 @@
  */
 package io.pravega.service.contracts;
 
+import com.google.common.base.Preconditions;
 import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AllArgsConstructor;
@@ -25,9 +26,39 @@ import lombok.Setter;
 @EqualsAndHashCode(of = {"attributeId", "value"})
 @NotThreadSafe
 public class AttributeUpdate {
+    /**
+     * The ID of the Attribute to update.
+     */
     private final UUID attributeId;
+
+    /**
+     * The UpdateType of the attribute.
+     */
     private final AttributeUpdateType updateType;
+
+    /**
+     * The new Value of the attribute.
+     */
     private long value;
+
+    /**
+     * If UpdateType is ReplaceIfEquals, then this is the value that the attribute must currently have before making the
+     * update. Otherwise this field is ignored.
+     */
+    private final long comparisonValue;
+
+    /**
+     * Creates a new instance of the AttributeUpdate class, except for ReplaceIfEquals.
+     *
+     * @param attributeId A UUID representing the ID of the attribute to update.
+     * @param updateType  The UpdateType. All update types except ReplaceIfEquals work with this method.
+     * @param value       The new value to set.
+     */
+    public AttributeUpdate(UUID attributeId, AttributeUpdateType updateType, long value) {
+        this(attributeId, updateType, value, Long.MIN_VALUE);
+        Preconditions.checkArgument(updateType != AttributeUpdateType.ReplaceIfEquals,
+                "Cannot use this constructor with ReplaceIfEquals.");
+    }
 
     @Override
     public String toString() {

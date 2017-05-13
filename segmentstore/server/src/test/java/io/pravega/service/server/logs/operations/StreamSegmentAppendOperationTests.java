@@ -53,7 +53,7 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
         val result = new ArrayList<AttributeUpdate>();
         long currentValue = 0;
         for (AttributeUpdateType ut : AttributeUpdateType.values()) {
-            result.add(new AttributeUpdate(UUID.randomUUID(), ut, ++currentValue));
+            result.add(new AttributeUpdate(UUID.randomUUID(), ut, ++currentValue, currentValue));
         }
 
         return result;
