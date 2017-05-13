@@ -9,23 +9,20 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-import com.google.common.base.Preconditions;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * A Utility class to support retrying something that can fail with exponential backoff.
@@ -253,11 +250,7 @@ public final class Retry {
             if (ExceptionHelpers.shouldUnwrap(retryType) || ExceptionHelpers.shouldUnwrap(throwType)) {
                 return e.getClass();
             } else {
-                if ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
-                    return e.getCause().getClass();
-                } else {
-                    return e.getClass();
-                }
+                return ExceptionHelpers.unwrapIfRequired(e).getClass();
             }
         }
     }
