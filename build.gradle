@@ -202,7 +202,7 @@ project('segmentstore:server') {
 project('segmentstore:server:host') {
     apply plugin: 'application'
     applicationName = "pravega-segmentstore"
-    mainClassName = "io.pravega.service.server.host.ServiceStarter"
+    mainClassName = "io.pravega.segmentstore.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
@@ -253,19 +253,19 @@ project('test:integration') {
     }
 
     task startServer(type: JavaExec) {
-        main = "io.pravega.service.server.host.ServiceStarter"
+        main = "io.pravega.segmentstore.server.host.ServiceStarter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startServerInteractive(type: JavaExec) {
-        main = "io.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
+        main = "io.pravega.segmentstore.server.host.InteractiveStreamSegmentStoreTester"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startBenchmark(type: JavaExec) {
-        main = "io.pravega.service.server.host.ServiceBenchmark"
+        main = "io.pravega.segmentstore.server.host.ServiceBenchmark"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }

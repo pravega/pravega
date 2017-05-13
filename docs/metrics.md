@@ -25,7 +25,7 @@ public interface StatsProvider {
 * createStatsLogger(): Creates and returns a StatsLogger instance, which is used to retrieve a metric and do metric insertion and collection in Pravega code. 
 
 ## 1.2. Example for starting a Metric service
-This example is from file io.pravega.service.server.host.ServiceStarter. It starts Pravega service and a Metrics service is started as a sub service.
+This example is from file io.pravega.segmentstore.server.host.ServiceStarter. It starts Pravega service and a Metrics service is started as a sub service.
 ```
 public final class ServiceStarter {
     ...
@@ -80,7 +80,7 @@ public interface OpStatsLogger {
 * reportFailValue() : Used to track Histogram of a failed value. 
 
 ### 1.3.2. Example for Counter and OpStatsLogger(Timer/Histograms)
-This is an example from io.pravega.service.server.host.handler.PravegaRequestProcessor. In this class, we registered four metrics: Two timers (createSegment/readSegment), one histograms (segmentReadBytes) and one counter (allReadBytes).
+This is an example from io.pravega.segmentstore.server.host.PravegaRequestProcessor. In this class, we registered four metrics: Two timers (createSegment/readSegment), one histograms (segmentReadBytes) and one counter (allReadBytes).
 ```
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
     …
@@ -146,7 +146,7 @@ static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREA
 ```
 Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsedNanos());
 ```
-Here CREATE_SEGMENT is the name of this metric, we put all the Metric for host in file io.pravega.service.server.host.PravegaRequestStats, and CREATE_STREAM_SEGMENT is the name of our Metrics logger, it will track operations of createSegment, and we will get the time of each createSegment operation happened, how long each operation takes, and other numbers computed based on them.
+Here CREATE_SEGMENT is the name of this metric, we put all the Metric for host in file io.pravega.segmentstore.server.host.PravegaRequestStats, and CREATE_STREAM_SEGMENT is the name of our Metrics logger, it will track operations of createSegment, and we will get the time of each createSegment operation happened, how long each operation takes, and other numbers computed based on them.
 
 ### 1.3.3 Output example of OpStatsLogger and Counter
 An example output of OpStatsLogger CREATE_SEGMENT reported through CSV reporter:
@@ -166,7 +166,7 @@ t,count
 ```
 
 ### 1.3.4. Example for Gauge metrics
-This is an example from io.pravega.service.server.host.handler.AppendProcessor. In this class, we registered a Gauge which represent current PendingReadBytes.
+This is an example from io.pravega.segmentstore.server.host.AppendProcessor. In this class, we registered a Gauge which represent current PendingReadBytes.
 ```
 public class AppendProcessor extends DelegatingRequestProcessor {
     ...
