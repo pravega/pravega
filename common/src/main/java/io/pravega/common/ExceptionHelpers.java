@@ -55,12 +55,12 @@ public class ExceptionHelpers {
     }
     
     /**
-     * If the provided exception is a CompletionException or ExecutionException which need be unwraped 
+     * If the provided exception is a CompletionException or ExecutionException which need be unwraped.
      * @param e The exception to be unwrapped.
      * @return The cause or the exception provided.
      */
     public static Throwable unwrapIfRequired(Throwable e) {
-        if((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
+        if ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
             return e.getCause();
         }
         return e;
