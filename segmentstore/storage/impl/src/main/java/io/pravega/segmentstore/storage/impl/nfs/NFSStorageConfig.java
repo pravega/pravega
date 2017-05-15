@@ -23,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 public class NFSStorageConfig {
     //region Config Names
 
-    public static final Property<String> ROOT = Property.named("nfsRoot", "");
+    public static final Property<String> ROOT = Property.named("nfsRoot", "/nfs/");
     private static final String COMPONENT_CODE = "nfs";
 
     //endregion
