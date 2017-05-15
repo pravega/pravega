@@ -23,6 +23,8 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
+import io.pravega.segmentstore.storage.impl.nfs.NFSStorageConfig;
+import io.pravega.segmentstore.storage.impl.nfs.NFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.shared.metrics.MetricsConfig;
@@ -73,7 +75,7 @@ public final class ServiceStarter {
         }
 
         if (options.hdfs) {
-            attachHDFS(builder);
+            attachStorage(builder);
         }
 
         if (options.zkSegmentManager) {
@@ -155,11 +157,16 @@ public final class ServiceStarter {
         builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
     }
 
-    private void attachHDFS(ServiceBuilder builder) {
+    private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
                 HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+                NFSStorageConfig nfsConfig = setup.getConfig(NFSStorageConfig::builder);
+                if(hdfsConfig.isEnableHdfs()) {
+                    return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+                } else {
+                    return new NFSStorageFactory(nfsConfig, setup.getExecutor());
+                }
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }

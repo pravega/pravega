@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 public class HDFSStorageConfig {
     //region Config Names
 
+    public static final Property<Boolean> ENABLE_HDFS = Property.named("enableHdfs", Boolean.TRUE);
     public static final Property<String> URL = Property.named("hdfsUrl", "localhost:9000");
     public static final Property<String> ROOT = Property.named("hdfsRoot", "");
     public static final Property<Integer> REPLICATION = Property.named("replication", 3);
@@ -32,7 +33,11 @@ public class HDFSStorageConfig {
     //endregion
 
     //region Members
-
+    /**
+     * Enable HDFS. This is default storage.
+     */
+    @Getter
+    private final boolean enableHdfs;
     /**
      * HDFS host URL. This is generally in host:port format
      */
@@ -69,6 +74,7 @@ public class HDFSStorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private HDFSStorageConfig(TypedProperties properties) throws ConfigurationException {
+        this.enableHdfs = properties.getBoolean(ENABLE_HDFS);
         this.hdfsHostURL = properties.get(URL);
         this.hdfsRoot = properties.get(ROOT);
         this.replication = (short) properties.getInt(REPLICATION);

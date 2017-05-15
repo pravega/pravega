@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.storage.impl.nfs;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -22,6 +24,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -42,9 +45,9 @@ public class NFSStorageTest extends StorageTestBase {
 
     @Before
     public void setUp() throws Exception {
-/*        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.OFF);
-*/
+
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         this.adapterConfig = NFSStorageConfig
                 .builder()
