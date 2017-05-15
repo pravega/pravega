@@ -100,7 +100,7 @@ public class ControllerStreamMetadataTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void streamMetadataTest() throws Exception {
         // Create test scope. This operation should succeed.
         assertTrue(controller.createScope(SCOPE).join());
