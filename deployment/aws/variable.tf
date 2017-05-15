@@ -52,3 +52,8 @@ variable "hadoop_instance_count" {
   type = "string"
   default = "3"
 }
+
+variable "pravega_release" {
+  type = "string"
+  default = "pravega-0.1.0-1404.04e62df"
+}

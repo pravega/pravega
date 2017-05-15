@@ -147,7 +147,7 @@ EOF
 }
 
 resource "aws_iam_instance_profile" "emr_profile" {
-  name  = "emr_profile_default"
+  name  = "emr_profile_pravega"
   role = "${aws_iam_role.iam_emr_profile_role.name}"
 }
 
@@ -215,6 +215,9 @@ resource "aws_instance" "pravega" {
  instance_type = "${lookup(var.pravega_instance_type, var.aws_region)}"
  key_name = "${var.aws_key_name}"
  security_groups = ["pravega_default"]
+ provisioner "local-exec" {
+   command = "chmod 400 ${var.cred_path}"
+ }
  provisioner "remote-exec" {
    connection = {
       type = "ssh"
@@ -237,7 +240,7 @@ resource "aws_instance" "boot" {
  security_groups = ["pravega_default"]
  depends_on = ["aws_instance.pravega"]
  provisioner "local-exec" {
-   command = "chmod +x bootstrap.sh && ./bootstrap.sh '${join(",", aws_instance.pravega.*.public_ip)}' ${aws_emr_cluster.pravega-emr-cluster.master_public_dns} ${var.aws_region} "
+   command = "cp ${var.cred_path} installer && chmod +x bootstrap.sh && ./bootstrap.sh '${join(",", aws_instance.pravega.*.public_ip)}' ${aws_emr_cluster.pravega-emr-cluster.master_public_dns} ${var.aws_region} "
  }
  provisioner "file" {
    connection = {
@@ -255,12 +258,13 @@ resource "aws_instance" "boot" {
       private_key = "${file("${var.cred_path}")}"
    }
    inline = [
+      "wget https://github.com/pravega/pravega/releases/download/v0.1.0-prerelease2/${var.pravega_release}.tgz && mv ${var.pravega_release}.tgz data/pravega-0.1.0-SNAPSHOT.tgz",
       "sudo apt-add-repository ppa:ansible/ansible -y",
       "sudo apt-get -y update",
       "sudo apt-get install -y software-properties-common",
       "sudo apt-get install -y ansible",
-      "chmod 400 ${var.aws_key_name}.pem",
-      "ansible-playbook -i hosts entry_point.yml --private-key=${var.aws_key_name}.pem",
+      "chmod 400 ${var.aws_key_name}.pem.txt",
+      "ansible-playbook -i hosts entry_point.yml --private-key=${var.aws_key_name}.pem.txt",
    ]
   }
 }

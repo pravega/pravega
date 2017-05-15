@@ -14,7 +14,7 @@ Pre-reqs: terraform installed, and create a AWS account
 Terraform can be downloaded from https://www.terraform.io/downloads.html
 
 ### Deploy Steps
-- Define the nodes layout in installer/hosts-template.
+- Define the nodes layout in installer/hosts-template (Optional).
 
 There are three sections of hosts-template, common-services is for zookeeper and bookkeeper, pravega-controller is for pravega controller node, and pravega-hosts is for pravega segmentstore node.
 Here is a example of hosts-template:
@@ -32,10 +32,13 @@ N0
 N1
 N2
 
-- Put you AWS keypair file under installer directory
-- Run "terraform apply" under deployment directory, then follow prompts, enter AWS account credentials.
+- Run "sudo terraform apply" under deployment/aws directory, then follow prompts, enter AWS account credentials.
 
-For now, only two region is supported: us-east-1 and us-west-1. Below is recommended instance type for them.
+There are four variables would be needed:
+
+1. AWS access key and AWS secret key, which can be obtained from AWS account
+2. cred_path, which is the definitely path of key pari file. It would be downloaded when key pair is created
+3. AWS region: For now, only two region is supported: us-east-1 and us-west-1. Below is recommended default instance type for them.
 
 ### Region us-east-1
 - Three m3.xlarge for EMR
@@ -48,3 +51,9 @@ For now, only two region is supported: us-east-1 and us-west-1. Below is recomme
 - One i3.xlarge for bootstrap, also as client
 
 Other instance type might have conflict with the Linux Images used.
+
+
+
+### Destroy the pravega cluster
+
+Run "sudo terraform destroy", then enter "yes"
