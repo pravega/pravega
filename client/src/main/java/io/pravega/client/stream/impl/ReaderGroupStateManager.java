@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import lombok.Getter;
 import lombok.val;
+import org.apache.commons.lang.math.RandomUtils;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -113,7 +114,8 @@ public class ReaderGroupStateManager {
             throw new IllegalStateException("The requested reader: " + readerId
                     + " cannot be added to the group because it is already in the group. Perhaps close() was not called?");
         }
-        acquireTimer.reset(Duration.ofMillis(initialAllocationDelay));
+        long randomDelay = (long) (RandomUtils.nextFloat() * sync.getState().getConfig().getGroupRefreshTimeMillis());
+        acquireTimer.reset(Duration.ofMillis(initialAllocationDelay + randomDelay));
     }
     
     /**
