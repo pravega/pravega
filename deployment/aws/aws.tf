@@ -258,7 +258,7 @@ resource "aws_instance" "boot" {
       private_key = "${file("${var.cred_path}")}"
    }
    inline = [
-      "wget https://github.com/pravega/pravega/releases/download/v0.1.0-prerelease2/${var.pravega_release}.tgz && mv ${var.pravega_release}.tgz data/pravega-0.1.0-SNAPSHOT.tgz",
+      "wget ${var.pravega_release} && mv pravega*.tgz data/pravega-0.1.0-SNAPSHOT.tgz",
       "sudo apt-add-repository ppa:ansible/ansible -y",
       "sudo apt-get -y update",
       "sudo apt-get install -y software-properties-common",
