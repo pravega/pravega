@@ -270,14 +270,15 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks for sweeping txns from failedHost.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
-                100, connectionFactory);
+                connectionFactory);
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream", abortWriter);
 
+        TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
         // Validate that txnTasks is ready.
         assertTrue(txnTasks.isReady());
 
         // Sweep txns that were being managed by failedHost.
-        txnTasks.sweepFailedHosts(() -> Collections.singleton("host")).join();
+        txnSweeper.sweepFailedHosts(() -> Collections.singleton("host")).join();
 
         // Validate that sweeping completes correctly.
         Assert.assertEquals(0, streamStore.listHostsOwningTxn().join().size());

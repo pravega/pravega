@@ -35,6 +35,7 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.timeout.TimeoutService;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
@@ -165,8 +166,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                     segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, taskExecutor, host.getHostId(),
-                    serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), connectionFactory);
+                    hostStore, segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
 
@@ -178,6 +178,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // controllers and starts sweeping tasks orphaned by those hostIds.
             TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.getHostId(), taskExecutor,
                     streamMetadataTasks);
+
+            TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks, serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), taskExecutor);
 
             // Setup and start controller cluster listener.
             if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
@@ -191,7 +193,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
                 controllerClusterListener = new ControllerClusterListener(host, cluster,
                         Optional.ofNullable(controllerEventProcessors),
-                        taskSweeper, Optional.ofNullable(streamTransactionMetadataTasks), clusterListenerExecutor);
+                        taskSweeper, Optional.ofNullable(txnSweeper), clusterListenerExecutor);
 
                 log.info("Starting controller cluster listener");
                 controllerClusterListener.startAsync();
