@@ -26,6 +26,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -451,6 +452,13 @@ public interface StreamMetadataStore {
      * @return A future indicating completion of removal of the host from index.
      */
     CompletableFuture<Void> removeHostFromIndex(String hostId);
+
+    /**
+     * Fetches set of hosts that own some txn.
+     *
+     * @return set of hosts owning some txn.
+     */
+    CompletableFuture<Set<String>> listHostsOwningTxn();
 
     /**
      * Api to mark a segment as cold.

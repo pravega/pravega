@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -474,6 +475,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> removeHostFromIndex(String hostId) {
         return hostIndex.removeHost(hostId);
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> listHostsOwningTxn() {
+        return hostIndex.getHosts();
     }
 
     @Override

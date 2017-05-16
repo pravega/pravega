@@ -16,11 +16,13 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,6 +33,8 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -245,6 +249,57 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.getScopeConfiguration(scope2),
                 (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.NODE_NOT_FOUND));
+    }
+
+    @Test
+    public void txnHostIndexTest() {
+        String host1 = "host1";
+        String host2 = "host2";
+
+        TxnResource txn1 = new TxnResource(scope, stream1, UUID.randomUUID());
+        TxnResource txn2 = new TxnResource(scope, stream1, UUID.randomUUID());
+
+        addTxnToHost(host1, txn1, 0);
+        Assert.assertEquals(1, store.listHostsOwningTxn().join().size());
+        Optional<TxnResource> txn = store.getRandomTxnFromIndex(host1).join();
+        Assert.assertTrue(txn.isPresent());
+        Assert.assertEquals(txn1.getTxnId().toString(), txn.get().getTxnId().toString());
+
+        addTxnToHost(host1, txn2, 5);
+        Assert.assertEquals(1, store.listHostsOwningTxn().join().size());
+
+        txn = store.getRandomTxnFromIndex(host1).join();
+        Assert.assertTrue(txn.isPresent());
+        UUID randomTxnId = txn.get().getTxnId();
+        Assert.assertTrue(randomTxnId.equals(txn1.getTxnId()) || randomTxnId.equals(txn2.getTxnId()));
+
+        // Test remove txn from index.
+        store.removeTxnFromIndex(host1, txn1, true).join();
+        // Test remove is idempotent operation.
+        store.removeTxnFromIndex(host1, txn1, true).join();
+        // Test remove last txn from the index.
+        store.removeTxnFromIndex(host1, txn2, true).join();
+        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+        // Test remove is idempotent operation.
+        store.removeTxnFromIndex(host1, txn2, true).join();
+        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+        // Test removal of txn that was never added.
+        store.removeTxnFromIndex(host1, new TxnResource(scope, stream1, UUID.randomUUID()), true).join();
+
+        // Test host removal.
+        store.removeHostFromIndex(host1).join();
+        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+        // Test host removal is idempotent.
+        store.removeHostFromIndex(host1).join();
+        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+        // Test removal of host that was never added.
+        store.removeHostFromIndex(host2).join();
+        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+    }
+
+    private void addTxnToHost(String host, TxnResource txnResource, int version) {
+        store.addTxnToIndex(host, txnResource, version).join();
+        Assert.assertEquals(version, store.getTxnVersionFromIndex(host, txnResource).join().intValue());
     }
 
     private boolean checkStoreExceptionType(Throwable t, StoreException.Type type) {
