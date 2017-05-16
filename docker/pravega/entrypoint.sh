@@ -33,10 +33,12 @@ configure_nfs_s3_hdfs() {
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
 
-    if ["${ENABLE_NFS}" -eq "yes"]; then
+    if [ "${ENABLE_NFS}" = "true" ]; then
+       echo "Setting up NFS"
         mkdir -p /nfs/
+       echo "Mounting ${NFS_MOUNT}"
         mount -t nfs ${NFS_MOUNT}  /nfs/
-        add_system_property "hdfs.nfsRoot" "/nfs/"
+        add_system_property "nfs.nfsRoot" "/nfs/"
     fi
 }
 configure_segmentstore() {
