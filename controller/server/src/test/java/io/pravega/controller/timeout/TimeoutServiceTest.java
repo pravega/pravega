@@ -110,7 +110,7 @@ public class TimeoutServiceTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 new SegmentHelper(), executor, hostId, connectionFactory);
         streamTransactionMetadataTasks = new MockStreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, new SegmentHelper(), executor, hostId, connectionFactory);
+                hostStore, new SegmentHelper(), executor, hostId, connectionFactory);
 
         // Create TimeoutService
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,

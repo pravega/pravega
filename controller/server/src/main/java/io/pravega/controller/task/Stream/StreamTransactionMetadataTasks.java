@@ -29,26 +29,24 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.task.Resource;
-import io.pravega.controller.store.task.TaskMetadataStore;
-import io.pravega.controller.task.Task;
-import io.pravega.controller.task.TaskBase;
 import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.netty.ConnectionFactory;
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.controller.store.task.TxnResource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -59,38 +57,46 @@ import java.util.stream.Collectors;
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 @Slf4j
-public class StreamTransactionMetadataTasks extends TaskBase {
+public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     protected EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
     protected EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
     protected String commitStreamName;
     protected String abortStreamName;
+    protected final String hostId;
+    protected final ScheduledExecutorService executor;
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
 
+    private volatile boolean ready;
+    private final CountDownLatch readyLatch;
+
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
-                                          final TaskMetadataStore taskMetadataStore,
-                                          final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                                          final SegmentHelper segmentHelper,
+                                          final ScheduledExecutorService executor,
                                           final String hostId,
                                           final ConnectionFactory connectionFactory) {
-        this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId), connectionFactory);
-    }
-
-    private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                           final HostControllerStore hostControllerStore,
-                                           final TaskMetadataStore taskMetadataStore,
-                                           SegmentHelper segmentHelper, final ScheduledExecutorService executor,
-                                           final Context context,
-                                           final ConnectionFactory connectionFactory) {
-        super(taskMetadataStore, executor, context);
+        this.hostId = hostId;
+        this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
+        readyLatch = new CountDownLatch(1);
+    }
+
+    protected void setReady() {
+        ready = true;
+        readyLatch.countDown();
+    }
+
+    @VisibleForTesting
+    public boolean awaitInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        return readyLatch.await(timeout, timeUnit);
     }
 
     /**
@@ -138,19 +144,20 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param maxExecutionTime Maximum time for which client may extend txn lease.
      * @param scaleGracePeriod Maximum time for which client may extend txn lease once
      *                         the scaling operation is initiated on the txn stream.
-     * @param contextOpt       operational context
+     * @param ctxOpt           operational context
      * @return transaction id.
      */
-    @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream, final long lease,
-                                                                                      final long maxExecutionTime, final long scaleGracePeriod, final OperationContext contextOpt) {
-        final OperationContext context =
-                contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream, lease, maxExecutionTime, scaleGracePeriod, null},
-                () -> createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context));
+    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
+                                                                                      final String stream,
+                                                                                      final long lease,
+                                                                                      final long maxExecutionTime,
+                                                                                      final long scaleGracePeriod,
+                                                                                      final OperationContext ctxOpt) {
+        return checkReady().thenComposeAsync(x -> {
+            final OperationContext context =
+                    ctxOpt == null ? streamMetadataStore.createContext(scope, stream) : ctxOpt;
+            return createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod, context);
+        }, executor);
     }
 
     /**
@@ -166,13 +173,11 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     public CompletableFuture<VersionedTransactionData> pingTxn(final String scope, final String stream,
                                                                final UUID txId, final long lease,
                                                                final OperationContext contextOpt) {
-        final OperationContext context =
-                contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return execute(
-                new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId},
-                () -> pingTxnBody(scope, stream, txId, lease, context));
+        return checkReady().thenComposeAsync(x -> {
+            final OperationContext context =
+                    contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+            return pingTxnBody(scope, stream, txId, lease, context);
+        }, executor);
     }
 
     /**
@@ -185,15 +190,12 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param contextOpt       operational context
      * @return true/false.
      */
-    @Task(name = "abortTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
                                                  final Integer version, final OperationContext contextOpt) {
-        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return execute(
-                new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId, version, null},
-                () -> abortTxnBody(scope, stream, txId, version, context));
+        return checkReady().thenComposeAsync(x -> {
+            final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+            return abortTxnBody(hostId, scope, stream, txId, version, context);
+        }, executor);
     }
 
     /**
@@ -205,71 +207,93 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return true/false.
      */
-    @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final OperationContext contextOpt) {
-        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return execute(
-                new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId, null},
-                () -> commitTxnBody(scope, stream, txId, context));
+        return checkReady().thenComposeAsync(x -> {
+            final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+            return commitTxnBody(hostId, scope, stream, txId, context);
+        }, executor);
     }
 
-    private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope, final String stream,
-                                                                      final long lease, final long maxExecutionPeriod,
-                                                                      final long scaleGracePeriod,
-                                                                      final OperationContext context) {
+    private CompletableFuture<Void> checkReady() {
+        if (!ready) {
+            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
+        } else {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
+                                                                                           final String stream,
+                                                                                           final long lease,
+                                                                                           final long maxExecutionPeriod,
+                                                                                           final long scaleGracePeriod,
+                                                                                           final OperationContext ctx) {
         UUID txnId = UUID.randomUUID();
-        return streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod, scaleGracePeriod, context, executor)
-                .thenCompose(txData ->
-                        streamMetadataStore.getActiveSegments(scope, stream, context, executor)
-                                .thenCompose(activeSegments ->
-                                        FutureHelpers.allOf(
-                                                activeSegments.stream()
-                                                        .parallel()
-                                                        .map(segment ->
-                                                                notifyTxCreation(scope,
-                                                                        stream,
-                                                                        segment.getNumber(),
-                                                                        txData.getId()))
-                                                        .collect(Collectors.toList()))
-                                                .thenApply(v -> new ImmutablePair<>(txData, activeSegments))));
+        TxnResource resource = new TxnResource(scope, stream, txnId);
+        CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, 0);
+        return addIndex.thenComposeAsync(x -> streamMetadataStore.createTransaction(scope, stream, txnId, lease,
+                maxExecutionPeriod, scaleGracePeriod, ctx, executor).thenComposeAsync(txData ->
+                streamMetadataStore.getActiveSegments(scope, stream, ctx, executor).thenComposeAsync(activeSegments ->
+                        notifyTxCreation(scope, stream, activeSegments, txnId).thenApply(v ->
+                                new ImmutablePair<>(txData, activeSegments)), executor), executor), executor);
     }
 
-    private CompletableFuture<VersionedTransactionData> pingTxnBody(String scope, String stream, UUID txId, long lease,
-                                                                    final OperationContext context) {
-        return streamMetadataStore.pingTransaction(scope, stream, txId, lease, context, executor);
+    private CompletableFuture<VersionedTransactionData> pingTxnBody(final String scope, final String stream,
+                                                                    final UUID txId, long lease,
+                                                                    final OperationContext ctx) {
+        return streamMetadataStore.pingTransaction(scope, stream, txId, lease, ctx, executor);
     }
 
-    private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
-                                                      final Integer version, final OperationContext context) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), context, executor)
+    private CompletableFuture<TxnStatus> abortTxnBody(final String host,
+                                                      final String scope,
+                                                      final String stream,
+                                                      final UUID txid,
+                                                      final Integer version,
+                                                      final OperationContext ctx) {
+        TxnResource resource = new TxnResource(scope, stream, txid);
+        AbortEvent event = new AbortEvent(scope, stream, txid);
+        String key = txid.toString();
+        return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), ctx, executor)
                 .thenComposeAsync(status -> {
                     if (status == TxnStatus.ABORTING) {
-                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter,
-                                        abortStreamName, txid.toString(), new AbortEvent(scope, stream, txid), txid, status),
-                                executor);
+                        return writeEventWithRetries(abortEventEventStreamWriter, abortStreamName, key, event, txid, status);
                     } else {
                         // Status is ABORTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
-                }, executor);
+                }, executor).thenComposeAsync(status ->
+                        streamMetadataStore.removeTxnFromIndex(host, resource, true).thenApply(x -> status), executor);
     }
 
-    private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
-                                                       final OperationContext context) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), context, executor)
+    private CompletableFuture<TxnStatus> commitTxnBody(final String host,
+                                                       final String scope,
+                                                       final String stream,
+                                                       final UUID txid,
+                                                       final OperationContext ctx) {
+        TxnResource resource = new TxnResource(scope, stream, txid);
+        CommitEvent event = new CommitEvent(scope, stream, txid);
+        String key = scope + stream;
+        return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), ctx, executor)
                 .thenComposeAsync(status -> {
                     if (status == TxnStatus.COMMITTING) {
-                        return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter,
-                                commitStreamName, scope + stream, new CommitEvent(scope, stream, txid), txid, status),
-                                executor);
+                        return writeEventWithRetries(commitEventEventStreamWriter, commitStreamName, key, event, txid, status);
                     } else {
                         // Status is COMMITTED, return it.
                         return CompletableFuture.completedFuture(status);
                     }
-                }, executor);
+                }, executor).thenComposeAsync(status ->
+                        streamMetadataStore.removeTxnFromIndex(host, resource, true).thenApply(x -> status), executor);
+    }
+
+    private <T> CompletableFuture<TxnStatus> writeEventWithRetries(final EventStreamWriter<T> streamWriter,
+                                                                   final String streamName,
+                                                                   final String key,
+                                                                   final T event,
+                                                                   final UUID txid,
+                                                                   final TxnStatus txnStatus) {
+        return TaskStepsRetryHelper.withRetries(() -> writeEvent(streamWriter, streamName, key, event, txid, txnStatus),
+                executor);
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
@@ -301,8 +325,20 @@ public class StreamTransactionMetadataTasks extends TaskBase {
         }, executor);
     }
 
+    private CompletableFuture<Void> notifyTxCreation(final String scope,
+                                                     final String stream,
+                                                     final List<Segment> activeSegments,
+                                                     final UUID txnId) {
+        return FutureHelpers.allOf(activeSegments.stream()
+                .parallel()
+                .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txnId))
+                .collect(Collectors.toList()));
+    }
 
-    private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
+    private CompletableFuture<UUID> notifyTxCreation(final String scope,
+                                                     final String stream,
+                                                     final int segmentNumber,
+                                                     final UUID txid) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
                 segmentNumber,
@@ -311,23 +347,58 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 this.connectionFactory), executor);
     }
 
-    @Override
-    public TaskBase copyWithContext(Context context) {
-        StreamTransactionMetadataTasks transactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamMetadataStore,
-                        hostControllerStore,
-                        taskMetadataStore,
-                        segmentHelper, executor,
-                        context,
-                        connectionFactory);
-        if (this.isReady()) {
-            transactionMetadataTasks.commitStreamName = this.commitStreamName;
-            transactionMetadataTasks.commitEventEventStreamWriter = this.commitEventEventStreamWriter;
-            transactionMetadataTasks.abortStreamName = this.abortStreamName;
-            transactionMetadataTasks.abortEventEventStreamWriter = this.abortEventEventStreamWriter;
-            transactionMetadataTasks.setReady();
-        }
-        return transactionMetadataTasks;
+    public CompletableFuture<Void> failOverHost(String failedHost) {
+        return streamMetadataStore.getRandomTxnFromIndex(failedHost).thenCompose(resourceOpt -> {
+            if (resourceOpt.isPresent()) {
+                TxnResource resource = resourceOpt.get();
+                // Get the txn's status
+                // If it is aborting or committing send an abortEvent or commitEvent to respective streams
+                // Else if it is open try to abort it
+                // Else ignore it
+                return failOverTransaction(failedHost, resource);
+            } else {
+                // delete hostId from the index.
+                return streamMetadataStore.removeHostFromIndex(failedHost);
+            }
+        });
+    }
+
+    private CompletableFuture<Void> failOverTransaction(String failedHost, TxnResource resource) {
+        UUID txnId = resource.getTxnId();
+        return streamMetadataStore.transactionStatus("scope", "stream", txnId, null, executor).thenCompose(status -> {
+            switch (status) {
+                case OPEN:
+                    return failOverOpenTxn(failedHost, resource);
+                case ABORTING:
+                    return failOverAbortingTxn(failedHost, resource);
+                case COMMITTING:
+                    return failOverCommittingTxn(failedHost, resource);
+                default:
+                    return CompletableFuture.completedFuture(null);
+            }
+        });
+    }
+
+    private CompletableFuture<Void> failOverCommittingTxn(String failedHost, TxnResource resource) {
+        UUID txnId = resource.getTxnId();
+        CommitEvent event = new CommitEvent(resource.getScope(), resource.getStream(), txnId);
+        return writeEventWithRetries(commitEventEventStreamWriter, commitStreamName, txnId.toString(), event, txnId,
+                        TxnStatus.COMMITTING).thenComposeAsync(status ->
+                streamMetadataStore.removeTxnFromIndex(failedHost, resource, true), executor);
+    }
+
+    private CompletableFuture<Void> failOverAbortingTxn(String failedHost, TxnResource resource) {
+        UUID txnId = resource.getTxnId();
+        AbortEvent event = new AbortEvent(resource.getScope(), resource.getStream(), txnId);
+        return writeEvent(abortEventEventStreamWriter, abortStreamName, txnId.toString(), event, txnId,
+                        TxnStatus.ABORTING).thenComposeAsync(status ->
+                streamMetadataStore.removeTxnFromIndex(failedHost, resource, true), executor);
+    }
+
+    private CompletableFuture<Void> failOverOpenTxn(String failedHost, TxnResource resource) {
+        return streamMetadataStore.getTxnVersionFromIndex(failedHost, resource).thenCompose((Integer version) ->
+                this.abortTxnBody(failedHost, resource.getScope(), resource.getStream(), resource.getTxnId(),
+                        version, null).thenApply(status -> null));
     }
 
     @Override

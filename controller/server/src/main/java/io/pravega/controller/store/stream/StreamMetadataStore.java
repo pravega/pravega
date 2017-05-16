@@ -17,6 +17,7 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.client.stream.StreamConfiguration;
@@ -25,6 +26,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -401,6 +403,62 @@ public interface StreamMetadataStore {
      * @return map of txId to TxRecord
      */
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
+
+    /**
+     * Adds specified resource as a child of current host's hostId node.
+     * This is idempotent operation.
+     *
+     * @param hostId      Host identifier.
+     * @param txn         Tracked transaction resource.
+     * @param version     Version of tracked transaction's node.
+     * @return            A future that completes on completion of the operation.
+     */
+    CompletableFuture<Void> addTxnToIndex(final String hostId, final TxnResource txn, final int version);
+
+    /**
+     * Removes the specified child node from the specified parent node.
+     * This is idempotent operation.
+     * If deleteEmptyParent is true and parent has no child after deletion of given child then parent is also deleted.
+     *
+     * @param hostId            Node whose child is to be removed.
+     * @param txn               Transaction resource to remove.
+     * @param deleteEmptyParent To delete or not to delete.
+     * @return void in future.
+     */
+    CompletableFuture<Void> removeTxnFromIndex(final String hostId, final TxnResource txn,
+                                               final boolean deleteEmptyParent);
+
+    /**
+     * Returns a transaction managed by specified host, if one exists.
+     *
+     * @param hostId Host identifier.
+     * @return A transaction managed by specified host, if one exists.
+     */
+    CompletableFuture<Optional<TxnResource>> getRandomTxnFromIndex(final String hostId);
+
+    /**
+     * Fetches version of specified txn stored in the index under specified host.
+     *
+     * @param hostId    Host identifier.
+     * @param resource  Txn resource.
+     * @return txn version stored in the index under specified host.
+     */
+    CompletableFuture<Integer> getTxnVersionFromIndex(final String hostId, final TxnResource resource);
+
+    /**
+     * Remove the specified host from the index.
+     *
+     * @param hostId Host identifier.
+     * @return A future indicating completion of removal of the host from index.
+     */
+    CompletableFuture<Void> removeHostFromIndex(String hostId);
+
+    /**
+     * Fetches set of hosts that own some txn.
+     *
+     * @return set of hosts owning some txn.
+     */
+    CompletableFuture<Set<String>> listHostsOwningTxn();
 
     /**
      * Api to mark a segment as cold.

@@ -15,7 +15,9 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import io.pravega.controller.store.task.TxnResource;
 import io.pravega.shared.MetricsNames;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.metrics.DynamicLogger;
@@ -30,11 +32,14 @@ import io.pravega.client.stream.StreamConfiguration;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+
+import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -71,11 +76,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
     private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
     private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
+    private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
+    private final HostIndex hostIndex;
 
-    protected AbstractStreamMetadataStore() {
+    protected AbstractStreamMetadataStore(HostIndex hostIndex) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
@@ -109,6 +116,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                 }
                             }
                         });
+
+        this.hostIndex = hostIndex;
     }
 
     /**
@@ -443,6 +452,37 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, int version) {
+        return hostIndex.addEntity(hostId, getTxnResourceString(txn), ByteBuffer.allocate(4).putInt(version).array());
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTxnFromIndex(String hostId, TxnResource txn, boolean deleteEmptyParent) {
+        return hostIndex.removeEntity(hostId, getTxnResourceString(txn), deleteEmptyParent);
+    }
+
+    @Override
+    public CompletableFuture<Optional<TxnResource>> getRandomTxnFromIndex(final String hostId) {
+        return hostIndex.getRandomEntity(hostId).thenApply(strOpt -> strOpt.map(this::getTxnResource));
+    }
+
+    @Override
+    public CompletableFuture<Integer> getTxnVersionFromIndex(final String hostId, final TxnResource resource) {
+        return hostIndex.getEntityData(hostId, getTxnResourceString(resource)).thenApply(data ->
+            data != null ? ByteBuffer.wrap(data).getInt() : null);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeHostFromIndex(String hostId) {
+        return hostIndex.removeHost(hostId);
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> listHostsOwningTxn() {
+        return hostIndex.getHosts();
+    }
+
+    @Override
     public CompletableFuture<Void> markCold(final String scope, final String stream, final int segmentNumber, final long timestamp,
                                             final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, stream, context).setColdMarker(segmentNumber, timestamp), executor);
@@ -539,5 +579,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     abstract Stream newStream(final String scope, final String name);
+
+    private String getTxnResourceString(TxnResource txn) {
+        return txn.toString(RESOURCE_PART_SEPARATOR);
+    }
+
+    private TxnResource getTxnResource(String str) {
+        return TxnResource.parse(str, RESOURCE_PART_SEPARATOR);
+    }
 }
 
