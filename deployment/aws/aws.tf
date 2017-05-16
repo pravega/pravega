@@ -263,8 +263,8 @@ resource "aws_instance" "boot" {
       "sudo apt-get -y update",
       "sudo apt-get install -y software-properties-common",
       "sudo apt-get install -y ansible",
-      "chmod 400 ${var.aws_key_name}.pem.txt",
-      "ansible-playbook -i hosts entry_point.yml --private-key=${var.aws_key_name}.pem.txt",
+      "chmod 400 $(basename ${var.cred_path})",
+      "ansible-playbook -i hosts entry_point.yml --private-key=$(basename ${var.cred_path})",
    ]
   }
 }
