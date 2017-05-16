@@ -9,10 +9,10 @@
  */
 package io.pravega.test.integration.demo;
 
-import io.pravega.service.contracts.StreamSegmentStore;
-import io.pravega.service.server.host.handler.PravegaConnectionListener;
-import io.pravega.service.server.store.ServiceBuilder;
-import io.pravega.service.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.client.stream.mock.MockStreamManager;
 import lombok.Cleanup;
 
