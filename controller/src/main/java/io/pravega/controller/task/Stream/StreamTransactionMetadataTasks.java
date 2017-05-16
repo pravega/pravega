@@ -30,6 +30,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -367,65 +368,93 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     public CompletableFuture<Void> sweepFailedHosts(Supplier<Set<String>> activeHosts) {
-        return streamMetadataStore.listHostsOwningTxn().thenCompose(index -> {
+        return streamMetadataStore.listHostsOwningTxn().thenComposeAsync(index -> {
             index.removeAll(activeHosts.get());
-            return FutureHelpers.allOf(index.stream().map(this::failOverHost).collect(Collectors.toList()));
-        });
+            return FutureHelpers.allOf(index.stream().map(this::sweepOrphanedTxns).collect(Collectors.toList()));
+        }, executor);
     }
 
-    public CompletableFuture<Void> failOverHost(String failedHost) {
-        return FutureHelpers.delayedFuture(Duration.ofMillis(maxTxnTimeoutMillis), executor).thenCompose(ignore ->
-                streamMetadataStore.getRandomTxnFromIndex(failedHost).thenCompose(resourceOpt -> {
-                    if (resourceOpt.isPresent()) {
-                        TxnResource resource = resourceOpt.get();
-                        // Get the txn's status
-                        // If it is aborting or committing send an abortEvent or commitEvent to respective streams
-                        // Else if it is open try to abort it
-                        // Else ignore it
-                        return failOverTransaction(failedHost, resource);
-                    } else {
-                        // delete hostId from the index.
-                        return streamMetadataStore.removeHostFromIndex(failedHost);
-                    }
-                }));
+    public CompletableFuture<Void> sweepOrphanedTxns(String failedHost) {
+        log.info("Host={}, sweeping orphaned transactions", failedHost);
+        return FutureHelpers.delayedFuture(Duration.ofMillis(maxTxnTimeoutMillis), executor)
+                .thenComposeAsync(ignore ->
+                        FutureHelpers.doWhileLoop(() -> failOverTxns(failedHost), x -> x != null, executor), executor)
+                .whenCompleteAsync((v, e) ->
+                        log.info("Host={}, sweeping orphaned transactions complete", failedHost), executor);
     }
 
-    private CompletableFuture<Void> failOverTransaction(String failedHost, TxnResource resource) {
-        UUID txnId = resource.getTxnId();
-        return streamMetadataStore.transactionStatus("scope", "stream", txnId, null, executor).thenCompose(status -> {
+    @Data
+    private class Result {
+        private final TxnResource txnResource;
+        private final Object value;
+        private final Throwable error;
+    }
+
+    private CompletableFuture<Result> failOverTxns(String failedHost) {
+        return streamMetadataStore.getRandomTxnFromIndex(failedHost).thenComposeAsync(resourceOpt -> {
+            if (resourceOpt.isPresent()) {
+                TxnResource resource = resourceOpt.get();
+                // Get the txn's status
+                // If it is aborting or committing send an abortEvent or commitEvent to respective streams
+                // Else if it is open try to abort it
+                // Else ignore it
+                return failOverTxn(failedHost, resource);
+            } else {
+                // delete hostId from the index.
+                return streamMetadataStore.removeHostFromIndex(failedHost).thenApplyAsync(x -> null, executor);
+            }
+        }, executor);
+    }
+
+    private CompletableFuture<Result> failOverTxn(String failedHost, TxnResource txn) {
+        String scope = txn.getScope();
+        String stream = txn.getStream();
+        UUID txnId = txn.getTxnId();
+        log.debug("Host = {}, processing transaction {}/{}/{}", failedHost, scope, stream, txnId);
+        return streamMetadataStore.transactionStatus(scope, stream, txnId, null, executor).thenComposeAsync(status -> {
             switch (status) {
                 case OPEN:
-                    return failOverOpenTxn(failedHost, resource);
+                    return failOverOpenTxn(failedHost, txn).handleAsync((v, e) -> new Result(txn, v, e), executor);
                 case ABORTING:
-                    return failOverAbortingTxn(failedHost, resource);
+                    return failOverAbortingTxn(failedHost, txn).handleAsync((v, e) -> new Result(txn, v, e), executor);
                 case COMMITTING:
-                    return failOverCommittingTxn(failedHost, resource);
+                    return failOverCommittingTxn(failedHost, txn).handleAsync((v, e) -> new Result(txn, v, e), executor);
                 default:
-                    return CompletableFuture.completedFuture(null);
+                    return CompletableFuture.completedFuture(new Result(txn, null, null));
             }
-        });
+        }, executor).whenComplete((v, e) ->
+                log.debug("Host = {}, processing transaction {}/{}/{} complete", failedHost, scope, stream, txnId));
     }
 
-    private CompletableFuture<Void> failOverCommittingTxn(String failedHost, TxnResource resource) {
-        UUID txnId = resource.getTxnId();
-        CommitEvent event = new CommitEvent(resource.getScope(), resource.getStream(), txnId);
+    private CompletableFuture<Void> failOverCommittingTxn(String failedHost, TxnResource txn) {
+        String scope = txn.getScope();
+        String stream = txn.getStream();
+        UUID txnId = txn.getTxnId();
+        CommitEvent event = new CommitEvent(scope, stream, txnId);
+        log.debug("Host = {}, failing over committing transaction {}/{}/{}", failedHost, scope, stream, txnId);
         return writeEventWithRetries(commitEventEventStreamWriter, commitStreamName, txnId.toString(), event, txnId,
                         TxnStatus.COMMITTING).thenComposeAsync(status ->
-                streamMetadataStore.removeTxnFromIndex(failedHost, resource, true), executor);
+                streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 
-    private CompletableFuture<Void> failOverAbortingTxn(String failedHost, TxnResource resource) {
-        UUID txnId = resource.getTxnId();
-        AbortEvent event = new AbortEvent(resource.getScope(), resource.getStream(), txnId);
+    private CompletableFuture<Void> failOverAbortingTxn(String failedHost, TxnResource txn) {
+        String scope = txn.getScope();
+        String stream = txn.getStream();
+        UUID txnId = txn.getTxnId();
+        AbortEvent event = new AbortEvent(scope, stream, txnId);
+        log.debug("Host = {}, failing over aborting transaction {}/{}/{}", failedHost, scope, stream, txnId);
         return writeEvent(abortEventEventStreamWriter, abortStreamName, txnId.toString(), event, txnId,
                         TxnStatus.ABORTING).thenComposeAsync(status ->
-                streamMetadataStore.removeTxnFromIndex(failedHost, resource, true), executor);
+                streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 
-    private CompletableFuture<Void> failOverOpenTxn(String failedHost, TxnResource resource) {
-        return streamMetadataStore.getTxnVersionFromIndex(failedHost, resource).thenCompose((Integer version) ->
-                this.abortTxnBody(failedHost, resource.getScope(), resource.getStream(), resource.getTxnId(),
-                        version, null).thenApply(status -> null));
+    private CompletableFuture<Void> failOverOpenTxn(String failedHost, TxnResource txn) {
+        String scope = txn.getScope();
+        String stream = txn.getStream();
+        UUID txnId = txn.getTxnId();
+        log.debug("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
+        return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenCompose((Integer version) ->
+                this.abortTxnBody(failedHost, scope, stream, txnId, version, null).thenApply(status -> null));
     }
 
     @Override

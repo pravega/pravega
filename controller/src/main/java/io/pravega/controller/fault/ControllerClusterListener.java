@@ -88,7 +88,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                             eventProcessorsOpt.get().notifyProcessFailure(host.getHostId());
                         }
                         if (transactionTasksOpt.isPresent() && transactionTasksOpt.get().isReady()) {
-                            transactionTasksOpt.get().failOverHost(host.getHostId());
+                            transactionTasksOpt.get().sweepOrphanedTxns(host.getHostId());
                         }
                         break;
                     case ERROR:

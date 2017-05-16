@@ -69,8 +69,10 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -80,6 +82,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 
@@ -219,6 +222,96 @@ public class StreamTransactionMetadataTasksTest {
         status = txnTasks.abortTxn(SCOPE, STREAM, txData2.getId(),
                 txData2.getVersion(), null).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
+    }
+
+    @Test(timeout = 10000)
+    public void failOverTests() throws CheckpointStoreException, InterruptedException {
+        // Create mock writer objects.
+        EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
+        EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
+        EventStreamReader<CommitEvent> commitReader = commitWriter.getReader();
+        EventStreamReader<AbortEvent> abortReader = abortWriter.getReader();
+
+        timeoutService = new TimerWheelTimeoutService(txnTasks, TimeoutServiceConfig.defaultConfig());
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks, timeoutService,
+                segmentHelperMock, executor, null);
+
+        // Create test scope and stream.
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
+        Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
+                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis()).join());
+
+        // Set up txn task for creating transactions from a failedHost.
+        StreamTransactionMetadataTasks failedTxnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
+                segmentHelperMock, executor, "failedHost", connectionFactory);
+        failedTxnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
+                new EventStreamWriterMock<>());
+
+        // Create 3 transactions from failedHost.
+        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
+
+        // Validate the txn index.
+        Assert.assertEquals(1, streamStore.listHostsOwningTxn().join().size());
+
+        // Change state of one txn to COMMITTING.
+        TxnStatus txnStatus2 = streamStore.sealTransaction(SCOPE, STREAM, tx2.getId(), true, Optional.empty(),
+                null, executor).join();
+        Assert.assertEquals(TxnStatus.COMMITTING, txnStatus2);
+
+        // Change state of another txn to ABORTING.
+        TxnStatus txnStatus3 = streamStore.sealTransaction(SCOPE, STREAM, tx3.getId(), false, Optional.empty(),
+                null, executor).join();
+        Assert.assertEquals(TxnStatus.ABORTING, txnStatus3);
+
+        // Create transaction tasks for sweeping txns from failedHost.
+        txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
+                100, connectionFactory);
+        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream", abortWriter);
+
+        // Validate that txnTasks is ready.
+        assertTrue(txnTasks.isReady());
+
+        // Sweep txns that were being managed by failedHost.
+        txnTasks.sweepFailedHosts(() -> Collections.singleton("host")).join();
+
+        // Validate that sweeping completes correctly.
+        Assert.assertEquals(0, streamStore.listHostsOwningTxn().join().size());
+        Assert.assertEquals(TxnStatus.ABORTING,
+                streamStore.transactionStatus(SCOPE, STREAM, tx1.getId(), null, executor).join());
+        Assert.assertEquals(TxnStatus.COMMITTING,
+                streamStore.transactionStatus(SCOPE, STREAM, tx2.getId(), null, executor).join());
+        Assert.assertEquals(TxnStatus.ABORTING,
+                streamStore.transactionStatus(SCOPE, STREAM, tx3.getId(), null, executor).join());
+
+        // Create commit and abort event processors.
+        ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
+        BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
+        BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
+        createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
+                () -> new CommitEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedCommitEvents));
+        createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
+                () -> new AbortEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedAbortEvents));
+
+        // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
+        CommitEvent commitEvent = processedCommitEvents.take();
+        assertEquals(tx2.getId(), commitEvent.getTxid());
+        assertEquals(TxnStatus.COMMITTED, streamStore.transactionStatus(SCOPE, STREAM, tx2.getId(), null, executor).join());
+
+        // Wait until 2 abort events are processed and ensure that the txn state is ABORTED.
+        AbortEvent abortEvent1 = processedAbortEvents.take();
+        assertTrue(tx1.getId().equals(abortEvent1.getTxid()) || tx3.getId().equals(abortEvent1.getTxid()));
+        AbortEvent abortEvent2 = processedAbortEvents.take();
+        assertTrue(tx1.getId().equals(abortEvent2.getTxid()) || tx3.getId().equals(abortEvent2.getTxid()));
+
+        assertEquals(TxnStatus.ABORTED, streamStore.transactionStatus(SCOPE, STREAM, tx1.getId(), null, executor).join());
+        assertEquals(TxnStatus.ABORTED, streamStore.transactionStatus(SCOPE, STREAM, tx3.getId(), null, executor).join());
     }
 
     @Test(timeout = 10000)
