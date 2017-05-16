@@ -33,14 +33,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -88,9 +91,17 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         readyLatch.countDown();
     }
 
+    public boolean isReady() {
+        return ready;
+    }
+
     @VisibleForTesting
     public boolean awaitInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
         return readyLatch.await(timeout, timeUnit);
+    }
+
+    public void awaitInitialization() throws InterruptedException {
+        readyLatch.await();
     }
 
     /**
@@ -341,20 +352,28 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 this.connectionFactory), executor);
     }
 
-    public CompletableFuture<Void> failOverHost(String failedHost) {
-        return streamMetadataStore.getRandomTxnFromIndex(failedHost).thenCompose(resourceOpt -> {
-            if (resourceOpt.isPresent()) {
-                TxnResource resource = resourceOpt.get();
-                // Get the txn's status
-                // If it is aborting or committing send an abortEvent or commitEvent to respective streams
-                // Else if it is open try to abort it
-                // Else ignore it
-                return failOverTransaction(failedHost, resource);
-            } else {
-                // delete hostId from the index.
-                return streamMetadataStore.removeHostFromIndex(failedHost);
-            }
+    public CompletableFuture<Void> sweepFailedHosts(Supplier<Set<String>> activeHosts) {
+        return streamMetadataStore.listHostsOwningTxn().thenCompose(index -> {
+            index.removeAll(activeHosts.get());
+            return FutureHelpers.allOf(index.stream().map(this::failOverHost).collect(Collectors.toList()));
         });
+    }
+
+    public CompletableFuture<Void> failOverHost(String failedHost) {
+        return FutureHelpers.delayedFuture(Duration.ofMillis(30000), executor).thenCompose(ignore ->
+                streamMetadataStore.getRandomTxnFromIndex(failedHost).thenCompose(resourceOpt -> {
+                    if (resourceOpt.isPresent()) {
+                        TxnResource resource = resourceOpt.get();
+                        // Get the txn's status
+                        // If it is aborting or committing send an abortEvent or commitEvent to respective streams
+                        // Else if it is open try to abort it
+                        // Else ignore it
+                        return failOverTransaction(failedHost, resource);
+                    } else {
+                        // delete hostId from the index.
+                        return streamMetadataStore.removeHostFromIndex(failedHost);
+                    }
+                }));
     }
 
     private CompletableFuture<Void> failOverTransaction(String failedHost, TxnResource resource) {

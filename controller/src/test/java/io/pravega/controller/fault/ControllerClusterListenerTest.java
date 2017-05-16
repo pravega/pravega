@@ -128,7 +128,7 @@ public class ControllerClusterListenerTest {
 
         ControllerClusterListener clusterListener =
                 new ControllerClusterListener(host, clusterZK, Optional.empty(),
-                        taskSweeper, executor);
+                        taskSweeper, Optional.empty(), executor);
         clusterListener.startAsync();
 
         try {

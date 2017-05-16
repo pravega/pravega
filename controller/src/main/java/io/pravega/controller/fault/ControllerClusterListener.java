@@ -13,6 +13,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
+import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.TaskSweeper;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
@@ -42,16 +43,19 @@ public class ControllerClusterListener extends AbstractIdleService {
     private final ExecutorService executor;
     private final Optional<ControllerEventProcessors> eventProcessorsOpt;
     private final TaskSweeper taskSweeper;
+    private final Optional<StreamTransactionMetadataTasks> transactionTasksOpt;
 
     public ControllerClusterListener(final Host host, final Cluster cluster,
                                      final Optional<ControllerEventProcessors> eventProcessorsOpt,
                                      final TaskSweeper taskSweeper,
+                                     final Optional<StreamTransactionMetadataTasks> transactionTasksOpt,
                                      final ExecutorService executor) {
         Preconditions.checkNotNull(host, "host");
         Preconditions.checkNotNull(cluster, "cluster");
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkNotNull(eventProcessorsOpt, "eventProcessorsOpt");
         Preconditions.checkNotNull(taskSweeper, "taskSweeper");
+        Preconditions.checkNotNull(transactionTasksOpt, "transactionTasksOpt");
 
         this.objectId = "ControllerClusterListener";
         this.host = host;
@@ -59,6 +63,7 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.executor = executor;
         this.eventProcessorsOpt = eventProcessorsOpt;
         this.taskSweeper = taskSweeper;
+        this.transactionTasksOpt = transactionTasksOpt;
     }
 
     @Override
@@ -81,6 +86,9 @@ public class ControllerClusterListener extends AbstractIdleService {
                         taskSweeper.sweepOrphanedTasks(host.getHostId());
                         if (eventProcessorsOpt.isPresent() && eventProcessorsOpt.get().isRunning()) {
                             eventProcessorsOpt.get().notifyProcessFailure(host.getHostId());
+                        }
+                        if (transactionTasksOpt.isPresent() && transactionTasksOpt.get().isReady()) {
+                            transactionTasksOpt.get().failOverHost(host.getHostId());
                         }
                         break;
                     case ERROR:
@@ -115,6 +123,16 @@ public class ControllerClusterListener extends AbstractIdleService {
                 // Sweep orphaned tasks or readers at startup.
                 log.info("Sweeping orphaned readers at startup");
                 eventProcessorsOpt.get().handleOrphanedReaders(processes);
+            }
+
+            if (transactionTasksOpt.isPresent()) {
+                // Await initialization of transactionTasksOpt.
+                log.info("Awaiting StreamTransactionTasks to get ready");
+                transactionTasksOpt.get().awaitInitialization();
+
+                // Sweep orphaned transactions as startup.
+                log.info("Sweeping transaction managed by failed controller processes");
+                transactionTasksOpt.get().sweepFailedHosts(processes);
             }
 
             log.info("Controller cluster listener startUp complete");

@@ -190,7 +190,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
                 controllerClusterListener = new ControllerClusterListener(host, cluster,
                         Optional.ofNullable(controllerEventProcessors),
-                        taskSweeper, clusterListenerExecutor);
+                        taskSweeper, Optional.ofNullable(streamTransactionMetadataTasks), clusterListenerExecutor);
 
                 log.info("Starting controller cluster listener");
                 controllerClusterListener.startAsync();
