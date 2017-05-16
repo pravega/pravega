@@ -28,11 +28,16 @@ configure_controller() {
 
 configure_nfs_s3_hdfs() {
     add_system_property "nfs.enableNfs" "${ENABLE_NFS}"
-    add_system_property "hdfs.nfsRoot" "${NFS_ROOT}"
     add_system_property "hdfs.enableHdfs" "${ENABLE_HDFS}"
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
+
+    if ["${ENABLE_NFS}" -eq "yes"]; then
+        mkdir -p /nfs/
+        mount -t nfs ${NFS_MOUNT}  /nfs/
+        add_system_property "hdfs.nfsRoot" "/nfs/"
+    fi
 }
 configure_segmentstore() {
     add_system_property "pravegaservice.zkURL" "${ZK_URL}"
