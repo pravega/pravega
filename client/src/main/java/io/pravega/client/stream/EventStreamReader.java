@@ -1,25 +1,19 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 package io.pravega.client.stream;
 
-import io.pravega.client.stream.impl.segment.NoSuchEventException;
+import io.pravega.client.segment.impl.NoSuchEventException;
 
 /**
  * A reader for a stream.
- * 
+ * <p>
  * This class is safe to use across threads, but doing so will not increase performance.
  *
  * @param <T> The type of events being sent through this stream.
@@ -52,7 +46,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
      * Re-read an event that was previously read, by passing the pointer returned from
      * {@link EventRead#getEventPointer()}.
      * This does not affect the current position of the reader.
-     * 
+     * <p>
      * This is a blocking call. Passing invalid offsets has undefined behavior.
      * 
      * @param pointer The pointer object to enable a random read of the event.

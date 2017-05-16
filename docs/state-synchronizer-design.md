@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # StateSynchronizer
 A StateSynchronizer provides a means for data to be written and read by multiple processes, while consistency is guaranteed using optimistic checks. A rough version of this API is [checked in here.](https://github.com/emccode/pravega/blob/master/clients/streaming/src/main/java/com/emc/pravega/state/StateSynchronizer.java)
 

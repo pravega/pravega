@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Running Pravega Locally
 
 Running locally allows you to get started using pravega very quickly. Most of the options use the standalone mode which is suitable for most development and testing.
@@ -18,12 +27,12 @@ cd pravega
 This one command will download dependencies, compile pravega and start the standalone deployment.
 
 ```
-./gradlew startSingleNode
+./gradlew startStandalone
 ```
 
 ### From Installation Package
 
-Download the Pravega release from the [github releases page](https://github.com/pravega/pravega/releases).
+Download the Pravega release from the [github releases page](https://github.com/pravega/pravega/releases). The tarball and zip are identical. Instructions are provided using tar but the same steps work with the zip file.
 
 ```
 tar xfvz pravega-0.1.0.tgz
@@ -51,10 +60,16 @@ Unlike other options for running locally, the docker compose option runs a full 
 
 To use this you need to have Docker `1.12` or later.
 
-Download the docker-compose.yml from github and run:
+Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) from github. For example:
 
 ```
-docker-compose up
+wget https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml
 ```
 
-TODO
+You need to set the IP address of your local machine as the value of HOST_IP in the following command. To run:
+
+```
+HOST_IP=1.2.3.4 docker-compose up
+```
+
+Clients can then connect to the controller at `${HOST_IP}:9090`.

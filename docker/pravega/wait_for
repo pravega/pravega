@@ -1,0 +1,33 @@
+#!/usr/bin/python -u
+#
+# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+
+from time import sleep
+
+import os
+import socket
+
+endpoints = os.environ["WAIT_FOR"].split(",")
+size = 1024
+
+for endpoint in endpoints:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("Waiting for " + endpoint)
+    connected = False
+    while not connected:
+        try:
+            host,port = endpoint.split(":")
+            s.connect((host,int(port)))
+            connected = True
+            print("Connected to " + endpoint)
+        except Exception as e:
+            print("Unable to connect to " + endpoint + ". Waiting")
+            print(e)
+            sleep(5)

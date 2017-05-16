@@ -1,4 +1,4 @@
-Contributing to Pravega 
+Contributing to Pravega
 ======================================
 
 Pravega community follows specific rules and principles. If you're already familiar with them, you'll feel right at home.

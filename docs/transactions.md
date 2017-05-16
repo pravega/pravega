@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Working with Pravega: Transactions
 
 This article explores how to write a set of Events to a Stream atomically using
@@ -9,9 +18,6 @@ readme](https://github.com/pravega/pravega-samples/blob/master/standalone-exampl
 
 You really should be familiar with Pravega Concepts (see [Pravega
 Concepts](http://pravega.io/Pravega-Concepts/index.html)) before continuing reading this page.
- In particular, you should be somewhat familiar with the [State
-Synchronizer](http://pravega.io/docs/Pravega+Concepts/index.html#Transactions)
-concept.
 
 ## Pravega Transactions and the Console Writer and Console Reader Apps
 
@@ -66,11 +72,11 @@ Pravega Transactions
 
 The idea with a Pravega Transaction is that it allows an application to prepare
 a set of Events that can be written "all at once" to a Stream.  This allows an
-application to "batch" up a bunch of Events by writing them into the Transaction
-context and then appending the entire set to the Stream.  An application might
-want to do this in cases where it wants the Events to be durably stored and then
-accommodate conditions in which circumstances suggest those Events should be
-appended or should not be appended to the Stream.  This allows the application
+application to "commit" a bunch of Events Atomically. This is done by writing them into the Transaction
+and calling commit to append them to the Stream.  An application might
+want to do this in cases where it wants the Events to be durably stored and
+later decided whether or not those Events should be
+appended to the Stream.  This allows the application
 to control when the set of Events are made visible to Readers.
 
 A Transaction is created via an EventStreamWriter.  Recall that an

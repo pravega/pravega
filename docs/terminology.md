@@ -1,11 +1,20 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Terminology
 
 Here is a glossary of terms related to Pravega:
 
 | **Term**                        | **Definition**                                                                                                                                            |
 |---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Pravega**                     | A data storage primitive based on append-only logs and tiered storage.                                                                                    |
-| **Stream**                      | A persistent, unbounded, append-only collection of Events.                                                                                                |
+| **Pravega**                     | Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data.                                                                                    |
+| **Stream**                      | A durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.                                                                                                |
 |                                 | A **Stream** is identified by a name and a Scope.                                                                                                         |
 |                                 | A **Stream** is comprised of one or more **Stream Segments.**                                                                                             |
 | **Stream Segment**              | A shard of a **Stream**.                                                                                                                                  |
@@ -27,7 +36,7 @@ Here is a glossary of terms related to Pravega:
 | **Position**                    | An offset within a **Stream**, representing a type of recovery point for a **Reader**.                                                                    |
 |                                 | If a **Reader** crashes, a **Position** can be used to initialize the failed *Reader**'s replacement so that the replacement resumes processing the **Stream** from where the failed **Reader** left off.                                                                                                                                                          |
 | **Tier 1 Storage**              | Short term, low-latency, data storage that guarantees the durability of data written to **Streams**.                                                      |
-|                                 | The current implementation of **Tier 1** uses  [Apache ookkeeper](http://bookkeeper.apache.org/).                                                                                                                                                          |
+|                                 | The current implementation of **Tier 1** uses  [Apache Bookkeeper](http://bookkeeper.apache.org/).                                                                                                                                                          |
 |                                 | **Tier 1** storage keeps the most recent appends to streams in **Pravega.**                                                                                                                                                          |
 |                                 | As data in **Tier 1** ages, it is moved out of **Tier 1** into **Tier 2.**                                                                                                                                                          |
 | **Tier 2 Storage**              | A portion of **Pravega** storage based on cheap and deep persistent storage technology such as HDFS, DellEMC's Isilon or DellEMC's Elastic Cloud Storage. |

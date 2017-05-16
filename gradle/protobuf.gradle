@@ -1,0 +1,53 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+plugins.withId('com.google.protobuf') {
+    protobuf {
+        protoc {
+            artifact = "com.google.protobuf:protoc:${protobufProtocVersion}"
+        }
+        plugins {
+            grpc {
+                artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
+            }
+        }
+        generatedFilesBaseDir = "$projectDir/src/generated/grpc-java"
+        generateProtoTasks {
+            all()*.plugins {
+                grpc {}
+            }
+        }
+    }
+
+    clean {
+        delete protobuf.generatedFilesBaseDir
+    }
+
+    sourceSets {
+        main.java.srcDirs "${protobuf.generatedFilesBaseDir}/main/java"
+        main.java.srcDirs "${protobuf.generatedFilesBaseDir}/main/grpc"
+    }
+
+    dependencies {
+        compile group: 'io.grpc', name: 'grpc-netty', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-protobuf', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-stub', version: grpcVersion
+    }
+
+    idea {
+        module {
+            sourceDirs += file("${protobuf.generatedFilesBaseDir}/main/java")
+            sourceDirs += file("${protobuf.generatedFilesBaseDir}/main/grpc")
+        }
+    }
+
+    ideaModule.dependsOn(['generateProto', 'generateTestProto'])
+    eclipseClasspath.dependsOn(['generateProto', 'generateTestProto'])
+}
