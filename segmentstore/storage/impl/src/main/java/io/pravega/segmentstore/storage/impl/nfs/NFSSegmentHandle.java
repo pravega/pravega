@@ -28,4 +28,8 @@ public class NFSSegmentHandle implements SegmentHandle {
     public static NFSSegmentHandle getReadHandle(String streamSegmentName, AsynchronousFileChannel channel) {
         return new NFSSegmentHandle(streamSegmentName, channel, true);
     }
+
+    public static NFSSegmentHandle getWriteHandle(String streamSegmentName, AsynchronousFileChannel channel) {
+        return new NFSSegmentHandle(streamSegmentName, channel, false);
+    }
 }

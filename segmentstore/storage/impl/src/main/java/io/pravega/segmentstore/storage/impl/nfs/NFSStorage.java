@@ -13,11 +13,14 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,18 +29,29 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.FileChannel;
+import java.nio.channels.NonWritableChannelException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+
+import static java.nio.file.attribute.PosixFilePermission.GROUP_READ;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 
 @Slf4j
 public class NFSStorage implements Storage {
@@ -65,7 +79,10 @@ public class NFSStorage implements Storage {
             NFSSegmentHandle retHandle = NFSSegmentHandle.getReadHandle(streamSegmentName, channel);
             retVal.complete(retHandle);
         } catch (IOException ex) {
-            retVal.completeExceptionally(ex);
+            if ( ex instanceof NoSuchFileException)
+                retVal.completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName, ex));
+            else
+                retVal.completeExceptionally(ex);
         }
         return retVal;
     }
@@ -74,18 +91,23 @@ public class NFSStorage implements Storage {
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int
             length, Duration timeout) {
         CompletableFuture<Integer> retVal = new CompletableFuture<>();
-        ((NFSSegmentHandle)handle).channel.read(ByteBuffer.wrap(buffer), bufferOffset, null, new CompletionHandler
-                <Integer, Object>() {
-            @Override
-            public void completed(Integer result, Object attachment) {
-                retVal.complete(result);
-            }
+        if(((NFSSegmentHandle)handle).channel == null)
+            retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
+        else {
+            ((NFSSegmentHandle) handle).channel.read(ByteBuffer.wrap(buffer, bufferOffset, length), offset, null,
+                    new CompletionHandler<Integer, Object>() {
+                        @Override
+                        public void completed(Integer result, Object attachment) {
+                            retVal.complete(result);
+                        }
 
-            @Override
-            public void failed(Throwable exc, Object attachment) {
-                retVal.completeExceptionally(exc);
-            }
-        });
+                        @Override
+                        public void failed(Throwable exc, Object attachment) {
+                            retVal.completeExceptionally(exc);
+                        }
+                    });
+        }
+
         return retVal;
     }
 
@@ -96,7 +118,7 @@ public class NFSStorage implements Storage {
             PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getNfsRoot(), streamSegmentName),
                     PosixFileAttributes.class);
             StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName, attrs.size(),
-                    ! (attrs.permissions().contains(PosixFilePermission.OWNER_WRITE)), false, new ImmutableDate
+                    ! (attrs.permissions().contains(OWNER_WRITE)), false, new ImmutableDate
                     (attrs.creationTime().toMillis()));
             retVal.complete(information);
         } catch (IOException e) {
@@ -108,32 +130,125 @@ public class NFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return null;
+        CompletableFuture<Boolean> retFuture = new CompletableFuture<>();
+        boolean exists = Files.exists(Paths.get(config.getNfsRoot(),streamSegmentName));
+        retFuture.complete(exists);
+        return retFuture;
     }
 
     @Override
     public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
-        return null;
+        CompletableFuture<SegmentHandle> retVal = new CompletableFuture<>();
+        try {
+            AsynchronousFileChannel channel = AsynchronousFileChannel.open(Paths.get(config.getNfsRoot(),
+                    streamSegmentName), StandardOpenOption.WRITE, StandardOpenOption.READ);
+            NFSSegmentHandle retHandle = NFSSegmentHandle.getWriteHandle(streamSegmentName, channel);
+            retVal.complete(retHandle);
+        } catch (IOException ex) {
+            if( ex instanceof NoSuchFileException)
+                retVal.completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName, ex));
+            else
+                retVal.completeExceptionally(ex);
+        }
+        return retVal;
     }
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return null;
+
+        CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
+        try {
+        Set<PosixFilePermission> perms = new HashSet<>();
+        // add permission as rw-r--r-- 644
+        perms.add(PosixFilePermission.OWNER_WRITE);
+        perms.add(PosixFilePermission.OWNER_READ);
+        perms.add(PosixFilePermission.GROUP_READ);
+        perms.add(PosixFilePermission.OTHERS_READ);
+        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(perms);
+
+        Files.createFile(Paths.get(config.getNfsRoot(),streamSegmentName), fileAttributes );
+        retVal = this.getStreamSegmentInfo(streamSegmentName, timeout);
+        } catch (IOException e) {
+            if (e instanceof FileAlreadyExistsException)
+                retVal.completeExceptionally(new StreamSegmentExistsException(streamSegmentName, e));
+            else
+            retVal.completeExceptionally(e);
+        }
+        return retVal;
     }
 
     @Override
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-        return null;
+        CompletableFuture<Void> retVal = new CompletableFuture<>();
+        if(((NFSSegmentHandle)handle).channel == null)
+            retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
+        else {
+            byte[] bytes = new byte[length];
+            try {
+                data.read(bytes);
+                ((NFSSegmentHandle) handle).channel.write(ByteBuffer.wrap(bytes), offset, null, new CompletionHandler<Integer, Object>() {
+                    @Override
+                    public void completed(Integer result, Object attachment) {
+                        retVal.complete(null);
+                    }
+
+                    @Override
+                    public void failed(Throwable exc, Object attachment) {
+                        if (exc instanceof NonWritableChannelException) retVal.completeExceptionally(new IllegalArgumentException(exc));
+                        else retVal.completeExceptionally(exc);
+                    }
+                });
+            } catch (Exception exc) {
+                if (exc instanceof NonWritableChannelException) retVal.completeExceptionally(new IllegalArgumentException(exc));
+                else retVal.completeExceptionally(exc);
+            }
+        }
+        return retVal;
     }
 
     @Override
     public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
-        return null;
+        CompletableFuture<Void> retVal = new CompletableFuture<>();
+
+        if(((NFSSegmentHandle)handle).channel == null)
+            retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
+        else {
+            try {
+                ((NFSSegmentHandle) handle).channel.close();
+                new File(String.valueOf(Paths.get(config.getNfsRoot(), handle.getSegmentName()))).setReadOnly();
+                retVal.complete(null);
+            } catch (IOException e) {
+                retVal.completeExceptionally(e);
+            }
+        }
+        return retVal;
     }
 
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
-        return null;
+        CompletableFuture<Void> retVal = new CompletableFuture<>();
+        if( ((NFSSegmentHandle)targetHandle).channel == null) {
+            retVal.completeExceptionally(new StreamSegmentNotExistsException(targetHandle.getSegmentName()));
+        }
+        else {
+            try {
+                ((NFSSegmentHandle) targetHandle).channel.force(true);
+                FileChannel channel = new RandomAccessFile(
+                        String.valueOf(Paths.get(config.getNfsRoot(), targetHandle.getSegmentName())), "rw")
+                        .getChannel();
+                RandomAccessFile sourceFile = new RandomAccessFile(
+                        String.valueOf(Paths.get(config.getNfsRoot(), sourceSegment)), "r");
+                channel.transferFrom(sourceFile.getChannel(), offset, sourceFile.length());
+                Files.delete(Paths.get(config.getNfsRoot(), sourceSegment));
+                retVal.complete(null);
+            } catch (IOException e) {
+                if( e instanceof NoSuchFileException || e instanceof FileNotFoundException)
+                    retVal.completeExceptionally(new StreamSegmentNotExistsException(targetHandle.getSegmentName()));
+                else
+                    retVal.completeExceptionally(e);
+            }
+        }
+        return retVal;
     }
 
     @Override

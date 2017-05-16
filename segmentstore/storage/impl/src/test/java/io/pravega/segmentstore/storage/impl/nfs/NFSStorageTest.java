@@ -9,39 +9,25 @@
  */
 package io.pravega.segmentstore.storage.impl.nfs;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileDescriptor;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.util.Collections;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-
-import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.permission.FsAction;
-import org.apache.hadoop.hdfs.DistributedFileSystem;
-import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.apache.hadoop.hdfs.protocol.AclException;
-import org.apache.hadoop.util.Progressable;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.slf4j.LoggerFactory;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.nio.channels.AsynchronousFileChannel;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 
 /**
  * Unit tests for HDFSStorage.
@@ -52,9 +38,9 @@ public class NFSStorageTest extends StorageTestBase {
 
     @Before
     public void setUp() throws Exception {
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+/*        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.OFF);
-
+*/
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         this.adapterConfig = NFSStorageConfig
                 .builder()
@@ -102,7 +88,7 @@ public class NFSStorageTest extends StorageTestBase {
             // Open the segment in Storage2 (thus Storage2 owns it for now).
             SegmentHandle handle2 = storage2.openWrite(segmentName).join();
 
-            // Storage1 should be able to execute only read-only operations.
+            // Storage1 should be able to execute read-only operations.
             verifyWriteOperationsFail(handle1, storage1);
             verifyReadOnlyOperationsSucceed(handle1, storage1);
 
@@ -111,7 +97,6 @@ public class NFSStorageTest extends StorageTestBase {
             verifyWriteOperationsSucceed(handle2, storage2);
 
             // Seal and Delete (these should be run last, otherwise we can't run our test).
-            verifyFinalWriteOperationsFail(handle1, storage1);
             verifyFinalWriteOperationsSucceed(handle2, storage2);
         }
     }
@@ -196,7 +181,24 @@ public class NFSStorageTest extends StorageTestBase {
 
     @Override
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
-        return null;
+        AsynchronousFileChannel channel = null;
+        if (readOnly) {
+            try {
+                channel = AsynchronousFileChannel.open(Paths.get(adapterConfig.getNfsRoot(),
+                        segmentName), StandardOpenOption.READ);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return NFSSegmentHandle.getReadHandle(segmentName, channel);
+        } else {
+            try {
+                channel = AsynchronousFileChannel.open(Paths.get(adapterConfig.getNfsRoot(),
+                        segmentName), StandardOpenOption.CREATE);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return NFSSegmentHandle.getWriteHandle(segmentName, channel);
+        }
     }
 
 
