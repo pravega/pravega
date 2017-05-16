@@ -1,24 +1,19 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 package io.pravega.common.concurrent;
 
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Runnables;
+import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -26,7 +21,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -106,7 +100,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.info("{}: Stopping.", this.traceObjectId);
 
-        this.executor.execute(() -> {
+        ExecutorServiceHelpers.execute(() -> {
             Throwable cause = this.stopException.get();
 
             // Cancel the last iteration and wait for it to finish.
@@ -117,8 +111,15 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
                     this.runTask.get(getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
                     this.runTask = null;
                 } catch (Exception ex) {
-                    if (cause != null) {
-                        cause = ex;
+                    Throwable realEx = ExceptionHelpers.getRealException(ex);
+                    if (cause == null) {
+                        // CancellationExceptions are expected if we are shutting down the service; If this was the real
+                        // cause why runTask failed, then the service did not actually fail, so do not report a bogus exception.
+                        if (!(realEx instanceof CancellationException)) {
+                            cause = realEx;
+                        }
+                    } else if (cause != realEx) {
+                        cause.addSuppressed(realEx);
                     }
                 }
             }
@@ -132,7 +133,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
             }
 
             log.info("{}: Stopped.", this.traceObjectId);
-        });
+        }, this::notifyFailed, Runnables.doNothing(), this.executor);
     }
 
     //endregion

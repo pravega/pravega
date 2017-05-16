@@ -1,5 +1,5 @@
 <FindBugsFilter>
-    <!-- Probable bug - an apparent coding mistake resulting in code that was 
+    <!-- Probable bug - an apparent coding mistake resulting in code that was
         probably not what the developer intended. We strive for a low false positive 
         rate. -->
     <Match>
