@@ -9,14 +9,16 @@ You may obtain a copy of the License at
 -->
 # Running on AWS
 
-Pre-reqs: terraform installed, and AWS account created
-
-Terraform can be downloaded from https://www.terraform.io/downloads.html
+Pre-reqs: Have an AWS account and have Terraform installed. To install and download Terraform, follow the instructions here: https://www.terraform.io/downloads.html
 
 ### Deploy Steps
 - Define the nodes layout in installer/hosts-template (Optional).
 
-There are three sections of hosts-template, common-services is for zookeeper and bookkeeper, pravega-controller is for pravega controller nodes, and pravega-hosts is for pravega segmentstore nodes.
+There are three sections of hosts-template:
+- common-services is the section for zookeeper and bookkeeper
+- pravega-controller is the section for pravega controller node
+- pravega-hosts is the section for the pravega segment store node.
+
 Here is an example of hosts-template:
 
 [common-services]
@@ -32,13 +34,13 @@ N0
 N1
 N2
 
-- Run "sudo terraform apply" under deployment/aws directory, then follow prompts, enter AWS account credentials.
+- Run "sudo terraform apply" under the deployment/aws directory, and then follow prompt instruction, enter the AWS account credentials.
 
 There are four variables would be needed:
 
 1. AWS access key and AWS secret key, which can be obtained from AWS account
 2. cred_path, which is the definite path of key pair file. It would be downloaded when key pair is created
-3. AWS region: For now, only two region are supported: us-east-1 and us-west-1. Below is recommended default instance types for them.
+3. AWS region: Currently, we only support two regions: us-east-1 and us-west-1. We list below the instance types we recommend for them.
 
 ### Region us-east-1
 - Three m3.xlarge for EMR
@@ -50,7 +52,7 @@ There are four variables would be needed:
 - Three i3.4xlarge for Pravega
 - One i3.xlarge for bootstrap, also as client
 
-Other instance types might have compatibility issue.
+Other instance types might present conflicts with the Linux Images used..
 
 ### How to destroy the pravega cluster
 
