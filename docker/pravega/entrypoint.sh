@@ -26,12 +26,17 @@ configure_controller() {
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
-configure_segmentstore() {
-    add_system_property "pravegaservice.zkURL" "${ZK_URL}"
-    add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
+configure_nfs_s3_hdfs() {
+    add_system_property "nfs.enableNfs" "${ENABLE_NFS}"
+    add_system_property "hdfs.nfsRoot" "${NFS_ROOT}"
+    add_system_property "hdfs.enableHdfs" "${ENABLE_HDFS}"
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
+}
+configure_segmentstore() {
+    add_system_property "pravegaservice.zkURL" "${ZK_URL}"
+    add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
     add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
@@ -55,6 +60,7 @@ controller)
     exec /opt/pravega/bin/pravega-controller
     ;;
 segmentstore)
+    configure_nfs_s3_hdfs
     configure_segmentstore
     exec /opt/pravega/bin/pravega-segmentstore
     ;;

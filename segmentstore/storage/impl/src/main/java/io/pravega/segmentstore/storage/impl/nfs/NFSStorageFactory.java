@@ -9,21 +9,21 @@
  */
 package io.pravega.segmentstore.storage.impl.nfs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import com.google.common.base.Preconditions;
-import java.util.concurrent.Executor;
+
 import java.util.concurrent.ExecutorService;
 
 /**
- * Factory for HDFS Storage adapters.
+ * Factory for NFS Storage adapters.
  */
 public class NFSStorageFactory implements StorageFactory {
     private final NFSStorageConfig config;
     private final ExecutorService executor;
 
     /**
-     * Creates a new instance of the HDFSStorageFactory class.
+     * Creates a new instance of the NFSStorageFactory class.
      *
      * @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
