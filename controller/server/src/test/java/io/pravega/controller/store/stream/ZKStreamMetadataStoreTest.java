@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.task.TxnResource;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.client.stream.StreamConfiguration;
@@ -27,6 +28,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
+import java.util.function.Predicate;
 
 import static org.junit.Assert.assertEquals;
 
@@ -42,7 +45,9 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     public void setupTaskStore() throws Exception {
         zkServer = new TestingServerStarter().start();
         zkServer.start();
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
+        int sessionTimeout = 8000;
+        int connectionTimeout = 5000;
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         store = new ZKStreamMetadataStore(cli, executor);
     }
@@ -79,5 +84,36 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         AssertExtensions.assertThrows("Should throw IllegalStateException",
                 store.getActiveSegments(scope, stream1, null, executor),
                 (Throwable t) -> t instanceof IllegalStateException);
+    }
+
+    @Test
+    public void testError() throws Exception {
+        String host = "host";
+        TxnResource txn = new TxnResource("SCOPE", "STREAM1", UUID.randomUUID());
+        Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException &&
+                ((StoreException) ex).getType() == StoreException.Type.UNKNOWN;
+
+        cli.close();
+        testFailure(host, txn, checker);
+    }
+
+    @Test
+    public void testConnectionLoss() throws Exception {
+        String host = "host";
+        TxnResource txn = new TxnResource("SCOPE", "STREAM1", UUID.randomUUID());
+        Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException &&
+                ((StoreException) ex).getType() == StoreException.Type.CONNECTION_LOSS;
+
+        zkServer.close();
+        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, 0), checker);
+    }
+
+    private void testFailure(String host, TxnResource txn, Predicate<Throwable> checker) {
+        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, 0), checker);
+        AssertExtensions.assertThrows("Remove txn fails", store.removeTxnFromIndex(host, txn, true), checker);
+        AssertExtensions.assertThrows("Remove host fails", store.removeHostFromIndex(host), checker);
+        AssertExtensions.assertThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
+        AssertExtensions.assertThrows("Get random txn fails", store.getRandomTxnFromIndex(host), checker);
+        AssertExtensions.assertThrows("List hosts fails", store.listHostsOwningTxn(), checker);
     }
 }

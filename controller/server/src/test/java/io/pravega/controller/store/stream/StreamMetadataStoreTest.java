@@ -265,21 +265,29 @@ public abstract class StreamMetadataStoreTest {
         Assert.assertTrue(txn.isPresent());
         Assert.assertEquals(txn1.getTxnId().toString(), txn.get().getTxnId().toString());
 
+        // Adding a txn again should not fail.
+        addTxnToHost(host1, txn1, 0);
+
         addTxnToHost(host1, txn2, 5);
         Assert.assertEquals(1, store.listHostsOwningTxn().join().size());
+
+        // Fetching version of txn not existing in the index should return null.
+        Assert.assertNull(store.getTxnVersionFromIndex(host1, new TxnResource(scope, stream1, UUID.randomUUID())).join());
 
         txn = store.getRandomTxnFromIndex(host1).join();
         Assert.assertTrue(txn.isPresent());
         UUID randomTxnId = txn.get().getTxnId();
         Assert.assertTrue(randomTxnId.equals(txn1.getTxnId()) || randomTxnId.equals(txn2.getTxnId()));
+        Assert.assertEquals(scope, txn.get().getScope());
+        Assert.assertEquals(stream1, txn.get().getStream());
 
         // Test remove txn from index.
         store.removeTxnFromIndex(host1, txn1, true).join();
         // Test remove is idempotent operation.
         store.removeTxnFromIndex(host1, txn1, true).join();
         // Test remove last txn from the index.
-        store.removeTxnFromIndex(host1, txn2, true).join();
-        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+        store.removeTxnFromIndex(host1, txn2, false).join();
+        Assert.assertEquals(1, store.listHostsOwningTxn().join().size());
         // Test remove is idempotent operation.
         store.removeTxnFromIndex(host1, txn2, true).join();
         Assert.assertEquals(0, store.listHostsOwningTxn().join().size());

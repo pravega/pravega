@@ -78,11 +78,10 @@ public class InMemoryHostIndex implements HostIndex {
             Optional<Pair<String, byte[]>> resource =
                     taggedResources.stream().filter(pair -> pair.getKey().equals(entity)).findFirst();
             if (resource.isPresent()) {
-                if (deleteEmptyHost && taggedResources.size() == 1) {
-                    hostTable.remove(hostId);
-                } else {
-                    taggedResources.remove(resource.get());
-                }
+                taggedResources.remove(resource.get());
+            }
+            if (deleteEmptyHost && taggedResources.size() == 0) {
+                hostTable.remove(hostId);
             }
         }
         return CompletableFuture.completedFuture(null);
