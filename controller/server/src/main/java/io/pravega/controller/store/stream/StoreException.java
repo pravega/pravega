@@ -32,6 +32,8 @@ public class StoreException extends RuntimeException {
         NODE_EXISTS,
         NODE_NOT_FOUND,
         NODE_NOT_EMPTY,
+        CONNECTION_LOSS,
+        BAD_VERSION,
         UNKNOWN
     }
 
@@ -116,6 +118,26 @@ public class StoreException extends RuntimeException {
     public static class NodeNotEmptyException extends StoreException {
         public NodeNotEmptyException() {
             super(Type.NODE_NOT_EMPTY);
+        }
+    }
+
+    /**
+     * Error type thrown when connection to ZK is lost.
+     */
+    public static class ConnectionLossException extends StoreException {
+
+        public ConnectionLossException() {
+            super(Type.CONNECTION_LOSS);
+        }
+    }
+
+    /**
+     * Error type thrown when version mismatch occues in conditional update of a znode in ZK.
+     */
+    public static class BadVersionExeption extends StoreException {
+
+        public BadVersionExeption() {
+            super(Type.BAD_VERSION);
         }
     }
 

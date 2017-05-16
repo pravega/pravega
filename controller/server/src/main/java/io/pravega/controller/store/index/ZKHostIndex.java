@@ -16,11 +16,13 @@
 package io.pravega.controller.store.index;
 
 import com.google.common.base.Preconditions;
+import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.api.BackgroundCallback;
+import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.data.Stat;
 
 import java.util.Collections;
 import java.util.List;
@@ -53,136 +55,157 @@ public class ZKHostIndex implements HostIndex {
 
     @Override
     public CompletableFuture<Void> addEntity(String hostId, String entity, byte[] entityData) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(hostId);
-            Preconditions.checkNotNull(entity);
-
-            try {
-
-                client.create()
-                        .creatingParentsIfNeeded()
-                        .withMode(CreateMode.PERSISTENT)
-                        .forPath(getHostPath(hostId, entity), entityData);
-
-                return null;
-
-            } catch (KeeperException.NodeExistsException e) {
-                log.debug("Node {} exists.", getHostPath(hostId, entity));
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, executor);
+        Preconditions.checkNotNull(hostId);
+        Preconditions.checkNotNull(entity);
+        return createNode(CreateMode.PERSISTENT, true, getHostPath(hostId, entity), entityData);
     }
 
     @Override
     public CompletableFuture<byte[]> getEntityData(String hostId, String entity) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(hostId);
-            Preconditions.checkNotNull(entity);
-            String path = getHostPath(hostId, entity);
-            try {
-                return client.getData().forPath(path);
-            } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", path);
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, executor);
+        Preconditions.checkNotNull(hostId);
+        Preconditions.checkNotNull(entity);
+        return readNode(getHostPath(hostId, entity));
     }
 
     @Override
     public CompletableFuture<Void> removeEntity(final String hostId, final String entity, final boolean deleteEmptyHost) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(hostId);
-            Preconditions.checkNotNull(entity);
-
-            try {
-                client.delete()
-                        .forPath(getHostPath(hostId, entity));
-
-                if (deleteEmptyHost) {
-                    // if there are no children for the failed host, remove failed host znode
-                    Stat stat = new Stat();
-                    client.getData()
-                            .storingStatIn(stat)
-                            .forPath(getHostPath(hostId));
-
-                    if (stat.getNumChildren() == 0) {
-                        client.delete()
-                                .withVersion(stat.getVersion())
-                                .forPath(getHostPath(hostId));
+        Preconditions.checkNotNull(hostId);
+        Preconditions.checkNotNull(entity);
+        return deleteNode(getHostPath(hostId, entity)).thenCompose(ignore -> {
+            if (deleteEmptyHost) {
+                return deleteNode(getHostPath(hostId)).exceptionally(ex -> {
+                    if (ex instanceof StoreException.NodeNotEmptyException) {
+                        return null;
+                    } else {
+                        throw (StoreException) ex;
                     }
-                }
-                return null;
-            } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", entity);
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+                });
+            } else {
+                return CompletableFuture.completedFuture(null);
             }
-        }, executor);
+        });
     }
 
     @Override
     public CompletableFuture<Void> removeHost(final String hostId) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(hostId);
-
-            try {
-
-                client.delete().forPath(getHostPath(hostId));
-                return null;
-
-            } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", getHostPath(hostId));
-                return null;
-            } catch (KeeperException.NotEmptyException e) {
-                log.debug("Node {} not empty.", getHostPath(hostId));
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, executor);
+        Preconditions.checkNotNull(hostId);
+        return deleteNode(getHostPath(hostId));
     }
 
     @Override
     public CompletableFuture<Optional<String>> getRandomEntity(final String hostId) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(hostId);
-
-            try {
-
-                List<String> children = client.getChildren().forPath(getHostPath(hostId));
-                if (children.isEmpty()) {
-                    return Optional.empty();
-                } else {
-                    Random random = new Random();
-                    return Optional.of(children.get(random.nextInt(children.size())));
-                }
-
-            } catch (KeeperException.NoNodeException e) {
-                log.debug("Node {} does not exist.", getHostPath(hostId));
+        Preconditions.checkNotNull(hostId);
+        return getChildren(getHostPath(hostId)).thenApply(children -> {
+            if (children.isEmpty()) {
                 return Optional.empty();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            } else {
+                Random random = new Random();
+                return Optional.of(children.get(random.nextInt(children.size())));
             }
-        }, executor);
+        });
     }
 
     @Override
     public CompletableFuture<Set<String>> getHosts() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                List<String> children = client.getChildren().forPath(hostRoot);
-                return children.stream().collect(Collectors.toSet());
-            } catch (KeeperException.NoNodeException e) {
-                return Collections.emptySet();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+        return getChildren(hostRoot).thenApply(list -> list.stream().collect(Collectors.toSet()));
+    }
+
+    private CompletableFuture<Void> createNode(CreateMode createMode, boolean createParents, String path, byte[] data) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            BackgroundCallback callback = (cli, event) -> {
+                if (event.getResultCode() == KeeperException.Code.OK.intValue() ||
+                        event.getResultCode() == KeeperException.Code.NODEEXISTS.intValue()) {
+                    result.complete(null);
+                } else {
+                    result.completeExceptionally(translateErrorCode(event));
+                }
+            };
+            if (createParents) {
+                client.create().creatingParentsIfNeeded().withMode(createMode).inBackground(callback, executor)
+                        .forPath(path, data);
+            } else {
+                client.create().withMode(createMode).inBackground(callback, executor).forPath(path, data);
             }
-        }, executor);
+        } catch (Exception e) {
+            result.completeExceptionally(new StoreException.UnknownException());
+        }
+        return result;
+    }
+
+    private CompletableFuture<byte[]> readNode(String path) {
+        CompletableFuture<byte[]> result = new CompletableFuture<>();
+        try {
+            client.getData().inBackground((cli, event) -> {
+                if (event.getResultCode() == KeeperException.Code.OK.intValue()) {
+                    result.complete(event.getData());
+                } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
+                    log.debug("Node {} does not exist.", path);
+                    result.complete(null);
+                } else {
+                    result.completeExceptionally(translateErrorCode(event));
+                }
+            }, executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(new StoreException.UnknownException());
+        }
+        return result;
+    }
+
+    private CompletableFuture<Void> deleteNode(String path) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            client.delete().inBackground((cli, event) -> {
+                if (event.getResultCode() == KeeperException.Code.OK.intValue() ||
+                        event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
+                    result.complete(null);
+                } else {
+                    result.completeExceptionally(translateErrorCode(event));
+                }
+            }, executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(new StoreException.UnknownException());
+        }
+        return result;
+    }
+
+    private CompletableFuture<List<String>> getChildren(String path) {
+        CompletableFuture<List<String>> result = new CompletableFuture<>();
+        try {
+            client.getChildren().inBackground((cli, event) -> {
+                if (event.getResultCode() == KeeperException.Code.OK.intValue()) {
+                    result.complete(event.getChildren());
+                } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
+                    result.complete(Collections.emptyList());
+                } else {
+                    result.completeExceptionally(translateErrorCode(event));
+                }
+            }, executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(new StoreException.UnknownException());
+        }
+        return result;
+    }
+
+    private StoreException translateErrorCode(CuratorEvent event) {
+        StoreException ex;
+        if (event.getResultCode() == KeeperException.Code.CONNECTIONLOSS.intValue() ||
+                event.getResultCode() == KeeperException.Code.SESSIONEXPIRED.intValue() ||
+                event.getResultCode() == KeeperException.Code.SESSIONMOVED.intValue() ||
+                event.getResultCode() == KeeperException.Code.OPERATIONTIMEOUT.intValue()) {
+            ex = new StoreException.ConnectionLossException();
+        } else if (event.getResultCode() == KeeperException.Code.NODEEXISTS.intValue()) {
+            ex = new StoreException.NodeExistsException();
+        } else if (event.getResultCode() == KeeperException.Code.BADVERSION.intValue()) {
+            ex = new StoreException.BadVersionExeption();
+        } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
+            ex = new StoreException.NodeNotFoundException();
+        } else if (event.getResultCode() == KeeperException.Code.NOTEMPTY.intValue()) {
+            ex = new StoreException.NodeNotEmptyException();
+        } else {
+            ex = new StoreException.UnknownException();
+        }
+        return ex;
     }
 
     private String getHostPath(final String hostId, final String child) {
@@ -192,5 +215,4 @@ public class ZKHostIndex implements HostIndex {
     private String getHostPath(final String hostId) {
         return hostRoot + "/" + hostId;
     }
-
 }
