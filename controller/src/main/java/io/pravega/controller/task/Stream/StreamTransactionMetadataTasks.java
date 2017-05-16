@@ -29,6 +29,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.timeout.TimeoutServiceConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -68,6 +69,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
 
+    private final long maxTxnTimeoutMillis;
     private volatile boolean ready;
     private final CountDownLatch readyLatch;
 
@@ -77,11 +79,23 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final ConnectionFactory connectionFactory) {
+        this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId,
+                TimeoutServiceConfig.defaultConfig().getMaxLeaseValue(), connectionFactory);
+    }
+
+    public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                                          final HostControllerStore hostControllerStore,
+                                          final SegmentHelper segmentHelper,
+                                          final ScheduledExecutorService executor,
+                                          final String hostId,
+                                          final long maxTxnTimeoutMillis,
+                                          final ConnectionFactory connectionFactory) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
+        this.maxTxnTimeoutMillis = maxTxnTimeoutMillis;
         this.connectionFactory = connectionFactory;
         readyLatch = new CountDownLatch(1);
     }
@@ -360,7 +374,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     public CompletableFuture<Void> failOverHost(String failedHost) {
-        return FutureHelpers.delayedFuture(Duration.ofMillis(30000), executor).thenCompose(ignore ->
+        return FutureHelpers.delayedFuture(Duration.ofMillis(maxTxnTimeoutMillis), executor).thenCompose(ignore ->
                 streamMetadataStore.getRandomTxnFromIndex(failedHost).thenCompose(resourceOpt -> {
                     if (resourceOpt.isPresent()) {
                         TxnResource resource = resourceOpt.get();

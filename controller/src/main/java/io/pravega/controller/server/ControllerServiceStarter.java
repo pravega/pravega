@@ -165,7 +165,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                     segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
+                    hostStore, segmentHelper, taskExecutor, host.getHostId(),
+                    serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
 
