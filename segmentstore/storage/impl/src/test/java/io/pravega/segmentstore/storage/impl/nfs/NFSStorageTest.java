@@ -30,11 +30,9 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
@@ -47,9 +45,9 @@ public class NFSStorageTest extends StorageTestBase {
 
     @Before
     public void setUp() throws Exception {
-     /*   LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.OFF);
-    */
+
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         this.adapterConfig = NFSStorageConfig
                 .builder()

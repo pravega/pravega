@@ -162,7 +162,7 @@ public final class ServiceStarter {
             try {
                 HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
                 NFSStorageConfig nfsConfig = setup.getConfig(NFSStorageConfig::builder);
-                if(hdfsConfig.isEnableHdfs()) {
+                if ( hdfsConfig.isEnableHdfs()) {
                     return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
                 } else {
                     return new NFSStorageFactory(nfsConfig, setup.getExecutor());

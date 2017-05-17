@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.impl.nfs;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 
-import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
 
 public class NFSSegmentHandle implements SegmentHandle {

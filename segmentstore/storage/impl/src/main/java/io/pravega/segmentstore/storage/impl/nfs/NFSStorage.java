@@ -26,18 +26,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.CompletionHandler;
 import java.nio.channels.FileChannel;
 import java.nio.channels.NonWritableChannelException;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
@@ -46,7 +42,6 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
@@ -224,7 +219,7 @@ public class NFSStorage implements Storage {
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
        final CompletableFuture<Void> retVal = new CompletableFuture<>();
 
-       executor.execute( () ->{
+       executor.execute( () -> {
             if (((NFSSegmentHandle) handle).channel == null || !Files.exists(
                     Paths.get(config.getNfsRoot(), handle.getSegmentName()))) {
                 retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
