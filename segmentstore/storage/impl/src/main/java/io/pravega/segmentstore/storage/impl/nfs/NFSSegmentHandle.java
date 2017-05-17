@@ -12,13 +12,14 @@ package io.pravega.segmentstore.storage.impl.nfs;
 import io.pravega.segmentstore.storage.SegmentHandle;
 
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.channels.FileChannel;
 
 public class NFSSegmentHandle implements SegmentHandle {
-    public final AsynchronousFileChannel channel;
+    public final FileChannel channel;
     private final String segmentName;
     private final boolean isReadOnly;
 
-    public NFSSegmentHandle(String streamSegmentName, AsynchronousFileChannel channel, boolean isReadOnly) {
+    public NFSSegmentHandle(String streamSegmentName, FileChannel channel, boolean isReadOnly) {
         this.segmentName = streamSegmentName;
         this.channel = channel;
         this.isReadOnly = isReadOnly;
@@ -34,11 +35,11 @@ public class NFSSegmentHandle implements SegmentHandle {
         return isReadOnly;
     }
 
-    public static NFSSegmentHandle getReadHandle(String streamSegmentName, AsynchronousFileChannel channel) {
+    public static NFSSegmentHandle getReadHandle(String streamSegmentName, FileChannel channel) {
         return new NFSSegmentHandle(streamSegmentName, channel, true);
     }
 
-    public static NFSSegmentHandle getWriteHandle(String streamSegmentName, AsynchronousFileChannel channel) {
+    public static NFSSegmentHandle getWriteHandle(String streamSegmentName, FileChannel channel) {
         return new NFSSegmentHandle(streamSegmentName, channel, false);
     }
 }

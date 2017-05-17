@@ -29,7 +29,9 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -37,7 +39,7 @@ import java.nio.file.StandardOpenOption;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
- * Unit tests for HDFSStorage.
+ * Unit tests for NFSStorage.
  */
 public class NFSStorageTest extends StorageTestBase {
     private File baseDir = null;
@@ -45,9 +47,9 @@ public class NFSStorageTest extends StorageTestBase {
 
     @Before
     public void setUp() throws Exception {
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+     /*   LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.OFF);
-
+    */
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         this.adapterConfig = NFSStorageConfig
                 .builder()
@@ -237,18 +239,18 @@ public class NFSStorageTest extends StorageTestBase {
 
     @Override
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
-        AsynchronousFileChannel channel = null;
+        FileChannel channel = null;
         if (readOnly) {
             try {
-                channel = AsynchronousFileChannel.open(Paths.get(adapterConfig.getNfsRoot(),
-                        segmentName), StandardOpenOption.READ);
+                channel = new RandomAccessFile(Paths.get(this.adapterConfig.getNfsRoot(),
+                        segmentName).toString(), "r").getChannel();
             } catch (IOException e) {
             }
             return NFSSegmentHandle.getReadHandle(segmentName, channel);
         } else {
             try {
-                channel = AsynchronousFileChannel.open(Paths.get(adapterConfig.getNfsRoot(),
-                        segmentName), StandardOpenOption.CREATE);
+                channel = new RandomAccessFile(Paths.get(this.adapterConfig.getNfsRoot(),
+                        segmentName).toString(), "r").getChannel();
             } catch (IOException e) {
             }
             return NFSSegmentHandle.getWriteHandle(segmentName, channel);
