@@ -35,5 +35,5 @@
   sudo: yes
 
 - name: Move pravega dist
-  shell: mv pravega-0.1.0-SNAPSHOT/* /opt/pravega/
+  shell: mv pravega-*/* /opt/pravega/
   sudo: yes
