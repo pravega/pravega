@@ -80,6 +80,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
@@ -225,7 +226,7 @@ public class StreamTransactionMetadataTasksTest {
         Assert.assertEquals(TxnStatus.ABORTING, status);
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 10000000)
     public void failOverTests() throws CheckpointStoreException, InterruptedException {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
@@ -255,6 +256,17 @@ public class StreamTransactionMetadataTasksTest {
         VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
         VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
         VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
+
+        // Ping another txn from failedHost.
+        UUID txnId = UUID.randomUUID();
+        streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000, null, executor).join();
+        VersionedTransactionData tx4 = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 10000, null).join();
+
+        // Validate versions of all txn
+        Assert.assertEquals(0, tx1.getVersion());
+        Assert.assertEquals(0, tx2.getVersion());
+        Assert.assertEquals(0, tx3.getVersion());
+        Assert.assertEquals(1, tx4.getVersion());
 
         // Validate the txn index.
         Assert.assertEquals(1, streamStore.listHostsOwningTxn().join().size());
@@ -296,6 +308,8 @@ public class StreamTransactionMetadataTasksTest {
                 streamStore.transactionStatus(SCOPE, STREAM, tx2.getId(), null, executor).join());
         Assert.assertEquals(TxnStatus.ABORTING,
                 streamStore.transactionStatus(SCOPE, STREAM, tx3.getId(), null, executor).join());
+        Assert.assertEquals(TxnStatus.ABORTING,
+                streamStore.transactionStatus(SCOPE, STREAM, tx4.getId(), null, executor).join());
 
         // Create commit and abort event processors.
         ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
@@ -313,14 +327,20 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(tx2.getId(), commitEvent.getTxid());
         assertEquals(TxnStatus.COMMITTED, streamStore.transactionStatus(SCOPE, STREAM, tx2.getId(), null, executor).join());
 
-        // Wait until 2 abort events are processed and ensure that the txn state is ABORTED.
+        // Wait until 3 abort events are processed and ensure that the txn state is ABORTED.
+        Predicate<AbortEvent> predicate = event -> event.getTxid().equals(tx1.getId()) ||
+                event.getTxid().equals(tx3.getId()) || event.getTxid().equals(tx4.getId());
+
         AbortEvent abortEvent1 = processedAbortEvents.take();
-        assertTrue(tx1.getId().equals(abortEvent1.getTxid()) || tx3.getId().equals(abortEvent1.getTxid()));
+        assertTrue(predicate.test(abortEvent1));
         AbortEvent abortEvent2 = processedAbortEvents.take();
-        assertTrue(tx1.getId().equals(abortEvent2.getTxid()) || tx3.getId().equals(abortEvent2.getTxid()));
+        assertTrue(predicate.test(abortEvent2));
+        AbortEvent abortEvent3 = processedAbortEvents.take();
+        assertTrue(predicate.test(abortEvent3));
 
         assertEquals(TxnStatus.ABORTED, streamStore.transactionStatus(SCOPE, STREAM, tx1.getId(), null, executor).join());
         assertEquals(TxnStatus.ABORTED, streamStore.transactionStatus(SCOPE, STREAM, tx3.getId(), null, executor).join());
+        assertEquals(TxnStatus.ABORTED, streamStore.transactionStatus(SCOPE, STREAM, tx4.getId(), null, executor).join());
     }
 
     @Test(timeout = 10000)

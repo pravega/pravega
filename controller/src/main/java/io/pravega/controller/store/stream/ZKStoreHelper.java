@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -179,11 +178,6 @@ public class ZKStoreHelper {
                 });
 
         return result;
-    }
-
-    private CompletableFuture<List<String>> getChildrenPath(final String rootPath) {
-        return getChildren(rootPath)
-                .thenApply(children -> children.stream().map(x -> ZKPaths.makePath(rootPath, x)).collect(Collectors.toList()));
     }
 
     CompletableFuture<List<String>> getChildren(final String path) {
