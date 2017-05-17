@@ -122,12 +122,19 @@ public final class FutureHelpers {
      * ensure that this type matches the exception type that can fail the future.
      * 
      * @param future The future to call get() on.
-     * @throws E1 The type of exception that may cause the future to fail.
+     * @param <ResultT> The result type of the provided future
+     * @param <E1> A type of exception that may cause the future to fail.
+     * @param <E2> A type of exception that may cause the future to fail.
+     * @param <E3> A type of exception that may cause the future to fail.
+     * @return The result of the provided future.
+     * @throws E1 If exception E1 occurs.
+     * @throws E2 If exception E2 occurs.
+     * @throws E3 If exception E3 occurs.
      */
-    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception> void getThowingException(Future<ResultT> future) throws E1, E2, E3 {
+    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception> ResultT getThowingException(Future<ResultT> future) throws E1, E2, E3 {
         Preconditions.checkNotNull(future);
         try {
-            future.get();
+            return future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw Lombok.sneakyThrow(e);
@@ -135,6 +142,7 @@ public final class FutureHelpers {
             throw Lombok.sneakyThrow(ExceptionHelpers.unwrapIfRequired(e));
         }
     }
+    
     /**
      * Calls get on the provided future, handling interrupted, and transforming the executionException into an exception
      * of the type whose constructor is provided.
