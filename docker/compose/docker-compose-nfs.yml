@@ -78,7 +78,7 @@ services:
       WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183
       ENABLE_HDFS: "false"
       ENABLE_NFS: "true"
-      NFS_MOUNT: 172.16.39.2:/ifs/pravega
+      NFS_MOUNT: /nfs
       HDFS_REPLICATION: 1
       HDFS_URL: ${HOST_IP}:8020
       ZK_URL: zookeeper:2181
