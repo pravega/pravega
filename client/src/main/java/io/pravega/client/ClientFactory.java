@@ -75,7 +75,7 @@ public interface ClientFactory extends AutoCloseable {
     
     /**
      * Creates a new writer that can write to the specified stream with a strictly increasing
-     * sequence associated with each one.
+     * sequence associated with each event.
      *
      * @param streamName The name of the stream to write to.
      * @param writerId The name of this writer (to distinguish it from others).

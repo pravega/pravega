@@ -186,9 +186,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
         
-        private void setEventNumber(long minEventNumber) {
+        private void setEventNumber(long ackLevel) {
             synchronized (lock) {
-                eventNumber = minEventNumber;
+                eventNumber = ackLevel;
             }
         }
 
