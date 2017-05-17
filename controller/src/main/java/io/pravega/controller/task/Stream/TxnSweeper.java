@@ -66,13 +66,20 @@ public class TxnSweeper {
     }
 
     public CompletableFuture<Void> sweepFailedHosts(Supplier<Set<String>> activeHosts) {
+        if (!isReady()) {
+            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
+        }
         return streamMetadataStore.listHostsOwningTxn().thenComposeAsync(index -> {
             index.removeAll(activeHosts.get());
+            log.info("Failed hosts {} have orphaned tasks", index);
             return FutureHelpers.allOf(index.stream().map(this::sweepOrphanedTxns).collect(Collectors.toList()));
         }, executor);
     }
 
     public CompletableFuture<Void> sweepOrphanedTxns(String failedHost) {
+        if (!isReady()) {
+            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
+        }
         log.info("Host={}, sweeping orphaned transactions", failedHost);
         return FutureHelpers.delayedFuture(Duration.ofMillis(maxTxnTimeoutMillis), executor)
                 .thenComposeAsync(ignore ->

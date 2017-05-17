@@ -53,6 +53,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -271,9 +272,16 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks for sweeping txns from failedHost.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
                 connectionFactory);
+        TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
+
+        // Before initializing, txnSweeper.sweepFailedHosts would throw an error
+        AssertExtensions.assertThrows("IllegalStateException before initialization",
+                txnSweeper.sweepFailedHosts(() -> Collections.singleton("host")),
+                ex -> ex instanceof IllegalStateException);
+
+        // Initialize stream writers.
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream", abortWriter);
 
-        TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
         // Validate that txnTasks is ready.
         assertTrue(txnTasks.isReady());
 

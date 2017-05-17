@@ -225,7 +225,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         }
     }
 
-    private CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
+    CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
                                                                                            final String stream,
                                                                                            final long lease,
                                                                                            final long maxExecutionPeriod,
@@ -241,18 +241,18 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                 new ImmutablePair<>(txData, activeSegments)), executor), executor), executor);
     }
 
-    private CompletableFuture<VersionedTransactionData> pingTxnBody(final String scope, final String stream,
+    CompletableFuture<VersionedTransactionData> pingTxnBody(final String scope, final String stream,
                                                                     final UUID txId, long lease,
                                                                     final OperationContext ctx) {
         return streamMetadataStore.pingTransaction(scope, stream, txId, lease, ctx, executor);
     }
 
-    public CompletableFuture<TxnStatus> abortTxnBody(final String host,
-                                                      final String scope,
-                                                      final String stream,
-                                                      final UUID txid,
-                                                      final Integer version,
-                                                      final OperationContext ctx) {
+    CompletableFuture<TxnStatus> abortTxnBody(final String host,
+                                              final String scope,
+                                              final String stream,
+                                              final UUID txid,
+                                              final Integer version,
+                                              final OperationContext ctx) {
         TxnResource resource = new TxnResource(scope, stream, txid);
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), ctx, executor)
                 .thenComposeAsync(status -> {
@@ -266,11 +266,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         streamMetadataStore.removeTxnFromIndex(host, resource, true).thenApply(x -> status), executor);
     }
 
-    public CompletableFuture<TxnStatus> commitTxnBody(final String host,
-                                                       final String scope,
-                                                       final String stream,
-                                                       final UUID txid,
-                                                       final OperationContext ctx) {
+    CompletableFuture<TxnStatus> commitTxnBody(final String host,
+                                               final String scope,
+                                               final String stream,
+                                               final UUID txid,
+                                               final OperationContext ctx) {
         TxnResource resource = new TxnResource(scope, stream, txid);
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), ctx, executor)
                 .thenComposeAsync(status -> {
@@ -284,26 +284,18 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         streamMetadataStore.removeTxnFromIndex(host, resource, true).thenApply(x -> status), executor);
     }
 
-    public CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, UUID txnId, TxnStatus status) {
+    CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, UUID txnId, TxnStatus status) {
         String key = scope + stream;
         CommitEvent event = new CommitEvent(scope, stream, txnId);
-        return writeEventWithRetries(commitEventEventStreamWriter, commitStreamName, key, event, txnId, status);
+        return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter, commitStreamName,
+                key, event, txnId, status), executor);
     }
 
-    public CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, UUID txnId, TxnStatus status) {
+    CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, UUID txnId, TxnStatus status) {
         String key = txnId.toString();
         AbortEvent event = new AbortEvent(scope, stream, txnId);
-        return writeEventWithRetries(abortEventEventStreamWriter, abortStreamName, key, event, txnId, status);
-    }
-
-    private <T> CompletableFuture<TxnStatus> writeEventWithRetries(final EventStreamWriter<T> streamWriter,
-                                                                   final String streamName,
-                                                                   final String key,
-                                                                   final T event,
-                                                                   final UUID txid,
-                                                                   final TxnStatus txnStatus) {
-        return TaskStepsRetryHelper.withRetries(() -> writeEvent(streamWriter, streamName, key, event, txid, txnStatus),
-                executor);
+        return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter, abortStreamName,
+                        key, event, txnId, status), executor);
     }
 
     private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
