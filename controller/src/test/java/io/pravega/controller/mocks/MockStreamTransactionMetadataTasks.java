@@ -89,11 +89,12 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return streamMetadataStore.pingTransaction(scope, stream, txId, lease, context, executor)
-                .thenApply(txData -> {
-                    log.info("Pinged transaction {} with version {}", txId, txData.getVersion());
-                    return txData;
-                });
+        return streamMetadataStore.getTransactionData(scope, stream, txId, context, executor).thenComposeAsync(data ->
+                streamMetadataStore.pingTransaction(scope, stream, data, lease, context, executor)
+                        .thenApply(txData -> {
+                            log.info("Pinged transaction {} with version {}", txId, txData.getVersion());
+                            return txData;
+                        }));
     }
 
     @Override

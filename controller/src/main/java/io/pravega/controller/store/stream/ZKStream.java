@@ -353,9 +353,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> updateActiveTx(final int epoch, final UUID txId, final byte[] data) {
+    CompletableFuture<Void> updateActiveTx(final int epoch, final UUID txId, final Data<Integer> data) {
         final String activeTxPath = getActiveTxPath(epoch, txId.toString());
-        return store.updateTxnData(activeTxPath, data);
+        return store.setData(activeTxPath, data);
     }
 
     @Override

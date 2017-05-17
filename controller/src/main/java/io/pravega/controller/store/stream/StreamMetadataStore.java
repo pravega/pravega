@@ -300,14 +300,14 @@ public interface StreamMetadataStore {
      *
      * @param scopeName  Scope
      * @param streamName Stream
-     * @param txId       Transaction identifier
+     * @param txData     Transaction data
      * @param lease      Lease duration in ms
      * @param context    operation context
      * @param executor   callers executor
      * @return Transaction data along with version information.
      */
     CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
-                                                                final UUID txId, final long lease,
+                                                                final VersionedTransactionData txData, final long lease,
                                                                 final OperationContext context, final Executor executor);
 
     /**

@@ -178,7 +178,7 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId,
+        public CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData data,
                                                                            final long lease) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
@@ -438,7 +438,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> pingTransaction(UUID txId, long lease) {
+    public CompletableFuture<VersionedTransactionData> pingTransaction(VersionedTransactionData data, long lease) {
         throw new NotImplementedException();
     }
 

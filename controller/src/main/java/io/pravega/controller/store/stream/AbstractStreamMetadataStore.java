@@ -378,10 +378,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
-                                                                       final UUID txId, final long lease,
+                                                                       final VersionedTransactionData txData,
+                                                                       final long lease,
                                                                        final OperationContext context,
                                                                        final Executor executor) {
-        return withCompletion(getStream(scopeName, streamName, context).pingTransaction(txId, lease), executor);
+        return withCompletion(getStream(scopeName, streamName, context).pingTransaction(txData, lease), executor);
     }
 
     @Override

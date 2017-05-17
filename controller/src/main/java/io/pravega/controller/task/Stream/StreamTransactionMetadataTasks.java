@@ -242,9 +242,13 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     CompletableFuture<VersionedTransactionData> pingTxnBody(final String scope, final String stream,
-                                                                    final UUID txId, long lease,
-                                                                    final OperationContext ctx) {
-        return streamMetadataStore.pingTransaction(scope, stream, txId, lease, ctx, executor);
+                                                            final UUID txId, long lease,
+                                                            final OperationContext ctx) {
+        return streamMetadataStore.getTransactionData(scope, stream, txId, ctx, executor).thenComposeAsync(data -> {
+            TxnResource resource = new TxnResource(scope, stream, txId);
+            return streamMetadataStore.addTxnToIndex(hostId, resource, data.getVersion() + 1).thenApplyAsync(x -> data);
+        }, executor).thenComposeAsync(data ->
+                streamMetadataStore.pingTransaction(scope, stream, data, lease, ctx, executor), executor);
     }
 
     CompletableFuture<TxnStatus> abortTxnBody(final String host,

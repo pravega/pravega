@@ -335,26 +335,22 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease) {
-        return getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId)
-                .thenCompose(data -> {
-                    ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
-                    if (activeTxnRecord.getTxnStatus() == TxnStatus.OPEN) {
-                        // Update txn record with new lease value and return versioned tx data.
-                        ActiveTxnRecord newData = new ActiveTxnRecord(activeTxnRecord.getTxCreationTimestamp(),
-                                System.currentTimeMillis() + lease, activeTxnRecord.getMaxExecutionExpiryTime(),
-                                activeTxnRecord.getScaleGracePeriod(), activeTxnRecord.getTxnStatus());
+    public CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txData,
+                                                                       final long lease) {
+        // Update txn record with new lease value and return versioned tx data.
+        final int epoch = txData.getEpoch();
+        final UUID txnId = txData.getId();
+        final int version = txData.getVersion();
+        final long creationTime = txData.getCreationTime();
+        final long maxExecutionExpiryTime = txData.getMaxExecutionExpiryTime();
+        final long scaleGracePeriod = txData.getScaleGracePeriod();
+        final TxnStatus status = txData.getStatus();
+        final ActiveTxnRecord newData = new ActiveTxnRecord(creationTime, System.currentTimeMillis() + lease,
+                maxExecutionExpiryTime, scaleGracePeriod, status);
+        final Data<Integer> data = new Data<>(newData.toByteArray(), version);
 
-                        return updateActiveTx(epoch, txId, newData.toByteArray())
-                                .thenApply(x ->
-                                        new VersionedTransactionData(epoch, txId, data.getVersion() + 1,
-                                                TxnStatus.OPEN, activeTxnRecord.getTxCreationTimestamp(),
-                                                activeTxnRecord.getMaxExecutionExpiryTime(),
-                                                activeTxnRecord.getScaleGracePeriod()));
-                    } else {
-                        return FutureHelpers.failedFuture(new IllegalStateException(txId.toString()));
-                    }
-                }));
+        return updateActiveTx(epoch, txnId, data).thenApply(x -> new VersionedTransactionData(epoch, txnId,
+                version + 1, status, creationTime, maxExecutionExpiryTime, scaleGracePeriod));
     }
 
     @Override
@@ -819,7 +815,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId) throws DataNotFoundException;
 
     abstract CompletableFuture<Void> updateActiveTx(final int epoch,
-                                                    final UUID txId, final byte[] data) throws DataNotFoundException;
+                                                    final UUID txId,
+                                                    final Data<Integer> data) throws DataNotFoundException;
 
     abstract CompletableFuture<Void> sealActiveTx(final int epoch,
                                                   final UUID txId, final boolean commit,
