@@ -20,10 +20,12 @@ import io.pravega.client.state.Update;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.IdempotentEventStreamWriter;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 public class MockClientFactory implements ClientFactory, AutoCloseable {
@@ -50,6 +52,11 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     }
 
     @Override
+    public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, UUID writerId, Serializer<T> s,
+                                                                          EventWriterConfig config) {
+        return impl.createIdempotentEventWriter(streamName, writerId, s, config);
+    }
+
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
             ReaderConfig config) {
         return impl.createReader(readerId, readerGroup, s, config);

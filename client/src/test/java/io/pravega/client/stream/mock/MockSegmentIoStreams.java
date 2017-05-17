@@ -33,6 +33,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private int eventsWritten = 0;
     @GuardedBy("$lock")
+    private long sequence = 0;
+    @GuardedBy("$lock")
     private long writeOffset = 0;
     @GuardedBy("$lock")
     private final ArrayList<ByteBuffer> dataWritten = new ArrayList<>();
@@ -86,10 +88,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     @Synchronized
     public void write(PendingEvent event) throws SegmentSealedException {
-        if (event.getExpectedOffset() == null || event.getExpectedOffset() == writeOffset) {
+        if ((event.getExpectedOffset() == null || event.getExpectedOffset() == writeOffset) && event.getSequence() > sequence) {
             dataWritten.add(event.getData().slice());
             offsetList.add(writeOffset);
             eventsWritten++;
+            sequence = event.getSequence();
             writeOffset += event.getData().remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
             event.getAckFuture().complete(true);
         } else {
