@@ -35,6 +35,7 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
@@ -180,7 +181,9 @@ public class NFSStorage implements Storage {
         perms.add(PosixFilePermission.OTHERS_READ);
         FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(perms);
 
-        Files.createFile(Paths.get(config.getNfsRoot(), streamSegmentName), fileAttributes );
+        Path path = Paths.get(config.getNfsRoot(), streamSegmentName);
+        Files.createDirectories(path.getParent());
+        Files.createFile(path, fileAttributes );
         retVal = this.getStreamSegmentInfo(streamSegmentName, timeout);
         } catch (IOException e) {
             if (e instanceof FileAlreadyExistsException) {
