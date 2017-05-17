@@ -19,5 +19,10 @@ import lombok.Data;
 public class ReaderConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;
-
+    private final long initialAllocationDelay;
+    
+    public static class ReaderConfigBuilder {
+        private long initialAllocationDelay = 0;
+    }
+    
 }

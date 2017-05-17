@@ -10,7 +10,7 @@
 package io.pravega.test.integration.testsuites;
 
 import io.pravega.client.segment.impl.SegmentOutputStreamTest;
-import io.pravega.service.server.host.handler.AppendProcessorTest;
+import io.pravega.segmentstore.server.host.handler.AppendProcessorTest;
 import io.pravega.shared.protocol.netty.AppendEncodeDecodeTest;
 import io.pravega.test.integration.AppendTest;
 import org.junit.runner.RunWith;

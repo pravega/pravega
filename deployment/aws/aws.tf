@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+
 provider "aws" {
  access_key = "${var.aws_access_key}"
  secret_key = "${var.aws_secret_key}"
@@ -137,7 +147,7 @@ EOF
 }
 
 resource "aws_iam_instance_profile" "emr_profile" {
-  name  = "emr_profile_default"
+  name  = "emr_profile_pravega"
   role = "${aws_iam_role.iam_emr_profile_role.name}"
 }
 
@@ -205,6 +215,9 @@ resource "aws_instance" "pravega" {
  instance_type = "${lookup(var.pravega_instance_type, var.aws_region)}"
  key_name = "${var.aws_key_name}"
  security_groups = ["pravega_default"]
+ provisioner "local-exec" {
+   command = "chmod 400 ${var.cred_path}"
+ }
  provisioner "remote-exec" {
    connection = {
       type = "ssh"
@@ -227,7 +240,7 @@ resource "aws_instance" "boot" {
  security_groups = ["pravega_default"]
  depends_on = ["aws_instance.pravega"]
  provisioner "local-exec" {
-   command = "chmod +x bootstrap.sh && ./bootstrap.sh '${join(",", aws_instance.pravega.*.public_ip)}' ${aws_emr_cluster.pravega-emr-cluster.master_public_dns} ${var.aws_region} "
+   command = "cp ${var.cred_path} installer && chmod +x bootstrap.sh && ./bootstrap.sh '${join(",", aws_instance.pravega.*.public_ip)}' ${aws_emr_cluster.pravega-emr-cluster.master_public_dns} ${var.aws_region} "
  }
  provisioner "file" {
    connection = {
@@ -245,12 +258,13 @@ resource "aws_instance" "boot" {
       private_key = "${file("${var.cred_path}")}"
    }
    inline = [
+      "wget ${var.pravega_release} && mv pravega*.tgz data/pravega-0.1.0-SNAPSHOT.tgz",
       "sudo apt-add-repository ppa:ansible/ansible -y",
       "sudo apt-get -y update",
       "sudo apt-get install -y software-properties-common",
       "sudo apt-get install -y ansible",
-      "chmod 400 ${var.aws_key_name}.pem",
-      "ansible-playbook -i hosts entry_point.yml --private-key=${var.aws_key_name}.pem",
+      "chmod 400 $(basename ${var.cred_path})",
+      "ansible-playbook -i hosts entry_point.yml --private-key=$(basename ${var.cred_path})",
    ]
   }
 }

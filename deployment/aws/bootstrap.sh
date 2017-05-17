@@ -1,7 +1,13 @@
 #!/bin/bash
+# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
 
 # Prepare installer
-cd ../../ && ./gradlew distTar && cd deployment/aws && mv ../../build/distributions/pravega-0.1.0-SNAPSHOT.tgz installer/data/
 cp ../../config/config.properties installer/data/
 cp ../../docker/bookkeeper/entrypoint.sh install-bk-temp.sh
 

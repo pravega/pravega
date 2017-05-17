@@ -14,10 +14,10 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import io.pravega.service.contracts.StreamSegmentStore;
-import io.pravega.service.server.host.handler.PravegaConnectionListener;
-import io.pravega.service.server.store.ServiceBuilder;
-import io.pravega.service.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
@@ -100,7 +100,7 @@ public class ControllerStreamMetadataTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void streamMetadataTest() throws Exception {
         // Create test scope. This operation should succeed.
         assertTrue(controller.createScope(SCOPE).join());

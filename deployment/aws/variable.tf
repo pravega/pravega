@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+
 variable "aws_access_key" {
   description = "AWS Access Key"
 }
@@ -41,4 +51,9 @@ variable "cred_path" {
 variable "hadoop_instance_count" {
   type = "string"
   default = "3"
+}
+
+variable "pravega_release" {
+  type = "string"
+  default = "https://github.com/pravega/pravega/releases/download/v0.1.0-prerelease2/pravega-0.1.0-1404.04e62df.tgz"
 }
