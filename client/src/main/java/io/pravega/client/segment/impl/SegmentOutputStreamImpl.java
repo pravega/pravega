@@ -17,6 +17,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableLatch;
@@ -107,9 +108,17 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     emptyInflightFuture = new CompletableFuture<Void>();
                     if (inflight.isEmpty()) {
                         emptyInflightFuture.complete(null);
+                    } else if (exception != null) {
+                        emptyInflightFuture.completeExceptionally(exception);
                     }
                 }
                 return emptyInflightFuture;
+            }
+        }
+        
+        private boolean isAlreadySealed() {
+            synchronized (lock) {
+                return connection == null && exception != null && exception instanceof SegmentSealedException;
             }
         }
 
@@ -158,7 +167,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     log.warn("Connection failed due to: {}", e.getMessage());
                 }
                 if (emptyInflightFuture != null) {
-                    emptyInflightFuture.completeExceptionally(e);
+                    emptyInflightFuture.completeExceptionally(exception);
                 }
             }
             connectionSetupComplete();
@@ -374,6 +383,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Synchronized
     ClientConnection getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "SegmentOutputStream was already closed");
+        if (state.isAlreadySealed()) {
+            throw new SegmentSealedException();
+        }
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
             setupConnection();
             return state.waitForConnection();
@@ -424,7 +436,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                           .run(() -> {
                               ClientConnection connection = getConnection();
                               connection.send(new KeepAlive());
-                              state.getEmptyInflightFuture().get();
+                              FutureHelpers.<Void, ConnectionFailedException, SegmentSealedException, RuntimeException>
+                                  getThowingException(state.getEmptyInflightFuture());
                               return null;
                           });
         }
