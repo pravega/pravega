@@ -75,6 +75,7 @@ public enum WireCommandType {
     SEGMENT_ALREADY_EXISTS(52, WireCommands.SegmentAlreadyExists::readFrom),
     NO_SUCH_SEGMENT(53, WireCommands.NoSuchSegment::readFrom),
     NO_SUCH_TRANSACTION(54, WireCommands.NoSuchTransaction::readFrom),
+    INVALID_EVENT_NUMBER(55, WireCommands.InvalidEventNumber::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 

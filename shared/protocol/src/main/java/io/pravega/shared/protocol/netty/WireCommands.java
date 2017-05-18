@@ -211,7 +211,7 @@ public final class WireCommands {
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.noSuchBatch(this);
+            cp.noSuchTransaction(this);
         }
 
         @Override
@@ -232,6 +232,36 @@ public final class WireCommands {
         }
     }
 
+    @Data
+    public static final class InvalidEventNumber implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
+        final UUID writerId;
+        final long eventNumber;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.invalidEventNumber(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            UUID writerId = new UUID(in.readLong(), in.readLong());
+            long eventNumber = in.readLong();
+            return new InvalidEventNumber(writerId, eventNumber);
+        }
+
+        @Override
+        public String toString() {
+            return "Invalid event number: " + eventNumber +" for writer: "+ writerId;
+        }
+    }
+    
     @Data
     public static final class Padding implements WireCommand {
         final WireCommandType type = WireCommandType.PADDING;
