@@ -13,8 +13,8 @@ volumes:
     driver: local
     driver_opts:
       type: nfs
-      o: addr=172.16.39.2,rw,sync
-      device: ":/ifs/pravega/"
+      o: addr=${NFS_IP},rw,sync
+      device: ":${NFS_PATH}"
 services:
   zookeeper:
     image: jplock/zookeeper:3.5.2-alpha
