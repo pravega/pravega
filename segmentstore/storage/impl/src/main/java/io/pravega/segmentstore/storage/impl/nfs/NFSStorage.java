@@ -240,24 +240,28 @@ public class NFSStorage implements Storage {
 
     private void syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration
             timeout, CompletableFuture<Integer> retVal) {
-        try {
             Path path = Paths.get(config.getNfsRoot(), handle.getSegmentName());
             if ( !Files.exists(path)) {
                 retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
-            } else if (Files.size(path) < offset) {
-                retVal.completeExceptionally(new ArrayIndexOutOfBoundsException());
-            } else {
-                FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
-                int bytesRead = channel.read(ByteBuffer.wrap(buffer, bufferOffset, length), offset);
-                retVal.complete(bytesRead);
-            }
-        } catch (Exception e) {
-            if (e instanceof IndexOutOfBoundsException) {
-                retVal.completeExceptionally(new ArrayIndexOutOfBoundsException(e.getMessage()));
-            } else {
+            } else try {
+                if (Files.size(path) < offset) {
+                    retVal.completeExceptionally(new ArrayIndexOutOfBoundsException());
+                } else {
+                    try ( FileChannel channel = FileChannel.open(path, StandardOpenOption.READ) ) {
+                    int bytesRead = channel.read(ByteBuffer.wrap(buffer, bufferOffset, length), offset);
+                    retVal.complete(bytesRead);
+                    } catch (Exception e) {
+                        if (e instanceof IndexOutOfBoundsException) {
+                            retVal.completeExceptionally(new ArrayIndexOutOfBoundsException(e.getMessage()));
+                        } else {
+                            retVal.completeExceptionally(e);
+                        }
+                    }
+                }
+            } catch (IOException e) {
                 retVal.completeExceptionally(e);
             }
-        }
+
     }
 
 
@@ -383,12 +387,10 @@ public class NFSStorage implements Storage {
         if (Files.isWritable(Paths.get(config.getNfsRoot(), sourceSegment))) {
             retVal.completeExceptionally(new IllegalStateException(sourceSegment));
         } else {
-            try {
-                FileChannel channel = new RandomAccessFile(
-                        String.valueOf(Paths.get(config.getNfsRoot(), targetHandle.getSegmentName())),
-                        "rw").getChannel();
-                RandomAccessFile sourceFile = new RandomAccessFile(
-                        String.valueOf(Paths.get(config.getNfsRoot(), sourceSegment)), "r");
+            try ( FileChannel channel = new RandomAccessFile( String.valueOf(Paths.get(config.getNfsRoot(),
+                    targetHandle.getSegmentName())), "rw").getChannel();
+                  RandomAccessFile sourceFile = new RandomAccessFile(
+                        String.valueOf(Paths.get(config.getNfsRoot(), sourceSegment)), "r")) {
                 channel.transferFrom(sourceFile.getChannel(), offset, sourceFile.length());
                 Files.delete(Paths.get(config.getNfsRoot(), sourceSegment));
                 retVal.complete(null);
