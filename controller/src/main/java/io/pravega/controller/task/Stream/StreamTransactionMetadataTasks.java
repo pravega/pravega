@@ -128,7 +128,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     @VisibleForTesting
     public Void initializeStreamWriters(final String commitStreamName, final EventStreamWriter<CommitEvent> commitWriter,
-                                 final String abortStreamName, final EventStreamWriter<AbortEvent> abortWriter) {
+                                        final String abortStreamName, final EventStreamWriter<AbortEvent> abortWriter) {
         this.commitStreamName = commitStreamName;
         this.commitEventEventStreamWriter = commitWriter;
         this.abortStreamName = abortStreamName;
@@ -226,11 +226,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
-                                                                                           final String stream,
-                                                                                           final long lease,
-                                                                                           final long maxExecutionPeriod,
-                                                                                           final long scaleGracePeriod,
-                                                                                           final OperationContext ctx) {
+                                                                                   final String stream,
+                                                                                   final long lease,
+                                                                                   final long maxExecutionPeriod,
+                                                                                   final long scaleGracePeriod,
+                                                                                   final OperationContext ctx) {
         UUID txnId = UUID.randomUUID();
         TxnResource resource = new TxnResource(scope, stream, txnId);
         CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, 0);

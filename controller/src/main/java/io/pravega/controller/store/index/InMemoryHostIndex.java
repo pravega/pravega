@@ -16,21 +16,20 @@
 package io.pravega.controller.store.index;
 
 import com.google.common.base.Preconditions;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.Collections;
-import java.util.Optional;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.stream.Collectors;
 
 /**
  * In-memory implementation of HostIndex.
  */
 public class InMemoryHostIndex implements HostIndex {
-    private final ConcurrentHashMap<String, ConcurrentSkipListSet<Pair<String, byte[]>>> hostTable;
+    private final ConcurrentHashMap<String, ConcurrentSkipListMap<String, byte[]>> hostTable;
 
     public InMemoryHostIndex() {
         hostTable = new ConcurrentHashMap<>();
@@ -46,10 +45,10 @@ public class InMemoryHostIndex implements HostIndex {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
         if (hostTable.containsKey(hostId)) {
-            hostTable.get(hostId).add(new ImmutablePair<>(entity, entityData));
+            hostTable.get(hostId).put(entity, entityData);
         } else {
-            ConcurrentSkipListSet<Pair<String, byte[]>> children = new ConcurrentSkipListSet<>();
-            children.add(new ImmutablePair<>(entity, entityData));
+            ConcurrentSkipListMap<String, byte[]> children = new ConcurrentSkipListMap<>();
+            children.put(entity, entityData);
             hostTable.put(hostId, children);
         }
         return CompletableFuture.completedFuture(null);
@@ -57,12 +56,9 @@ public class InMemoryHostIndex implements HostIndex {
 
     @Override
     public CompletableFuture<byte[]> getEntityData(String hostId, String entity) {
-        ConcurrentSkipListSet<Pair<String, byte[]>> value = hostTable.get(hostId);
+        ConcurrentSkipListMap<String, byte[]> value = hostTable.get(hostId);
         if (value != null) {
-            Optional<Pair<String, byte[]>> pairOpt = value.stream().filter(pair -> pair.getKey().equals(entity)).findAny();
-            if (pairOpt.isPresent()) {
-                return CompletableFuture.completedFuture(pairOpt.get().getValue());
-            }
+            return CompletableFuture.completedFuture(value.get(entity));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -74,13 +70,9 @@ public class InMemoryHostIndex implements HostIndex {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
         if (hostTable.containsKey(hostId)) {
-            Set<Pair<String, byte[]>> taggedResources = hostTable.get(hostId);
-            Optional<Pair<String, byte[]>> resource =
-                    taggedResources.stream().filter(pair -> pair.getKey().equals(entity)).findFirst();
-            if (resource.isPresent()) {
-                taggedResources.remove(resource.get());
-            }
-            if (deleteEmptyHost && taggedResources.size() == 0) {
+            ConcurrentSkipListMap<String, byte[]> value = hostTable.get(hostId);
+            value.remove(entity);
+            if (deleteEmptyHost && value.size() == 0) {
                 hostTable.remove(hostId);
             }
         }
@@ -95,13 +87,13 @@ public class InMemoryHostIndex implements HostIndex {
     }
 
     @Override
-    public CompletableFuture<Optional<String>> getRandomEntity(final String hostId) {
+    public CompletableFuture<List<String>> getEntities(final String hostId) {
         Preconditions.checkNotNull(hostId);
-        Set<Pair<String, byte[]>> children = hostTable.get(hostId);
+        ConcurrentSkipListMap<String, byte[]> children = hostTable.get(hostId);
         if (children == null) {
-            return CompletableFuture.completedFuture(Optional.empty());
+            return CompletableFuture.completedFuture(Collections.emptyList());
         } else {
-            return CompletableFuture.completedFuture(children.stream().findAny().map(Pair::getKey));
+            return CompletableFuture.completedFuture(children.keySet().stream().collect(Collectors.toList()));
         }
     }
 

@@ -15,7 +15,7 @@
  */
 package io.pravega.controller.store.index;
 
-import java.util.Optional;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -84,7 +84,7 @@ public interface HostIndex {
      * @param hostId Host.
      * @return A randomly selected entity if the host is managing any, otherwise Optional.empty().
      */
-    CompletableFuture<Optional<String>> getRandomEntity(final String hostId);
+    CompletableFuture<List<String>> getEntities(final String hostId);
 
     /**
      * Returns the list of hosts present in the index.

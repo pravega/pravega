@@ -26,8 +26,6 @@ import org.apache.zookeeper.KeeperException;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -93,16 +91,9 @@ public class ZKHostIndex implements HostIndex {
     }
 
     @Override
-    public CompletableFuture<Optional<String>> getRandomEntity(final String hostId) {
+    public CompletableFuture<List<String>> getEntities(final String hostId) {
         Preconditions.checkNotNull(hostId);
-        return getChildren(getHostPath(hostId)).thenApply(children -> {
-            if (children.isEmpty()) {
-                return Optional.empty();
-            } else {
-                Random random = new Random();
-                return Optional.of(children.get(random.nextInt(children.size())));
-            }
-        });
+        return getChildren(getHostPath(hostId));
     }
 
     @Override

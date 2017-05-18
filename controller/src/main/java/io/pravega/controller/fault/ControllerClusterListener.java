@@ -127,11 +127,11 @@ public class ControllerClusterListener extends AbstractIdleService {
 
             if (txnSweeperOpt.isPresent()) {
                 // Await initialization of transactionTasksOpt.
-                log.info("Awaiting StreamTransactionTasks to get ready");
+                log.info("Awaiting StreamTransactionMetadataTasks to get ready");
                 txnSweeperOpt.get().awaitInitialization();
 
                 // Sweep orphaned transactions as startup.
-                log.info("Sweeping transaction managed by failed controller processes");
+                log.info("Sweeping orphaned transactions");
                 txnSweeperOpt.get().sweepFailedHosts(processes);
             }
 

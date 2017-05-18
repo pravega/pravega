@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -458,7 +459,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Optional<TxnResource>> getRandomTxnFromIndex(final String hostId) {
-        return hostIndex.getRandomEntity(hostId).thenApply(strOpt -> strOpt.map(this::getTxnResource));
+        return hostIndex.getEntities(hostId).thenApply(list -> list != null && list.size() > 0 ?
+                Optional.of(this.getTxnResource(list.get(new Random().nextInt(list.size())))) : Optional.empty());
     }
 
     @Override

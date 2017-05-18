@@ -179,7 +179,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.getHostId(), taskExecutor,
                     streamMetadataTasks);
 
-            TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks, serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), taskExecutor);
+            TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks,
+                    serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), taskExecutor);
 
             // Setup and start controller cluster listener.
             if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
@@ -193,7 +194,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
                 controllerClusterListener = new ControllerClusterListener(host, cluster,
                         Optional.ofNullable(controllerEventProcessors),
-                        taskSweeper, Optional.ofNullable(txnSweeper), clusterListenerExecutor);
+                        taskSweeper, Optional.of(txnSweeper), clusterListenerExecutor);
 
                 log.info("Starting controller cluster listener");
                 controllerClusterListener.startAsync();
