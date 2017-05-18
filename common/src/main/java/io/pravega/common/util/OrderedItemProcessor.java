@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -16,15 +25,17 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
 
 /**
  * Processes items in order, subject to capacity constraints.
  */
 @ThreadSafe
-class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
+public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
     //region members
 
+    private static final int CLOSE_TIMEOUT_MILLIS = 3 * 1000;
     private final int capacity;
     private final Function<ItemType, CompletableFuture<ResultType>> processor;
     @GuardedBy("lock")
@@ -38,6 +49,8 @@ class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
     private RuntimeException failedStateException;
     @GuardedBy("lock")
     private boolean closed;
+    @GuardedBy("lock")
+    private ReusableLatch emptyNotifier;
 
     //endregion
 
@@ -51,7 +64,7 @@ class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
      *                  processed (successfully or not).
      * @param executor  An Executor for async invocations.
      */
-    OrderedItemProcessor(int capacity, Function<ItemType, CompletableFuture<ResultType>> processor, Executor executor) {
+    public OrderedItemProcessor(int capacity, Function<ItemType, CompletableFuture<ResultType>> processor, Executor executor) {
         Preconditions.checkArgument(capacity > 0, "capacity must be a non-negative number.");
         this.capacity = capacity;
         this.processor = Preconditions.checkNotNull(processor, "processor");
@@ -65,20 +78,26 @@ class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
     //region AutoCloseable Implementation
 
     @Override
+    @SneakyThrows(Exception.class)
     public void close() {
-        Collection<QueueItem> toCancel;
+        ReusableLatch waitSignal = null;
         synchronized (this.lock) {
             if (this.closed) {
                 return;
             }
 
-            // Cancel all pending items.
-            toCancel = new ArrayList<>(this.pendingItems);
-            this.pendingItems.clear();
             this.closed = true;
+            if (this.activeCount != 0 || !this.pendingItems.isEmpty()) {
+                // Setup a latch that will be released when the last item completes.
+                this.emptyNotifier = new ReusableLatch(false);
+                waitSignal = this.emptyNotifier;
+            }
         }
 
-        toCancel.forEach(qi -> qi.result.cancel(true));
+        if (waitSignal != null) {
+            // We have unfinished items. Wait for them.
+            waitSignal.await(CLOSE_TIMEOUT_MILLIS);
+        }
     }
 
     //endregion
@@ -100,7 +119,7 @@ class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
      * @return A CompletableFuture that, when completed, will indicate that the item has been processed. This will contain
      * the result of the processing function applied to this item.
      */
-    CompletableFuture<ResultType> process(ItemType item) {
+    public CompletableFuture<ResultType> process(ItemType item) {
         Preconditions.checkNotNull(item, "item");
         CompletableFuture<ResultType> result = null;
         synchronized (this.lock) {
@@ -129,7 +148,7 @@ class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
     /**
      * Clears any errors set by a failed execution.
      */
-    void clearError() {
+    public void clearError() {
         synchronized (this.lock) {
             Exceptions.checkNotClosed(this.closed, this);
             this.failedStateException = null;
@@ -157,6 +176,12 @@ class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
                 failEx.set(this.failedStateException);
                 toFail = new ArrayList<>(this.pendingItems);
                 this.pendingItems.clear();
+            }
+
+            if (this.emptyNotifier != null && this.activeCount == 0 && this.pendingItems.isEmpty()) {
+                // We were asked to notify when we were empty.
+                this.emptyNotifier.release();
+                this.emptyNotifier = null;
             }
         }
 

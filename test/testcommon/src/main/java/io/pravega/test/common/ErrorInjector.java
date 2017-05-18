@@ -94,25 +94,6 @@ public class ErrorInjector<T extends Throwable> {
     }
 
     /**
-     * Gets a value indicating the Exception (T) that was thrown during the last call to throwIfNecessary() for any of
-     * the given ErrorInjectors (inspected in the order in which they were provided). If no exception was thrown, null is returned.
-     *
-     * @param injectors The injectors to inspect.
-     * @param <T>       The type of exception to throw.
-     */
-    @SafeVarargs
-    public static <T extends Throwable> T getLastCycleException(ErrorInjector<T>... injectors) {
-        for (ErrorInjector<T> injector : injectors) {
-            T ex = injector.getLastCycleException();
-            if (ex != null) {
-                return ex;
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Generates an exception of type T if the count trigger activates.
      *
      * @throws T

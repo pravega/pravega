@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.common.util;
 
 import io.pravega.common.concurrent.FutureHelpers;
@@ -9,7 +18,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Random;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
@@ -110,7 +118,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
     @Test
     public void testCapacityExceeded() {
         final int maxDelayMillis = 20;
-        final int itemCount = 200;
+        final int itemCount = 20 * CAPACITY;
         val processedItems = Collections.synchronizedCollection(new HashSet<Integer>());
         val processFuture = new CompletableFuture<Void>();
 
@@ -152,7 +160,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
 
     @Test
     public void testFailures() {
-        final int itemCount = 20;
+        final int itemCount = 2 * CAPACITY;
         val processedItems = Collections.synchronizedCollection(new HashSet<Integer>());
         val processFutures = Collections.synchronizedList(new ArrayList<CompletableFuture<Integer>>());
         Function<Integer, CompletableFuture<Integer>> itemProcessor = i -> {
@@ -207,24 +215,25 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
         p.clearError();
         p.process(Integer.MAX_VALUE);
         Assert.assertTrue("process() did not execute a new item after the failure cleared.", processedItems.contains(Integer.MAX_VALUE));
+
+        // Finalize all remaining item processors - otherwise the close() method will wait for them.
+        processFutures.forEach(f -> f.complete(0));
     }
 
     /**
      * Tests that closing does cancel all pending items, except the processing ones.
      */
     @Test
-    public void testClose() {
-        final int itemCount = 20;
+    public void testClose() throws Exception {
+        final int itemCount = 2 * CAPACITY;
         val processedItems = Collections.synchronizedCollection(new HashSet<Integer>());
-        val processFutures = Collections.synchronizedList(new ArrayList<CompletableFuture<Integer>>());
+        val processFuture = new CompletableFuture<Integer>();
         Function<Integer, CompletableFuture<Integer>> itemProcessor = i -> {
             if (!processedItems.add(i)) {
                 Assert.fail("Duplicate item detected: " + i);
             }
 
-            CompletableFuture<Integer> result = new CompletableFuture<>();
-            processFutures.add(result);
-            return result;
+            return processFuture;
         };
 
         val resultFutures = new ArrayList<CompletableFuture<Integer>>();
@@ -236,19 +245,21 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
             resultFutures.add(p.process(i));
         }
 
-        p.close();
+        val closeFuture = CompletableFuture.runAsync(p::close, executorService());
 
-        // Verify all queued-up items have been failed, but none of the initial ones (that have already begun processing)
-        for (int i = CAPACITY; i < itemCount; i++) {
-            AssertExtensions.assertThrows(
-                    "Queued-up item's result was not cancelled when Processor was closed..",
-                    resultFutures.get(i)::join,
-                    ex -> ex instanceof CancellationException);
+        // Verify none of the items have been completed (or cancelled for that matter).
+        for (CompletableFuture<Integer> f : resultFutures) {
+            Assert.assertFalse("Future was completed after close() was called.", f.isDone());
         }
 
-        for (int i = 0; i < CAPACITY; i++) {
-            Assert.assertFalse("Already-processing future was cancelled as well.", resultFutures.get(i).isDone());
-        }
+        Assert.assertFalse("close() returned even if there are pending operations to complete.", closeFuture.isDone());
+        processFuture.complete(0);
+
+        // This will ensure that all result futures are completed.
+        FutureHelpers.allOf(resultFutures).join();
+
+        // This will ensure that the close() method returns.
+        closeFuture.join();
     }
 
     /**

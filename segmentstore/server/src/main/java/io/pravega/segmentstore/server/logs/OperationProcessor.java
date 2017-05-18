@@ -15,11 +15,11 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.BlockingDrainingQueue;
-import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.Container;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -33,6 +33,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
@@ -43,6 +44,7 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
     //region Members
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
+    private static final int MAX_WRITE_CAPACITY = 1; // TODO: config
     private static final int MAX_READ_AT_ONCE = 1000;
 
     private final OperationMetadataUpdater metadataUpdater;
@@ -65,18 +67,14 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
      * @param executor         An Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
-    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
+    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog,
+                       MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
         super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
 
-        // No need to check metadata or executor != null as the super() call above takes care of that.
-        Preconditions.checkNotNull(stateUpdater, "stateUpdater");
-        Preconditions.checkNotNull(durableDataLog, "durableDataLog");
-        Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
-
         this.metadataUpdater = new OperationMetadataUpdater(metadata);
-        this.stateUpdater = stateUpdater;
-        this.durableDataLog = durableDataLog;
-        this.checkpointPolicy = checkpointPolicy;
+        this.stateUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
+        this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
+        this.checkpointPolicy = Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
         this.operationQueue = new BlockingDrainingQueue<>();
     }
 
@@ -177,8 +175,9 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         log.debug("{}: processOperations (OperationCount = {}).", this.traceObjectId, operations.size());
 
         // Create a new State and Builder (we need this either initially or after recovery from an error).
-        final QueueProcessingState state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy, this.traceObjectId);
-        final DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail);
+        val state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy, this.traceObjectId);
+        val builderArgs = new DataFrameBuilder.Args(MAX_WRITE_CAPACITY, state::commit, state::fail, this.executor);
+        val dataFrameBuilder = new DataFrameBuilder<Operation>(this.durableDataLog, builderArgs);
 
         try {
             // Process the operations in the queue. This loop will ensure we continue processing after a recoverable failure,

@@ -14,13 +14,19 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.function.ConsumerWithException;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.segmentstore.server.LogItem;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -31,10 +37,9 @@ import lombok.extern.slf4j.Slf4j;
 class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region Members
 
-    private static final Duration DATA_FRAME_WRITE_TIMEOUT = Duration.ofSeconds(30); // TODO: actual timeout.
     private final DataFrameOutputStream outputStream;
-    private final DurableDataLog targetLog;
-    private final ConsumerWithException<DataFrameCommitArgs, Exception> dataFrameCommitSuccessCallback;
+    private final OrderedItemProcessor<ArrayView, LogAddress> frameProcessor;
+    private final SuccessCallback dataFrameCommitSuccessCallback;
     private final Consumer<Throwable> dataFrameCommitFailureCallback;
     private boolean closed;
     private long lastSerializedSequenceNumber;
@@ -47,26 +52,22 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     /**
      * Creates a new instance of the DataFrameBuilder class.
      *
-     * @param targetLog                      The DurableDataLog to publish completed Data Frames to.
-     * @param dataFrameCommitSuccessCallback A callback that will be invoked upon every successful commit of a Data Frame.
-     *                                       When this is called, all entries added via append() that were successful have
-     *                                       been 100% committed. In-flight entries (that have been written partially) should not be acked.
-     * @param dataFrameCommitFailureCallback A callback that will be invoked upon a failed commit of a Data Frame.
-     *                                       When this is called, all entries added via append() that were successful have
-     *                                       failed to commit. The in-flight entries will be failed via the append() method.
+     * @param targetLog     A Function that, given a DataFrame, commits that DataFrame to a DurableDataLog and returns
+     *                      a Future that indicates when the operation completes or errors out.
+     * @param args          Arguments for the Builder.
      * @throws NullPointerException If any of the arguments are null.
      */
-    DataFrameBuilder(DurableDataLog targetLog, ConsumerWithException<DataFrameCommitArgs, Exception> dataFrameCommitSuccessCallback, Consumer<Throwable> dataFrameCommitFailureCallback) {
-        Preconditions.checkNotNull(targetLog, "targetLog");
-        Preconditions.checkNotNull(dataFrameCommitFailureCallback, "dataFrameCommitFailureCallback");
-        Preconditions.checkNotNull(dataFrameCommitSuccessCallback, "dataFrameCommitSuccessCallback");
-
-        this.targetLog = targetLog;
+    DataFrameBuilder(DurableDataLog targetLog, Args args) {
+        this.dataFrameCommitSuccessCallback = Preconditions.checkNotNull(args.commitSuccess, "args.commitSuccess");
+        this.dataFrameCommitFailureCallback = Preconditions.checkNotNull(args.commitFailure, "args.commitFailure");
         this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), this::handleDataFrameComplete);
+        this.frameProcessor = new OrderedItemProcessor<>(args.maxWriteCapacity, createAppender(targetLog, args), args.executor);
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
-        this.dataFrameCommitSuccessCallback = dataFrameCommitSuccessCallback;
-        this.dataFrameCommitFailureCallback = dataFrameCommitFailureCallback;
+    }
+
+    private Function<ArrayView, CompletableFuture<LogAddress>> createAppender(DurableDataLog targetLog, Args args) {
+        return dataFrameContents -> targetLog.append(dataFrameContents, args.writeTimeout);
     }
 
     //endregion
@@ -81,6 +82,9 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
             // Seal & ship whatever frame we currently have (if any).
             this.outputStream.flush();
+
+            // Close the Frame Processor. This waits until all pending frames have been committed.
+            this.frameProcessor.close();
 
             // Close the underlying stream (which destroys whatever we have in flight - but there shouldn't be any at this point).
             this.outputStream.close();
@@ -98,6 +102,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
         this.outputStream.reset();
+        this.frameProcessor.clearError();
     }
 
     /**
@@ -155,7 +160,8 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
         // Write DataFrame to DataFrameLog.
         try {
-            LogAddress logAddress = this.targetLog.append(dataFrame.getData(), DATA_FRAME_WRITE_TIMEOUT).get();
+            // TODO: make this work async.
+            LogAddress logAddress = this.frameProcessor.process(dataFrame.getData()).get();
 
             // Need to assign the DataFrameSequence that we got back from the DataLog. This is used to record truncation markers.
             dataFrame.setAddress(logAddress);
@@ -241,4 +247,27 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     }
 
     //endregion
+
+    @FunctionalInterface
+    interface SuccessCallback extends ConsumerWithException<DataFrameCommitArgs, Exception> {
+    }
+
+    @RequiredArgsConstructor
+    static class Args {
+        final int maxWriteCapacity;
+        /**
+         * A callback that will be invoked upon every successful commit of a Data Frame. When this is called, all entries
+         * added via append() that were successful have been 100% committed. In-flight entries (that have been written
+         * partially) will not be acked.
+         */
+        final SuccessCallback commitSuccess;
+
+        /**
+         * A callback that will be invoked upon a failed commit of a Data Frame. When this is called, all entries added via
+         * append() that were successful have failed to commit. The in-flight entries will be failed via the append() method.
+         */
+        final Consumer<Throwable> commitFailure;
+        final Executor executor;
+        final Duration writeTimeout = Duration.ofSeconds(30); // TODO: actual timeout.
+    }
 }

@@ -19,9 +19,6 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -30,6 +27,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for DataFrameReader class.
@@ -42,6 +42,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
     private static final int LARGE_RECORD_MIN_SIZE = 1024;
     private static final int LARGE_RECORD_MAX_SIZE = 10240;
     private static final int FRAME_SIZE = 512;
+    private static final int DEFAULT_WRITE_CAPACITY = 1;
 
     /**
      * Tests the happy case: DataFrameReader can read from a DataLog when the are no exceptions.
@@ -64,7 +65,8 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
+            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, commitFrames::add, errorCallback, executorService());
+            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (int i = 0; i < records.size(); i++) {
                     try {
                         b.append(records.get(i));
@@ -94,7 +96,8 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
+            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, commitFrames::add, errorCallback, executorService());
+            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (int i = 0; i < records.size(); i++) {
                     b.append(records.get(i));
                 }
@@ -130,7 +133,8 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
+            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, commitFrames::add, errorCallback, executorService());
+            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (int i = 0; i < records.size(); i++) {
                     b.append(records.get(i));
                 }
@@ -163,7 +167,8 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
+            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, commitFrames::add, errorCallback, executorService());
+            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (int i = 0; i < records.size(); i++) {
                     b.append(records.get(i));
                 }
