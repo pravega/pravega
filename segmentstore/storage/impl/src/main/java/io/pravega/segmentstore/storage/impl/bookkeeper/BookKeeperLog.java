@@ -19,18 +19,17 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.Retry;
+import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
+import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.WriteFailureException;
-import io.pravega.segmentstore.storage.DataLogInitializationException;
-import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -86,7 +85,6 @@ class BookKeeperLog implements DurableDataLog {
     private final Object lock = new Object();
     private final String traceObjectId;
     private final Retry.RetryAndThrowBase<Exception> retryPolicy;
-    private final AtomicReference<LedgerAddress> lastAppendAddress;
     private final AtomicBoolean rolloverInProgress;
     @GuardedBy("lock")
     private WriteLedger writeLedger;
@@ -115,7 +113,6 @@ class BookKeeperLog implements DurableDataLog {
         this.executorService = Preconditions.checkNotNull(executorService, "executorService");
         this.closed = new AtomicBoolean();
         this.logNodePath = HierarchyUtils.getPath(logId, this.config.getZkHierarchyDepth());
-        this.lastAppendAddress = new AtomicReference<>(new LedgerAddress(0, 0));
         this.traceObjectId = String.format("Log[%d]", logId);
         this.rolloverInProgress = new AtomicBoolean();
         this.retryPolicy = config.getRetryPolicy()
@@ -179,10 +176,7 @@ class BookKeeperLog implements DurableDataLog {
 
             // Fence out ledgers.
             if (metadata != null) {
-                val lastAddress = Ledgers.fenceOut(metadata.getLedgers(), this.bookKeeper, this.config, this.traceObjectId);
-                if (lastAddress != null) {
-                    this.lastAppendAddress.set(lastAddress);
-                }
+                Ledgers.fenceOut(metadata.getLedgers(), this.bookKeeper, this.config, this.traceObjectId);
             }
 
             // Create new ledger.
@@ -239,12 +233,6 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     @Override
-    public long getLastAppendSequence() {
-        ensurePreconditions();
-        return this.lastAppendAddress.get().getSequence();
-    }
-
-    @Override
     public long getEpoch() {
         ensurePreconditions();
         return getLogMetadata().getEpoch();
@@ -297,9 +285,7 @@ class BookKeeperLog implements DurableDataLog {
                 }
 
                 // Successful write. Complete the callback future and update metrics.
-                LedgerAddress address = new LedgerAddress(writeLedger.metadata, entryId);
-                this.lastAppendAddress.set(address);
-                completionFuture.complete(address);
+                completionFuture.complete(new LedgerAddress(writeLedger.metadata, entryId));
             } catch (Throwable ex) {
                 completionFuture.completeExceptionally(ex);
             }

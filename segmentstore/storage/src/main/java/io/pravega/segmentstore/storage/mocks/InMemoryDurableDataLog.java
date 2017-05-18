@@ -118,14 +118,6 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public long getLastAppendSequence() {
-        ensurePreconditions();
-        synchronized (this.entries) {
-            return this.lastAppendSequence;
-        }
-    }
-
-    @Override
     public long getEpoch() {
         ensurePreconditions();
         return this.epoch;

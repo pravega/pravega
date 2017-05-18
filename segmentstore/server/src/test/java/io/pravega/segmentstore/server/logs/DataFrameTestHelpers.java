@@ -94,9 +94,9 @@ class DataFrameTestHelpers {
                 // General DataFrameEntry validation.
                 Assert.assertNotNull("Received a null entry even though hasNext() returned true." + state.getPosition(), entry);
                 Assert.assertEquals(
-                        "Unexpected value returned by getDataFrameAddress(). " + state.getPosition(),
+                        "Unexpected value returned by getFrameAddress(). " + state.getPosition(),
                         dataFrame.getAddress(),
-                        entry.getDataFrameAddress());
+                        entry.getFrameAddress());
 
                 if (entry.isFirstRecordEntry()) {
                     state.clearCurrentRecordEntries();

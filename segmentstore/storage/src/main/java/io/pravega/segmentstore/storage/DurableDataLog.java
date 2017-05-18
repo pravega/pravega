@@ -83,14 +83,6 @@ public interface DurableDataLog extends AutoCloseable {
     int getMaxAppendLength();
 
     /**
-     * Gets a value indicating the Sequence of the last data that was committed. This is the value returned by
-     * the last call to append().
-     *
-     * @return The requested value, or -1 if the information is unknown.
-     */
-    long getLastAppendSequence();
-
-    /**
      * Gets a value indicating the current Epoch of this DurableDataLog.
      * <p>
      * An Epoch is a monotonically strictly number that changes (not necessarily incremented) every time the DurableDataLog

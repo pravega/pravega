@@ -99,11 +99,6 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public long getLastAppendSequence() {
-        return this.wrappedLog.getLastAppendSequence();
-    }
-
-    @Override
     public long getEpoch() {
         return this.wrappedLog.getEpoch();
     }

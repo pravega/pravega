@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.CallbackHelpers;
@@ -16,12 +17,11 @@ import io.pravega.common.function.ConsumerWithException;
 import io.pravega.segmentstore.server.LogItem;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
-import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.util.function.Consumer;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Builds DataFrames from LogItems. Splits the serialization of LogItems across multiple Data Frames, if necessary,
@@ -62,7 +62,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         Preconditions.checkNotNull(dataFrameCommitSuccessCallback, "dataFrameCommitSuccessCallback");
 
         this.targetLog = targetLog;
-        this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), targetLog::getLastAppendSequence, this::handleDataFrameComplete);
+        this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), this::handleDataFrameComplete);
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
         this.dataFrameCommitSuccessCallback = dataFrameCommitSuccessCallback;
@@ -159,7 +159,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
             // Need to assign the DataFrameSequence that we got back from the DataLog. This is used to record truncation markers.
             dataFrame.setAddress(logAddress);
-            assert dataFrame.getPreviousFrameSequence() < logAddress.getSequence() : "DataLog assigned non-monotonic sequence number";
         } catch (Exception ex) {
             Throwable realException = ExceptionHelpers.getRealException(ex);
             // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to be discarded.
@@ -188,10 +187,32 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * Contains Information about the committal of a DataFrame.
      */
     static class DataFrameCommitArgs {
+        /**
+         * The Sequence Number of the last LogItem that was fully serialized (and committed).
+         * If this value is different than 'getLastStartedSequenceNumber' then we currently have a LogItem that was split
+         * across multiple Data Frames, and the value returned from that function represents the Sequence Number for that entry.
+         */
+        @Getter
         private final long lastFullySerializedSequenceNumber;
+
+        /**
+         * The Sequence Number of the last LogItem that was started (but not necessarily committed).
+         * If this value is different than 'getLastFullySerializedSequenceNumber' then we currently have a LogItem that was split
+         * across multiple Data Frames, and the value returned from this function represents the Sequence Number for that entry.
+         */
+        @Getter
         private final long lastStartedSequenceNumber;
+
+        /**
+         * The LogAddress of the Data Frame that was committed.
+         */
+        @Getter
         private final LogAddress logAddress;
-        private final long previousDataFrameSequence;
+
+        /**
+         * The length of the DataFrame that was just committed.
+         */
+        @Getter
         private final int dataFrameLength;
 
         /**
@@ -202,59 +223,20 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
          * @param dataFrame                         The DataFrame that was just committed.
          */
         private DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, DataFrame dataFrame) {
-            assert lastFullySerializedSequenceNumber <= lastStartedSequenceNumber : "lastFullySerializedSequenceNumber (" + lastFullySerializedSequenceNumber + ") is greater than lastStartedSequenceNumber (" + lastStartedSequenceNumber + ")";
+            assert lastFullySerializedSequenceNumber <= lastStartedSequenceNumber : "lastFullySerializedSequenceNumber (" +
+                    lastFullySerializedSequenceNumber + ") is greater than lastStartedSequenceNumber (" + lastStartedSequenceNumber + ")";
             assert dataFrame.getAddress().getSequence() >= 0 : "negative dataFrameSequence";
-            assert dataFrame.getAddress().getSequence() > dataFrame.getPreviousFrameSequence() : "dataFrameSequence should be larger than previousDataFrameSequence";
 
             this.lastFullySerializedSequenceNumber = lastFullySerializedSequenceNumber;
             this.lastStartedSequenceNumber = lastStartedSequenceNumber;
-            this.previousDataFrameSequence = dataFrame.getPreviousFrameSequence();
             this.logAddress = dataFrame.getAddress();
             this.dataFrameLength = dataFrame.getLength();
         }
 
-        /**
-         * Gets a value indicating the Sequence Number of the last LogItem that was fully serialized (and committed).
-         * If this value is different than 'getLastStartedSequenceNumber' then we currently have a LogItem that was split
-         * across multiple Data Frames, and the value returned from that function represents the Sequence Number for that entry.
-         */
-        long getLastFullySerializedSequenceNumber() {
-            return this.lastFullySerializedSequenceNumber;
-        }
-
-        /**
-         * Gets a value indicating the Sequence Number of the last LogItem that was started (but not necessarily committed).
-         * If this value is different than 'getLastFullySerializedSequenceNumber' then we currently have a LogItem that was split
-         * across multiple Data Frames, and the value returned from this function represents the Sequence Number for that entry.
-         */
-        long getLastStartedSequenceNumber() {
-            return this.lastStartedSequenceNumber;
-        }
-
-        /**
-         * Gets a value indicating the LogAddress of the Data Frame that was committed.
-         */
-        LogAddress getLogAddress() {
-            return this.logAddress;
-        }
-
-        /**
-         * Gets a value indicating the Sequence Number of the last Data Frame that was committed prior to this one.
-         */
-        long getPreviousDataFrameSequence() {
-            return this.previousDataFrameSequence;
-        }
-
-        /**
-         * Gets a value indicating the length of the DataFrame that was just committed.
-         */
-        int getDataFrameLength() {
-            return this.dataFrameLength;
-        }
-
         @Override
         public String toString() {
-            return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, DataFrameSN = %d/%d, Length = %d", getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), this.logAddress.getSequence(), getPreviousDataFrameSequence(), getDataFrameLength());
+            return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, DataFrameSN = %d, Length = %d",
+                    getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), this.logAddress.getSequence(), getDataFrameLength());
         }
     }
 

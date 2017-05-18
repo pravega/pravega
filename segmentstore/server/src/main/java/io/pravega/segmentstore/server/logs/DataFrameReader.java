@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.util.LinkedList;
 import java.util.stream.Stream;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -161,13 +162,15 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
                     if (this.readEntryCount > 0) {
                         // But this should ONLY happen at the very beginning of a read. If we encounter something like
                         // this in the middle of a log, we very likely have some sort of corruption.
-                        throw new DataCorruptionException(String.format("Found a DataFrameEntry which is not marked as 'First Record Entry', but no active record is being read. DataFrameAddress = %s", nextEntry.getDataFrameAddress()));
+                        throw new DataCorruptionException(String.format("Found a DataFrameEntry which is not marked as " +
+                                        "'First Record Entry', but no active record is being read. DataFrameAddress = %s",
+                                nextEntry.getFrameAddress()));
                     }
                     continue;
                 }
 
                 // Add the current entry's contents to the result.
-                result.add(nextEntry.getData(), nextEntry.getDataFrameAddress(), nextEntry.isLastEntryInDataFrame());
+                result.add(nextEntry.getData(), nextEntry.getFrameAddress(), nextEntry.isLastEntryInDataFrame());
 
                 if (nextEntry.isLastRecordEntry()) {
                     // We are done. We found the last entry for a record.
@@ -186,9 +189,32 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
      * Represents a DataFrame Read Result, wrapping a LogItem.
      */
     public static class ReadResult<T extends LogItem> {
-        private final T logItem;
+        /**
+         * The wrapped Log Operation.
+         */
+        @Getter
+        private final T item;
+
+        /**
+         * The Address of the Last Data Frame containing the LogItem. If the LogItem fits on exactly one DataFrame, this
+         * will contain the Address for that Data Frame; if it spans multiple data frames, this stores the last data frame address.
+         */
+        @Getter
         private final LogAddress lastUsedDataFrameAddress;
+
+        /**
+         * The Address of the Last Data Frame that ends with a part of the LogItem. If
+         * the LogItem fits on exactly one DataFrame, this will return the Address for that Data Frame; if it spans
+         * multiple data frames, it returns the Address of the last Data Frame that ends with a part of the LogItem
+         * (in general, this is the Data Frame immediately preceding that returned by getLastUsedDataFrameAddress()).
+         */
+        @Getter
         private final LogAddress lastFullDataFrameAddress;
+
+        /**
+         * Whether the wrapped LogItem is the last entry in its Data Frame.
+         */
+        @Getter
         private final boolean lastFrameEntry;
 
         /**
@@ -198,43 +224,10 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
          * @param segmentCollection The SegmentCollection that the LogItem was constructed from.
          */
         protected ReadResult(T logItem, SegmentCollection segmentCollection) {
-            this.logItem = logItem;
+            this.item = logItem;
             this.lastUsedDataFrameAddress = segmentCollection.getLastUsedDataFrameAddress();
             this.lastFullDataFrameAddress = segmentCollection.getLastFullDataFrameAddress();
             this.lastFrameEntry = segmentCollection.isLastFrameEntry();
-        }
-
-        /**
-         * Gets a reference to the wrapped Log Operation.
-         */
-        T getItem() {
-            return this.logItem;
-        }
-
-        /**
-         * Gets a value indicating the Address of the Last Data Frame containing the LogItem. If the LogItem fits on exactly
-         * one DataFrame, this will return the Address for that Data Frame; if it spans multiple data frames, only the last
-         * data frame Address is returned.
-         */
-        LogAddress getLastUsedDataFrameAddress() {
-            return this.lastUsedDataFrameAddress;
-        }
-
-        /**
-         * Gets a value indicating the Address of the Last Data Frame that ends with a part of the LogItem. If
-         * the LogItem fits on exactly one DataFrame, this will return the Address for that Data Frame; if it spans
-         * multiple data frames, it returns the Address of the last Data Frame that ends with a part of the LogItem
-         * (in general, this is the Data Frame immediately preceding that returned by getLastUsedDataFrameAddress()).
-         */
-        LogAddress getLastFullDataFrameAddress() {
-            return this.lastFullDataFrameAddress;
-        }
-
-        /**
-         * Gets a value indicating whether the wrapped LogItem is the last entry in its Data Frame.
-         */
-        boolean isLastFrameEntry() {
-            return this.lastFrameEntry;
         }
 
         @Override
@@ -506,18 +499,15 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
                 frame = new DataFrame(nextItem.getPayload(), nextItem.getLength());
                 frame.setAddress(nextItem.getAddress());
             } catch (SerializationException ex) {
-                throw new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.", this.lastReadFrameSequence), ex);
+                throw new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.",
+                        this.lastReadFrameSequence), ex);
             }
 
             long sequence = frame.getAddress().getSequence();
             if (sequence <= this.lastReadFrameSequence) {
                 // FrameSequence must be a strictly monotonically increasing number.
-                throw new DataCorruptionException(String.format("Found DataFrame out of order. Expected frame sequence greater than %d, found %d.", this.lastReadFrameSequence, sequence));
-            }
-
-            if (this.lastReadFrameSequence != INITIAL_LAST_READ_FRAME_SEQUENCE && this.lastReadFrameSequence != frame.getPreviousFrameSequence()) {
-                // Previous Frame Sequence is not match what the Current Frame claims it is.
-                throw new DataCorruptionException(String.format("DataFrame with Sequence %d has a PreviousFrameSequence (%d) that does not match the previous DataFrame FrameSequence (%d).", sequence, frame.getPreviousFrameSequence(), this.lastReadFrameSequence));
+                throw new DataCorruptionException(String.format("Found DataFrame out of order. Expected frame sequence greater than %d, found %d.",
+                        this.lastReadFrameSequence, sequence));
             }
 
             this.lastReadFrameSequence = sequence;
