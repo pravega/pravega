@@ -254,8 +254,8 @@ public class InProcPravegaCluster implements AutoCloseable {
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
                     .zkSegmentManager(true);
 
-            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs(!isInMemStorage)
-                    .bookKeeper(!isInMemStorage).build());
+            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(),
+                    optBuilder.tier2(!isInMemStorage) .bookKeeper(!isInMemStorage).build());
         } catch (Exception e) {
             throw e;
         }
