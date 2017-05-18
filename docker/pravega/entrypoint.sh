@@ -27,8 +27,9 @@ configure_controller() {
 }
 
 configure_nfs_s3_hdfs() {
-    add_system_property "nfs.enableNfs" "${ENABLE_NFS}"
-    add_system_property "hdfs.enableHdfs" "${ENABLE_HDFS}"
+    add_system_property "tier2.enableNfs" "${ENABLE_NFS}"
+    add_system_property "nfs.nfsRoot" "${NFS_MOUNT}"
+    add_system_property "tier2.enableHdfs" "${ENABLE_HDFS}"
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"

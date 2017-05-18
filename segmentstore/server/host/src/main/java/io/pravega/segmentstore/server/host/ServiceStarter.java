@@ -19,6 +19,7 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.storage.impl.Tier2Config;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
@@ -74,7 +75,7 @@ public final class ServiceStarter {
             attachRocksDB(builder);
         }
 
-        if (options.hdfs) {
+        if (options.tier2) {
             attachStorage(builder);
         }
 
@@ -150,7 +151,8 @@ public final class ServiceStarter {
 
     private void attachBookKeeper(ServiceBuilder builder) {
         builder.withDataLogFactory(setup ->
-                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
+                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient,
+                        setup.getExecutor()));
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
@@ -160,11 +162,12 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                NFSStorageConfig nfsConfig = setup.getConfig(NFSStorageConfig::builder);
-                if ( hdfsConfig.isEnableHdfs()) {
+                Tier2Config tier2Config = setup.getConfig(Tier2Config::builder);
+                if ( tier2Config.isEnableHdfs()) {
+                    HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
                     return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
                 } else {
+                    NFSStorageConfig nfsConfig = setup.getConfig(NFSStorageConfig::builder);
                     return new NFSStorageFactory(nfsConfig, setup.getExecutor());
                 }
             } catch (Exception ex) {
@@ -177,7 +180,8 @@ public final class ServiceStarter {
         builder.withContainerManager(setup ->
                 new ZKSegmentContainerManager(setup.getContainerRegistry(),
                         this.zkClient,
-                        new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort(), null),
+                        new Host(this.serviceConfig.getPublishedIPAddress(),
+                                this.serviceConfig.getPublishedPort(), null),
                         setup.getExecutor()));
     }
 
@@ -186,7 +190,8 @@ public final class ServiceStarter {
                 .builder()
                 .connectString(this.serviceConfig.getZkURL())
                 .namespace("pravega/" + this.serviceConfig.getClusterName())
-                .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
+                .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(),
+                        this.serviceConfig.getZkRetryCount()))
                 .build();
         zkClient.start();
         return zkClient;
@@ -208,7 +213,8 @@ public final class ServiceStarter {
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()
-                                                                 .bookKeeper(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
+                                                                 .bookKeeper(true).tier2(true).rocksDb(true)
+                    .zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -242,7 +248,7 @@ public final class ServiceStarter {
     @Builder
     public static class Options {
         final boolean bookKeeper;
-        final boolean hdfs;
+        final boolean tier2;
         final boolean rocksDb;
         final boolean zkSegmentManager;
     }
