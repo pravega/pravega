@@ -9,8 +9,21 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import com.google.common.collect.LinkedListMultimap;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Timer;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.WrongHostException;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -24,23 +37,12 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
+import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
-import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.WrongHostException;
-import io.pravega.segmentstore.server.SegmentMetadata;
-import com.google.common.collect.LinkedListMultimap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -268,6 +270,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else if (u instanceof WrongHostException) {
             WrongHostException wrongHost = (WrongHostException) u;
             connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
+        } else if (u instanceof BadAttributeUpdateException) {
+            connection.send(new InvalidEventNumber(writerId, requestId));
+            connection.close();
         } else {
             // TODO: don't know what to do here...
             connection.close();
