@@ -35,7 +35,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 public abstract class StorageTestBase extends ThreadPooledTestSuite {
     //region General Test arguments
 
-    protected static final Duration TIMEOUT = Duration.ofSeconds(10);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(60);
     protected static final long DEFAULT_EPOCH = 1;
     protected static final int APPENDS_PER_SEGMENT = 10;
     private static final int SEGMENT_COUNT = 4;
@@ -273,7 +273,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
                     TIMEOUT).join().getLength());
             assertThrows("concat() did not throw for non-existent target segment name.",
-                    () -> s.concat(createHandle("foo1", false, DEFAULT_EPOCH), 0, firstSegmentName, TIMEOUT),
+                    () -> s.concat(createHandle("foo1", false, DEFAULT_EPOCH), 0, "foo2", TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             assertThrows("concat() did not throw for invalid source StreamSegment name.",

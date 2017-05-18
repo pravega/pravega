@@ -26,14 +26,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.NonWritableChannelException;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
@@ -45,6 +49,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
+
+/**
+ * Storage adapter for file system based Tier2.
+ *
+ * Each segment is represented as a single file on the underlying storage. As the writes at an offset for a POSIX
+ * file is idempotent, there is no need for locking when a container fails over to another host.
+ * As Pravega does not modify data in Tier2 once written even a contention in writing will cause same data to be
+ * written at the same offset till the time the original host gives up ownership.
+ */
 
 @Slf4j
 public class NFSStorage implements Storage {
@@ -91,7 +104,7 @@ public class NFSStorage implements Storage {
         final CompletableFuture<Integer> retVal = new CompletableFuture<>();
 
         executor.execute( () -> {
-         syncRead(handle, offset, buffer, bufferOffset, length, timeout, retVal);
+            syncRead(handle, offset, buffer, bufferOffset, length, timeout, retVal);
         });
 
         return retVal;
@@ -102,7 +115,7 @@ public class NFSStorage implements Storage {
         final CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
 
         executor.execute( () -> {
-           syncGetStreamSegmentInfo(streamSegmentName, timeout, retVal);
+            syncGetStreamSegmentInfo(streamSegmentName, timeout, retVal);
         });
 
         return retVal;
@@ -113,7 +126,7 @@ public class NFSStorage implements Storage {
         final CompletableFuture<Boolean> retFuture = new CompletableFuture<>();
 
         executor.execute( () -> {
-           syncExists(streamSegmentName, timeout, retFuture);
+            syncExists(streamSegmentName, timeout, retFuture);
         });
 
         return retFuture;
@@ -124,30 +137,20 @@ public class NFSStorage implements Storage {
         final CompletableFuture<SegmentHandle>[] retVal = new CompletableFuture[1];
         retVal[0] = new CompletableFuture<>();
 
-        executor.execute(() -> {
-            try {
+        executor.execute( () -> {
                 Path path = Paths.get(config.getNfsRoot(), streamSegmentName);
                 if (!Files.exists(path)) {
                     retVal[0].completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName));
-                } else {
-                    FileChannel channel = new RandomAccessFile(path.toString(), "rw").getChannel();
-                    NFSSegmentHandle retHandle = NFSSegmentHandle.getWriteHandle(streamSegmentName, channel);
+                } else if ( Files.isWritable( path)) {
+                    NFSSegmentHandle retHandle = NFSSegmentHandle.getWriteHandle(streamSegmentName);
                     retVal[0].complete(retHandle);
-                }
-            } catch (IOException ex) {
-                if (ex instanceof NoSuchFileException) {
-                    retVal[0].completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName, ex));
-                } else if (ex instanceof FileNotFoundException) {
-                    //This means that file exists but not accessible with the access mode.
+                } else {
                     try {
                         retVal[0].complete(openRead(streamSegmentName).get());
                     } catch (Exception e) {
                         retVal[0].completeExceptionally(e);
                     }
-                } else {
-                    retVal[0].completeExceptionally(ex);
                 }
-            }
         });
 
         return retVal[0];
@@ -159,18 +162,19 @@ public class NFSStorage implements Storage {
         final CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
 
         executor.execute( () -> {
-           syncCreate(streamSegmentName, timeout, retVal);
+            syncCreate(streamSegmentName, timeout, retVal);
         });
 
         return retVal;
     }
 
     @Override
-    public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-       final CompletableFuture<Void> retVal = new CompletableFuture<>();
+    public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration
+            timeout) {
+        final CompletableFuture<Void> retVal = new CompletableFuture<>();
 
-       executor.execute( () -> {
-          syncWrite(handle, offset, data, length, timeout, retVal);
+        executor.execute( () -> {
+            syncWrite(handle, offset, data, length, timeout, retVal);
         });
 
         return retVal;
@@ -181,14 +185,15 @@ public class NFSStorage implements Storage {
         CompletableFuture<Void> retVal = new CompletableFuture<>();
 
         executor.execute( () -> {
-            syncSeal( handle, timeout, retVal);
+            syncSeal(handle, timeout, retVal);
         });
 
         return retVal;
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration
+            timeout) {
         CompletableFuture<Void> retVal = new CompletableFuture<>();
 
         executor.execute( () -> {
@@ -203,7 +208,7 @@ public class NFSStorage implements Storage {
         final CompletableFuture<Void> future = new CompletableFuture<>();
 
         executor.execute( () -> {
-            syncDelete( handle, timeout, future);
+            syncDelete(handle, timeout, future);
         });
 
         return future;
@@ -223,21 +228,12 @@ public class NFSStorage implements Storage {
     //region private sync implementation
 
     private void syncOpenRead(String streamSegmentName, CompletableFuture<SegmentHandle> retVal) {
-        try {
-            Path path = Paths.get(config.getNfsRoot(), streamSegmentName);
-            if (!Files.exists(path)) {
-                retVal.completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName));
-            } else {
-                FileChannel channel = new RandomAccessFile(path.toString(), "r").getChannel();
-                NFSSegmentHandle retHandle = NFSSegmentHandle.getReadHandle(streamSegmentName, channel);
-                retVal.complete(retHandle);
-            }
-        } catch (Exception ex) {
-            if (ex instanceof FileNotFoundException) {
-                retVal.completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName, ex));
-            } else {
-                retVal.completeExceptionally(ex);
-            }
+        Path path = Paths.get(config.getNfsRoot(), streamSegmentName);
+        if (!Files.exists(path)) {
+            retVal.completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName));
+        } else {
+            NFSSegmentHandle retHandle = NFSSegmentHandle.getReadHandle(streamSegmentName);
+            retVal.complete(retHandle);
         }
     }
 
@@ -246,13 +242,13 @@ public class NFSStorage implements Storage {
             timeout, CompletableFuture<Integer> retVal) {
         try {
             Path path = Paths.get(config.getNfsRoot(), handle.getSegmentName());
-            if (((NFSSegmentHandle) handle).channel == null || !Files.exists(path)) {
+            if ( !Files.exists(path)) {
                 retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
             } else if (Files.size(path) < offset) {
                 retVal.completeExceptionally(new ArrayIndexOutOfBoundsException());
             } else {
-                int bytesRead = ((NFSSegmentHandle) handle).channel.read(
-                        ByteBuffer.wrap(buffer, bufferOffset, length), offset);
+                FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
+                int bytesRead = channel.read(ByteBuffer.wrap(buffer, bufferOffset, length), offset);
                 retVal.complete(bytesRead);
             }
         } catch (Exception e) {
@@ -265,11 +261,13 @@ public class NFSStorage implements Storage {
     }
 
 
-    private void syncGetStreamSegmentInfo(String streamSegmentName, Duration timeout, CompletableFuture<SegmentProperties> retVal) {
+    private void syncGetStreamSegmentInfo(String streamSegmentName, Duration timeout,
+                                          CompletableFuture<SegmentProperties> retVal) {
         try {
             PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getNfsRoot(), streamSegmentName),
                     PosixFileAttributes.class);
-            StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName, attrs.size(), !(attrs.permissions().contains(OWNER_WRITE)), false,
+            StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName, attrs.size(),
+                    !(attrs.permissions().contains(OWNER_WRITE)), false,
                     new ImmutableDate(attrs.creationTime().toMillis()));
 
             retVal.complete(information);
@@ -285,6 +283,7 @@ public class NFSStorage implements Storage {
 
 
     private void syncCreate(String streamSegmentName, Duration timeout, CompletableFuture<SegmentProperties> retVal) {
+        log.info("Creating Segment {}", streamSegmentName);
         try {
             Set<PosixFilePermission> perms = new HashSet<>();
             // add permission as rw-r--r-- 644
@@ -297,8 +296,10 @@ public class NFSStorage implements Storage {
             Path path = Paths.get(config.getNfsRoot(), streamSegmentName);
             Files.createDirectories(path.getParent());
             Files.createFile(path, fileAttributes);
+            log.info("Created Segment {}", streamSegmentName);
             retVal.complete(this.getStreamSegmentInfo(streamSegmentName, timeout).get());
         } catch (Exception e) {
+            log.info("Exception {} while creating a segment {}", e, streamSegmentName);
             if (e instanceof FileAlreadyExistsException) {
                 retVal.completeExceptionally(new StreamSegmentExistsException(streamSegmentName, e));
             } else {
@@ -309,38 +310,36 @@ public class NFSStorage implements Storage {
 
     private void syncWrite(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout,
                            CompletableFuture<Void> retVal) {
-        if (((NFSSegmentHandle) handle).channel == null || !Files.exists(
-                Paths.get(config.getNfsRoot(), handle.getSegmentName()))) {
+        log.trace("Writing {} to segment {} at offset {}", length, handle.getSegmentName(), offset);
+        Path path = Paths.get(config.getNfsRoot(), handle.getSegmentName());
+
+        if ( handle.isReadOnly()) {
+            log.info("Write called on a readonly handle of segment {}", handle.getSegmentName());
+            retVal.completeExceptionally(new IllegalArgumentException());
+        } else if ( !Files.exists( path)) {
             retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
-        } else {
+        } else if ( !Files.isWritable( path)) {
+            retVal.completeExceptionally( new StreamSegmentSealedException( handle.getSegmentName()));
+        }
+        else {
             try {
-                if (((NFSSegmentHandle) handle).channel.size() < offset) {
-                    retVal.completeExceptionally(new BadOffsetException(handle.getSegmentName(), (
-                            (NFSSegmentHandle) handle).channel.size(), offset));
+                long fileSize = path.toFile().length();
+                if ( fileSize < offset) {
+                    retVal.completeExceptionally( new BadOffsetException(handle.getSegmentName(), fileSize, offset));
                 } else {
-                    byte[] bytes = new byte[length];
-                    try {
-                        int read = data.read(bytes);
-                        if ( read != length ) {
-                            retVal.completeExceptionally(new IllegalArgumentException());
-                        } else {
-                            int bytesWritten = ((NFSSegmentHandle) handle).channel.write(ByteBuffer.wrap(bytes), offset);
-                            ((NFSSegmentHandle) handle).channel.force(true);
-                            retVal.complete(null);
-                        }
-                    } catch (Exception exc) {
-                        if (exc instanceof NonWritableChannelException) {
-                            retVal.completeExceptionally(new IllegalArgumentException(exc));
-                        } else if (exc instanceof ClosedChannelException) {
-                            retVal.completeExceptionally(
-                                    new StreamSegmentSealedException(handle.getSegmentName(), exc));
-                        } else {
-                            retVal.completeExceptionally(exc);
-                        }
+                    try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
+                         ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
+                        long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
+                        channel.force(true);
                     }
+                    retVal.complete(null);
                 }
             } catch (Exception exc) {
-                if (exc instanceof NonWritableChannelException) {
+                log.info("Write to segment {} at offset {} failed with exception {} ", handle.getSegmentName(), offset,
+                        exc.getMessage());
+                if(exc instanceof AccessDeniedException) {
+                    retVal.completeExceptionally( new IllegalStateException( handle.getSegmentName()));
+                } else if (exc instanceof NonWritableChannelException) {
                     retVal.completeExceptionally(new IllegalArgumentException(exc));
                 } else if (exc instanceof ClosedChannelException) {
                     retVal.completeExceptionally(new StreamSegmentSealedException(handle.getSegmentName(), exc));
@@ -353,21 +352,21 @@ public class NFSStorage implements Storage {
 
 
     private void syncSeal(SegmentHandle handle, Duration timeout, CompletableFuture<Void> retVal) {
-        if (((NFSSegmentHandle) handle).channel == null) {
-            retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
-        } else if (handle.isReadOnly()) {
+        if (handle.isReadOnly()) {
+            log.info("Seal called on a read handle for segment {}", handle.getSegmentName());
             retVal.completeExceptionally(new IllegalArgumentException(handle.getSegmentName()));
         } else {
             try {
-                ((NFSSegmentHandle) handle).channel.close();
                 Set<PosixFilePermission> perms = new HashSet<>();
                 // add permission as r--r--r-- 444
                 perms.add(PosixFilePermission.OWNER_READ);
                 perms.add(PosixFilePermission.GROUP_READ);
                 perms.add(PosixFilePermission.OTHERS_READ);
                 Files.setPosixFilePermissions(Paths.get(config.getNfsRoot(), handle.getSegmentName()), perms);
+                log.info("Successfully sealed segment {}", handle.getSegmentName());
                 retVal.complete(null);
             } catch (IOException e) {
+                log.info("Seal failed with {} for segment {}", e, handle.getSegmentName());
                 if (e instanceof NoSuchFileException) {
                     retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), e));
                 } else {
@@ -380,23 +379,21 @@ public class NFSStorage implements Storage {
 
     private void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout,
                             CompletableFuture<Void> retVal) {
-        if (((NFSSegmentHandle) targetHandle).channel == null) {
-            retVal.completeExceptionally(new StreamSegmentNotExistsException(targetHandle.getSegmentName()));
-        } else if (Files.isWritable(Paths.get(config.getNfsRoot(), sourceSegment))) {
+
+        if (Files.isWritable(Paths.get(config.getNfsRoot(), sourceSegment))) {
             retVal.completeExceptionally(new IllegalStateException(sourceSegment));
         } else {
             try {
-                ((NFSSegmentHandle) targetHandle).channel.force(true);
-
                 FileChannel channel = new RandomAccessFile(
-                        String.valueOf(Paths.get(config.getNfsRoot(), targetHandle.getSegmentName())), "rw")
-                        .getChannel();
+                        String.valueOf(Paths.get(config.getNfsRoot(), targetHandle.getSegmentName())),
+                        "rw").getChannel();
                 RandomAccessFile sourceFile = new RandomAccessFile(
                         String.valueOf(Paths.get(config.getNfsRoot(), sourceSegment)), "r");
                 channel.transferFrom(sourceFile.getChannel(), offset, sourceFile.length());
                 Files.delete(Paths.get(config.getNfsRoot(), sourceSegment));
                 retVal.complete(null);
             } catch (IOException e) {
+                log.info("Concat of {} on {} failed with {}", sourceSegment, targetHandle.getSegmentName(), e);
                 if (e instanceof NoSuchFileException || e instanceof FileNotFoundException) {
                     retVal.completeExceptionally(new StreamSegmentNotExistsException(targetHandle.getSegmentName()));
                 } else {
