@@ -35,6 +35,10 @@ public class Append implements Request, Comparable<Append> {
         this.data = data;
         this.expectedLength = expectedLength;
     }
+    
+    public int getDataLength() {
+        return data.readableBytes();
+    }
 
     public boolean isConditional() {
         return expectedLength != null;
