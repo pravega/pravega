@@ -26,18 +26,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.NonWritableChannelException;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
@@ -104,7 +100,7 @@ public class NFSStorage implements Storage {
         final CompletableFuture<Integer> retVal = new CompletableFuture<>();
 
         executor.execute( () -> {
-            syncRead(handle, offset, buffer, bufferOffset, length, timeout, retVal);
+         syncRead(handle, offset, buffer, bufferOffset, length, timeout, retVal);
         });
 
         return retVal;
@@ -115,7 +111,7 @@ public class NFSStorage implements Storage {
         final CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
 
         executor.execute( () -> {
-            syncGetStreamSegmentInfo(streamSegmentName, timeout, retVal);
+           syncGetStreamSegmentInfo(streamSegmentName, timeout, retVal);
         });
 
         return retVal;
@@ -126,7 +122,7 @@ public class NFSStorage implements Storage {
         final CompletableFuture<Boolean> retFuture = new CompletableFuture<>();
 
         executor.execute( () -> {
-            syncExists(streamSegmentName, timeout, retFuture);
+           syncExists(streamSegmentName, timeout, retFuture);
         });
 
         return retFuture;
@@ -162,7 +158,7 @@ public class NFSStorage implements Storage {
         final CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
 
         executor.execute( () -> {
-            syncCreate(streamSegmentName, timeout, retVal);
+           syncCreate(streamSegmentName, timeout, retVal);
         });
 
         return retVal;
@@ -173,8 +169,8 @@ public class NFSStorage implements Storage {
             timeout) {
         final CompletableFuture<Void> retVal = new CompletableFuture<>();
 
-        executor.execute( () -> {
-            syncWrite(handle, offset, data, length, timeout, retVal);
+       executor.execute( () -> {
+          syncWrite(handle, offset, data, length, timeout, retVal);
         });
 
         return retVal;
@@ -185,7 +181,7 @@ public class NFSStorage implements Storage {
         CompletableFuture<Void> retVal = new CompletableFuture<>();
 
         executor.execute( () -> {
-            syncSeal(handle, timeout, retVal);
+            syncSeal( handle, timeout, retVal);
         });
 
         return retVal;
@@ -208,7 +204,7 @@ public class NFSStorage implements Storage {
         final CompletableFuture<Void> future = new CompletableFuture<>();
 
         executor.execute( () -> {
-            syncDelete(handle, timeout, future);
+            syncDelete( handle, timeout, future);
         });
 
         return future;
