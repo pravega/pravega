@@ -9,15 +9,15 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.function.ConsumerWithException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,7 +34,7 @@ public class DataFrameOutputStreamTests {
 
         // Callback for when a frame is written.
         AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
-        ConsumerWithException<DataFrame, IOException> callback = df -> {
+        Consumer<DataFrame> callback = df -> {
             Assert.assertNull("A frame has already been written.", writtenFrame.get());
             writtenFrame.set(df);
         };
@@ -91,7 +91,7 @@ public class DataFrameOutputStreamTests {
 
         // Callback for when a frame is written.
         AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
-        ConsumerWithException<DataFrame, IOException> callback = df -> {
+        Consumer<DataFrame> callback = df -> {
             Assert.assertNull("A frame has already been written.", writtenFrame.get());
             writtenFrame.set(df);
         };
@@ -187,14 +187,13 @@ public class DataFrameOutputStreamTests {
     @Test
     public void testCommitFailure() throws Exception {
         int maxFrameSize = 50;
-        final String exceptionMessage = "intentional";
 
         // Callback for when a frame is written. If we need to throw an exception, do it; otherwise just remember the frame.
         AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
         AtomicBoolean throwException = new AtomicBoolean();
-        ConsumerWithException<DataFrame, IOException> callback = df -> {
+        Consumer<DataFrame> callback = df -> {
             if (throwException.get()) {
-                throw new IOException(exceptionMessage);
+                throw new IntentionalException();
             }
 
             writtenFrame.set(df);
@@ -216,7 +215,7 @@ public class DataFrameOutputStreamTests {
                             usableSpace.incrementAndGet();
                         }
                     },
-                    ex -> ex instanceof IOException && ex.getMessage().contains(exceptionMessage));
+                    ex -> ex instanceof IntentionalException);
 
             // 2. Call write(byte) again and verify it fails. But this should fail because the DataFrame is sealed
             // (it was sealed prior to the current commit attempt).
@@ -251,7 +250,7 @@ public class DataFrameOutputStreamTests {
             AssertExtensions.assertThrows(
                     "startNewRecord() did not throw when the commit callback threw an exception.",
                     s::startNewRecord,
-                    ex -> ex instanceof IOException && ex.getMessage().contains(exceptionMessage));
+                    ex -> ex instanceof IntentionalException);
 
             // 3. Allow the commit to succeed. Verify a frame has been committed with the correct content.
             throwException.set(false);
@@ -277,7 +276,7 @@ public class DataFrameOutputStreamTests {
             AssertExtensions.assertThrows(
                     "write(byte[]) did not throw when the commit callback threw an exception.",
                     () -> s.write(new byte[10]),
-                    ex -> ex instanceof IOException && ex.getMessage().contains(exceptionMessage));
+                    ex -> ex instanceof IntentionalException);
 
             // 3. Allow the commit to succeed. Verify a frame has been committed with the correct content.
             throwException.set(false);

@@ -67,22 +67,25 @@ public class ErrorInjector<T extends Throwable> {
 
     /**
      * Returns a CompletableFuture that, if the given injector generates a non-null exception, will be completed exceptionally.
-     * If the given injector is null or does not generate an exception (null), this method returns a normally completed Future with no result.
+     * If the given injector is null or does not generate an exception (null), this method returns the future generated
+     * byt the given supplier.
      *
-     * @param injector The Error Injector to use.
-     * @param <T>      The type of exception to throw.
+     * @param injector      The Error Injector to use.
+     * @param successFuture A Supplier that generates the future to return if no exception happened.
+     * @param <ExceptionT>  The type of exception to throw.
      */
-    public static <T extends Throwable> CompletableFuture<Void> throwAsyncExceptionIfNeeded(ErrorInjector<T> injector) {
-        CompletableFuture<Void> result = null;
+    public static <ReturnT, ExceptionT extends Throwable> CompletableFuture<ReturnT> throwAsyncExceptionIfNeeded(
+            ErrorInjector<ExceptionT> injector, Supplier<CompletableFuture<ReturnT>> successFuture) {
+        CompletableFuture<ReturnT> result = null;
         if (injector != null) {
-            T ex = injector.generateExceptionIfNecessary();
+            ExceptionT ex = injector.generateExceptionIfNecessary();
             if (ex != null) {
                 result = new CompletableFuture<>();
                 result.completeExceptionally(ex);
             }
         }
 
-        return result != null ? result : CompletableFuture.completedFuture(null);
+        return result != null ? result : successFuture.get();
     }
 
     /**

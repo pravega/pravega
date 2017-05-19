@@ -176,7 +176,7 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
 
         // Create a new State and Builder (we need this either initially or after recovery from an error).
         val state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy, this.traceObjectId);
-        val builderArgs = new DataFrameBuilder.Args(MAX_WRITE_CAPACITY, state::commit, state::fail, this.executor);
+        val builderArgs = new DataFrameBuilder.Args(MAX_WRITE_CAPACITY,null, state::commit, state::fail, this.executor);
         val dataFrameBuilder = new DataFrameBuilder<Operation>(this.durableDataLog, builderArgs);
 
         try {
@@ -338,7 +338,7 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
     private void handleIterationException(Throwable ex, QueueProcessingState state, Collection<CompletableOperation> operations) {
         // Fail the current set of operations with the caught exception.
         Throwable realCause = ExceptionHelpers.getRealException(ex);
-        state.fail(realCause);
+        state.fail(realCause, null); // TODO: null should not be needed in async processing.
 
         if (isFatalException(realCause)) {
             // If we encountered a fatal exception, it means we detected something that we cannot possibly recover from.
@@ -405,9 +405,8 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
          * Commits all pending Metadata changes, assigns a TruncationMarker and acknowledges all the pending operations.
          *
          * @param commitArgs The Data Frame Commit Args that triggered this action.
-         * @throws DataCorruptionException When the operation has been committed, but failed to be accepted into the In-Memory log.
          */
-        void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws DataCorruptionException {
+        void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
             // Record the Truncation marker and then commit any changes to metadata.
@@ -415,14 +414,19 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
             this.metadataUpdater.commit();
 
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.
-            while (this.pendingOperations.size() > 0 && this.pendingOperations.peek().getOperation().getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber()) {
+            while (this.pendingOperations.size() > 0
+                    && this.pendingOperations.peek().getOperation().getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber()) {
                 CompletableOperation e = this.pendingOperations.poll();
                 try {
                     this.logUpdater.process(e.getOperation());
                 } catch (Throwable ex) {
+                    // Fail the operation (since it has already been taken off the pending list).
                     log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
                     e.fail(ex);
-                    throw ex;
+
+                    // Fail remaining operations and bail out.
+                    fail(ex, commitArgs);
+                    return;
                 }
 
                 e.complete();
@@ -436,8 +440,9 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
          * Rolls back all pending Metadata changes and fails all pending operations.
          *
          * @param ex The cause of the failure. The operations will be failed with this as a cause.
+         * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
-        void fail(Throwable ex) {
+        void fail(Throwable ex, DataFrameBuilder.DataFrameCommitArgs commitArgs) {
             // Discard all updates to the metadata.
             this.metadataUpdater.rollback();
 

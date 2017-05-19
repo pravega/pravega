@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.logs;
 
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.test.common.AssertExtensions;
@@ -19,11 +20,17 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -41,48 +48,38 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
     private static final int LARGE_RECORD_MAX_SIZE = 10240;
     private static final int FRAME_SIZE = 512;
     private static final int DEFAULT_WRITE_CAPACITY = 1;
+    private static final int APPEND_DELAY_MILLIS = 1;
+    private static final int RECORD_COUNT = 200;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 5;
+    }
+
+    @Test
+    public void testMulti() throws Exception {
+        for (int i = 0; i < 1000; i++) {
+            testAppendWithCommitFailure();
+            System.out.println(i);
+        }
+    }
 
     /**
      * Tests the happy case: append a set of LogItems, and make sure that frames that get output contain all of them.
+     * For this test, there is no delay in the DurableDataLog append implementations - it is as close to sync as possible.
      */
     @Test
-    public void testAppendNoFailure() throws Exception {
-        // Happy case: append a bunch of data, and make sure the frames that get output contain it.
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
-        records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
+    public void testAppendNoFailureNoDelay() throws Exception {
+        testAppendNoFailure(1, 0);
+    }
 
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
-            dataLog.initialize(TIMEOUT);
-
-            ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, commitFrames::add, errorCallback, executorService());
-            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
-                for (TestLogItem item : records) {
-                    b.append(item);
-                }
-            }
-
-            // Check the correctness of the commit callback.
-            AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, commitFrames.size());
-            DataFrameBuilder.DataFrameCommitArgs previousCommitArgs = null;
-            for (int i = 0; i < commitFrames.size(); i++) {
-                DataFrameBuilder.DataFrameCommitArgs ca = commitFrames.get(i);
-                if (previousCommitArgs != null) {
-                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLastFullySerializedSequenceNumber() is not monotonically increasing.",
-                            previousCommitArgs.getLastFullySerializedSequenceNumber(), ca.getLastFullySerializedSequenceNumber());
-                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLastStartedSequenceNumber() is not monotonically increasing.",
-                            previousCommitArgs.getLastStartedSequenceNumber(), ca.getLastStartedSequenceNumber());
-                }
-
-                previousCommitArgs = ca;
-            }
-
-            //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
-            Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
-            DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
-        }
+    /**
+     * Tests the happy case: append a set of LogItems, and make sure that frames that get output contain all of them.
+     * For this test, there is no delay in the DurableDataLog append implementations - it is as close to sync as possible.
+     */
+    @Test
+    public void testAppendNoFailureWithDelay() throws Exception {
+        testAppendNoFailure(10, APPEND_DELAY_MILLIS);
     }
 
     /**
@@ -95,8 +92,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
     public void testAppendWithSerializationFailure() throws Exception {
         int failEvery = 7; // Fail every X records.
 
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
-        records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        records.addAll(DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
         // Have every other 'failEvery' record fail after writing 90% of itself.
         for (int i = 0; i < records.size(); i += failEvery) {
@@ -108,8 +105,9 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, commitFrames::add, errorCallback, executorService());
+            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+                    Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
+            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (int i = 0; i < records.size(); i++) {
                     try {
@@ -142,8 +140,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
     public void testAppendWithCommitFailure() throws Exception {
         int failAt = 7; // Fail the commit to DurableDataLog after this many writes.
 
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
-        records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        records.addAll(DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
         HashSet<Integer> failedIndices = new HashSet<>();
         @Cleanup
@@ -160,14 +158,15 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         AtomicInteger lastCommitIndex = new AtomicInteger(-1);
         AtomicInteger lastAttemptIndex = new AtomicInteger();
         AtomicInteger failCount = new AtomicInteger();
-        ArrayList<DataFrameBuilder.DataFrameCommitArgs> successCommits = new ArrayList<>();
-        DataFrameBuilder.SuccessCallback commitCallback = cc -> {
+        List<DataFrameBuilder.DataFrameCommitArgs> successCommits = Collections.synchronizedList(new ArrayList());
+        Consumer<DataFrameBuilder.DataFrameCommitArgs> commitCallback = cc -> {
             successCommits.add(cc);
             lastCommitIndex.set((int) cc.getLastFullySerializedSequenceNumber());
         };
 
         AtomicBoolean errorEncountered = new AtomicBoolean(false);
-        Consumer<Throwable> errorCallback = ex -> {
+        BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) -> {
+            //System.err.println(1);
             // Check that we actually did want an exception to happen.
             Throwable expectedError = ExceptionHelpers.getRealException(asyncInjector.getLastCycleException());
 
@@ -189,7 +188,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             }
         };
 
-        val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, commitCallback, errorCallback, executorService());
+        val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitCallback, errorCallback, executorService());
         try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
             for (int i = 0; i < records.size(); i++) {
                 try {
@@ -223,9 +222,10 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
-            ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, commitFrames::add, errorCallback, executorService());
+            List<DataFrameBuilder.DataFrameCommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
+            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+                    Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
+            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (TestLogItem item : records) {
                     b.append(item);
@@ -235,6 +235,9 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                 Assert.assertEquals("A Data Frame was generated but none was expected yet.", 0, commitFrames.size());
             }
 
+            // Wait for all the frames commit callbacks to be invoked.
+            await(() -> commitFrames.size() >= 1, 20);
+
             // Check the correctness of the commit callback (after closing the builder).
             Assert.assertEquals("Exactly one Data Frame was expected so far.", 1, commitFrames.size());
 
@@ -242,6 +245,72 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
             DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
+        }
+    }
+
+    private void testAppendNoFailure(int writeCapacity, int delayMillis) throws Exception {
+        // Happy case: append a bunch of data, and make sure the frames that get output contain it.
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        records.addAll(DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
+
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, delayMillis, executorService())) {
+            dataLog.initialize(TIMEOUT);
+
+            val order = new HashMap<DataFrameBuilder.DataFrameCommitArgs, Integer>();
+            List<DataFrameBuilder.DataFrameCommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
+            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+                    Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
+            val args = new DataFrameBuilder.Args(writeCapacity, DataFrameTestHelpers.appendOrder(order), commitFrames::add, errorCallback, executorService());
+            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
+                for (TestLogItem item : records) {
+                    b.append(item);
+                }
+            }
+
+            // Wait for all the frames commit callbacks to be invoked. Even though the DataFrameBuilder waits (upon close)
+            // for the OrderedItemProcessor to finish, there are other callbacks chained that need to be completed (such
+            // as the one collecting frames in the list above).
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
+            await(() -> commitFrames.size() < frames.size(), delayMillis);
+
+            // It is quite likely that acks will arrive out of order. The DataFrameBuilder has no responsibility for
+            // rearrangement; that should be done by its user.
+            commitFrames.sort(Comparator.comparingInt(order::get));
+
+            // Check the correctness of the commit callback.
+            AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, commitFrames.size());
+            DataFrameBuilder.DataFrameCommitArgs previousCommitArgs = null;
+            for (val ca : commitFrames) {
+                if (previousCommitArgs != null) {
+                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLastFullySerializedSequenceNumber() is not monotonically increasing.",
+                            previousCommitArgs.getLastFullySerializedSequenceNumber(), ca.getLastFullySerializedSequenceNumber());
+                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLastStartedSequenceNumber() is not monotonically increasing.",
+                            previousCommitArgs.getLastStartedSequenceNumber(), ca.getLastStartedSequenceNumber());
+
+                    if (ca.getLogAddress().getSequence() < previousCommitArgs.getLogAddress().getSequence()) {
+                        System.out.println(ca);
+                    }
+                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLogAddress() is not monotonically increasing.",
+                            previousCommitArgs.getLogAddress().getSequence(), ca.getLogAddress().getSequence());
+                }
+
+                previousCommitArgs = ca;
+            }
+
+            //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
+            DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
+        }
+    }
+
+    private void await(Supplier<Boolean> condition, int checkFrequencyMillis) throws TimeoutException {
+        long remainingMillis = TIMEOUT.toMillis();
+        while (!condition.get() && remainingMillis > 0) {
+            Exceptions.handleInterrupted(() -> Thread.sleep(checkFrequencyMillis));
+            remainingMillis -= checkFrequencyMillis;
+        }
+
+        if (!condition.get() && remainingMillis <= 0) {
+            throw new TimeoutException("Timeout expired prior to the condition becoming true.");
         }
     }
 }

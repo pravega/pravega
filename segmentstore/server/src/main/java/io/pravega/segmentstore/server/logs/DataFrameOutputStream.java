@@ -11,22 +11,26 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.function.ConsumerWithException;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.function.Consumer;
+import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Getter;
 
 /**
  * An OutputStream that abstracts writing to Data Frames. Allows writing arbitrary bytes, and seamlessly transitions
  * from one Data Frame to another if the previous Data Frame was full.
  */
+@NotThreadSafe
 class DataFrameOutputStream extends OutputStream {
     //region Members
 
     private final int maxDataFrameSize;
-    private final ConsumerWithException<DataFrame, IOException> dataFrameCompleteCallback;
+    private final Consumer<DataFrame> dataFrameCompleteCallback;
     private DataFrame currentFrame;
     private boolean hasDataInCurrentFrame;
+    @Getter
     private boolean closed;
 
     //endregion
@@ -41,7 +45,7 @@ class DataFrameOutputStream extends OutputStream {
      * @throws IllegalArgumentException If maxDataFrameSize is not a positive integer.
      * @throws NullPointerException     If any of the arguments are null.
      */
-    DataFrameOutputStream(int maxDataFrameSize, ConsumerWithException<DataFrame, IOException> dataFrameCompleteCallback) {
+    DataFrameOutputStream(int maxDataFrameSize, Consumer<DataFrame> dataFrameCompleteCallback) {
         Exceptions.checkArgument(maxDataFrameSize > 0, "maxDataFrameSize", "Must be a positive integer.");
 
         this.maxDataFrameSize = maxDataFrameSize;
@@ -108,11 +112,9 @@ class DataFrameOutputStream extends OutputStream {
      * Seals the current frame (if any), and invokes the dataFrameCompleteCallback with the finished frame.
      * If the dataFrameCompleteCallback failed (and threw an exception), the current frame will be sealed and therefore
      * the DataFrameOutputStream may not be usable.
-     *
-     * @throws IOException If we were unable to publish the frame.
      */
     @Override
-    public void flush() throws IOException {
+    public void flush() {
         Exceptions.checkNotClosed(this.closed, this);
         if (!this.hasDataInCurrentFrame) {
             // Nothing to do.

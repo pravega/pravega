@@ -71,8 +71,8 @@ public class TestDurableDataLog implements DurableDataLog {
     @Override
     public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.appendSyncErrorInjector);
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector)
-                            .thenCompose(v -> this.wrappedLog.append(data, timeout));
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector,
+                () -> this.wrappedLog.append(data, timeout));
     }
 
     @Override
@@ -186,7 +186,25 @@ public class TestDurableDataLog implements DurableDataLog {
      * @return The newly created log.
      */
     public static TestDurableDataLog create(int containerId, int maxAppendSize, ScheduledExecutorService executorService) {
+        return create(containerId, maxAppendSize, 0, executorService);
+    }
+
+    /**
+     * Creates a new TestDurableDataLog backed by an InMemoryDurableDataLog.
+     *
+     * @param containerId       The Id of the container.
+     * @param maxAppendSize     The maximum append size for the log.
+     * @param appendDelayMillis The amount of delay, in milliseconds, for each append operation.
+     * @param executorService   An executor to use for async operations.
+     * @return The newly created log.
+     */
+    public static TestDurableDataLog create(int containerId, int maxAppendSize, int appendDelayMillis, ScheduledExecutorService executorService) {
         try (InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(maxAppendSize, executorService)) {
+            if (appendDelayMillis > 0) {
+                Duration delay = Duration.ofMillis(appendDelayMillis);
+                factory.setAppendDelayProvider(() -> delay);
+            }
+
             DurableDataLog log = factory.createDurableDataLog(containerId);
             return create(log);
         }

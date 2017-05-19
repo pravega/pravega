@@ -35,21 +35,30 @@ import lombok.val;
 public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
     //region members
 
-    private static final int CLOSE_TIMEOUT_MILLIS = 3 * 1000;
+    private static final int CLOSE_TIMEOUT_MILLIS = 60 * 1000;
     private final int capacity;
+    @GuardedBy("processingLock")
     private final Function<ItemType, CompletableFuture<ResultType>> processor;
-    @GuardedBy("lock")
+    @GuardedBy("stateLock")
     private final Deque<QueueItem> pendingItems;
     private final Executor executor;
-    private final Object lock = new Object();
-    private final Object queueProcessorLock = new Object();
-    @GuardedBy("lock")
+
+    /**
+     * Guards access to the OrderedItemProcessor's internal state (counts and queues).
+     */
+    private final Object stateLock = new Object();
+
+    /**
+     * Guards access to the individual item's processors. No two invocations of the processor may run at the same time.
+     */
+    private final Object processingLock = new Object();
+    @GuardedBy("stateLock")
     private int activeCount;
-    @GuardedBy("lock")
+    @GuardedBy("stateLock")
     private RuntimeException failedStateException;
-    @GuardedBy("lock")
+    @GuardedBy("stateLock")
     private boolean closed;
-    @GuardedBy("lock")
+    @GuardedBy("stateLock")
     private ReusableLatch emptyNotifier;
 
     //endregion
@@ -81,7 +90,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     @SneakyThrows(Exception.class)
     public void close() {
         ReusableLatch waitSignal = null;
-        synchronized (this.lock) {
+        synchronized (this.stateLock) {
             if (this.closed) {
                 return;
             }
@@ -122,11 +131,12 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     public CompletableFuture<ResultType> process(ItemType item) {
         Preconditions.checkNotNull(item, "item");
         CompletableFuture<ResultType> result = null;
-        synchronized (this.lock) {
+        synchronized (this.stateLock) {
             Exceptions.checkNotClosed(this.closed, this);
             if (this.failedStateException != null) {
                 throw this.failedStateException;
             }
+
             if (hasCapacity() && this.pendingItems.isEmpty()) {
                 // Not at capacity. Reserve a spot now.
                 this.activeCount++;
@@ -139,7 +149,12 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
 
         if (result == null) {
             // We are below max capacity, so simply process the item, without queuing up.
-            result = processInternal(item);
+            // It is possible, under some conditions, that we may get in here when the queue empties up (by two spots at
+            // the same time). In that case, we need to acquire the processing lock to ensure that we don't accidentally
+            // process this item before we finish processing the last item in the queue.
+            synchronized (this.processingLock) {
+                result = processInternal(item);
+            }
         }
 
         return result;
@@ -149,7 +164,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
      * Clears any errors set by a failed execution.
      */
     public void clearError() {
-        synchronized (this.lock) {
+        synchronized (this.stateLock) {
             Exceptions.checkNotClosed(this.closed, this);
             this.failedStateException = null;
         }
@@ -165,7 +180,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     protected void executionComplete(Throwable exception) {
         Collection<QueueItem> toFail = null;
         val failEx = new AtomicReference<Throwable>();
-        synchronized (this.lock) {
+        synchronized (this.stateLock) {
             // Release the spot occupied by this item's execution.
             this.activeCount--;
             if (exception != null && this.failedStateException == null) {
@@ -192,11 +207,11 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
 
         // We need to ensure the items are still executed in order. Once out of the main sync block, it is possible that
         // this callback may be invoked concurrently after various completions. As such, we need a special handler for
-        // these, using its own synchronization, different from the main one, so that we don't hold that lock for too long.
-        synchronized (this.queueProcessorLock) {
+        // these, using its own synchronization, different from the main one, so that we don't hold that stateLock for too long.
+        synchronized (this.processingLock) {
             while (true) {
                 QueueItem toProcess;
-                synchronized (this.lock) {
+                synchronized (this.stateLock) {
                     if (hasCapacity() && !this.pendingItems.isEmpty()) {
                         // We have spare capacity and we have something to process. Dequeue it and reserve the spot.
                         toProcess = this.pendingItems.pollFirst();
@@ -212,6 +227,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
         }
     }
 
+    @GuardedBy("processingLock")
     private CompletableFuture<ResultType> processInternal(ItemType data) {
         try {
             val result = this.processor.apply(data);
@@ -226,7 +242,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
         }
     }
 
-    @GuardedBy("lock")
+    @GuardedBy("stateLock")
     private boolean hasCapacity() {
         return this.activeCount < this.capacity;
     }

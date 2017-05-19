@@ -9,18 +9,17 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.SequencedItemList;
-import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.LogAddress;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
@@ -33,7 +32,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -127,12 +125,16 @@ class InMemoryDurableDataLog implements DurableDataLog {
     public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ensurePreconditions();
         Duration delay = this.appendDelayProvider.get();
+        CompletableFuture<LogAddress> result = appendInternal(data);
         if (delay.compareTo(Duration.ZERO) <= 0) {
             // No delay, execute right away.
-            return CompletableFuture.supplyAsync(() -> appendInternal(data), this.executorService);
+            return result;
         } else {
             // Schedule the append after the given delay.
-            return FutureHelpers.delayedTask(() -> appendInternal(data), delay, this.executorService);
+            return result.thenComposeAsync(
+                    logAddress -> FutureHelpers.delayedFuture(delay, this.executorService)
+                                               .thenApply(ignored -> logAddress),
+                    this.executorService);
         }
     }
 
@@ -158,10 +160,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     //endregion
 
-    private LogAddress appendInternal(ArrayView data) {
-        Entry entry;
+    private CompletableFuture<LogAddress> appendInternal(ArrayView data) {
         try {
-            entry = new Entry(data);
+            Entry entry = new Entry(data);
             synchronized (this.entries) {
                 entry.sequenceNumber = this.offset;
                 this.entries.add(entry, clientId);
@@ -170,11 +171,11 @@ class InMemoryDurableDataLog implements DurableDataLog {
                 this.offset += entry.data.length;
                 this.lastAppendSequence = entry.sequenceNumber;
             }
-        } catch (DataLogWriterNotPrimaryException | IOException ex) {
-            throw new CompletionException(ex);
+            return CompletableFuture.completedFuture(new InMemoryLogAddress(entry.sequenceNumber));
+        } catch (Throwable ex) {
+            return FutureHelpers.failedFuture(ex);
         }
 
-        return new InMemoryLogAddress(entry.sequenceNumber);
     }
 
     private void ensurePreconditions() {
@@ -309,7 +310,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         long sequenceNumber = -1;
         final byte[] data;
 
-        Entry(ArrayView inputData) throws IOException {
+        Entry(ArrayView inputData) {
             this.data = new byte[inputData.getLength()];
             System.arraycopy(inputData.array(), inputData.arrayOffset(), this.data, 0, this.data.length);
         }

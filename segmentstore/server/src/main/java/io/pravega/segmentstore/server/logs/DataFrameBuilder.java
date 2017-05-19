@@ -12,8 +12,6 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
-import io.pravega.common.function.CallbackHelpers;
-import io.pravega.common.function.ConsumerWithException;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.segmentstore.server.LogItem;
@@ -23,11 +21,14 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Builds DataFrames from LogItems. Splits the serialization of LogItems across multiple Data Frames, if necessary,
@@ -39,8 +40,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
     private final DataFrameOutputStream outputStream;
     private final OrderedItemProcessor<ArrayView, LogAddress> frameProcessor;
-    private final SuccessCallback dataFrameCommitSuccessCallback;
-    private final Consumer<Throwable> dataFrameCommitFailureCallback;
+    private final Args args;
     private boolean closed;
     private long lastSerializedSequenceNumber;
     private long lastStartedSequenceNumber;
@@ -58,16 +58,17 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @throws NullPointerException If any of the arguments are null.
      */
     DataFrameBuilder(DurableDataLog targetLog, Args args) {
-        this.dataFrameCommitSuccessCallback = Preconditions.checkNotNull(args.commitSuccess, "args.commitSuccess");
-        this.dataFrameCommitFailureCallback = Preconditions.checkNotNull(args.commitFailure, "args.commitFailure");
+        this.args = Preconditions.checkNotNull(args, "args");
+        Preconditions.checkNotNull(args.commitSuccess, "args.commitSuccess");
+        Preconditions.checkNotNull(args.commitFailure, "args.commitFailure");
         this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), this::handleDataFrameComplete);
-        this.frameProcessor = new OrderedItemProcessor<>(args.maxWriteCapacity, createAppender(targetLog, args), args.executor);
+        this.frameProcessor = new OrderedItemProcessor<>(args.maxWriteCapacity, createAppender(targetLog), args.executor);
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
     }
 
-    private Function<ArrayView, CompletableFuture<LogAddress>> createAppender(DurableDataLog targetLog, Args args) {
-        return dataFrameContents -> targetLog.append(dataFrameContents, args.writeTimeout);
+    private Function<ArrayView, CompletableFuture<LogAddress>> createAppender(DurableDataLog targetLog) {
+        return dataFrameContents -> targetLog.append(dataFrameContents, this.args.writeTimeout);
     }
 
     //endregion
@@ -75,13 +76,15 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region AutoCloseable Implementation
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (!this.closed) {
             // Stop accepting any new items.
             this.closed = true;
 
             // Seal & ship whatever frame we currently have (if any).
-            this.outputStream.flush();
+            if (!this.outputStream.isClosed()) {
+                this.outputStream.flush();
+            }
 
             // Close the Frame Processor. This waits until all pending frames have been committed.
             this.frameProcessor.close();
@@ -133,6 +136,9 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             // Completely serialize the entry. Note that this may span more than one Data Frame.
             this.lastStartedSequenceNumber = seqNo;
             logItem.serialize(this.outputStream);
+
+            // Indicate to the output stream that have finished writing the record.
+            this.outputStream.endRecord();
             this.lastSerializedSequenceNumber = seqNo;
         } catch (Exception ex) {
             // Discard any information that we have about this record (pretty much revert back to where startNewEntry() would have begun writing).
@@ -142,8 +148,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             throw ex;
         }
 
-        // Indicate to the output stream that have finished writing the record.
-        this.outputStream.endRecord();
     }
 
     /**
@@ -153,36 +157,38 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @param dataFrame The data frame to publish.
      * @throws NullPointerException     If the data frame is null.
      * @throws IllegalArgumentException If the data frame is not sealed.
-     * @throws IOException              When the DataFrame could not be committed.
      */
-    private void handleDataFrameComplete(DataFrame dataFrame) throws IOException {
+    private void handleDataFrameComplete(DataFrame dataFrame) {
         Exceptions.checkArgument(dataFrame.isSealed(), "dataFrame", "Cannot publish a non-sealed DataFrame.");
 
         // Write DataFrame to DataFrameLog.
+        val commitArgs = new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getLength());
         try {
-            // TODO: make this work async.
-            LogAddress logAddress = this.frameProcessor.process(dataFrame.getData()).get();
-
-            // Need to assign the DataFrameSequence that we got back from the DataLog. This is used to record truncation markers.
-            dataFrame.setAddress(logAddress);
-        } catch (Exception ex) {
-            Throwable realException = ExceptionHelpers.getRealException(ex);
-            // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to be discarded.
-            // The Target Log did try to repeat, but we need to admit failure now.
-            this.outputStream.reset();
-            CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, realException, cex -> log.error("dataFrameCommitFailureCallback FAILED.", cex));
+            //System.out.println("BEGIN: " + commitArgs);
+            this.args.beforeCommit.accept(commitArgs);
+            this.frameProcessor
+                    .process(dataFrame.getData())
+                    .thenAcceptAsync(logAddress -> {
+                        commitArgs.setLogAddress(logAddress);
+                        this.args.commitSuccess.accept(commitArgs);
+                    }, this.args.executor)
+                    .exceptionally(ex -> handleException(ex, commitArgs));
+            //  .thenRun(() -> System.out.println("END: " + commitArgs));
+        } catch (Throwable ex) {
+            handleException(ex, commitArgs);
 
             // Even though we invoked the dataFrameCommitFailureCallback() - which was for the DurableLog to handle,
             // we still need to fail the current call, which most likely leads to failing the LogItem that triggered this.
-            throw new IOException(realException);
+            throw ex;
         }
+    }
 
-        try {
-            this.dataFrameCommitSuccessCallback.accept(new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame));
-        } catch (Exception ex) {
-            CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, ex, cex -> log.error("dataFrameCommitFailureCallback FAILED.", cex));
-            throw new IOException(ex);
-        }
+    private Void handleException(Throwable ex, DataFrameCommitArgs commitArgs) {
+        // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to be discarded.
+        // The Target Log did try to repeat, but we need to admit failure now.
+        this.args.commitFailure.accept(ExceptionHelpers.getRealException(ex), commitArgs);
+        close();
+        return null;
     }
 
     //endregion
@@ -209,11 +215,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         @Getter
         private final long lastStartedSequenceNumber;
 
-        /**
-         * The LogAddress of the Data Frame that was committed.
-         */
-        @Getter
-        private final LogAddress logAddress;
+        private final AtomicReference<LogAddress> logAddress;
 
         /**
          * The length of the DataFrame that was just committed.
@@ -226,48 +228,68 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
          *
          * @param lastFullySerializedSequenceNumber The Sequence Number of the last LogItem that was fully serialized (and committed).
          * @param lastStartedSequenceNumber         The Sequence Number of the last LogItem that was started (but not necessarily committed).
-         * @param dataFrame                         The DataFrame that was just committed.
+         * @param dataFrameLength                   The length of the DataFrame that is to be committed.
          */
-        private DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, DataFrame dataFrame) {
+        private DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, int dataFrameLength) {
             assert lastFullySerializedSequenceNumber <= lastStartedSequenceNumber : "lastFullySerializedSequenceNumber (" +
                     lastFullySerializedSequenceNumber + ") is greater than lastStartedSequenceNumber (" + lastStartedSequenceNumber + ")";
-            assert dataFrame.getAddress().getSequence() >= 0 : "negative dataFrameSequence";
 
             this.lastFullySerializedSequenceNumber = lastFullySerializedSequenceNumber;
             this.lastStartedSequenceNumber = lastStartedSequenceNumber;
-            this.logAddress = dataFrame.getAddress();
-            this.dataFrameLength = dataFrame.getLength();
+            this.dataFrameLength = dataFrameLength;
+            this.logAddress = new AtomicReference<>();
+        }
+
+        /**
+         * Gets a value representing the LogAddress of the Data Frame that was committed.
+         */
+        LogAddress getLogAddress() {
+            return this.logAddress.get();
+        }
+
+        private void setLogAddress(LogAddress address) {
+            this.logAddress.set(address);
         }
 
         @Override
         public String toString() {
-            return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, DataFrameSN = %d, Length = %d",
-                    getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), this.logAddress.getSequence(), getDataFrameLength());
+            return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, Address = %s, Length = %d",
+                    getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), this.logAddress, getDataFrameLength());
         }
     }
 
     //endregion
 
-    @FunctionalInterface
-    interface SuccessCallback extends ConsumerWithException<DataFrameCommitArgs, Exception> {
-    }
+    //region Args
 
     @RequiredArgsConstructor
     static class Args {
         final int maxWriteCapacity;
-        /**
-         * A callback that will be invoked upon every successful commit of a Data Frame. When this is called, all entries
-         * added via append() that were successful have been 100% committed. In-flight entries (that have been written
-         * partially) will not be acked.
-         */
-        final SuccessCallback commitSuccess;
 
         /**
-         * A callback that will be invoked upon a failed commit of a Data Frame. When this is called, all entries added via
-         * append() that were successful have failed to commit. The in-flight entries will be failed via the append() method.
+         * A Callback that will be invoked synchronously upon a DataFrame's sealing, and right before it is about to be
+         * submitted to the DurableDataLog processor. The invocation of this method does not imply that the DataFrame
+         * has been successfully committed, or even attempted to be committed.
          */
-        final Consumer<Throwable> commitFailure;
+        final Consumer<DataFrameCommitArgs> beforeCommit;
+
+        /**
+         * A Callback that will be invoked asynchronously upon every successful commit of a Data Frame. When this is
+         * called, all entries added via append() that have a Sequence Number less than or equal to the arg's
+         * LastFullySerializedSequenceNumber have been committed. Any entry with a Sequence Number higher than that
+         * is not yet committed.
+         */
+        final Consumer<DataFrameCommitArgs> commitSuccess;
+
+        /**
+         * A Callback that will be invoked asynchronously upon a failed commit of a Data Frame. When this is called, all
+         * entries added via append() that have a sequence number up to, and including, LastStartedSequenceNumber that
+         * have not previously been acknowledged, should be failed.
+         */
+        final BiConsumer<Throwable, DataFrameCommitArgs> commitFailure;
         final Executor executor;
         final Duration writeTimeout = Duration.ofSeconds(30); // TODO: actual timeout.
     }
+
+    //endregion
 }
