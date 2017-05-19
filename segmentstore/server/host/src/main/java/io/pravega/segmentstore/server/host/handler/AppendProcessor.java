@@ -44,7 +44,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.time.Duration;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -52,7 +52,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
@@ -121,11 +120,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
                         } else {
                             long eventNumber = info.getAttributes().getOrDefault(writer, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
-                            if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                                // First append to this segment.
-                                eventNumber = -1;
-                            }
-
                             synchronized (lock) {
                                 latestEventNumbers.putIfAbsent(writer, eventNumber);
                             }
@@ -197,10 +191,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private CompletableFuture<Void> storeAppend(Append append) {
-        val attributes = Arrays.asList(new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfGreater,
-                                                           append.getEventNumber()),
-                                       new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate,
-                                                           append.getEventCount()));
+        ArrayList<AttributeUpdate> attributes = new ArrayList<>(2);
+        synchronized (lock) {
+            long lastEventNumber = latestEventNumbers.get(append.getWriterId());
+            if (lastEventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                attributes.add(new AttributeUpdate(append.getWriterId(), AttributeUpdateType.None,
+                                                   append.getEventNumber()));
+            } else {
+                attributes.add(new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals,
+                                                   append.getEventNumber(), lastEventNumber));
+            }
+        }
+        attributes.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
         ByteBuf buf = append.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
@@ -220,10 +222,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             "Synchronization error in: " + AppendProcessor.this.getClass().getName());
                 }
                 outstandingAppend = null;
-                latestEventNumbers.put(append.getWriterId(), append.getEventNumber());
                 if (exception != null && !conditionalFailed) {
                     waitingAppends.removeAll(append.getWriterId());
                     latestEventNumbers.remove(append.getWriterId());
+                } else {
+                    latestEventNumbers.put(append.getWriterId(), append.getEventNumber());                    
                 }
             }
       
