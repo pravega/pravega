@@ -53,6 +53,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
@@ -83,7 +84,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @GuardedBy("lock")
     private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
     @GuardedBy("lock")
-    private final HashMap<UUID, Long> latestEventNumbers = new HashMap<>();
+    private final HashMap<Pair<String, UUID>, Long> latestEventNumbers = new HashMap<>();
     @GuardedBy("lock")
     private Append outstandingAppend = null;
 
@@ -121,7 +122,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         } else {
                             long eventNumber = info.getAttributes().getOrDefault(writer, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
                             synchronized (lock) {
-                                latestEventNumbers.putIfAbsent(writer, eventNumber);
+                                latestEventNumbers.putIfAbsent(Pair.of(newSegment, writer), eventNumber);
                             }
                             connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
                         }
@@ -193,7 +194,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private CompletableFuture<Void> storeAppend(Append append) {
         ArrayList<AttributeUpdate> attributes = new ArrayList<>(2);
         synchronized (lock) {
-            long lastEventNumber = latestEventNumbers.get(append.getWriterId());
+            long lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
             if (lastEventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
                 attributes.add(new AttributeUpdate(append.getWriterId(), AttributeUpdateType.None,
                                                    append.getEventNumber()));
@@ -224,9 +225,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 outstandingAppend = null;
                 if (exception != null && !conditionalFailed) {
                     waitingAppends.removeAll(append.getWriterId());
-                    latestEventNumbers.remove(append.getWriterId());
+                    latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
                 } else {
-                    latestEventNumbers.put(append.getWriterId(), append.getEventNumber());                    
+                    latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());                    
                 }
             }
       
@@ -312,7 +313,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     public void append(Append append) {
         synchronized (lock) {
             UUID id = append.getWriterId();
-            Long lastEventNumber = latestEventNumbers.get(id);
+            Long lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), id));
             if (lastEventNumber == null) {
                 throw new IllegalStateException("Data from unexpected connection: " + id);
             }
