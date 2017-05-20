@@ -89,7 +89,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (msg instanceof Append) {
             Append append = (Append) msg;
             Session session = setupSegments.get(append.segment);
-            if (session == null || !session.id.equals(append.getConnectionId())) {
+            if (session == null || !session.id.equals(append.getWriterId())) {
                 throw new InvalidMessageException("Sending appends without setting up the append.");
             }
             if (append.getEventNumber() <= session.lastEventNumber) {
@@ -98,7 +98,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             }
             if (append.isConditional()) {
                 breakFromAppend(out);
-                ConditionalAppend ca = new ConditionalAppend(append.connectionId,
+                ConditionalAppend ca = new ConditionalAppend(append.writerId,
                         append.eventNumber,
                         append.getExpectedLength(),
                         wrappedBuffer(serializeMessage(new Event(append.getData()))));
@@ -150,7 +150,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             breakFromAppend(out);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
-            setupSegments.put(setup.getSegment(), new Session(setup.getConnectionId()));
+            setupSegments.put(setup.getSegment(), new Session(setup.getWriterId()));
         } else if (msg instanceof Flush) {
             Flush flush = (Flush) msg;
             if (currentBlockSize == flush.getBlockSize()) {

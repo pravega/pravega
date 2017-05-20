@@ -61,7 +61,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
  */
 @RequiredArgsConstructor
 @Slf4j
-@ToString(of = {"segmentName", "connectionId", "state"})
+@ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
@@ -70,7 +70,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final Supplier<Long> requestIdGenerator = new AtomicLong(0)::incrementAndGet;
-    private final UUID connectionId;
+    private final UUID writerId;
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
@@ -298,7 +298,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             ackUpTo(ackLevel);
             List<Append> toRetransmit = state.getAllInflight()
                                              .stream()
-                                             .map(entry -> new Append(segmentName, connectionId, entry.getKey(),
+                                             .map(entry -> new Append(segmentName, writerId, entry.getKey(),
                                                                       Unpooled.wrappedBuffer(entry.getValue()
                                                                                                   .getData()),
                                                                       entry.getValue().getExpectedOffset()))
@@ -347,7 +347,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         ClientConnection connection = getConnection();
         long eventNumber = state.addToInflight(event);
         try {
-            connection.send(new Append(segmentName, connectionId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
+            connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
                                        event.getExpectedOffset()));
         } catch (ConnectionFailedException e) {
             log.warn("Connection failed due to: ", e);
@@ -380,7 +380,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 });
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
-            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), connectionId, segmentName);
+            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
             connection.send(cmd);
         }
     }
