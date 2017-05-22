@@ -156,7 +156,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
                     // unable to write the rest of it.
                     result.clear();
                 } else if (!result.hasData()) {
-                    // We found an entry that is not marked as "First Record Entry", yet we are expecting a one marked as such
+                    // We found an entry that is not marked as "First Record Entry", yet we are expecting one marked as such
                     // This happens when the DurableDataLog has been truncated, and an entry has been "cut" in two.
                     // In this case, this entry is garbage, so it should be skipped.
                     if (this.readEntryCount > 0) {

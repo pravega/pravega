@@ -13,6 +13,7 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
@@ -27,10 +28,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -56,14 +58,6 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
     @Override
     protected int getThreadPoolSize() {
         return 5;
-    }
-
-    @Test
-    public void testMulti() throws Exception {
-        for (int i = 0; i < 1000; i++) {
-            testAppendWithCommitFailure();
-            System.out.println(i);
-        }
     }
 
     /**
@@ -106,7 +100,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
-            ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
+            List<DataFrameBuilder.DataFrameCommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
             BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
@@ -119,15 +113,16 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                     }
                 }
             }
+            // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
+            await(() -> commitFrames.size() >= frames.size(), 20);
+
+            Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
 
             // Check the correctness of the commit callback.
             AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, commitFrames.size());
             AssertExtensions.assertGreaterThan("Not enough LogItems were failed.", records.size() / failEvery, failedIndices.size());
 
-            // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
-
-            Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
             DataFrameTestHelpers.checkReadRecords(frames, records, failedIndices, r -> new ByteArraySegment(r.getFullSerialization()));
         }
     }
@@ -149,7 +144,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
 
-        val asyncInjector = new ErrorInjector<Exception>(count -> count == failAt, IntentionalException::new);
+        val asyncInjector = new ErrorInjector<Exception>(count -> count >= failAt, IntentionalException::new);
         dataLog.setAppendErrorInjectors(null, asyncInjector);
 
         // lastCommitIndex is an index inside the records array that indicate what we think we have committed so far.
@@ -165,31 +160,36 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             }
         };
 
-        AtomicBoolean errorEncountered = new AtomicBoolean(false);
+        // Keep a reference to the builder (once created) so we can inspect its failure cause).
+        val builderRef = new AtomicReference<DataFrameBuilder>();
         BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) -> {
             // Check that we actually did want an exception to happen.
             Throwable expectedError = ExceptionHelpers.getRealException(asyncInjector.getLastCycleException());
             Assert.assertNotNull("An error happened but none was expected: " + ex, expectedError);
             Throwable actualError = ExceptionHelpers.getRealException(ex);
-            if (!errorEncountered.getAndSet(true)) {
+            if (!(ex instanceof ObjectClosedException)) {
                 // First failure.
                 Assert.assertEquals("Unexpected error occurred upon commit.", expectedError, actualError);
-            } else {
-                // Subsequent failures.
-                Assert.assertTrue("Unexpected error occurred upon commit.", actualError instanceof ObjectClosedException);
             }
+
+            if (builderRef.get().failureCause() != null) {
+                checkFailureCause(builderRef.get(), ce -> ce instanceof IntentionalException);
+            }
+
             failCount.incrementAndGet();
         };
 
         val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitCallback, errorCallback, executorService());
         try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
-            for (val r : records) {
-                try {
+            builderRef.set(b);
+            try {
+                for (val r : records) {
                     b.append(r);
-                } catch (ObjectClosedException ex) {
-                    // If DataFrameBuilder is closed, then we must have had an exception thrown via the callback before.
-                    Assert.assertTrue("DataFrameBuilder is closed, yet no exception was recorded yet.", errorEncountered.get());
                 }
+            } catch (ObjectClosedException ex) {
+                // If DataFrameBuilder is closed, then we must have had an exception thrown via the callback before.
+                Assert.assertNotNull("DataFrameBuilder is closed, yet failure cause is not set yet.", b.failureCause());
+                checkFailureCause(b, ce -> ce instanceof IntentionalException);
             }
         }
 
@@ -201,7 +201,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         await(() -> successCommits.size() >= frames.size(), 20);
 
         Assert.assertEquals("Unexpected number of frames generated.", successCommits.size(), frames.size());
-        Thread.sleep(100);
+
         // Read all committed items.
         val reader = new DataFrameReader<TestLogItem>(dataLog, new TestLogItemFactory(), CONTAINER_ID);
         val readItems = new ArrayList<TestLogItem>();
@@ -211,10 +211,17 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         }
 
         val expectedItems = records.stream().filter(r -> r.getSequenceNumber() <= lastCommitIndex.get()).collect(Collectors.toList());
-        AssertExtensions.assertListEquals("", expectedItems, readItems, (e, a) -> {
-            return e.getSequenceNumber() == a.getSequenceNumber()
-                    && e.getData().length == a.getData().length;
-        });
+        AssertExtensions.assertListEquals("Items read back do not match expected values.", expectedItems, readItems, TestLogItem::equals);
+    }
+
+    private void checkFailureCause(DataFrameBuilder builder, Predicate<Throwable> exceptionTester) {
+        Throwable causingException = builder.failureCause();
+        if (causingException instanceof OrderedItemProcessor.ProcessingException) {
+            causingException = causingException.getCause();
+        }
+
+        Assert.assertTrue("Unexpected failure cause for DataFrameBuilder: " + builder.failureCause(),
+                exceptionTester.test(causingException));
     }
 
     /**

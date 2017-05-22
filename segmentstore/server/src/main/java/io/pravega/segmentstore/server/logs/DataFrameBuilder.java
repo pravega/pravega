@@ -51,6 +51,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     private long lastSerializedSequenceNumber;
     @GuardedBy("this")
     private long lastStartedSequenceNumber;
+    private final AtomicReference<Throwable> failureCause;
 
     //endregion
 
@@ -72,6 +73,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         this.frameProcessor = new OrderedItemProcessor<>(args.maxWriteCapacity, createAppender(targetLog), args.executor);
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
+        this.failureCause = new AtomicReference<>();
     }
 
     private Function<ArrayView, CompletableFuture<LogAddress>> createAppender(DurableDataLog targetLog) {
@@ -106,10 +108,19 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region Operations
 
     /**
+     * If in a failed state (and thus closed), returns the original exception that caused the failure.
+     *
+     * @return The causing exception, or null if none.
+     */
+    Throwable failureCause() {
+        return this.failureCause.get();
+    }
+
+    /**
      * Resets the DataFrameBuilder to its initial state.
      */
     @Deprecated
-    public synchronized void reset() {
+    synchronized void reset() {
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
         this.outputStream.reset();
@@ -129,10 +140,11 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @throws IOException          If the LogItem failed to serialize to the DataLog, or if one of the DataFrames containing
      *                              the LogItem failed to commit to the DataFrameLog.
      */
-    public synchronized void append(T logItem) throws IOException {
+    synchronized void append(T logItem) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
         long seqNo = logItem.getSequenceNumber();
-        Exceptions.checkArgument(this.lastSerializedSequenceNumber < seqNo, "logItem", "Invalid sequence number. Expected: greater than %d, given: %d.", this.lastSerializedSequenceNumber, seqNo);
+        Exceptions.checkArgument(this.lastSerializedSequenceNumber < seqNo, "logItem",
+                "Invalid sequence number. Expected: greater than %d, given: %d.", this.lastSerializedSequenceNumber, seqNo);
 
         // Remember the last Started SeqNo, in case of failure.
         long previousLastStartedSequenceNumber = this.lastStartedSequenceNumber;
@@ -147,18 +159,19 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             // Indicate to the output stream that have finished writing the record.
             this.outputStream.endRecord();
             this.lastSerializedSequenceNumber = seqNo;
-        } catch (ObjectClosedException ex){
-            close();
-            throw ex;
-        }
-        catch (Exception ex) {
-            // Discard any information that we have about this record (pretty much revert back to where startNewEntry() would have begun writing).
-            // The try-catch inside handleDataFrameComplete() deals with the DataFrame-level handling; here we just deal with this LogItem.
-            this.outputStream.discardRecord();
-            this.lastStartedSequenceNumber = previousLastStartedSequenceNumber;
-            throw ex;
-        }
+        } catch (Exception ex) {
+            if (ex instanceof ObjectClosedException) {
+                // OrderedItemProcessor has closed (most likely due to a DataFrame commit failure. We need to close as well.
+                close();
+            } else {
+                // Discard any information that we have about this record (pretty much revert back to where startNewEntry()
+                // would have begun writing).
+                this.outputStream.discardRecord();
+                this.lastStartedSequenceNumber = previousLastStartedSequenceNumber;
+            }
 
+            throw ex;
+        }
     }
 
     /**
@@ -186,9 +199,9 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
                         commitArgs.setLogAddress(logAddress);
                         this.args.commitSuccess.accept(commitArgs);
                     }, this.args.executor)
-                    .exceptionally(ex -> handleException(ex, commitArgs));
+                    .exceptionally(ex -> handleProcessingException(ex, commitArgs));
         } catch (Throwable ex) {
-            handleException(ex, commitArgs);
+            handleProcessingException(ex, commitArgs);
 
             // Even though we invoked the dataFrameCommitFailureCallback() - which was for the DurableLog to handle,
             // we still need to fail the current call, which most likely leads to failing the LogItem that triggered this.
@@ -196,11 +209,17 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         }
     }
 
-    private Void handleException(Throwable ex, DataFrameCommitArgs commitArgs) {
+    private Void handleProcessingException(Throwable ex, DataFrameCommitArgs commitArgs) {
         // This failure is due to us being unable to commit a DataFrame, whether synchronously or via a callback. The
         // DataFrameBuilder cannot recover from this; as such it will close and will leave it to the caller to handle
         // the failure.
-        this.args.commitFailure.accept(ExceptionHelpers.getRealException(ex), commitArgs);
+        ex = ExceptionHelpers.getRealException(ex);
+        if (!(ex instanceof ObjectClosedException)) {
+            // This is usually from a subsequent call. We want to store the actual failure cause.
+            this.failureCause.compareAndSet(null, ex);
+        }
+
+        this.args.commitFailure.accept(ex, commitArgs);
         close();
         return null;
     }

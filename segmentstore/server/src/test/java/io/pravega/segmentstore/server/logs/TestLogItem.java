@@ -28,13 +28,13 @@ class TestLogItem implements LogItem {
     private double failAfterCompleteRatio;
     private IOException exception;
 
-    public TestLogItem(long seqNo, byte[] data) {
+    TestLogItem(long seqNo, byte[] data) {
         this.seqNo = seqNo;
         this.data = data;
         this.failAfterCompleteRatio = -1;
     }
 
-    public TestLogItem(InputStream input) throws SerializationException {
+    TestLogItem(InputStream input) throws SerializationException {
         DataInputStream dataInput = new DataInputStream(input);
         try {
             this.seqNo = dataInput.readLong();
@@ -48,7 +48,7 @@ class TestLogItem implements LogItem {
         this.failAfterCompleteRatio = -1;
     }
 
-    public void failSerializationAfterComplete(double ratio, IOException exception) {
+    void failSerializationAfterComplete(double ratio, IOException exception) {
         if (exception != null) {
             Preconditions.checkArgument(0 <= ratio && ratio < 1, "ratio");
         }
@@ -57,11 +57,11 @@ class TestLogItem implements LogItem {
         this.exception = exception;
     }
 
-    public byte[] getData() {
+    byte[] getData() {
         return this.data;
     }
 
-    public byte[] getFullSerialization() {
+    byte[] getFullSerialization() {
         byte[] result = new byte[Long.BYTES + Integer.BYTES + this.data.length];
         try {
             this.serialize(new FixedByteArrayOutputStream(result, 0, result.length));
@@ -89,5 +89,29 @@ class TestLogItem implements LogItem {
             dataOutput.write(data, 0, breakPoint);
             throw this.exception;
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(this.seqNo);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof TestLogItem) {
+            TestLogItem other = (TestLogItem) obj;
+            boolean match = getSequenceNumber() == other.getSequenceNumber() && this.data.length == other.data.length;
+            if (match) {
+                for (int i = 0; i < this.data.length; i++) {
+                    if (this.data[i] != other.data[i]) {
+                        return false;
+                    }
+                }
+            }
+
+            return match;
+        }
+
+        return false;
     }
 }
