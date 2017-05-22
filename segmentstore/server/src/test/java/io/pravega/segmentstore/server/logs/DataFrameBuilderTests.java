@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.test.common.AssertExtensions;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -140,10 +142,9 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
     public void testAppendWithCommitFailure() throws Exception {
         int failAt = 7; // Fail the commit to DurableDataLog after this many writes.
 
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        List<TestLogItem> records = DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
         records.addAll(DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
-        HashSet<Integer> failedIndices = new HashSet<>();
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
@@ -151,64 +152,69 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         val asyncInjector = new ErrorInjector<Exception>(count -> count == failAt, IntentionalException::new);
         dataLog.setAppendErrorInjectors(null, asyncInjector);
 
-        // lastCommitIndex & lastAttemptIndex are indices inside the records array that indicate what we think
-        // we have committed and what we have not.
+        // lastCommitIndex is an index inside the records array that indicate what we think we have committed so far.
         // We may use the array index interchangeably with the LogItem.SequenceNumber. The only reason this works
         // is because the array index equals the LogItem.SequenceNumber - this simplifies things a lot.
         AtomicInteger lastCommitIndex = new AtomicInteger(-1);
-        AtomicInteger lastAttemptIndex = new AtomicInteger();
         AtomicInteger failCount = new AtomicInteger();
-        List<DataFrameBuilder.DataFrameCommitArgs> successCommits = Collections.synchronizedList(new ArrayList());
+        List<DataFrameBuilder.DataFrameCommitArgs> successCommits = Collections.synchronizedList(new ArrayList<>());
         Consumer<DataFrameBuilder.DataFrameCommitArgs> commitCallback = cc -> {
             successCommits.add(cc);
-            lastCommitIndex.set((int) cc.getLastFullySerializedSequenceNumber());
+            synchronized (lastCommitIndex) {
+                lastCommitIndex.set(Math.max(lastCommitIndex.get(), (int) cc.getLastFullySerializedSequenceNumber()));
+            }
         };
 
         AtomicBoolean errorEncountered = new AtomicBoolean(false);
         BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) -> {
-            //System.err.println(1);
             // Check that we actually did want an exception to happen.
             Throwable expectedError = ExceptionHelpers.getRealException(asyncInjector.getLastCycleException());
-
             Assert.assertNotNull("An error happened but none was expected: " + ex, expectedError);
             Throwable actualError = ExceptionHelpers.getRealException(ex);
-            if (errorEncountered.getAndSet(true)) {
-                // An error had previously been encountered. Verify that now we throw IllegalState since the DataFrameBuilder
-                // is no longer usable.
-                Assert.assertTrue("", actualError instanceof IllegalStateException);
-                actualError = ExceptionHelpers.getRealException(actualError.getCause());
+            if (!errorEncountered.getAndSet(true)) {
+                // First failure.
+                Assert.assertEquals("Unexpected error occurred upon commit.", expectedError, actualError);
+            } else {
+                // Subsequent failures.
+                Assert.assertTrue("Unexpected error occurred upon commit.", actualError instanceof ObjectClosedException);
             }
-
-            Assert.assertEquals("Unexpected error occurred upon commit.", expectedError, actualError);
             failCount.incrementAndGet();
-
-            // Need to indicate that all LogItems since the last one committed until the one currently executing have been failed.
-            for (int i = lastCommitIndex.get() + 1; i <= lastAttemptIndex.get(); i++) {
-                failedIndices.add(i);
-            }
         };
 
         val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitCallback, errorCallback, executorService());
         try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
-            for (int i = 0; i < records.size(); i++) {
+            for (val r : records) {
                 try {
-                    lastAttemptIndex.set(i);
-                    b.append(records.get(i));
-                } catch (IOException ex) {
-                    failedIndices.add(i);
+                    b.append(r);
+                } catch (ObjectClosedException ex) {
+                    // If DataFrameBuilder is closed, then we must have had an exception thrown via the callback before.
+                    Assert.assertTrue("DataFrameBuilder is closed, yet no exception was recorded yet.", errorEncountered.get());
                 }
             }
         }
 
-        // Check the correctness of the commit callback.
-        AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, successCommits.size());
-        AssertExtensions.assertGreaterThan("Not enough LogItems were failed.", 1, failedIndices.size());
-
         // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
         List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
 
+        // Check the correctness of the commit callback.
+        AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, frames.size());
+        await(() -> successCommits.size() >= frames.size(), 20);
+
         Assert.assertEquals("Unexpected number of frames generated.", successCommits.size(), frames.size());
-        DataFrameTestHelpers.checkReadRecords(frames, records, failedIndices, r -> new ByteArraySegment(r.getFullSerialization()));
+        Thread.sleep(100);
+        // Read all committed items.
+        val reader = new DataFrameReader<TestLogItem>(dataLog, new TestLogItemFactory(), CONTAINER_ID);
+        val readItems = new ArrayList<TestLogItem>();
+        DataFrameReader.ReadResult<TestLogItem> readItem;
+        while ((readItem = reader.getNext()) != null) {
+            readItems.add(readItem.getItem());
+        }
+
+        val expectedItems = records.stream().filter(r -> r.getSequenceNumber() <= lastCommitIndex.get()).collect(Collectors.toList());
+        AssertExtensions.assertListEquals("", expectedItems, readItems, (e, a) -> {
+            return e.getSequenceNumber() == a.getSequenceNumber()
+                    && e.getData().length == a.getData().length;
+        });
     }
 
     /**
@@ -271,7 +277,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             // for the OrderedItemProcessor to finish, there are other callbacks chained that need to be completed (such
             // as the one collecting frames in the list above).
             List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
-            await(() -> commitFrames.size() < frames.size(), delayMillis);
+            await(() -> commitFrames.size() >= frames.size(), delayMillis);
 
             // It is quite likely that acks will arrive out of order. The DataFrameBuilder has no responsibility for
             // rearrangement; that should be done by its user.

@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -195,7 +196,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
             AssertExtensions.assertThrows(
                     "Queued-up item did not fail when a previous item failed.",
                     resultFutures.get(i)::join,
-                    ex -> ex instanceof IllegalStateException && ex.getCause() instanceof IntentionalException);
+                    ex -> ex instanceof OrderedItemProcessor.ProcessingException && ex.getCause() instanceof IntentionalException);
         }
 
         for (int i = 0; i < CAPACITY; i++) {
@@ -206,18 +207,9 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
 
         // Verify we can't add anything else ...
         AssertExtensions.assertThrows(
-                "process() allowed adding a new item after failure.",
+                "failure did not cause OrderedItemProcessor to close.",
                 () -> p.process(Integer.MAX_VALUE),
-                ex -> ex instanceof IllegalStateException && ex.getCause() instanceof IntentionalException);
-        Assert.assertFalse("process() did execute a new item even when failed.", processedItems.contains(Integer.MAX_VALUE));
-
-        // .. until we clear the error.
-        p.clearError();
-        p.process(Integer.MAX_VALUE);
-        Assert.assertTrue("process() did not execute a new item after the failure cleared.", processedItems.contains(Integer.MAX_VALUE));
-
-        // Finalize all remaining item processors - otherwise the close() method will wait for them.
-        processFutures.forEach(f -> f.complete(0));
+                ex -> ex instanceof ObjectClosedException);
     }
 
     /**

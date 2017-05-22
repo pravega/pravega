@@ -9,11 +9,10 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.server.LogItem;
-import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -41,7 +40,8 @@ class TestLogItem implements LogItem {
             this.seqNo = dataInput.readLong();
             this.data = new byte[dataInput.readInt()];
             int readBytes = StreamHelpers.readAll(dataInput, this.data, 0, this.data.length);
-            assert readBytes == this.data.length;
+            assert readBytes == this.data.length
+                    : "SeqNo " + this.seqNo + ": expected to read " + this.data.length + " bytes, but read " + readBytes;
         } catch (IOException ex) {
             throw new SerializationException("TestLogItem.deserialize", ex.getMessage(), ex);
         }

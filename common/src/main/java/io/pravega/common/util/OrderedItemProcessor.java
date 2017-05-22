@@ -55,8 +55,6 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     @GuardedBy("stateLock")
     private int activeCount;
     @GuardedBy("stateLock")
-    private RuntimeException failedStateException;
-    @GuardedBy("stateLock")
     private boolean closed;
     @GuardedBy("stateLock")
     private ReusableLatch emptyNotifier;
@@ -133,10 +131,6 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
         CompletableFuture<ResultType> result = null;
         synchronized (this.stateLock) {
             Exceptions.checkNotClosed(this.closed, this);
-            if (this.failedStateException != null) {
-                throw this.failedStateException;
-            }
-
             if (hasCapacity() && this.pendingItems.isEmpty()) {
                 // Not at capacity. Reserve a spot now.
                 this.activeCount++;
@@ -161,16 +155,6 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     }
 
     /**
-     * Clears any errors set by a failed execution.
-     */
-    public void clearError() {
-        synchronized (this.stateLock) {
-            Exceptions.checkNotClosed(this.closed, this);
-            this.failedStateException = null;
-        }
-    }
-
-    /**
      * Callback that is invoked when an item has completed execution.
      *
      * @param exception (Optional) An exception from the execution. If set, it indicates the item has not been
@@ -183,14 +167,12 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
         synchronized (this.stateLock) {
             // Release the spot occupied by this item's execution.
             this.activeCount--;
-            if (exception != null && this.failedStateException == null) {
-                // Need to fail all future items and enter a Failed State to prevent new items from being processed.
-                // We can only get out of the Failed state upon explicitly clearing the exception using clearError().
-                this.failedStateException = new IllegalStateException("A previous item failed to commit. " +
-                        "Cannot process new items until manually cleared.", exception);
-                failEx.set(this.failedStateException);
+            if (exception != null && !this.closed) {
+                // Need to fail all future items and close to prevent new items from being processed.
+                failEx.set(new ProcessingException("A previous item failed to commit. Cannot process new items.", exception));
                 toFail = new ArrayList<>(this.pendingItems);
                 this.pendingItems.clear();
+                this.closed = true;
             }
 
             if (this.emptyNotifier != null && this.activeCount == 0 && this.pendingItems.isEmpty()) {
@@ -222,7 +204,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
                     }
                 }
 
-                FutureHelpers.completeAfter(() -> processInternal(toProcess.data), toProcess.result);
+                FutureHelpers.completeAfter(() -> processInternal(toProcess.data), toProcess.result, this.executor);
             }
         }
     }
@@ -245,6 +227,16 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     @GuardedBy("stateLock")
     private boolean hasCapacity() {
         return this.activeCount < this.capacity;
+    }
+
+    //endregion
+
+    //region ProcessingException
+
+    public static class ProcessingException extends IllegalStateException {
+        private ProcessingException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
     //endregion

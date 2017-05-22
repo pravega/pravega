@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.segmentstore.server.LogItem;
@@ -25,24 +26,30 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 /**
  * Builds DataFrames from LogItems. Splits the serialization of LogItems across multiple Data Frames, if necessary,
  * and publishes the finished Data Frames to the given DataFrameLog.
  */
 @Slf4j
+@ThreadSafe
 class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region Members
 
+    @GuardedBy("this")
     private final DataFrameOutputStream outputStream;
     private final OrderedItemProcessor<ArrayView, LogAddress> frameProcessor;
     private final Args args;
+    @GuardedBy("this")
     private boolean closed;
+    @GuardedBy("this")
     private long lastSerializedSequenceNumber;
+    @GuardedBy("this")
     private long lastStartedSequenceNumber;
 
     //endregion
@@ -76,7 +83,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region AutoCloseable Implementation
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (!this.closed) {
             // Stop accepting any new items.
             this.closed = true;
@@ -101,11 +108,11 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     /**
      * Resets the DataFrameBuilder to its initial state.
      */
-    public void reset() {
+    @Deprecated
+    public synchronized void reset() {
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
         this.outputStream.reset();
-        this.frameProcessor.clearError();
     }
 
     /**
@@ -122,7 +129,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @throws IOException          If the LogItem failed to serialize to the DataLog, or if one of the DataFrames containing
      *                              the LogItem failed to commit to the DataFrameLog.
      */
-    public void append(T logItem) throws IOException {
+    public synchronized void append(T logItem) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
         long seqNo = logItem.getSequenceNumber();
         Exceptions.checkArgument(this.lastSerializedSequenceNumber < seqNo, "logItem", "Invalid sequence number. Expected: greater than %d, given: %d.", this.lastSerializedSequenceNumber, seqNo);
@@ -140,7 +147,11 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             // Indicate to the output stream that have finished writing the record.
             this.outputStream.endRecord();
             this.lastSerializedSequenceNumber = seqNo;
-        } catch (Exception ex) {
+        } catch (ObjectClosedException ex){
+            close();
+            throw ex;
+        }
+        catch (Exception ex) {
             // Discard any information that we have about this record (pretty much revert back to where startNewEntry() would have begun writing).
             // The try-catch inside handleDataFrameComplete() deals with the DataFrame-level handling; here we just deal with this LogItem.
             this.outputStream.discardRecord();
@@ -162,9 +173,12 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         Exceptions.checkArgument(dataFrame.isSealed(), "dataFrame", "Cannot publish a non-sealed DataFrame.");
 
         // Write DataFrame to DataFrameLog.
-        val commitArgs = new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getLength());
+        DataFrameCommitArgs commitArgs;
+        synchronized (this) {
+            commitArgs = new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getLength());
+        }
+
         try {
-            //System.out.println("BEGIN: " + commitArgs);
             this.args.beforeCommit.accept(commitArgs);
             this.frameProcessor
                     .process(dataFrame.getData())
@@ -173,7 +187,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
                         this.args.commitSuccess.accept(commitArgs);
                     }, this.args.executor)
                     .exceptionally(ex -> handleException(ex, commitArgs));
-            //  .thenRun(() -> System.out.println("END: " + commitArgs));
         } catch (Throwable ex) {
             handleException(ex, commitArgs);
 
@@ -184,8 +197,9 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     }
 
     private Void handleException(Throwable ex, DataFrameCommitArgs commitArgs) {
-        // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to be discarded.
-        // The Target Log did try to repeat, but we need to admit failure now.
+        // This failure is due to us being unable to commit a DataFrame, whether synchronously or via a callback. The
+        // DataFrameBuilder cannot recover from this; as such it will close and will leave it to the caller to handle
+        // the failure.
         this.args.commitFailure.accept(ExceptionHelpers.getRealException(ex), commitArgs);
         close();
         return null;
