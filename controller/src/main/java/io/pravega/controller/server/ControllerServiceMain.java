@@ -101,7 +101,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     protected void run() throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, this.objectId, "run");
         try {
-            if (serviceConfig.getControllerClusterListenerConfig().isPresent()) {
+            if (serviceConfig.isControllerClusterListenerEnabled()) {
 
                 // Controller cluster feature is enabled.
                 while (isRunning()) {
@@ -236,7 +236,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
     @VisibleForTesting
     public void forceClientSessionExpiry() throws Exception {
-        Preconditions.checkState(serviceConfig.getControllerClusterListenerConfig().isPresent(),
+        Preconditions.checkState(serviceConfig.isControllerClusterListenerEnabled(),
                 "Controller Cluster not enabled");
         awaitServiceStarting();
         ZKUtils.simulateZkSessionExpiry((CuratorFramework) this.storeClient.getClient());

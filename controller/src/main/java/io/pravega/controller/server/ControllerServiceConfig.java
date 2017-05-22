@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.controller.fault.ControllerClusterListenerConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
@@ -28,35 +27,14 @@ public interface ControllerServiceConfig {
      *
      * @return The size of the thread pool used by controller service API handler.
      */
-    int getServiceThreadPoolSize();
+    int getThreadPoolSize();
 
     /**
      * Fetches the size of the thread pool used by controller's task processor.
      *
      * @return The size of the thread pool used by controller's task processor.
      */
-    int getTaskThreadPoolSize();
-
-    /**
-     * Fetches the size of the thread pool used by controller's stream metadata store.
-     *
-     * @return The size of the thread pool used by controller's stream metadata store.
-     */
-    int getStoreThreadPoolSize();
-
-    /**
-     * Fetches the size of the thread pool used by controller's event processors.
-     *
-     * @return The size of the thread pool used by controller's event processors.
-     */
-    int getEventProcThreadPoolSize();
-
-    /**
-     * Fetches the size of the thread pool used by controller's request handlers.
-     *
-     * @return The size of the thread pool used by controller's request handlers.
-     */
-    int getRequestHandlerThreadPoolSize();
+    int getScheduledExecutorThreadPoolSize();
 
     /**
      * Fetches the configuration of the store client used for accessing stream metadata store.
@@ -77,7 +55,7 @@ public interface ControllerServiceConfig {
      *
      * @return Whether the controller cluster listener is enabled, and its configuration if enabled.
      */
-    Optional<ControllerClusterListenerConfig> getControllerClusterListenerConfig();
+    boolean isControllerClusterListenerEnabled();
 
     /**
      * Fetches the configuration of service managing transaction timeouts.

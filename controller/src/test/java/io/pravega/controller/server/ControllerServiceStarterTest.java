@@ -11,8 +11,6 @@ package io.pravega.controller.server;
 
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.controller.fault.ControllerClusterListenerConfig;
-import io.pravega.controller.fault.impl.ControllerClusterListenerConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClient;
@@ -31,7 +29,6 @@ import org.junit.Test;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 /**
  * ControllerServiceStarter tests.
@@ -101,32 +98,16 @@ public abstract class ControllerServiceStarterTest {
                         Config.HOST_STORE_CONTAINER_COUNT))
                 .build();
 
-        Optional<ControllerClusterListenerConfig> controllerClusterListenerConfig;
-        if (!disableControllerCluster) {
-            controllerClusterListenerConfig = Optional.of(ControllerClusterListenerConfigImpl.builder()
-                    .minThreads(2)
-                    .maxThreads(10)
-                    .idleTime(10)
-                    .idleTimeUnit(TimeUnit.SECONDS)
-                    .maxQueueSize(512)
-                    .build());
-        } else {
-            controllerClusterListenerConfig = Optional.empty();
-        }
-
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
         return ControllerServiceConfigImpl.builder()
-                .serviceThreadPoolSize(3)
-                .taskThreadPoolSize(3)
-                .storeThreadPoolSize(3)
-                .eventProcThreadPoolSize(3)
-                .requestHandlerThreadPoolSize(3)
+                .threadPoolSize(7)
+                .scheduledExecutorThreadPoolSize(7)
                 .storeClientConfig(storeClientConfig)
-                .controllerClusterListenerConfig(controllerClusterListenerConfig)
+                .controllerClusterListenerEnabled(!disableControllerCluster)
                 .hostMonitorConfig(hostMonitorConfig)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.empty())

@@ -303,14 +303,11 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .eventProcThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
-                .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .scheduledExecutorThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
-                .controllerClusterListenerConfig(Optional.empty())
+                .controllerClusterListenerEnabled(false)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
