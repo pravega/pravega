@@ -18,18 +18,23 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import lombok.Getter;
+import lombok.SneakyThrows;
+import lombok.val;
 
 /**
  * Test LogItem implementation that allows injecting serialization errors.
  */
 class TestLogItem implements LogItem {
-    private final long seqNo;
+    @Getter
+    private final long sequenceNumber;
+    @Getter
     private final byte[] data;
     private double failAfterCompleteRatio;
     private IOException exception;
 
     TestLogItem(long seqNo, byte[] data) {
-        this.seqNo = seqNo;
+        this.sequenceNumber = seqNo;
         this.data = data;
         this.failAfterCompleteRatio = -1;
     }
@@ -37,14 +42,15 @@ class TestLogItem implements LogItem {
     TestLogItem(InputStream input) throws SerializationException {
         DataInputStream dataInput = new DataInputStream(input);
         try {
-            this.seqNo = dataInput.readLong();
+            this.sequenceNumber = dataInput.readLong();
             this.data = new byte[dataInput.readInt()];
             int readBytes = StreamHelpers.readAll(dataInput, this.data, 0, this.data.length);
             assert readBytes == this.data.length
-                    : "SeqNo " + this.seqNo + ": expected to read " + this.data.length + " bytes, but read " + readBytes;
+                    : "SeqNo " + this.sequenceNumber + ": expected to read " + this.data.length + " bytes, but read " + readBytes;
         } catch (IOException ex) {
             throw new SerializationException("TestLogItem.deserialize", ex.getMessage(), ex);
         }
+
         this.failAfterCompleteRatio = -1;
     }
 
@@ -57,43 +63,31 @@ class TestLogItem implements LogItem {
         this.exception = exception;
     }
 
-    byte[] getData() {
-        return this.data;
-    }
-
+    @SneakyThrows(IOException.class)
     byte[] getFullSerialization() {
         byte[] result = new byte[Long.BYTES + Integer.BYTES + this.data.length];
-        try {
-            this.serialize(new FixedByteArrayOutputStream(result, 0, result.length));
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
-        }
-
+        serialize(new FixedByteArrayOutputStream(result, 0, result.length));
         return result;
-    }
-
-    @Override
-    public long getSequenceNumber() {
-        return this.seqNo;
     }
 
     @Override
     public void serialize(OutputStream output) throws IOException {
         DataOutputStream dataOutput = new DataOutputStream(output);
-        dataOutput.writeLong(seqNo);
-        dataOutput.writeInt(data.length);
-        if (this.exception == null) {
-            dataOutput.write(data);
+        dataOutput.writeLong(this.sequenceNumber);
+        dataOutput.writeInt(this.data.length);
+        val ex = this.exception;
+        if (ex == null) {
+            dataOutput.write(this.data);
         } else {
-            int breakPoint = (int) (data.length * this.failAfterCompleteRatio);
-            dataOutput.write(data, 0, breakPoint);
-            throw this.exception;
+            int breakPoint = (int) (this.data.length * this.failAfterCompleteRatio);
+            dataOutput.write(this.data, 0, breakPoint);
+            throw ex;
         }
     }
 
     @Override
     public int hashCode() {
-        return Long.hashCode(this.seqNo);
+        return Long.hashCode(this.sequenceNumber);
     }
 
     @Override

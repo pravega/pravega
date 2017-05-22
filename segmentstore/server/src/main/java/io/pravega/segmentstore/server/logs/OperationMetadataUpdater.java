@@ -24,12 +24,17 @@ import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
+import io.pravega.segmentstore.server.AttributeSerializer;
 import io.pravega.segmentstore.server.ContainerMetadata;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -37,11 +42,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
-import io.pravega.segmentstore.server.AttributeSerializer;
-import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
-import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
-import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -58,6 +58,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -66,8 +67,12 @@ import lombok.val;
  * Transaction-based Metadata Updater for Log Operations.
  */
 @Slf4j
+@NotThreadSafe
 class OperationMetadataUpdater implements ContainerMetadata {
     //region Members
+
+    static long MIN_CHECKPOINT = Long.MIN_VALUE;
+    static long MAX_CHECKPOINT = Long.MAX_VALUE;
 
     private final String traceObjectId;
     private final UpdateableContainerMetadata metadata;
@@ -145,12 +150,32 @@ class OperationMetadataUpdater implements ContainerMetadata {
     //region Processing
 
     /**
-     * Commits all outstanding changes to the base Container Metadata.
+     * Creates a checkpoint and returns its id.
+     *
+     * @return The new checkpoint id.
+     */
+    long createCheckpoint() {
+        return 0;
+    }
+
+    /**
+     * Commits all outstanding changes to the base Container Metadata, across all checkpoints.
      *
      * @return True if anything was committed, false otherwise.
      */
     boolean commit() {
-        log.trace("{}: Commit (Anything = {}).", this.traceObjectId, this.currentTransaction != null);
+        return commit(MAX_CHECKPOINT);
+    }
+
+    /**
+     * Commits all outstanding changes to the base Container Metadata, up to and including the one for the given checkpoint.
+     * @param upToCheckpointId  The Id of the checkpoint up to which to commit.
+     *
+     * @return True if anything was committed, false otherwise.
+     */
+    boolean commit(long upToCheckpointId) {
+        // TODO: implement checkpoints.
+        log.trace("{}: Commit (CheckPoint = {}, Anything = {}).", this.traceObjectId, upToCheckpointId, this.currentTransaction != null);
         if (this.currentTransaction == null) {
             return false;
         }
@@ -161,12 +186,23 @@ class OperationMetadataUpdater implements ContainerMetadata {
     }
 
     /**
-     * Discards any outstanding changes.
+     * Discards any outstanding changes, across all checkpoints.
      */
     void rollback() {
+        rollback(MIN_CHECKPOINT);
+    }
+
+    /**
+     * Discards any outstanding changes, starting at the given checkpoint forward.
+     *
+     * @param fromCheckpointId The Id of the checkpoint from which to rollback.
+     */
+    void rollback(long fromCheckpointId) {
+        // TODO: implement checkpoints.
         log.trace("{}: Rollback (Anything = {}).", this.traceObjectId, this.currentTransaction != null);
         this.currentTransaction = null;
     }
+
 
     /**
      * Records a Truncation Marker.
