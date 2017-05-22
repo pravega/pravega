@@ -223,11 +223,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             "Synchronization error in: " + AppendProcessor.this.getClass().getName());
                 }
                 outstandingAppend = null;
-                if (exception != null && !conditionalFailed) {
-                    waitingAppends.removeAll(append.getWriterId());
-                    latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
+                if (exception == null) {
+                    latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());                 
                 } else {
-                    latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());                    
+                    if (!conditionalFailed) {
+                        waitingAppends.removeAll(append.getWriterId());
+                        latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
+                    } 
                 }
             }
       
