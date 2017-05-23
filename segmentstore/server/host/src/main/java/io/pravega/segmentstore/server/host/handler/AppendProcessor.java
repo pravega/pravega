@@ -151,7 +151,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             } else {
                 WRITE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
             }
-            append.getData().release();
+        }).whenComplete((v, e) -> {
+            append.getData().release();  
         });
     }
 

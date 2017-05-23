@@ -46,7 +46,7 @@ public enum AttributeUpdateType {
 
     /**
      * Any updates will replace the current attribute value, but only if the existing value matches an expected value.
-     * If the value does not exist or is different the update will fail. This can be used to perfrom compare and set operations.
+     * If the value does not exist or is different the update will fail. This can be used to perform compare and set operations.
      */
     ReplaceIfEquals((byte) 4);
 
