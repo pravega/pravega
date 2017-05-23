@@ -14,6 +14,8 @@ import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
+import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -302,6 +304,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .build();
 
+        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder().host("localhost").port(9092).build();
+
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
@@ -314,7 +318,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
-                .restServerConfig(Optional.empty())
+                .restServerConfig(Optional.of(restServerConfig))
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);
