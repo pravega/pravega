@@ -156,7 +156,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private Append getNextAppend() {
-        synchronized ("lock") {
+        synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
                 return null;
             }
