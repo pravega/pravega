@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -34,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
@@ -56,11 +56,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventWriterConfig config;
+    private final ConnectionFactory connectionFactory;
     @GuardedBy("lock")
     private final SegmentSelector selector;
 
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            Serializer<Type> serializer, EventWriterConfig config) {
+            ConnectionFactory connectionFactory, Serializer<Type> serializer, EventWriterConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -68,6 +69,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.stream = stream;
         this.controller = controller;
         this.outputStreamFactory = outputStreamFactory;
+        this.connectionFactory = connectionFactory;
         this.selector = new SegmentSelector(stream, controller, outputStreamFactory);
         this.serializer = serializer;
         this.config = config;
@@ -105,12 +107,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 handleLogSealed(Segment.fromScopedName(segmentWriter.getSegmentName()));
             }
         }
-        //TODO: shrids use internal executor.
+
+        //BUG: flush internal is always invoked. This is not necessary !!!
         return result.thenRunAsync(() -> {
             if (!closed.get()) {
                 flushInternal();
             }
-        }, Executors.newSingleThreadExecutor());
+        }, connectionFactory.getInternalExecutor());
     }
     
     @GuardedBy("lock")

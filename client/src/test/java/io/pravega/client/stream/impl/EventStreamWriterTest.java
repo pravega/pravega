@@ -18,6 +18,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +57,7 @@ public class EventStreamWriterTest {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
+                                                                       new MockConnectionFactoryImpl(null),
                                                                        new JavaSerializer<>(),
                                                                        config);
         writer.writeEvent("Foo");
@@ -100,6 +102,7 @@ public class EventStreamWriterTest {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
+                                                                       new MockConnectionFactoryImpl(null),
                                                                        new JavaSerializer<>(),
                                                                        config);
         Mockito.doThrow(new RuntimeException("Intentional exception")).when(outputStream).close();
@@ -186,6 +189,7 @@ public class EventStreamWriterTest {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
+                                                                       new MockConnectionFactoryImpl(null),
                                                                        serializer,
                                                                        config);
 
@@ -231,6 +235,7 @@ public class EventStreamWriterTest {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
+                                                                       new MockConnectionFactoryImpl(null),
                                                                        serializer,
                                                                        config);
         Transaction<String> txn = writer.beginTxn(0, 0, 0);
@@ -266,6 +271,7 @@ public class EventStreamWriterTest {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
+                                                                       new MockConnectionFactoryImpl(null),
                                                                        serializer,
                                                                        config);
         Transaction<String> txn = writer.beginTxn(0, 0, 0);
@@ -299,6 +305,7 @@ public class EventStreamWriterTest {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
+                                                                       new MockConnectionFactoryImpl(null),
                                                                        serializer,
                                                                        config);
         writer.writeEvent("Foo");
@@ -329,6 +336,7 @@ public class EventStreamWriterTest {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
+                                                                       new MockConnectionFactoryImpl(null),
                                                                        serializer,
                                                                        config);
         writer.writeEvent("Foo");
@@ -366,6 +374,7 @@ public class EventStreamWriterTest {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
+                                                                       new MockConnectionFactoryImpl(null),
                                                                        serializer,
                                                                        config);
         writer.writeEvent("Foo");
@@ -411,6 +420,7 @@ public class EventStreamWriterTest {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
                                                                        controller,
                                                                        streamFactory,
+                                                                       new MockConnectionFactoryImpl(null),
                                                                        serializer,
                                                                        config);
         writer.writeEvent(routingKey, "Foo");
