@@ -28,6 +28,8 @@ class SegmentState {
     @Getter
     private final String segmentName;
     @Getter
+    private final long segmentId;
+    @Getter
     private final Map<UUID, Long> attributes;
 
     //endregion
@@ -37,13 +39,15 @@ class SegmentState {
     /**
      * Creates a new instance of the SegmentState class.
      *
+     * @param segmentId         The Id of the Segment.
      * @param segmentProperties The SegmentProperties to create from.
      */
-    SegmentState(SegmentProperties segmentProperties) {
-        this(segmentProperties.getName(), segmentProperties.getAttributes());
+    SegmentState(long segmentId, SegmentProperties segmentProperties) {
+        this(segmentId, segmentProperties.getName(), segmentProperties.getAttributes());
     }
 
-    private SegmentState(String segmentName, Map<UUID, Long> attributes) {
+    private SegmentState(long segmentId, String segmentName, Map<UUID, Long> attributes) {
+        this.segmentId = segmentId;
         this.segmentName = segmentName;
         this.attributes = attributes;
     }
@@ -60,6 +64,7 @@ class SegmentState {
      */
     public void serialize(DataOutputStream target) throws IOException {
         target.writeByte(SERIALIZATION_VERSION);
+        target.writeLong(this.segmentId);
         target.writeUTF(this.segmentName);
         AttributeSerializer.serialize(this.attributes, target);
     }
@@ -74,9 +79,10 @@ class SegmentState {
     public static SegmentState deserialize(DataInputStream source) throws IOException {
         byte version = source.readByte();
         if (version == SERIALIZATION_VERSION) {
+            long segmentId = source.readLong();
             String segmentName = source.readUTF();
             Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
-            return new SegmentState(segmentName, attributes);
+            return new SegmentState(segmentId, segmentName, attributes);
         } else {
             throw new IOException(String.format("Unsupported version: %d.", version));
         }

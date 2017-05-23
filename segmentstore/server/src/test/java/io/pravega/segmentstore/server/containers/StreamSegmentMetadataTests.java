@@ -86,11 +86,13 @@ public class StreamSegmentMetadataTests {
         baseMetadata.markDeleted();
         baseMetadata.markSealed();
         baseMetadata.markMerged();
+        baseMetadata.markInactive();
         baseMetadata.setLastUsed(1545895);
 
         // Normal metadata copy.
         StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
         newMetadata.copyFrom(baseMetadata);
+        Assert.assertTrue("copyFrom copied the Active flag too.", newMetadata.isActive());
         SegmentMetadataComparer.assertEquals("Metadata copy:", baseMetadata, newMetadata);
         Assert.assertEquals("Metadata copy: getLastUsed differs.",
                 baseMetadata.getLastUsed(), newMetadata.getLastUsed());
