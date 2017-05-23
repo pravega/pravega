@@ -9,8 +9,11 @@
  *
  */
 plugins.withId('findbugs') {
-    tasks.withType(FindBugs) {
+    findbugs {
+        toolVersion = findbugsVersion
         effort = "default"
+    }
+    tasks.withType(FindBugs) {
         includeFilter = file("$rootDir/checkstyle/findbugs-include.xml")
         excludeFilter = file("$rootDir/checkstyle/findbugs-exclude.xml")
         reports {
