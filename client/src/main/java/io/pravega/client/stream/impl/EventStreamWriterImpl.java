@@ -14,7 +14,6 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
-import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.PingFailedException;
@@ -24,6 +23,10 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.Transaction.Status;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,10 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.ToString;
-import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -75,17 +76,17 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     }
 
     @Override
-    public AckFuture writeEvent(Type event) {
+    public CompletableFuture<Void> writeEvent(Type event) {
         return writeEventInternal(null, event);
     }
 
     @Override
-    public AckFuture writeEvent(String routingKey, Type event) {
+    public CompletableFuture<Void> writeEvent(String routingKey, Type event) {
         Preconditions.checkNotNull(routingKey);
         return writeEventInternal(routingKey, event);
     }
     
-    private AckFuture writeEventInternal(String routingKey, Type event) {
+    private CompletableFuture<Void> writeEventInternal(String routingKey, Type event) {
         Preconditions.checkNotNull(event);
         Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer data = serializer.serialize(event);
@@ -104,11 +105,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 handleLogSealed(Segment.fromScopedName(segmentWriter.getSegmentName()));
             }
         }
-        return new AckFutureImpl(result, () -> {
+        //TODO: shrids use internal executor.
+        return result.thenRunAsync(() -> {
             if (!closed.get()) {
                 flushInternal();
             }
-        });
+        }, Executors.newSingleThreadExecutor());
     }
     
     @GuardedBy("lock")

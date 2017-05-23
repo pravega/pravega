@@ -10,6 +10,7 @@
 package io.pravega.client.stream;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A writer can write events to a stream.
@@ -34,7 +35,8 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *         result of connection drops or host death are handled internally with multiple retires and
      *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
-    AckFuture writeEvent(Type event);
+    //TODO: shrids update documentation
+    CompletableFuture<Void> writeEvent(Type event);
     
     
     /**
@@ -56,7 +58,8 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *         result of connection drops or host death are handled internally with multiple retires and
      *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
-    AckFuture writeEvent(String routingKey, Type event);
+    //TODO: shrids update documentation
+    CompletableFuture<Void> writeEvent(String routingKey, Type event);
 
     /**
      * Start a new transaction on this stream.

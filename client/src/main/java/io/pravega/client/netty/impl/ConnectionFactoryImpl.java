@@ -53,7 +53,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     private EventLoopGroup group;
     private boolean nio = false;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final ScheduledExecutorService executor =   Executors.newScheduledThreadPool(5, new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
+    //TODO: shrids rename it.
+    private final ScheduledExecutorService executor =   Executors.newScheduledThreadPool(5, new ThreadFactoryBuilder().setNameFormat("clientInternal-%d").build());
 
     /**
      * Actual implementation of ConnectionFactory interface.
