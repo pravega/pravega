@@ -69,6 +69,11 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     public void segmentRead(WireCommands.SegmentRead data) {
         getNextReplyProcessor().segmentRead(data);
     }
+    
+    @Override
+    public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
+        getNextReplyProcessor().segmentAttribute(segmentAttribute);
+    }
 
     @Override
     public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {

@@ -14,6 +14,7 @@ import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
+import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
@@ -34,6 +35,8 @@ public interface RequestProcessor {
     void append(Append append);
 
     void readSegment(ReadSegment readSegment);
+    
+    void getSegmentAttribute(GetSegmentAttribute getSegmentAttribute);
 
     void getStreamSegmentInfo(GetStreamSegmentInfo getStreamInfo);
 

@@ -89,6 +89,16 @@ public class WireCommandsTest {
     }
 
     @Test
+    public void testGetSegmentAttribute() throws IOException {
+        testCommand(new WireCommands.GetSegmentAttribute(l, testString1, uuid));
+    }
+    
+    @Test
+    public void testSegmentAttribute() throws IOException {
+        testCommand(new WireCommands.SegmentAttribute(l, l+1));
+    }
+    
+    @Test
     public void testGetStreamSegmentInfo() throws IOException {
         testCommand(new WireCommands.GetStreamSegmentInfo(l, testString1));
     }

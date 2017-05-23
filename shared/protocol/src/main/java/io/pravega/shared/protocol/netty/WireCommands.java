@@ -620,6 +620,69 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class GetSegmentAttribute implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.GET_SEGMENT_ATTRIBUTE;
+        final long requestId;
+        final String segmentName;
+        final UUID attributeId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.getSegmentAttribute(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segmentName);
+            out.writeLong(attributeId.getMostSignificantBits());
+            out.writeLong(attributeId.getLeastSignificantBits());
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            UUID attributeId = new UUID(in.readLong(), in.readLong());
+            return new GetSegmentAttribute(requestId, segment, attributeId);
+        }
+    }
+    
+    @Data
+    public static final class SegmentAttribute implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENT_ATTRIBUTE;
+        final long requestId;
+        final Long value;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.segmentAttribute(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            if (value == null) {
+                out.writeBoolean(false);
+            } else { 
+                out.writeBoolean(true);
+                out.writeLong(value);
+            }
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            Long value;
+            boolean found = in.readBoolean();
+            if (found) {
+                value = in.readLong();                
+            } else { 
+                value = null;
+            }
+            return new SegmentAttribute(requestId, value);
+        }
+    }
+    
+    @Data
     public static final class GetStreamSegmentInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
         final long requestId;

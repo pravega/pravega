@@ -38,12 +38,14 @@ import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
+import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
@@ -65,6 +67,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -206,6 +210,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         return data;
     }
 
+    @Override
+    public void getSegmentAttribute(GetSegmentAttribute getSegmentAttribute) {
+        long requestId = getSegmentAttribute.getRequestId();
+        String segmentName = getSegmentAttribute.getSegmentName();
+        UUID attributeId = getSegmentAttribute.getAttributeId();
+        segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).thenApply(properties -> {
+            if (properties == null) {
+                connection.send(new NoSuchSegment(requestId, segmentName));
+            } else {
+                Map<UUID, Long> attributes = properties.getAttributes();
+                Long value = attributes.get(attributeId);
+                connection.send(new SegmentAttribute(requestId, value));
+            }
+            return null;
+        }).exceptionally((Throwable e) -> {
+            handleException(requestId, segmentName, "Get attribute", e);
+            return null;
+        });
+    }
+    
     @Override
     public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamSegmentInfo) {
         String segmentName = getStreamSegmentInfo.getSegmentName();
