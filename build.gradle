@@ -181,6 +181,9 @@ project('segmentstore:storage:impl') {
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
+        compile "com.emc.ecs:object-client:3.0.0"
+        compile "com.sun.jersey:jersey-core:1.19"
+
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
