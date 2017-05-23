@@ -158,7 +158,7 @@ public class MultiReadersEndToEndTest {
                 int emptyCount = 0;
                 while (emptyCount <= numSegments) {
                     try {
-                        final Integer integerEventRead = reader.readNextEvent(1000).getEvent();
+                        final Integer integerEventRead = reader.readNextEvent(100).getEvent();
                         if (integerEventRead != null) {
                             read.add(integerEventRead);
                             emptyCount = 0;
