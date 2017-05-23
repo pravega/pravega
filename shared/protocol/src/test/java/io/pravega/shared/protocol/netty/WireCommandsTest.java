@@ -202,6 +202,11 @@ public class WireCommandsTest {
     public void testNoSuchTransaction() throws IOException {
         testCommand(new WireCommands.NoSuchTransaction(l, testString1));
     }
+    
+    @Test
+    public void testInvalidEventNumber() throws IOException {
+        testCommand(new WireCommands.InvalidEventNumber(uuid, i));
+    }
 
     @Test
     public void testKeepAlive() throws IOException {
