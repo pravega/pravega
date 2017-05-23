@@ -318,7 +318,6 @@ public class AppendProcessorTest {
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
         verify(store).getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT);
         
-        
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         int eventCount = 100;
         when(store.append(streamSegmentName, data,
