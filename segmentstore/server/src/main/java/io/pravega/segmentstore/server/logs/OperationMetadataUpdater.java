@@ -20,6 +20,7 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.LogAddress;
+import java.util.Collection;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 
@@ -72,6 +73,21 @@ class OperationMetadataUpdater implements ContainerMetadata {
         } catch (MetadataUpdateException ex) {
             return null;
         }
+    }
+
+    @Override
+    public Collection<Long> getAllStreamSegmentIds() {
+        return this.metadata.getAllStreamSegmentIds();
+    }
+
+    @Override
+    public int getMaximumActiveSegmentCount() {
+        return this.metadata.getMaximumActiveSegmentCount();
+    }
+
+    @Override
+    public int getActiveSegmentCount() {
+        return this.metadata.getActiveSegmentCount();
     }
 
     @Override
@@ -134,13 +150,12 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * @return True if anything was committed, false otherwise.
      */
     boolean commit(long upToCheckpointId) {
-        // TODO: implement checkpoints.
         log.trace("{}: Commit (CheckPoint = {}, Anything = {}).", this.traceObjectId, upToCheckpointId, this.currentTransaction != null);
         if (this.currentTransaction == null) {
             return false;
         }
 
-        this.currentTransaction.commit();
+        this.currentTransaction.commit(this.metadata);        // TODO: implement checkpoints.
         this.currentTransaction = null;
         return true;
     }

@@ -59,6 +59,7 @@ import org.junit.Test;
 /**
  * Unit tests for OperationMetadataUpdater class.
  */
+// TODO: consider breaking up this test class into one for Segment, one for Container and one for the main updater.
 public class OperationMetadataUpdaterTests {
     private static final int CONTAINER_ID = 1234567;
     private static final String SEGMENT_NAME = "Segment_123";
@@ -616,23 +617,24 @@ public class OperationMetadataUpdaterTests {
 
         // Part 1: recovery mode (no-op).
         metadata.enterRecoveryMode();
-        OperationMetadataUpdater updater = createUpdater(metadata);
+        val updater1 = createUpdater(metadata);
 
         // Brand new StreamSegment.
         StreamSegmentMapOperation mapOp = createMap();
-        updater.preProcessOperation(mapOp);
+        updater1.preProcessOperation(mapOp);
         Assert.assertEquals("preProcessOperation did modify the StreamSegmentId on the operation in recovery mode.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
 
         // Part 2: non-recovery mode.
         metadata.exitRecoveryMode();
-        updater.preProcessOperation(mapOp);
+        val updater2 = createUpdater(metadata);
+        updater2.preProcessOperation(mapOp);
         Assert.assertNotEquals("preProcessOperation did not set the StreamSegmentId on the operation.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
-        Assert.assertNull("preProcessOperation modified the current transaction.", updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
+        Assert.assertNull("preProcessOperation modified the current transaction.", updater2.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
         Assert.assertNull("preProcessOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
-        updater.acceptOperation(mapOp);
+        updater2.acceptOperation(mapOp);
 
-        val updaterMetadata = updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
+        val updaterMetadata = updater2.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         Assert.assertEquals("Unexpected StorageLength after call to acceptOperation (in transaction).", mapOp.getLength(), updaterMetadata.getStorageLength());
         Assert.assertEquals("Unexpected DurableLogLength after call to acceptOperation (in transaction).", mapOp.getLength(), updaterMetadata.getDurableLogLength());
         Assert.assertEquals("Unexpected value for isSealed after call to acceptOperation (in transaction).", mapOp.isSealed(), updaterMetadata.isSealed());
@@ -641,11 +643,11 @@ public class OperationMetadataUpdaterTests {
         // StreamSegmentName already exists (transaction) and we try to map with new id.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists (in transaction).",
-                () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
+                () -> updater2.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
         // Make changes permanent.
-        updater.commit();
+        updater2.commit();
 
         val segmentMetadata = metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         AssertExtensions.assertMapEquals("Unexpected attributes in SegmentMetadata after call to commit().", mapOp.getAttributes(), segmentMetadata.getAttributes());
@@ -653,7 +655,7 @@ public class OperationMetadataUpdaterTests {
         // StreamSegmentName already exists (metadata) and we try to map with new id.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists (in metadata).",
-                () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
+                () -> updater2.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
         val durableLogLength = segmentMetadata.getDurableLogLength() + 5;
@@ -665,11 +667,11 @@ public class OperationMetadataUpdaterTests {
         val updateMap = new StreamSegmentMapOperation(new StreamSegmentInformation(mapOp.getStreamSegmentName(),
                 storageLength, true, false, createAttributes(), new ImmutableDate()));
         updateMap.setStreamSegmentId(mapOp.getStreamSegmentId());
-        updater.preProcessOperation(updateMap);
-        updater.acceptOperation(updateMap);
+        updater2.preProcessOperation(updateMap);
+        updater2.acceptOperation(updateMap);
         Assert.assertEquals("Unexpected StorageLength after call to acceptOperation with remap (in transaction).",
-                storageLength, updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
-        updater.commit();
+                storageLength, updater2.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
+        updater2.commit();
         Assert.assertEquals("Unexpected StorageLength after call to acceptOperation with remap (post-commit).",
                 storageLength, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
         Assert.assertEquals("Unexpected DurableLogLength after call to acceptOperation with remap (post-commit).",
@@ -682,34 +684,37 @@ public class OperationMetadataUpdaterTests {
     @Test
     public void testPreProcessTransactionMap() throws Exception {
         UpdateableContainerMetadata metadata = createBlankMetadata();
-        OperationMetadataUpdater updater = createUpdater(metadata);
+        val updater1 = createUpdater(metadata);
 
         // Parent does not exist.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when attempting to map a Transaction StreamSegment to an inexistent parent.",
-                () -> updater.preProcessOperation(createTransactionMap(12345)),
+                () -> updater1.preProcessOperation(createTransactionMap(12345)),
                 ex -> ex instanceof MetadataUpdateException);
 
         // Brand new Transaction (and parent).
         StreamSegmentMapOperation mapParent = createMap();
-        updater.preProcessOperation(mapParent); // Create parent.
-        updater.acceptOperation(mapParent);
+        updater1.preProcessOperation(mapParent); // Create parent.
+        updater1.acceptOperation(mapParent);
+        updater1.commit();
 
         // Part 1: recovery mode.
         metadata.enterRecoveryMode();
         TransactionMapOperation mapOp = createTransactionMap(mapParent.getStreamSegmentId());
-        updater.preProcessOperation(mapOp);
+        val updater2 = createUpdater(metadata);
+        updater2.preProcessOperation(mapOp);
         Assert.assertEquals("preProcessOperation changed the StreamSegmentId on the operation in recovery mode.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
 
         // Part 2: non-recovery mode.
         metadata.exitRecoveryMode();
-        updater.preProcessOperation(mapOp);
+        val updater3 = createUpdater(metadata);
+        updater3.preProcessOperation(mapOp);
         Assert.assertNotEquals("preProcessOperation did not set the StreamSegmentId on the operation.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
-        Assert.assertNull("preProcessOperation modified the current transaction.", updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
+        Assert.assertNull("preProcessOperation modified the current transaction.", updater3.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
         Assert.assertNull("preProcessOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
-        updater.acceptOperation(mapOp);
-        val updaterMetadata = updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
+        updater3.acceptOperation(mapOp);
+        val updaterMetadata = updater3.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         Assert.assertEquals("Unexpected StorageLength after call to processMetadataOperation (in transaction).", mapOp.getLength(), updaterMetadata.getStorageLength());
         Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).", mapOp.getLength(), updaterMetadata.getDurableLogLength());
         Assert.assertEquals("Unexpected value for isSealed after call to processMetadataOperation (in transaction).", mapOp.isSealed(), updaterMetadata.isSealed());
@@ -718,11 +723,11 @@ public class OperationMetadataUpdaterTests {
         // Transaction StreamSegmentName exists (transaction).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a TransactionStreamSegment with the same Name already exists (in transaction).",
-                () -> updater.preProcessOperation(createTransactionMap(mapParent.getStreamSegmentId(), mapOp.getStreamSegmentName())),
+                () -> updater3.preProcessOperation(createTransactionMap(mapParent.getStreamSegmentId(), mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
         // Make changes permanent.
-        updater.commit();
+        updater3.commit();
 
         val segmentMetadata = metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         AssertExtensions.assertMapEquals("Unexpected attributes in SegmentMetadata after call to commit().", mapOp.getAttributes(), segmentMetadata.getAttributes());
@@ -730,7 +735,7 @@ public class OperationMetadataUpdaterTests {
         // Transaction StreamSegmentName exists (metadata).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a TransactionStreamSegment with the same Name already exists (in metadata).",
-                () -> updater.preProcessOperation(createTransactionMap(mapParent.getStreamSegmentId(), mapOp.getStreamSegmentName())),
+                () -> updater3.preProcessOperation(createTransactionMap(mapParent.getStreamSegmentId(), mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
         // StreamSegmentName already exists and we try to map with the same id. Verify that we are able to update its
@@ -738,11 +743,11 @@ public class OperationMetadataUpdaterTests {
         val updateMap = new TransactionMapOperation(mapOp.getParentStreamSegmentId(),
                 new StreamSegmentInformation(mapOp.getStreamSegmentName(), mapOp.getLength() + 1, true, false, createAttributes(), new ImmutableDate()));
         updateMap.setStreamSegmentId(mapOp.getStreamSegmentId());
-        updater.preProcessOperation(updateMap);
-        updater.acceptOperation(updateMap);
+        updater3.preProcessOperation(updateMap);
+        updater3.acceptOperation(updateMap);
         Assert.assertEquals("Unexpected StorageLength after call to acceptOperation with remap (in transaction).",
-                updateMap.getLength(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getLength());
-        updater.commit();
+                updateMap.getLength(), updater3.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getLength());
+        updater3.commit();
         Assert.assertEquals("Unexpected StorageLength after call to acceptOperation with remap (post-commit).",
                 updateMap.getLength(), metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getLength());
 
@@ -1254,7 +1259,8 @@ public class OperationMetadataUpdaterTests {
     private void verifyAttributeUpdates(String stepName, ContainerMetadata containerMetadata, Collection<AttributeUpdate> attributeUpdates, Map<UUID, Long> expectedValues) {
         // Verify that the Attribute Updates have their expected values and that the updater has internalized the attribute updates.
         val transactionMetadata = containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
-        val expectedTransactionAttributes = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+        val expectedTransactionAttributes = new HashMap<UUID, Long>(expectedValues);
+        attributeUpdates.forEach(au -> expectedTransactionAttributes.put(au.getAttributeId(), au.getValue()));
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in transaction metadata " + stepName + ".",
                 expectedTransactionAttributes, transactionMetadata);
         for (AttributeUpdate au : attributeUpdates) {
