@@ -36,7 +36,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * An update transaction that can apply changes to a SegmentMetadata.
  */
 @NotThreadSafe
-class SegmentMetadataUpdateTransaction implements SegmentMetadata {
+class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     //region Members
 
     private final boolean isRecoveryMode;

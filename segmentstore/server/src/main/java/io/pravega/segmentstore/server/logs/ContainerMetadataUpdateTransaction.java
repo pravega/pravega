@@ -473,12 +473,16 @@ class ContainerMetadataUpdateTransaction {
      * otherwise it creates and records a new Segment metadata.
      */
     private UpdateableSegmentMetadata getOrCreateSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentId) {
-        UpdateableSegmentMetadata metadata = getExistingMetadata(streamSegmentId);
-        if (metadata == null) {
-            metadata = createSegmentMetadata(streamSegmentName, streamSegmentId, parentId);
+        UpdateableSegmentMetadata sm = this.streamSegmentUpdates.get(streamSegmentId);
+        if (sm == null) {
+            sm = this.newStreamSegments.getOrDefault(streamSegmentId, null);
         }
 
-        return metadata;
+        if (sm == null) {
+            sm = createSegmentMetadata(streamSegmentName, streamSegmentId, parentId);
+        }
+
+        return sm;
     }
 
     /**
