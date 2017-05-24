@@ -436,7 +436,7 @@ public class StreamSegmentContainerMetadataTests {
 
         for (int i = 0; i < segments.size(); i++) {
             UpdateableSegmentMetadata segmentMetadata = m.getStreamSegmentMetadata(segments.get(i));
-            if (segmentMetadata.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+            if (segmentMetadata.isTransaction()) {
                 // All transactions expire at once, in a second step.
                 segmentMetadata.setLastUsed(transactionExpiration);
             } else if (i % 2 == 0) {

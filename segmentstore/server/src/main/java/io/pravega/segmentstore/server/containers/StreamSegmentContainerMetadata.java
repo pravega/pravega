@@ -9,16 +9,15 @@
  */
 package io.pravega.segmentstore.server.containers;
 
-import io.pravega.common.Exceptions;
-import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.UpdateableContainerMetadata;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.EvictableMetadata;
-import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.storage.LogAddress;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.server.EvictableMetadata;
+import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.storage.LogAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -33,7 +32,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -173,8 +171,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             validateNewMapping(streamSegmentName, streamSegmentId);
             StreamSegmentMetadata parentMetadata = this.metadataById.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
-            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID,
-                    "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
+            Exceptions.checkArgument(!parentMetadata.isTransaction(), "parentStreamSegmentId", "Cannot create a Transaction for another Transaction.");
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
@@ -323,8 +320,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private Set<Long> getSegmentsWithActiveTransactions(long sequenceNumberCutoff) {
         return this.metadataById
                 .values().stream()
-                .filter(m -> m.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID
-                        && !isEligibleForEviction(m, sequenceNumberCutoff))
+                .filter(m -> m.isTransaction() && !isEligibleForEviction(m, sequenceNumberCutoff))
                 .map(SegmentMetadata::getParentId)
                 .collect(Collectors.toSet());
     }

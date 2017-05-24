@@ -122,11 +122,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized long getLength() {
-        return this.durableLogLength; // ReadableLength is essentially DurableLogLength.
-    }
-
-    @Override
     public synchronized ImmutableDate getLastModified() {
         return this.lastModified;
     }

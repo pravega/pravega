@@ -403,13 +403,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         @GuardedBy("lock")
         private long highestCommittedDataFrame;
 
-        QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryStateUpdater stateUpdater, MetadataCheckpointPolicy checkpointPolicy, Object lock, String traceObjectId) {
+        QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryStateUpdater stateUpdater,
+                             MetadataCheckpointPolicy checkpointPolicy, Object lock, String traceObjectId) {
             this.metadataUpdater = Preconditions.checkNotNull(metadataUpdater, "metadataUpdater");
             this.logUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
             this.checkpointPolicy = Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
             this.lock = Preconditions.checkNotNull(lock, "lock");
             this.traceObjectId = traceObjectId;
-            this.pendingOperations = new LinkedList<>(); // TODO: ArrayDeque?
+            this.pendingOperations = new LinkedList<>(); // TODO: ArrayDeque? This is long-lived, with many adds/removes.
             this.checkpoints = new HashMap<>();
             this.highestCommittedDataFrame = -1;
         }
@@ -448,10 +449,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
         void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
-            System.out.println(String.format("State.commit    : %s", commitArgs));
             log.debug("{}: CommitSuccess ({}).", this.traceObjectId, commitArgs);
 
             synchronized (this.lock) {
+                System.out.println(String.format("State.commit    : %s", commitArgs));
                 // Record the Truncation marker.
                 this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
                 if (commitArgs.getLogAddress().getSequence() <= this.highestCommittedDataFrame) {
@@ -473,11 +474,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     try {
                         this.logUpdater.process(e.getOperation());
                     } catch (Throwable ex) {
-                        // Fail the operation (since it has already been taken off the pending list).
+                        // MemoryStateUpdater.process() should only throw DataCorruptionExceptions, but just in case it
+                        // throws something else (i.e. NullPtr), we still need to handle it.
+                        // First, fail the operation, since it has already been taken off the pending list.
                         log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
                         e.fail(ex);
 
-                        // Fail remaining operations and bail out.
+                        // Then fail the remaining operations (which also handles fatal errors) and bail out.
                         fail(ex, commitArgs);
                         return;
                     }
@@ -498,10 +501,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
         void fail(Throwable ex, DataFrameBuilder.DataFrameCommitArgs commitArgs) {
-            System.err.println(String.format("State.fail      : %s, %s", commitArgs, ex));
-            ex.printStackTrace();
-
             synchronized (this.lock) {
+                ex.printStackTrace();
+                System.err.println(String.format("State.fail      : %s, %s", commitArgs, ex));
+
                 // Discard all updates to the metadata.
                 final Long checkpointId = getCheckpoint(commitArgs);
                 removeCheckpoints(c -> c >= checkpointId);
@@ -515,6 +518,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.highestCommittedDataFrame = Long.MAX_VALUE;
                 }
             }
+
+            // TODO: shutdown if DataCorruptionException.
         }
 
         void forEachPending(Predicate<CompletableOperation> inspector) {
