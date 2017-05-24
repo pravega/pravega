@@ -143,6 +143,11 @@ class SegmentMetadataUpdateTransaction implements SegmentMetadata {
     }
 
     @Override
+    public boolean isActive() {
+        return this.baseMetadata.isActive();
+    }
+
+    @Override
     public Map<UUID, Long> getAttributes() {
         HashMap<UUID, Long> result = new HashMap<>(this.baseMetadata.getAttributes());
         result.putAll(this.updatedAttributeValues);
