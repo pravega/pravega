@@ -25,7 +25,9 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
-    void noSuchBatch(WireCommands.NoSuchTransaction noSuchBatch);
+    void noSuchTransaction(WireCommands.NoSuchTransaction noSuchTransaction);
+    
+    void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
 
     void appendSetup(WireCommands.AppendSetup appendSetup);
 

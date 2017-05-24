@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -88,6 +87,7 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
         ss.put(segmentName, state2, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         val deserialized = ss.get(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected segment id", state2.getSegmentId(), deserialized.getSegmentId());
         Assert.assertEquals("Unexpected segment name.", state2.getSegmentName(), deserialized.getSegmentName());
         AssertExtensions.assertMapEquals("Unexpected attributes.", state2.getAttributes(), deserialized.getAttributes());
         for (Map.Entry<UUID, Long> a : state1.getAttributes().entrySet()) {
@@ -105,7 +105,7 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
             attributes.put(UUID.randomUUID(), (long) i);
         }
 
-        return new SegmentState(
+        return new SegmentState(segmentName.hashCode(),
                 new StreamSegmentInformation(segmentName, 0, false, false, attributes, new ImmutableDate()));
     }
 

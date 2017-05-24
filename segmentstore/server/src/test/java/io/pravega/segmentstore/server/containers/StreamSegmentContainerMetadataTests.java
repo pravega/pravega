@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -575,6 +574,9 @@ public class StreamSegmentContainerMetadataTests {
         // Attempt to cleanup the eviction candidates, and even throw in a new truncation (to verify that alone won't trigger the cleanup).
         m.removeTruncationMarkers(touchedSeqNo + 1);
         Collection<SegmentMetadata> evictedSegments = m.cleanup(evictionCandidates, maxLastUsed);
+        for (SegmentMetadata sm : evictedSegments) {
+            Assert.assertFalse("Evicted segment was not marked as inactive.", sm.isActive());
+        }
 
         // Check that we evicted all eligible segments, and kept the 'touched' ones still.
         Assert.assertEquals("Unexpected number of segments were evicted (first-cleanup).",
@@ -585,11 +587,15 @@ public class StreamSegmentContainerMetadataTests {
             Assert.assertEquals("Candidate segment that was touched was still evicted (lookup by name).",
                     segmentId,
                     m.getStreamSegmentId(sm.getName(), false));
+            Assert.assertTrue("Non-evicted segment was marked as inactive.", sm.isActive());
         }
 
         // Now expire the remaining segments and verify.
         evictionCandidates = m.getEvictionCandidates(touchedSeqNo + 1, Integer.MAX_VALUE);
         evictedSegments = m.cleanup(evictionCandidates, touchedSeqNo + 1);
+        for (SegmentMetadata sm : evictedSegments) {
+            Assert.assertFalse("Evicted segment was not marked as inactive.", sm.isActive());
+        }
 
         Assert.assertEquals("Unexpected number of segments were evicted (second-cleanup).",
                 touchedSegments.size(), evictedSegments.size());

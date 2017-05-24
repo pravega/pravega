@@ -299,7 +299,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                     .stream()
                     .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !activeTransactions.contains(m.getId()))
                     .forEach(m -> {
-                        this.metadataById.remove(m.getId());
+                        StreamSegmentMetadata removedMetadata = this.metadataById.remove(m.getId());
+                        removedMetadata.markInactive();
                         this.metadataByName.remove(m.getName());
                         evictedSegments.add(m);
                     });

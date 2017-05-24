@@ -128,7 +128,8 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         promise.addListener(new GenericFutureListener<Future<? super Void>>() {
             @Override
             public void operationComplete(Future<? super Void> future) throws Exception {
-                callback.complete(new ConnectionFailedException(future.cause()));
+                Throwable cause = future.cause();
+                callback.complete(cause == null ? null : new ConnectionFailedException(cause));
             }
         });
     }

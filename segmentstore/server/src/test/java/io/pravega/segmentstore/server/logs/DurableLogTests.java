@@ -16,27 +16,29 @@ import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.server.MetadataBuilder;
-import io.pravega.segmentstore.server.TestDurableDataLogFactory;
-import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.ConfigHelpers;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
+import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.TestDurableDataLog;
+import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
+import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.reading.CacheManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
@@ -686,7 +688,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the DurableLog recovery process in a scenario when there are no failures during the process.
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testRecoveryWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
         int transactionsPerStreamSegment = 2;
@@ -755,7 +757,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the DurableLog recovery process in a scenario when there are failures during the process
      * (these may or may not be DataCorruptionExceptions).
      */
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     public void testRecoveryFailures() throws Exception {
         int streamSegmentCount = 50;
         int appendsPerStreamSegment = 20;
@@ -860,6 +862,91 @@ public class DurableLogTests extends OperationLogTestBase {
 
                         return ExceptionHelpers.getRealException(ex) instanceof DataCorruptionException;
                     });
+        }
+    }
+
+    /**
+     * Tests the following recovery scenario:
+     * 1. A Segment is created and recorded in the metadata with some optional operations executing on it.
+     * 2. The segment is evicted from the metadata.
+     * 3. The segment is reactivated (with a new metadata mapping) - possibly due to an append. No truncation since #2.
+     * 4. Recovery.
+     */
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    public void testRecoveryWithMetadataCleanup() throws Exception {
+        final long truncatedSeqNo = Integer.MAX_VALUE;
+        // Setup a DurableLog and start it.
+        @Cleanup
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        @Cleanup
+        Storage storage = new InMemoryStorage(executorService());
+        storage.initialize(1);
+        long segmentId;
+
+        // First DurableLog. We use this for generating data.
+        val metadata1 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
+        @Cleanup
+        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+        SegmentProperties originalSegmentInfo;
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata1, dataLogFactory, readIndex, executorService())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Create the segment.
+            val segmentIds = createStreamSegmentsWithOperations(1, metadata1, durableLog, storage);
+            segmentId = segmentIds.stream().findFirst().orElse(-1L);
+
+            // Evict the segment.
+            val sm1 = metadata1.getStreamSegmentMetadata(segmentId);
+            originalSegmentInfo = sm1.getSnapshot();
+            metadata1.removeTruncationMarkers(truncatedSeqNo); // Simulate a truncation. This is needed in order to trigger a cleanup.
+            val cleanedUpSegments = metadata1.cleanup(Collections.singleton(sm1), truncatedSeqNo);
+            Assert.assertEquals("Unexpected number of segments evicted.", 1, cleanedUpSegments.size());
+
+            // Map the segment again.
+            val reMapOp = new StreamSegmentMapOperation(originalSegmentInfo);
+            reMapOp.setStreamSegmentId(segmentId);
+            durableLog.add(reMapOp, TIMEOUT).join();
+
+            // Stop.
+            durableLog.stopAsync().awaitTerminated();
+        }
+
+        // Recovery #1. This should work well.
+        val metadata2 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata2, dataLogFactory, readIndex, executorService())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Get segment info
+            val recoveredSegmentInfo = metadata1.getStreamSegmentMetadata(segmentId).getSnapshot();
+            Assert.assertEquals("Unexpected length from recovered segment.", originalSegmentInfo.getLength(), recoveredSegmentInfo.getLength());
+
+            // Now evict the segment again ...
+            val sm = metadata2.getStreamSegmentMetadata(segmentId);
+            metadata2.removeTruncationMarkers(truncatedSeqNo); // Simulate a truncation. This is needed in order to trigger a cleanup.
+            val cleanedUpSegments = metadata2.cleanup(Collections.singleton(sm), truncatedSeqNo);
+            Assert.assertEquals("Unexpected number of segments evicted.", 1, cleanedUpSegments.size());
+
+            // ... and re-map it with a new Id. This is a perfectly valid operation, and we can't prevent it.
+            durableLog.add(new StreamSegmentMapOperation(originalSegmentInfo), TIMEOUT).join();
+
+            // Stop.
+            durableLog.stopAsync().awaitTerminated();
+        }
+
+        // Recovery #2. This should fail due to the same segment mapped multiple times with different ids.
+        val metadata3 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata3, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata3, dataLogFactory, readIndex, executorService())) {
+            AssertExtensions.assertThrows(
+                    "Recovery did not fail with the expected exception in case of multi-mapping",
+                    () -> durableLog.startAsync().awaitRunning(),
+                    ex -> ex instanceof IllegalStateException
+                            && ex.getCause() instanceof DataCorruptionException
+                            && ex.getCause().getCause() instanceof MetadataUpdateException);
         }
     }
 
