@@ -72,6 +72,9 @@ public enum WireCommandType {
     
     GET_SEGMENT_ATTRIBUTE(34, WireCommands.GetSegmentAttribute::readFrom),
     SEGMENT_ATTRIBUTE(35, WireCommands.SegmentAttribute::readFrom),
+    
+    UPDATE_SEGMENT_ATTRIBUTE(36, WireCommands.UpdateSegmentAttribute::readFrom),
+    SEGMENT_ATTRIBUTE_UPDATED(37, WireCommands.SegmentAttributeUpdated::readFrom),
 
     WRONG_HOST(50, WireCommands.WrongHost::readFrom),
     SEGMENT_IS_SEALED(51, WireCommands.SegmentIsSealed::readFrom),

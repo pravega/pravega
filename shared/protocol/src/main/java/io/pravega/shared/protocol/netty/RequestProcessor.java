@@ -22,6 +22,7 @@ import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 
 /**
@@ -35,6 +36,8 @@ public interface RequestProcessor {
     void append(Append append);
 
     void readSegment(ReadSegment readSegment);
+    
+    void updateSegmentAttribute(UpdateSegmentAttribute updateSegmentAttribute);
     
     void getSegmentAttribute(GetSegmentAttribute getSegmentAttribute);
 

@@ -87,6 +87,20 @@ public class WireCommandsTest {
     public void testSegmentRead() throws IOException {
         testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buffer));
     }
+    
+    @Test
+    public void testUpdateSegmentAttribute() throws IOException {
+        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, l));
+        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, null));
+        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, null, l));
+        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, null, null));
+    }
+    
+    @Test
+    public void testSegmentAttributeUpdated() throws IOException {
+        testCommand(new WireCommands.SegmentAttributeUpdated(l, true));
+        testCommand(new WireCommands.SegmentAttributeUpdated(l, false));
+    }
 
     @Test
     public void testGetSegmentAttribute() throws IOException {

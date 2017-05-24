@@ -683,6 +683,84 @@ public final class WireCommands {
     }
     
     @Data
+    public static final class UpdateSegmentAttribute implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.UPDATE_SEGMENT_ATTRIBUTE;
+        final long requestId;
+        final String segmentName;
+        final UUID attributeId;
+        final Long expectedValue;
+        final Long newValue;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.updateSegmentAttribute(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segmentName);
+            out.writeLong(attributeId.getMostSignificantBits());
+            out.writeLong(attributeId.getLeastSignificantBits());
+            if (expectedValue == null) {
+                out.writeBoolean(false);
+            } else { 
+                out.writeBoolean(true);
+                out.writeLong(expectedValue);
+            }
+            if (newValue == null) {
+                out.writeBoolean(false);
+            } else { 
+                out.writeBoolean(true);
+                out.writeLong(newValue);
+            }
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            UUID attributeId = new UUID(in.readLong(), in.readLong());
+            Long excpecteValue;
+            if (in.readBoolean()) {
+                excpecteValue = in.readLong();                
+            } else { 
+                excpecteValue = null;
+            }
+            Long newValue;
+            if (in.readBoolean()) {
+                newValue = in.readLong();                
+            } else { 
+                newValue = null;
+            }
+            return new UpdateSegmentAttribute(requestId, segment, attributeId, excpecteValue, newValue);
+        }
+    }
+    
+    @Data
+    public static final class SegmentAttributeUpdated implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENT_ATTRIBUTE_UPDATED;
+        final long requestId;
+        final boolean success;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.segmentAttributeUpdated(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeBoolean(success);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            boolean success = in.readBoolean();
+            return new SegmentAttributeUpdated(requestId, success);
+        }
+    }
+    
+    @Data
     public static final class GetStreamSegmentInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
         final long requestId;

@@ -37,6 +37,8 @@ public interface ReplyProcessor {
 
     void segmentRead(WireCommands.SegmentRead segmentRead);
     
+    void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated);
+    
     void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute);
     
     void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo);

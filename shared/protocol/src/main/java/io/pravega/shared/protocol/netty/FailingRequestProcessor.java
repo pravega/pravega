@@ -22,6 +22,7 @@ import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,6 +49,11 @@ public class FailingRequestProcessor implements RequestProcessor {
 
     @Override
     public void readSegment(ReadSegment readSegment) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+    
+    @Override
+    public void updateSegmentAttribute(UpdateSegmentAttribute updateSegmentAttribute) {
         throw new IllegalStateException("Unexpected operation");
     }
     
