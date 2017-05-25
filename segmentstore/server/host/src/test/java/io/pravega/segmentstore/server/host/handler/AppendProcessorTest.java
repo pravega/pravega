@@ -388,14 +388,9 @@ public class AppendProcessorTest {
     }
 
     private Collection<AttributeUpdate> updateEventNumber(UUID clientId, long eventNum, long previousValue, long eventCount) {
-        if (previousValue == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-            return Arrays.asList(new AttributeUpdate(clientId, AttributeUpdateType.None, eventNum),
-                                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
-        } else {
-            return Arrays.asList(new AttributeUpdate(clientId, AttributeUpdateType.ReplaceIfEquals, eventNum,
-                                                     previousValue),
-                                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
-        }
+        return Arrays.asList(new AttributeUpdate(clientId, AttributeUpdateType.ReplaceIfEquals, eventNum,
+                                                 previousValue),
+                             new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
     }
 
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, StreamSegmentStore store) {

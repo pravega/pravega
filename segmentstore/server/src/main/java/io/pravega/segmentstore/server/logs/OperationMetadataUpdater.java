@@ -1249,7 +1249,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
                         break;
                     case ReplaceIfEquals:
                         // Verify value against existing value, if any.
-                        if (!hasValue || u.getComparisonValue() != previousValue) {
+                        if (u.getComparisonValue() != previousValue) {
                             throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
                                     String.format("Expected existing value to be '%s', actual '%s'.",
                                             u.getComparisonValue(), hasValue ? previousValue : "(not set)"));

@@ -20,7 +20,7 @@ public interface SegmentMetadata extends SegmentProperties {
     /**
      * Defines an attribute value that denotes a missing value.
      */
-    Long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE;
+    Long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as WireCommands.NULL_ATTRIBUTE_VALUE
 
     /**
      * Gets a value indicating the id of this StreamSegment.
