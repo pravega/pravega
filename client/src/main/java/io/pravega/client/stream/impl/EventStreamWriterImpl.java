@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -56,12 +55,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventWriterConfig config;
-    private final ConnectionFactory connectionFactory;
     @GuardedBy("lock")
     private final SegmentSelector selector;
 
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            ConnectionFactory connectionFactory, Serializer<Type> serializer, EventWriterConfig config) {
+            Serializer<Type> serializer, EventWriterConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -69,7 +67,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.stream = stream;
         this.controller = controller;
         this.outputStreamFactory = outputStreamFactory;
-        this.connectionFactory = connectionFactory;
         this.selector = new SegmentSelector(stream, controller, outputStreamFactory);
         this.serializer = serializer;
         this.config = config;
@@ -92,7 +89,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkNotNull(event);
         Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer data = serializer.serialize(event);
-        CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
+        CompletableFuture<Boolean> ackFuture = new CompletableFuture<Boolean>();
         synchronized (lock) {
             SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             while (segmentWriter == null) {
@@ -101,19 +98,32 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             }
             try {
-                segmentWriter.write(new PendingEvent(routingKey, data, result));
+                segmentWriter.write(new PendingEvent(routingKey, data, ackFuture));
             } catch (SegmentSealedException e) {
                 log.info("Segment was sealed: {}", segmentWriter);
                 handleLogSealed(Segment.fromScopedName(segmentWriter.getSegmentName()));
             }
         }
 
-        //BUG: flush internal is always invoked. This is not necessary !!!
-        return result.thenRunAsync(() -> {
-            if (!closed.get()) {
-                flushInternal();
+        //shrids: The goal is to remove the need of flushInternal here. i.e. FlushInternal is used to handle segment
+        //sealed exception which should now be performed on the thread pool (Used the forkjoin pool!).
+        //This also implies that eventStreamWriterImpl does not need the internal executor.
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        ackFuture.whenComplete((bool, exception) -> {
+            if (exception != null) {
+                result.completeExceptionally(exception);
+            } else {
+                if (bool) {
+                    result.complete(null);
+                } else {
+                    result.completeExceptionally(new IllegalStateException("Condition failed for non-conditional " +
+                            "write!?"));
+                }
             }
-        }, connectionFactory.getInternalExecutor());
+        });
+
+        return result;
     }
     
     @GuardedBy("lock")
