@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -26,6 +27,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsData;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import java.io.ByteArrayInputStream;
@@ -194,6 +196,46 @@ public class PravegaRequestProcessorTest {
         OpStatsData createSegmentStats = PravegaRequestProcessor.CREATE_STREAM_SEGMENT.toOpStatsData();
         assertNotEquals(0, createSegmentStats.getNumSuccessfulEvents());
         assertEquals(0, createSegmentStats.getNumFailedEvents());
+    }
+    
+    @Test(timeout = 20000)
+    public void testTransaction() throws Exception {
+        String streamSegmentName = "testCreateSegment";
+        UUID txnid = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
+        
+        processor.createTransaction(new WireCommands.CreateTransaction(1, streamSegmentName, txnid));
+        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(2, streamSegmentName, txnid));
+        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
+        order.verify(connection).send(new WireCommands.TransactionCreated(1, streamSegmentName, txnid));
+        order.verify(connection).send(Mockito.argThat(t -> {return t instanceof TransactionInfo && ((TransactionInfo) t).exists();}));
+        processor.commitTransaction(new WireCommands.CommitTransaction(3, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.TransactionCommitted(3, streamSegmentName, txnid));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(4, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid)));
+        
+        txnid = UUID.randomUUID();
+        processor.createTransaction(new WireCommands.CreateTransaction(1, streamSegmentName, txnid));
+        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        order.verify(connection).send(new WireCommands.TransactionCreated(1, streamSegmentName, txnid));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(2, streamSegmentName, txnid));
+        order.verify(connection).send(Mockito.argThat(t -> {return t instanceof TransactionInfo && ((TransactionInfo) t).exists();}));
+        processor.abortTransaction(new WireCommands.AbortTransaction(3, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.TransactionAborted(3, streamSegmentName, txnid));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(4, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid)));
+        
+        order.verifyNoMoreInteractions();
     }
     
     @Test(timeout = 20000)
