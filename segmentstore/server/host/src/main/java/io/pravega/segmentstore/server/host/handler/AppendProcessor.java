@@ -231,6 +231,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
       
             if (exception != null) {
                 if (conditionalFailed) {
+                    log.debug("Conditional apend failed due to incorrect offset: {}, {}", append, exception.getMessage());
                     connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber()));
                 } else {
                     handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "appending data", exception);

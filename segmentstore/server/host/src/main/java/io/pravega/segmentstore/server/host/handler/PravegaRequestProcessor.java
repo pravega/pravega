@@ -229,6 +229,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 connection.send(new SegmentAttributeUpdated(requestId, true));
             } else {
                 if (ExceptionHelpers.getRealException(e) instanceof BadAttributeUpdateException) {
+                    log.debug("Updating segment attribute {} failed due to: {}", update, e.getMessage());
                     connection.send(new SegmentAttributeUpdated(requestId, false));
                 } else {
                     handleException(requestId, segmentName, "Update attribute", e);
