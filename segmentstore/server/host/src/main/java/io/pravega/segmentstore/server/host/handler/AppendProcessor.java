@@ -196,13 +196,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         ArrayList<AttributeUpdate> attributes = new ArrayList<>(2);
         synchronized (lock) {
             long lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
-            if (lastEventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                attributes.add(new AttributeUpdate(append.getWriterId(), AttributeUpdateType.None,
-                                                   append.getEventNumber()));
-            } else {
-                attributes.add(new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals,
-                                                   append.getEventNumber(), lastEventNumber));
-            }
+            attributes.add(new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals,
+                                               append.getEventNumber(), lastEventNumber));
         }
         attributes.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
         ByteBuf buf = append.getData().asReadOnly();

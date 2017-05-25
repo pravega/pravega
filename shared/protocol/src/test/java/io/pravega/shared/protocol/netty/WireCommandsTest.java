@@ -91,9 +91,6 @@ public class WireCommandsTest {
     @Test
     public void testUpdateSegmentAttribute() throws IOException {
         testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, l));
-        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, null));
-        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, null, l));
-        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, null, null));
     }
     
     @Test

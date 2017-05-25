@@ -47,6 +47,9 @@ public final class WireCommands {
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
     public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
+    
+    public static final long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as SegmentMetadata.NULL_ATTRIBUTE_VALUE
+    
     private static final Map<Integer, WireCommandType> MAPPING;
     static {
         HashMap<Integer, WireCommandType> map = new HashMap<>();
@@ -651,7 +654,7 @@ public final class WireCommands {
     public static final class SegmentAttribute implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_ATTRIBUTE;
         final long requestId;
-        final Long value;
+        final long value;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -661,23 +664,12 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            if (value == null) {
-                out.writeBoolean(false);
-            } else { 
-                out.writeBoolean(true);
-                out.writeLong(value);
-            }
+            out.writeLong(value);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
-            Long value;
-            boolean found = in.readBoolean();
-            if (found) {
-                value = in.readLong();                
-            } else { 
-                value = null;
-            }
+            long value = in.readLong();                
             return new SegmentAttribute(requestId, value);
         }
     }
@@ -688,8 +680,8 @@ public final class WireCommands {
         final long requestId;
         final String segmentName;
         final UUID attributeId;
-        final Long expectedValue;
-        final Long newValue;
+        final long expectedValue;
+        final long newValue;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -702,36 +694,16 @@ public final class WireCommands {
             out.writeUTF(segmentName);
             out.writeLong(attributeId.getMostSignificantBits());
             out.writeLong(attributeId.getLeastSignificantBits());
-            if (expectedValue == null) {
-                out.writeBoolean(false);
-            } else { 
-                out.writeBoolean(true);
-                out.writeLong(expectedValue);
-            }
-            if (newValue == null) {
-                out.writeBoolean(false);
-            } else { 
-                out.writeBoolean(true);
-                out.writeLong(newValue);
-            }
+            out.writeLong(expectedValue);
+            out.writeLong(newValue);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             UUID attributeId = new UUID(in.readLong(), in.readLong());
-            Long excpecteValue;
-            if (in.readBoolean()) {
-                excpecteValue = in.readLong();                
-            } else { 
-                excpecteValue = null;
-            }
-            Long newValue;
-            if (in.readBoolean()) {
-                newValue = in.readLong();                
-            } else { 
-                newValue = null;
-            }
+            long excpecteValue = in.readLong();                
+            long newValue = in.readLong();                
             return new UpdateSegmentAttribute(requestId, segment, attributeId, excpecteValue, newValue);
         }
     }
