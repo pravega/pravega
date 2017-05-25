@@ -680,8 +680,8 @@ public final class WireCommands {
         final long requestId;
         final String segmentName;
         final UUID attributeId;
-        final long expectedValue;
         final long newValue;
+        final long expectedValue;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -694,17 +694,17 @@ public final class WireCommands {
             out.writeUTF(segmentName);
             out.writeLong(attributeId.getMostSignificantBits());
             out.writeLong(attributeId.getLeastSignificantBits());
-            out.writeLong(expectedValue);
             out.writeLong(newValue);
+            out.writeLong(expectedValue);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             UUID attributeId = new UUID(in.readLong(), in.readLong());
-            long excpecteValue = in.readLong();                
             long newValue = in.readLong();                
-            return new UpdateSegmentAttribute(requestId, segment, attributeId, excpecteValue, newValue);
+            long excpecteValue = in.readLong();                
+            return new UpdateSegmentAttribute(requestId, segment, attributeId, newValue, excpecteValue);
         }
     }
     

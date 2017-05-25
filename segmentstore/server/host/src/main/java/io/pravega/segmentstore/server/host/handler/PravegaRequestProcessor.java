@@ -11,12 +11,14 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -33,6 +35,7 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
@@ -46,6 +49,7 @@ import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttribute;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
@@ -57,6 +61,7 @@ import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
+import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.io.IOException;
@@ -72,6 +77,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
@@ -209,6 +215,30 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
         return data;
     }
+    
+    @Override
+    public void updateSegmentAttribute(UpdateSegmentAttribute updateSegmentAttribute) {
+        long requestId = updateSegmentAttribute.getRequestId();
+        String segmentName = updateSegmentAttribute.getSegmentName();
+        UUID attributeId = updateSegmentAttribute.getAttributeId();
+        long newValue = updateSegmentAttribute.getNewValue();
+        long expectedValue = updateSegmentAttribute.getExpectedValue();
+        val update = new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, newValue, expectedValue);
+        segmentStore.updateAttributes(segmentName, Collections.singletonList(update), TIMEOUT).whenComplete((v, e) -> {
+            if (e == null) {
+                connection.send(new SegmentAttributeUpdated(requestId, true));
+            } else {
+                if (ExceptionHelpers.getRealException(e) instanceof BadAttributeUpdateException) {
+                    connection.send(new SegmentAttributeUpdated(requestId, false));
+                } else {
+                    handleException(requestId, segmentName, "Update attribute", e);
+                }
+            }
+        }).exceptionally((Throwable e) -> {
+            handleException(requestId, segmentName, "Update attribute", e);
+            return null;
+        });
+    }
 
     @Override
     public void getSegmentAttribute(GetSegmentAttribute getSegmentAttribute) {
@@ -221,6 +251,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             } else {
                 Map<UUID, Long> attributes = properties.getAttributes();
                 Long value = attributes.get(attributeId);
+                if (value == null) {
+                    value = WireCommands.NULL_ATTRIBUTE_VALUE;
+                }
                 connection.send(new SegmentAttribute(requestId, value));
             }
             return null;
