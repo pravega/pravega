@@ -28,6 +28,9 @@ configure_controller() {
 
 configure_nfs_s3_hdfs() {
     add_system_property "tier2.enableNfs" "${ENABLE_NFS}"
+    if [ "${ENABLE_NFS}" = "true" -and "${MOUNT_IN_CONTAINER}"  = "true" ]; then
+        mount -t nfs ${NFS_SERVER} ${NFS_MOUNT}
+    fi
     add_system_property "nfs.nfsRoot" "${NFS_MOUNT}"
     add_system_property "tier2.enableHdfs" "${ENABLE_HDFS}"
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"

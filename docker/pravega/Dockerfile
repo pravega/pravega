@@ -9,6 +9,8 @@
 #
 FROM java:8
 
+RUN apt-get install -q nfs-utils
+
 EXPOSE 9090 9091 10000 12345
 WORKDIR /opt/pravega
 COPY pravega/ /opt/pravega/
