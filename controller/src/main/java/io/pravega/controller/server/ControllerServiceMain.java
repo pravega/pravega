@@ -178,11 +178,8 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 log.info("Awaiting termination of controller services");
                 starter.awaitTerminated();
             }
-        }/* finally {
-            log.
+        } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "run", traceId);
-        }*/ catch(Exception e) {
-            log.info("\n**EXCEPTION cause ",e.getCause());
         }
     }
 

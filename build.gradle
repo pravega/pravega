@@ -20,7 +20,6 @@ buildscript {
     dependencies {
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
         classpath "gradle.plugin.org.nosphere.apache:creadur-rat-gradle:0.3.0"
-        classpath group: 'com.github.jengelman.gradle.plugins', name:'shadow', version: shadowGradlePlugin
     }
 }
 
@@ -375,8 +374,6 @@ project('controller') {
 
 project('standalone') {
     apply plugin: 'application'
-    apply plugin: 'java'
-    apply plugin: 'com.github.johnrengelman.shadow'
     applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
@@ -407,27 +404,9 @@ project('standalone') {
         testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
     }
 
-    shadowJar {
-        dependencies {
-            /*include (project(":common"))
-            include (project(":client"))
-            include (project(":segmentstore:server"))
-            include (project(":segmentstore:server:host"))
-            include (project(":controller"))
-            include (project(":segmentstore:contracts"))
-            include (project(":segmentstore:storage"))
-            include (project(":segmentstore:storage:impl"))
-
-            include dependency("org.apache.curator:curator-test")
-            include dependency("org.apache.hadoop:hadoop-common")
-            include dependency("org.apache.hadoop:hadoop-hdfs")
-            include dependency("org.apache.hadoop:hadoop-minicluster")*/
-            //include dependency("com.sun.jersey:jersey-core")
-            //include dependency("com.sun.jersey:jersey-server")
-        }
-
-        relocate "com.sun.jersey", "io.pravega.shaded.com.sun.jersey"
-        mergeServiceFiles()
+    configurations {
+        runtime.exclude group: "com.sun.jersey", module: "jersey-core"
+        runtime.exclude group: "com.sun.jersey", module: "jersey-server"
     }
 
     task startStandalone(type: JavaExec) {

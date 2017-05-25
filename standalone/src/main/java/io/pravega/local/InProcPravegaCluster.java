@@ -304,7 +304,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .build();
 
-        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder().host("localhost").port(9092).build();
+        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder().host("localhost").port(9091).build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
