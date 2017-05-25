@@ -68,11 +68,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             return null;
         }
 
-        try {
-            return transaction.getStreamSegmentMetadata(streamSegmentId);
-        } catch (MetadataUpdateException ex) {
-            return null;
-        }
+        return transaction.getStreamSegmentMetadata(streamSegmentId);
     }
 
     @Override
@@ -92,13 +88,12 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
     @Override
     public long getStreamSegmentId(String streamSegmentName, boolean updateLastUsed) {
-        // We ignore the 'updateLastUsed' argument here since this is an internal call, and there is no need to update the metadata stats.
         ContainerMetadataUpdateTransaction transaction = this.currentTransaction;
         if (transaction == null) {
             return ContainerMetadata.NO_STREAM_SEGMENT_ID;
         }
 
-        return transaction.getExistingStreamSegmentId(streamSegmentName);
+        return transaction.getStreamSegmentId(streamSegmentName, updateLastUsed);
     }
 
     @Override

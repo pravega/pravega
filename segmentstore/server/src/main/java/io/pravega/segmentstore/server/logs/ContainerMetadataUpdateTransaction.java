@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
@@ -49,6 +50,7 @@ import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -58,7 +60,7 @@ import lombok.val;
  */
 @Slf4j
 @NotThreadSafe
-class ContainerMetadataUpdateTransaction {
+class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     // region Members
 
     private static final byte CURRENT_SERIALIZATION_VERSION = 0;
@@ -67,10 +69,13 @@ class ContainerMetadataUpdateTransaction {
     private final HashMap<String, Long> newStreamSegmentNames;
     private final List<Long> newTruncationPoints;
     private final HashMap<Long, LogAddress> newTruncationMarkers;
+    @Getter
     private final int containerId;
+    @Getter
     private final boolean recoveryMode;
-    private final int maximumActiveSegmentCount;
-    private final int baseActiveSegmentCount;
+    @Getter
+    private int maximumActiveSegmentCount;
+    private int baseActiveSegmentCount;
     private ContainerMetadata baseMetadata;
     private long newSequenceNumber;
     private final String traceObjectId;
@@ -107,7 +112,76 @@ class ContainerMetadataUpdateTransaction {
 
     //endregion
 
+    //region ContainerMetadata Implementation
+
+    @Override
+    public long getContainerEpoch() {
+        throw new UnsupportedOperationException("getContainerEpoch() is not supported in " + getClass().getName());
+    }
+
+    @Override
+    public long getOperationSequenceNumber() {
+        return this.newSequenceNumber;
+    }
+
+    @Override
+    public long getStreamSegmentId(String streamSegmentName, boolean updateLastUsed) {
+        long existingSegmentId = this.newStreamSegmentNames.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
+        if (existingSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+            existingSegmentId = this.baseMetadata.getStreamSegmentId(streamSegmentName, false);
+        }
+
+        return existingSegmentId;
+    }
+
+    @Override
+    public SegmentMetadata getStreamSegmentMetadata(long segmentId) {
+        SegmentMetadata sm = this.streamSegmentUpdates.getOrDefault(segmentId, null);
+        if (sm == null) {
+            sm = this.newStreamSegments.getOrDefault(segmentId, null);
+            if (sm == null) {
+                sm = this.baseMetadata.getStreamSegmentMetadata(segmentId);
+            }
+        }
+
+        return sm;
+    }
+
+    @Override
+    public Collection<Long> getAllStreamSegmentIds() {
+        Collection<Long> baseSegmentIds = this.baseMetadata.getAllStreamSegmentIds();
+        ArrayList<Long> result = new ArrayList<>(baseSegmentIds.size() + this.newStreamSegments.size());
+        result.addAll(baseSegmentIds);
+        result.addAll(this.newStreamSegments.keySet());
+        return result;
+    }
+
+    @Override
+    public int getActiveSegmentCount() {
+        return this.baseActiveSegmentCount + this.newStreamSegments.size();
+    }
+
+    //endregion
+
     //region Operations
+
+    /**
+     * Rebases this UpdateTransaction to the given ContainerMetadata.
+     *
+     * @param baseMetadata The ContainerMetadata to rebase onto.
+     */
+    void rebase(ContainerMetadata baseMetadata) {
+        Preconditions.checkArgument(baseMetadata.getContainerId() == this.containerId, "ContainerId mismatch");
+        Preconditions.checkArgument(baseMetadata.isRecoveryMode() == this.isRecoveryMode(), "isRecoveryMode mismatch");
+        this.baseMetadata = baseMetadata;
+        this.maximumActiveSegmentCount = baseMetadata.getMaximumActiveSegmentCount();
+        this.baseActiveSegmentCount = baseMetadata.getActiveSegmentCount();
+        if (this.baseMetadata.isRecoveryMode()) {
+            this.newSequenceNumber = ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER;
+        } else {
+            this.newSequenceNumber = Long.MIN_VALUE;
+        }
+    }
 
     /**
      * Commits all pending changes to the given target Container Metadata.
@@ -115,6 +189,7 @@ class ContainerMetadataUpdateTransaction {
      */
     void commit(UpdateableContainerMetadata target) {
         Preconditions.checkArgument(target.getContainerId() == this.containerId, "ContainerId mismatch");
+        Preconditions.checkArgument(target.isRecoveryMode() == this.isRecoveryMode(), "isRecoveryMode mismatch");
 
         if (target.isRecoveryMode()) {
             if (this.processedCheckpoint) {
@@ -156,6 +231,24 @@ class ContainerMetadataUpdateTransaction {
     }
 
     /**
+     * Clears this UpdateTransaction of all changes.
+     */
+    @VisibleForTesting
+    void clear() {
+        this.streamSegmentUpdates.clear();
+        this.newStreamSegments.clear();
+        this.newStreamSegmentNames.clear();
+        this.newTruncationMarkers.clear();
+        this.newTruncationPoints.clear();
+        this.processedCheckpoint = false;
+        if (this.baseMetadata.isRecoveryMode()) {
+            this.newSequenceNumber = ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER;
+        } else {
+            this.newSequenceNumber = Long.MIN_VALUE;
+        }
+    }
+
+    /**
      * Records the given Truncation Marker Mapping.
      *
      * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
@@ -166,15 +259,6 @@ class ContainerMetadataUpdateTransaction {
                 "Operation Sequence Number must be a positive number.");
         Preconditions.checkNotNull(logAddress, "logAddress");
         this.newTruncationMarkers.put(operationSequenceNumber, logAddress);
-    }
-
-    private void clear() {
-        this.streamSegmentUpdates.clear();
-        this.newStreamSegments.clear();
-        this.newStreamSegmentNames.clear();
-        this.newTruncationMarkers.clear();
-        this.newTruncationPoints.clear();
-        this.processedCheckpoint = false;
     }
 
     //endregion
@@ -203,7 +287,7 @@ class ContainerMetadataUpdateTransaction {
     void preProcessOperation(Operation operation) throws ContainerException, StreamSegmentException {
         SegmentMetadataUpdateTransaction segmentMetadata = null;
         if (operation instanceof SegmentOperation) {
-            segmentMetadata = getStreamSegmentMetadata(((SegmentOperation) operation).getStreamSegmentId());
+            segmentMetadata = getSegmentUpdateTransaction(((SegmentOperation) operation).getStreamSegmentId());
             if (segmentMetadata.isDeleted()) {
                 throw new StreamSegmentNotExistsException(segmentMetadata.getName());
             }
@@ -216,7 +300,7 @@ class ContainerMetadataUpdateTransaction {
                 segmentMetadata.preProcessOperation((StreamSegmentSealOperation) operation);
             } else if (operation instanceof MergeTransactionOperation) {
                 MergeTransactionOperation mbe = (MergeTransactionOperation) operation;
-                SegmentMetadataUpdateTransaction transactionMetadata = getStreamSegmentMetadata(mbe.getTransactionSegmentId());
+                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mbe.getTransactionSegmentId());
                 transactionMetadata.preProcessAsTransactionSegment(mbe);
                 segmentMetadata.preProcessAsParentSegment(mbe, transactionMetadata);
             }
@@ -249,7 +333,7 @@ class ContainerMetadataUpdateTransaction {
     void acceptOperation(Operation operation) throws MetadataUpdateException {
         SegmentMetadataUpdateTransaction segmentMetadata = null;
         if (operation instanceof SegmentOperation) {
-            segmentMetadata = getStreamSegmentMetadata(((SegmentOperation) operation).getStreamSegmentId());
+            segmentMetadata = getSegmentUpdateTransaction(((SegmentOperation) operation).getStreamSegmentId());
             segmentMetadata.setLastUsed(operation.getSequenceNumber());
         }
 
@@ -260,7 +344,7 @@ class ContainerMetadataUpdateTransaction {
                 segmentMetadata.acceptOperation((StreamSegmentSealOperation) operation);
             } else if (operation instanceof MergeTransactionOperation) {
                 MergeTransactionOperation mto = (MergeTransactionOperation) operation;
-                SegmentMetadataUpdateTransaction transactionMetadata = getStreamSegmentMetadata(mto.getTransactionSegmentId());
+                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mto.getTransactionSegmentId());
                 transactionMetadata.acceptAsTransactionSegment(mto);
                 transactionMetadata.setLastUsed(operation.getSequenceNumber());
                 segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
@@ -349,7 +433,7 @@ class ContainerMetadataUpdateTransaction {
         }
 
         // Create or reuse an existing Segment Metadata.
-        UpdateableSegmentMetadata segmentMetadata = getOrCreateSegmentMetadata(operation.getStreamSegmentName(),
+        UpdateableSegmentMetadata segmentMetadata = getOrCreateSegmentUpdateTransaction(operation.getStreamSegmentName(),
                 operation.getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID);
         updateMetadata(operation, segmentMetadata);
     }
@@ -361,7 +445,7 @@ class ContainerMetadataUpdateTransaction {
         }
 
         // Create or reuse an existing Transaction Metadata.
-        UpdateableSegmentMetadata transactionMetadata = getOrCreateSegmentMetadata(operation.getStreamSegmentName(),
+        UpdateableSegmentMetadata transactionMetadata = getOrCreateSegmentUpdateTransaction(operation.getStreamSegmentName(),
                 operation.getStreamSegmentId(), operation.getParentStreamSegmentId());
         updateMetadata(operation, transactionMetadata);
     }
@@ -385,38 +469,8 @@ class ContainerMetadataUpdateTransaction {
 
     //region Helpers
 
-    /**
-     * Gets all pending changes for the given StreamSegment.
-     *
-     * @param streamSegmentId The Id of the Segment to query.
-     * @throws MetadataUpdateException If no metadata entry exists for the given StreamSegment Id.
-     */
-    SegmentMetadataUpdateTransaction getStreamSegmentMetadata(long streamSegmentId) throws MetadataUpdateException {
-        SegmentMetadataUpdateTransaction tsm = tryGetSegmentMetadata(streamSegmentId);
-        if (tsm == null) {
-            throw new MetadataUpdateException(this.containerId, String.format("No metadata entry exists for StreamSegment Id %d.", streamSegmentId));
-        }
-
-        return tsm;
-    }
-
-    /**
-     * Gets the Id of a segment associated with a Segment Name.
-     *
-     * @param streamSegmentName The name of the Segment to lookup the Id for.
-     * @return The requested Id, or NO_STREAM_SEGMENT if not found.
-     */
-    long getExistingStreamSegmentId(String streamSegmentName) {
-        long existingSegmentId = this.baseMetadata.getStreamSegmentId(streamSegmentName, false);
-        if (existingSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-            existingSegmentId = this.newStreamSegmentNames.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
-        }
-
-        return existingSegmentId;
-    }
-
     private void checkExistingMapping(StreamSegmentMapping operation) throws MetadataUpdateException {
-        long existingStreamSegmentId = getExistingStreamSegmentId(operation.getStreamSegmentName());
+        long existingStreamSegmentId = getStreamSegmentId(operation.getStreamSegmentName(), false);
         if (existingStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID
                 && existingStreamSegmentId != operation.getStreamSegmentId()) {
             throw new MetadataUpdateException(this.containerId,
@@ -427,7 +481,7 @@ class ContainerMetadataUpdateTransaction {
 
     private void assignUniqueStreamSegmentId(StreamSegmentMapping mapping) throws TooManyActiveSegmentsException {
         if (!this.recoveryMode) {
-            if (this.baseActiveSegmentCount + this.newStreamSegments.size() >= this.maximumActiveSegmentCount) {
+            if (getActiveSegmentCount() >= this.maximumActiveSegmentCount) {
                 throw new TooManyActiveSegmentsException(this.containerId, this.maximumActiveSegmentCount);
             }
 
@@ -464,12 +518,42 @@ class ContainerMetadataUpdateTransaction {
     }
 
     /**
+     * Gets all pending changes for the given StreamSegment.
+     *
+     * @param streamSegmentId The Id of the Segment to query.
+     * @throws MetadataUpdateException If no metadata entry exists for the given StreamSegment Id.
+     */
+    private SegmentMetadataUpdateTransaction getSegmentUpdateTransaction(long streamSegmentId) throws MetadataUpdateException {
+        SegmentMetadataUpdateTransaction tsm = tryGetSegmentUpdateTransaction(streamSegmentId);
+        if (tsm == null) {
+            throw new MetadataUpdateException(this.containerId, String.format("No metadata entry exists for StreamSegment Id %d.", streamSegmentId));
+        }
+
+        return tsm;
+    }
+
+    /**
+     * Gets an UpdateableSegmentMetadata for the given Segment. If already registered, it returns that instance,
+     * otherwise it creates and records a new Segment metadata.
+     */
+    private SegmentMetadataUpdateTransaction getOrCreateSegmentUpdateTransaction(String segmentName, long segmentId, long parentId) {
+        SegmentMetadataUpdateTransaction sm = tryGetSegmentUpdateTransaction(segmentId);
+        if (sm == null) {
+            SegmentMetadata baseSegmentMetadata = createSegmentMetadata(segmentName, segmentId, parentId);
+            sm = new SegmentMetadataUpdateTransaction(baseSegmentMetadata, this.recoveryMode);
+            this.streamSegmentUpdates.put(segmentId, sm);
+        }
+
+        return sm;
+    }
+
+    /**
      * Attempts to get a SegmentMetadataUpdateTransaction for an existing or new Segment.
      *
      * @param segmentId The Id of the Segment to retrieve.
      * @return An instance of SegmentMetadataUpdateTransaction, or null if no such segment exists.
      */
-    private SegmentMetadataUpdateTransaction tryGetSegmentMetadata(long segmentId) {
+    private SegmentMetadataUpdateTransaction tryGetSegmentUpdateTransaction(long segmentId) {
         SegmentMetadataUpdateTransaction sm = this.streamSegmentUpdates.getOrDefault(segmentId, null);
         if (sm == null) {
             SegmentMetadata baseSegmentMetadata = this.baseMetadata.getStreamSegmentMetadata(segmentId);
@@ -481,21 +565,6 @@ class ContainerMetadataUpdateTransaction {
                 sm = new SegmentMetadataUpdateTransaction(baseSegmentMetadata, this.recoveryMode);
                 this.streamSegmentUpdates.put(segmentId, sm);
             }
-        }
-
-        return sm;
-    }
-
-    /**
-     * Gets an UpdateableSegmentMetadata for the given Segment. If already registered, it returns that instance,
-     * otherwise it creates and records a new Segment metadata.
-     */
-    private UpdateableSegmentMetadata getOrCreateSegmentMetadata(String segmentName, long segmentId, long parentId) {
-        SegmentMetadataUpdateTransaction sm = tryGetSegmentMetadata(segmentId);
-        if (sm == null) {
-            SegmentMetadata baseSegmentMetadata = createSegmentMetadata(segmentName, segmentId, parentId);
-            sm = new SegmentMetadataUpdateTransaction(baseSegmentMetadata, this.recoveryMode);
-            this.streamSegmentUpdates.put(segmentId, sm);
         }
 
         return sm;
@@ -711,7 +780,7 @@ class ContainerMetadataUpdateTransaction {
         // S3. Name.
         String name = stream.readUTF();
 
-        UpdateableSegmentMetadata metadata = getOrCreateSegmentMetadata(name, segmentId, parentId);
+        UpdateableSegmentMetadata metadata = getOrCreateSegmentUpdateTransaction(name, segmentId, parentId);
 
         // S4. DurableLogLength.
         metadata.setDurableLogLength(stream.readLong());
@@ -761,7 +830,7 @@ class ContainerMetadataUpdateTransaction {
     private void deserializeStorageSegmentMetadata(DataInputStream stream) throws IOException, MetadataUpdateException {
         // S1. StreamSegmentId.
         long segmentId = stream.readLong();
-        SegmentMetadataUpdateTransaction metadata = getStreamSegmentMetadata(segmentId);
+        SegmentMetadataUpdateTransaction metadata = getSegmentUpdateTransaction(segmentId);
         // S2. StorageLength.
         long storageLength = stream.readLong();
         // S3. SealedInStorage.
