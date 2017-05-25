@@ -210,31 +210,40 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
-        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0));
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
+                                                               WireCommands.CreateSegment.NO_SCALE, 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
-        
+
         processor.createTransaction(new WireCommands.CreateTransaction(1, streamSegmentName, txnid));
         assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
         processor.getTransactionInfo(new WireCommands.GetTransactionInfo(2, streamSegmentName, txnid));
         assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
         order.verify(connection).send(new WireCommands.TransactionCreated(1, streamSegmentName, txnid));
-        order.verify(connection).send(Mockito.argThat(t -> {return t instanceof TransactionInfo && ((TransactionInfo) t).exists();}));
+        order.verify(connection).send(Mockito.argThat(t -> {
+            return t instanceof TransactionInfo && ((TransactionInfo) t).exists();
+        }));
         processor.commitTransaction(new WireCommands.CommitTransaction(3, streamSegmentName, txnid));
         order.verify(connection).send(new WireCommands.TransactionCommitted(3, streamSegmentName, txnid));
         processor.getTransactionInfo(new WireCommands.GetTransactionInfo(4, streamSegmentName, txnid));
-        order.verify(connection).send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid)));
-        
+        order.verify(connection)
+             .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
+                                                                                                     txnid)));
+
         txnid = UUID.randomUUID();
         processor.createTransaction(new WireCommands.CreateTransaction(1, streamSegmentName, txnid));
         assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
         order.verify(connection).send(new WireCommands.TransactionCreated(1, streamSegmentName, txnid));
         processor.getTransactionInfo(new WireCommands.GetTransactionInfo(2, streamSegmentName, txnid));
-        order.verify(connection).send(Mockito.argThat(t -> {return t instanceof TransactionInfo && ((TransactionInfo) t).exists();}));
+        order.verify(connection).send(Mockito.argThat(t -> {
+            return t instanceof TransactionInfo && ((TransactionInfo) t).exists();
+        }));
         processor.abortTransaction(new WireCommands.AbortTransaction(3, streamSegmentName, txnid));
         order.verify(connection).send(new WireCommands.TransactionAborted(3, streamSegmentName, txnid));
         processor.getTransactionInfo(new WireCommands.GetTransactionInfo(4, streamSegmentName, txnid));
-        order.verify(connection).send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid)));
-        
+        order.verify(connection)
+             .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
+                                                                                                     txnid)));
+
         order.verifyNoMoreInteractions();
     }
     
