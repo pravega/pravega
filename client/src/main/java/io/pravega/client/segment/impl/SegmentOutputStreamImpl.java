@@ -336,10 +336,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             state.failConnection(error);
         }
     }
-    
+
     /**
-     * @see SegmentOutputStream#write(java.nio.ByteBuffer,
-     *      java.util.concurrent.CompletableFuture)
+     * @see SegmentOutputStream#write(PendingEvent)
      */
     @Override
     @Synchronized
