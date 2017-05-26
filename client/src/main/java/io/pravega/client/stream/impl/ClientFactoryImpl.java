@@ -132,7 +132,8 @@ public class ClientFactoryImpl implements ClientFactory {
                                                                       SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
-        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment);
+        //No callback is required if the segment is sealed.
+        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, s -> { /*No operation*/ } );
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment);
         return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer);
     }

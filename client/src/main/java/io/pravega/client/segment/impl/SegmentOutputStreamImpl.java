@@ -42,6 +42,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -71,6 +72,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final ConnectionFactory connectionFactory;
     private final Supplier<Long> requestIdGenerator = new AtomicLong(0)::incrementAndGet;
     private final UUID writerId;
+    private final Consumer<Segment> callBackForSealed;
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
@@ -239,7 +241,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 return new ArrayList<>(inflight.entrySet());
             }
         }
-        
+
         private List<PendingEvent> getAllInflightEvents() {
             synchronized (lock) {
                 return new ArrayList<>(inflight.values());
@@ -273,6 +275,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             state.failConnection(new SegmentSealedException());
+            connectionFactory.getInternalExecutor().submit(() -> callBackForSealed
+                    .accept(Segment.fromScopedName(getSegmentName())));
         }
 
         @Override

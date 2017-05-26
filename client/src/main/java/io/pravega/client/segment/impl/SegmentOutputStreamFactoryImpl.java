@@ -13,6 +13,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
@@ -39,7 +40,9 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     private final ConnectionFactory cf;
 
     @Override
-    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId) {
+    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment>
+            segmentSealedCallback
+    ) {
         CompletableFuture<String> name = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -75,12 +78,15 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
             name.completeExceptionally(t);
             return null;
         });
-        return new SegmentOutputStreamImpl( getAndHandleExceptions(name, RuntimeException::new), controller, cf, UUID.randomUUID());
+        return new SegmentOutputStreamImpl( getAndHandleExceptions(name, RuntimeException::new), controller, cf, UUID
+                .randomUUID(), segmentSealedCallback);
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
-        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID());
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback) {
+
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID
+                .randomUUID(), segmentSealedCallback);
         try {
             result.getConnection();
         } catch (RetriesExhaustedException | SegmentSealedException e) {

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -75,10 +76,11 @@ public class SegmentSelector {
         return currentSegments.getSegmentForKey(routingKey);
     }
 
-    public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment) {
+    public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment>
+            segmentSealedCallback) {
         StreamSegmentsWithPredecessors successors = FutureHelpers.getAndHandleExceptions(
                 controller.getSuccessors(sealedSegment), RuntimeException::new);
-        return updateSegments(currentSegments.withReplacementRange(successors));
+        return updateSegments(currentSegments.withReplacementRange(successors), segmentSealedCallback);
     }
 
     /**
@@ -87,17 +89,17 @@ public class SegmentSelector {
      * @return A list of events that were sent to old segments and never acked. These should be
      *         re-sent.
      */
-    public List<PendingEvent> refreshSegmentEventWriters() {
+    public List<PendingEvent> refreshSegmentEventWriters(Consumer<Segment> segmentSealedCallBack) {
         return updateSegments(FutureHelpers.getAndHandleExceptions(
-                controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new));
+                controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new), segmentSealedCallBack);
     }
 
     @Synchronized
-    private List<PendingEvent> updateSegments(StreamSegments newSteamSegments) {
+    private List<PendingEvent> updateSegments(StreamSegments newSteamSegments, Consumer<Segment> segmentSealedCallBack) {
         currentSegments = newSteamSegments;
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
-                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
+                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack);
                 writers.put(segment, out);
             }
         }

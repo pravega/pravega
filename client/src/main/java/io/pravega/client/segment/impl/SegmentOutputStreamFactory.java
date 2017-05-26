@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * Creates {@link SegmentOutputStream} for segments and transactions.
@@ -23,7 +24,7 @@ public interface SegmentOutputStreamFactory {
      * @param txId    The transaction id.
      * @return New instance of SegmentOutputStream with an open transaction.
      */
-    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId);
+    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment> segmentSealedCallback);
 
     /**
      * Creates a stream for an existing segment. This operation will fail if the segment does not
@@ -35,5 +36,5 @@ public interface SegmentOutputStreamFactory {
      * @param segment The segment.
      * @return New instance of SegmentOutputStream for writing.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment);
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback);
 }

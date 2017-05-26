@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -57,6 +58,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final EventWriterConfig config;
     @GuardedBy("lock")
     private final SegmentSelector selector;
+    private final Consumer<Segment> segmentSealedCallBack;
 
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
             Serializer<Type> serializer, EventWriterConfig config) {
@@ -66,11 +68,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkNotNull(serializer);
         this.stream = stream;
         this.controller = controller;
+        this.segmentSealedCallBack = this::handleLogSealed;
         this.outputStreamFactory = outputStreamFactory;
         this.selector = new SegmentSelector(stream, controller, outputStreamFactory);
         this.serializer = serializer;
         this.config = config;
-        List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters();
+        List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
     }
 
@@ -109,7 +112,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         //sealed exception which should now be performed on the thread pool (Used the forkjoin pool!).
         //This also implies that eventStreamWriterImpl does not need the internal executor.
         CompletableFuture<Void> result = new CompletableFuture<>();
-
         ackFuture.whenComplete((bool, exception) -> {
             if (exception != null) {
                 result.completeExceptionally(exception);
@@ -128,7 +130,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     
     @GuardedBy("lock")
     private void handleMissingLog() {
-        List<PendingEvent> toResend = selector.refreshSegmentEventWriters();
+        List<PendingEvent> toResend = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         resend(toResend);
     }
 
@@ -139,7 +141,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      */
     @GuardedBy("lock")
     private void handleLogSealed(Segment segment) {
-        List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment);
+        List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack);
         resend(toResend);
     }
 
@@ -154,7 +156,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 } else {
                     SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey());
                     if (segmentWriter == null) {
-                        unsent.addAll(selector.refreshSegmentEventWriters());
+                        unsent.addAll(selector.refreshSegmentEventWriters(segmentSealedCallBack));
                         sendFailed = true;
                     } else {
                         try {
@@ -162,7 +164,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         } catch (SegmentSealedException e) {
                             log.info("Segment was sealed while handling seal: {}", segmentWriter);
                             Segment segment = Segment.fromScopedName(segmentWriter.getSegmentName());
-                            unsent.addAll(selector.refreshSegmentEventWritersUponSealed(segment));
+                            unsent.addAll(selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack));
                             sendFailed = true;
                         }
                     }
@@ -284,7 +286,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : txnSegments.getSteamSegments().getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId);
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId, segmentSealedCallBack);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
@@ -302,7 +304,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, segmentSealedCallBack);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
