@@ -10,7 +10,6 @@
 package io.pravega.controller.server;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.mocks.AckFutureMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.AbortEvent;
 import io.pravega.controller.server.eventProcessor.CommitEvent;
@@ -30,7 +29,6 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -115,8 +113,8 @@ public class ControllerServiceWithZKStreamTest {
                     executor, hostId, connectionFactory);
         }
 
-        public void initializeWriters(final List<AckFuture> commitWriterResponses,
-                                      final List<AckFuture> abortWriterResponses) {
+        public void initializeWriters(final List<CompletableFuture<Void>> commitWriterResponses,
+                                      final List<CompletableFuture<Void>> abortWriterResponses) {
             EventStreamWriter<CommitEvent> mockCommitWriter = Mockito.mock(EventStreamWriter.class);
             Mockito.when(mockCommitWriter.writeEvent(anyString(), any())).thenAnswer(new SequenceAnswer<>(
                     commitWriterResponses));
@@ -174,15 +172,15 @@ public class ControllerServiceWithZKStreamTest {
     }
 
     @SneakyThrows
-    private List<AckFuture> getWriteResultSequence(int count) {
-        List<AckFuture> ackFutures = new ArrayList<>();
+    private List<CompletableFuture<Void>> getWriteResultSequence(int count) {
+        List<CompletableFuture<Void>> ackFutures = new ArrayList<>();
         for (int i = 0; i < count; i++) {
 
-            AckFuture spy = Mockito.spy(new AckFutureMock(CompletableFuture.completedFuture(true)));
+            CompletableFuture<Void> spy = Mockito.spy(CompletableFuture.completedFuture(null));
             Mockito.when(spy.get()).thenThrow(InterruptedException.class);
             ackFutures.add(spy);
-            ackFutures.add(new AckFutureMock(FutureHelpers.failedFuture(new WriteFailedException())));
-            ackFutures.add(new AckFutureMock(CompletableFuture.completedFuture(true)));
+            ackFutures.add(FutureHelpers.failedFuture(new WriteFailedException()));
+            ackFutures.add(CompletableFuture.completedFuture(null));
         }
         return ackFutures;
     }
