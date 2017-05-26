@@ -119,10 +119,9 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * @return The sealed UpdateTransaction Id.
      */
     long sealTransaction() {
-        ContainerMetadataUpdateTransaction previous = getActiveTransaction();
-        if (previous != null) {
-            previous.seal();
-        }
+        // Even if we have had no changes, still create a new (empty) transaction and seal it, since callers will expect
+        // a different Id every time which can be committed/rolled back.
+        getOrCreateTransaction().seal();
 
         // Always return nextTransactionId - 1, since otherwise we are at risk of returning a value we previously returned
         // (for example, if we rolled back a transaction).
@@ -190,14 +189,15 @@ class OperationMetadataUpdater implements ContainerMetadata {
     }
 
     /**
-     * Records a Truncation Marker.
+     * Records a Truncation Marker. As opposed from many other methods in this class, this one does not record this change
+     * in the transaction; instead it updates the base ContainerMetadata directly.
      *
      * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
      * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and including).
      */
     void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
         log.debug("{}: RecordTruncationMarker OperationSequenceNumber = {}, DataFrameAddress = {}.", this.traceObjectId, operationSequenceNumber, logAddress);
-        getOrCreateTransaction().recordTruncationMarker(operationSequenceNumber, logAddress);
+        this.metadata.recordTruncationMarker(operationSequenceNumber, logAddress);
     }
 
     /**

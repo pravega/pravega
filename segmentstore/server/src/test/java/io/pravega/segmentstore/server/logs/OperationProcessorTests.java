@@ -19,8 +19,10 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.ConfigHelpers;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.segmentstore.server.TruncationMarkerRepository;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -29,11 +31,9 @@ import io.pravega.segmentstore.server.logs.operations.OperationFactory;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.reading.CacheManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.server.IllegalContainerStateException;
-import io.pravega.segmentstore.server.TestDurableDataLog;
-import io.pravega.segmentstore.server.reading.CacheManager;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -512,28 +512,36 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
             // MemoryLog: verify that the operations match that of the expected list.
             Assert.assertTrue("No more items left to read from MemoryLog. Expected: " + expectedOp, memoryLogIterator.hasNext());
-            memoryLogComparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, memoryLogIterator.next()); // Use memoryLogComparer: we are actually expecting the same object here.
+
+            // Use memoryLogComparer: we are actually expecting the same object here.
+            memoryLogComparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, memoryLogIterator.next());
 
             // DataLog: read back using DataFrameReader and verify the operations match that of the expected list.
             DataFrameReader.ReadResult<Operation> readResult = dataFrameReader.getNext();
             Assert.assertNotNull("No more items left to read from DataLog. Expected: " + expectedOp, readResult);
-            OperationComparer.DEFAULT.assertEquals(expectedOp, readResult.getItem()); // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
+
+            // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
+            OperationComparer.DEFAULT.assertEquals(expectedOp, readResult.getItem());
 
             // Check truncation markers if this is the last Operation to be written.
             LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
-            if (readResult.getLastFullDataFrameAddress() != null && readResult.getLastFullDataFrameAddress().getSequence() != readResult.getLastUsedDataFrameAddress().getSequence()) {
+            if (readResult.getLastFullDataFrameAddress() != null
+                    && readResult.getLastFullDataFrameAddress().getSequence() != readResult.getLastUsedDataFrameAddress().getSequence()) {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
                 // that ends with a part of it.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.", readResult.getLastFullDataFrameAddress(), dataFrameAddress);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.",
+                        readResult.getLastFullDataFrameAddress(), dataFrameAddress);
             } else if (readResult.isLastFrameEntry()) {
                 // The operation was the last one in the frame. This is a Truncation Marker.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.", readResult.getLastUsedDataFrameAddress(), dataFrameAddress);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.",
+                        readResult.getLastUsedDataFrameAddress(), dataFrameAddress);
             } else {
                 // The operation is not the last in the frame, and it doesn't span multiple frames either.
                 // There could be data after it that is not safe to truncate. The correct Truncation Marker is the
                 // same as the one for the previous operation.
                 LogAddress expectedTruncationMarker = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber() - 1);
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.", expectedTruncationMarker, dataFrameAddress);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.",
+                        expectedTruncationMarker, dataFrameAddress);
             }
         }
     }

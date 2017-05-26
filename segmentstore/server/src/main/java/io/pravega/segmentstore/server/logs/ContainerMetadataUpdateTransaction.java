@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.Exceptions;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.ContainerException;
@@ -37,7 +36,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapping;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
-import io.pravega.segmentstore.storage.LogAddress;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -68,7 +66,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     private final HashMap<Long, UpdateableSegmentMetadata> newSegments;
     private final HashMap<String, Long> newSegmentNames;
     private final List<Long> newTruncationPoints;
-    private final HashMap<Long, LogAddress> newTruncationMarkers;
     @Getter
     private final int containerId;
     @Getter
@@ -105,7 +102,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
         this.traceObjectId = String.format("MetadataUpdate[%d-%d]", this.containerId, transactionId);
         this.segmentUpdates = new HashMap<>();
-        this.newTruncationMarkers = new HashMap<>();
         this.newTruncationPoints = new ArrayList<>();
         this.newSegments = new HashMap<>();
         this.newSegmentNames = new HashMap<>();
@@ -238,8 +234,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         copySegmentMetadata(this.newSegments.values(), s -> !s.isTransaction(), target);
         copySegmentMetadata(this.newSegments.values(), SegmentMetadata::isTransaction, target);
 
-        // Copy truncation markers.
-        this.newTruncationMarkers.forEach(target::recordTruncationMarker);
+        // Copy truncation points.
         this.newTruncationPoints.forEach(target::setValidTruncationPoint);
 
         // We are done. Clear the transaction.
@@ -254,7 +249,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         this.segmentUpdates.clear();
         this.newSegments.clear();
         this.newSegmentNames.clear();
-        this.newTruncationMarkers.clear();
         this.newTruncationPoints.clear();
         this.processedCheckpoint = false;
         if (this.baseMetadata.isRecoveryMode()) {
@@ -262,20 +256,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         } else {
             this.newSequenceNumber = Long.MIN_VALUE;
         }
-    }
-
-    /**
-     * Records the given Truncation Marker Mapping.
-     *
-     * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
-     * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and including).
-     */
-    void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
-        checkNotSealed();
-        Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber",
-                "Operation Sequence Number must be a positive number.");
-        Preconditions.checkNotNull(logAddress, "logAddress");
-        this.newTruncationMarkers.put(operationSequenceNumber, logAddress);
     }
 
     //endregion

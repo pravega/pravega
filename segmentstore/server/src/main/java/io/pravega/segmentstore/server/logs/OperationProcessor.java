@@ -453,11 +453,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
             synchronized (this.lock) {
                 System.out.println(String.format("State.commit     : %s", commitArgs));
-                // Record the Truncation marker.
+                // Record the Truncation marker. The OperationMetadataUpdater will update the Metadata directly for this.
                 this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
                 if (commitArgs.getLogAddress().getSequence() <= this.highestCommittedDataFrame) {
                     // Ack came out of order (we already processed one with a higher SeqNo).
-                    System.out.println(String.format("State.reject     : %s", commitArgs));
+                    System.err.println(String.format("State.reject     : %s", commitArgs));
+                    this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
                     return;
                 }
 

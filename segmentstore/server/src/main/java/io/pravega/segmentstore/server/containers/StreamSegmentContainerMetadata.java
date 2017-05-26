@@ -394,7 +394,10 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
         Preconditions.checkNotNull(address, "address");
         synchronized (this.truncationMarkers) {
-            this.truncationMarkers.put(operationSequenceNumber, address);
+            LogAddress existing = this.truncationMarkers.getOrDefault(operationSequenceNumber, null);
+            if (existing == null || existing.getSequence() < address.getSequence()) {
+                this.truncationMarkers.put(operationSequenceNumber, address);
+            }
         }
     }
 

@@ -29,7 +29,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
-import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1187,30 +1186,6 @@ public class ContainerMetadataUpdateTransactionTests {
         transactionMetadata = txn.getStreamSegmentMetadata(SEALED_TRANSACTION_ID);
         Assert.assertFalse("Unexpected value for isMerged in transaction segment in update transaction after rollback.", transactionMetadata.isMerged());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Transaction segment in update transaction after rollback.", 0, transactionMetadata);
-    }
-
-    /**
-     * Tests the recordTruncationMarker() method.
-     */
-    @Test
-    public void testRecordTruncationMarker() {
-        int recordCount = 100;
-
-        // Record 100 entries, and make sure the TruncationMarkerCollection contains them as soon as recorded.
-        UpdateableContainerMetadata metadata = createMetadata();
-        val txn = createUpdateTransaction(metadata);
-        LogAddress previousMarker = null;
-        for (int i = 0; i < recordCount; i++) {
-            LogAddress dfAddress = new LogAddress(i * i) {
-            };
-            txn.recordTruncationMarker(i, dfAddress);
-            LogAddress actualMarker = metadata.getClosestTruncationMarker(i);
-            Assert.assertEquals("Unexpected value for truncation marker (pre-commit) for Operation Sequence Number " + i, previousMarker, actualMarker);
-            txn.commit(metadata);
-            actualMarker = metadata.getClosestTruncationMarker(i);
-            Assert.assertEquals("Unexpected value for truncation marker (post-commit) for Operation Sequence Number " + i, dfAddress, actualMarker);
-            previousMarker = actualMarker;
-        }
     }
 
     //endregion

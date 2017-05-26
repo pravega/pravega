@@ -94,6 +94,19 @@ public class OperationMetadataUpdaterTests {
     }
 
     /**
+     * Tests the handling of sealing (and thus creating) empty UpdateTransactions.
+     */
+    @Test
+    public void testSealEmpty() {
+        val metadata = createBlankMetadata();
+        val updater = new OperationMetadataUpdater(metadata);
+        val txn1 = updater.sealTransaction();
+        Assert.assertEquals("Unexpected transaction id for first empty transaction.", 0, txn1);
+        val txn2 = updater.sealTransaction();
+        Assert.assertEquals("Unexpected transaction id for second empty transaction.", 1, txn2);
+    }
+
+    /**
      * Tests the ability to successively commit update transactions to the base metadata.
      */
     @Test
