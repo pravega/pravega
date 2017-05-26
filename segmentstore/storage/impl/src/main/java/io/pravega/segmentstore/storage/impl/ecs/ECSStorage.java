@@ -10,14 +10,19 @@
 package io.pravega.segmentstore.storage.impl.ecs;
 
 import com.emc.object.Range;
+import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
+import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.AccessControlList;
 import com.emc.object.s3.bean.CannedAcl;
 import com.emc.object.s3.bean.GetObjectResult;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.jersey.S3JerseyClient;
+import com.emc.object.s3.request.CompleteMultipartUploadRequest;
+import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.PutObjectRequest;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.util.ImmutableDate;
@@ -25,6 +30,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +42,7 @@ import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -54,7 +61,7 @@ public class ECSStorage implements Storage {
 
     private final ECSStorageConfig config;
     private final ExecutorService executor;
-    private S3JerseyClient client;
+    private S3Client client = null;
 
     //endregion
 
@@ -69,20 +76,31 @@ public class ECSStorage implements Storage {
 
     //endregion
 
+    //region testing entry
+    @VisibleForTesting
+    public ECSStorage(S3Client client, ECSStorageConfig config, ExecutorService executor) {
+        this.client = client;
+        this.config = config;
+        this.executor = executor;
+    }
+    //endregion
+
     //region Storage implementation
     @Override
     public void initialize(long containerEpoch) {
-        S3Config ecsConfig = null;
-        try {
-            ecsConfig = new S3Config(new URI(config.getEcsUrl()));
-            ecsConfig.withIdentity(config.getEcsAccessKey()).withSecretKey(config.getEcsSecretKey());
+        if( client == null ) {
+            S3Config ecsConfig = null;
+            try {
+                ecsConfig = new S3Config(new URI(config.getEcsUrl()));
+                ecsConfig.withIdentity(config.getEcsAccessKey()).withSecretKey(config.getEcsSecretKey());
 
-            if ( !Strings.isNullOrEmpty(config.getEcsNamespace())) {
-                ecsConfig.withNamespace(config.getEcsNamespace());
+                if (!Strings.isNullOrEmpty(config.getEcsNamespace())) {
+                    ecsConfig.withNamespace(config.getEcsNamespace());
+                }
+                client = new S3JerseyClient(ecsConfig);
+            } catch (URISyntaxException e) {
+                log.error("Wrong ECS URI {}. Can not continue.", config.getEcsUrl());
             }
-            client = new S3JerseyClient(ecsConfig);
-        } catch (URISyntaxException e) {
-            log.error("Wrong ECS URI {}. Can not continue.", config.getEcsUrl());
         }
 
     }
@@ -139,9 +157,7 @@ public class ECSStorage implements Storage {
         retVal[0] = new CompletableFuture<>();
 
         executor.execute( () -> {
-            GetObjectResult result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName );
-
-            if ( result == null ) {
+            if ( !checkExists(streamSegmentName)) {
                 retVal[0].completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName));
                 return;
             }
@@ -164,6 +180,15 @@ public class ECSStorage implements Storage {
         });
 
         return retVal[0];
+    }
+
+    private boolean checkExists(String streamSegmentName) {
+        boolean result = false;
+        try {
+            result = exists(streamSegmentName, Duration.ZERO).get();
+        } catch (Exception e) {
+        }
+        return result;
     }
 
     @Override
@@ -238,14 +263,23 @@ public class ECSStorage implements Storage {
     //region private sync implementation
 
     private void syncOpenRead(String streamSegmentName, CompletableFuture<SegmentHandle> retVal) {
-        GetObjectResult result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName );
+        log.info("Opening {} for read.", streamSegmentName);
+
+        GetObjectResult<InputStream> result = null;
+        try {
+            result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
+        }catch (S3Exception e) {
+            log.info("Exception {} while getting segment {}", e, streamSegmentName);
+        }
 
         if ( result == null ) {
+            log.info("Did not find segment {} ",streamSegmentName);
             retVal.completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName));
             return;
         }
 
         ECSSegmentHandle retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
+        log.info("Created read handle for segment {} ",streamSegmentName);
         retVal.complete(retHandle);
     }
 
@@ -295,8 +329,13 @@ public class ECSStorage implements Storage {
     }
 
     private void syncExists(String streamSegmentName, Duration timeout, CompletableFuture<Boolean> retFuture) {
-        GetObjectResult result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName );
 
+        GetObjectResult<InputStream> result = null;
+        try {
+            result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
+        } catch (S3Exception e) {
+            log.info("Stream segment {} does not exist", streamSegmentName);
+        }
         retFuture.complete( result != null );
     }
 
@@ -331,9 +370,20 @@ public class ECSStorage implements Storage {
                            CompletableFuture<Void> retVal) {
         log.trace("Writing {} to segment {} at offset {}", length, handle.getSegmentName(), offset);
 
+        if( handle.isReadOnly()) {
+            retVal.completeExceptionally(new IllegalArgumentException(handle.getSegmentName()));
+            return;
+        }
+
+        if (!checkExists(handle.getSegmentName())) {
+            retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName()));
+            return;
+        }
+
         try {
             client.putObject(this.config.getEcsBucket(), this.config.getEcsRoot() + handle.getSegmentName(),
-                    new Range(offset, offset + length), data);
+                    new Range(offset, offset + length -1 ), data);
+            retVal.complete(null);
         } catch (Exception exc) {
             log.info("Write to segment {} at offset {} failed with exception {} ", handle.getSegmentName(), offset,
                     exc.getMessage());
@@ -367,12 +417,43 @@ public class ECSStorage implements Storage {
 
         try {
             //TODO: error on sourcesegment being writable
+            String tempConcatSegmentName = "temp_concat_" + targetHandle.getSegmentName() + "_" + sourceSegment;
 
-            GetObjectResult<InputStream> result = client.getObject(config.getEcsBucket(),
+            String uploadId = client.initiateMultipartUpload(config.getEcsBucket(),
+                    tempConcatSegmentName);
+
+
+            //Upload the first part
+            CopyPartRequest request = new CopyPartRequest(config.getEcsBucket(),
+                    config.getEcsRoot() + targetHandle.getSegmentName(),
+                    config.getEcsBucket(),
+                   tempConcatSegmentName,
+                    uploadId,
+                    1).withSourceRange(Range.fromOffsetLength(0, offset));
+            client.copyPart(request);
+
+            //Upload the second part
+            S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getEcsBucket(),
                     config.getEcsRoot() + sourceSegment);
-            client.appendObject(config.getEcsBucket(), config.getEcsRoot() + targetHandle.getSegmentName(),
-                    result.getObject());
+            long objectSize = metadataResult.getContentLength(); // in bytes
 
+            request = new CopyPartRequest(config.getEcsBucket(),
+                    config.getEcsRoot() + sourceSegment,
+                    config.getEcsBucket(),
+                    tempConcatSegmentName,
+                    uploadId,
+                    2).withSourceRange(Range.fromOffsetLength(0, objectSize));
+
+            client.copyPart(request);
+
+            //Close the upload
+            client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getEcsBucket(),
+                    tempConcatSegmentName, uploadId));
+
+            //copy the object back to the target
+            client.copyObject(config.getEcsBucket(), tempConcatSegmentName, config.getEcsBucket(),
+                    targetHandle.getSegmentName());
+            retVal.complete(null);
         } catch (Exception e) {
             log.info("Concat of {} on {} failed with {}", sourceSegment, targetHandle.getSegmentName(), e);
             retVal.completeExceptionally(e);
