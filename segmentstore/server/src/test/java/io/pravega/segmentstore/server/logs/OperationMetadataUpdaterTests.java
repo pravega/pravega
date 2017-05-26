@@ -31,6 +31,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.val;
 import org.junit.Assert;
@@ -83,7 +85,7 @@ public class OperationMetadataUpdaterTests {
 
         val blankMetadata = createBlankMetadata();
         ContainerMetadataUpdateTransactionTests.assertMetadataSame("Before commit", blankMetadata, metadata);
-        updater.commit(OperationMetadataUpdater.MAX_TRANSACTION);
+        updater.commitAll();
         ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit", referenceMetadata, metadata);
         for (val e : truncationMarkers.entrySet()) {
             val tm = metadata.getClosestTruncationMarker(e.getKey());
@@ -101,38 +103,15 @@ public class OperationMetadataUpdaterTests {
         val referenceMetadata = createBlankMetadata();
         val metadata = createBlankMetadata();
         val updater = new OperationMetadataUpdater(metadata);
-        long lastSegmentId = -1;
-        long lastSegmentTxnId = -1;
+        val lastSegmentId = new AtomicLong(-1);
+        val lastSegmentTxnId = new AtomicLong(-1);
         long lastCommittedTxnId = -1;
         int txnGroupSize = 1;
 
         val updateTransactions = new ArrayList<Map.Entry<Long, ContainerMetadata>>();
         while (updateTransactions.size() < TRANSACTION_COUNT) {
-            // Create a segment
-            long segmentId = mapSegment(updater, referenceMetadata);
+            populateUpdateTransaction(updater, referenceMetadata, lastSegmentId, lastSegmentTxnId);
 
-            // Make an append (to each segment known so far.)
-            for (long sId : referenceMetadata.getAllStreamSegmentIds()) {
-                val rsm = referenceMetadata.getStreamSegmentMetadata(sId);
-                if (!rsm.isMerged() && !rsm.isSealed()) {
-                    recordAppend(sId, this.nextAppendLength.get(), updater, referenceMetadata);
-                }
-            }
-
-            // Create a SegmentTransaction for the segment created in the previous UpdateTransaction
-            long txnId = lastSegmentTxnId;
-            if (lastSegmentId >= 0) {
-                txnId = mapTransaction(lastSegmentId, updater, referenceMetadata);
-            }
-
-            if (lastSegmentTxnId >= 0) {
-                // Seal&Merge the transaction created in the previous UpdateTransaction
-                sealSegment(lastSegmentTxnId, updater, referenceMetadata);
-                mergeTransaction(lastSegmentTxnId, updater, referenceMetadata);
-            }
-
-            lastSegmentId = segmentId;
-            lastSegmentTxnId = txnId;
             long utId = updater.sealTransaction();
             if (updateTransactions.size() > 0) {
                 long prevUtId = updateTransactions.get(updateTransactions.size() - 1).getKey();
@@ -151,12 +130,12 @@ public class OperationMetadataUpdaterTests {
             if (utId - lastCommittedTxnId >= txnGroupSize) {
                 if (previousMetadata != null) {
                     // Verify no changes to the metadata prior to commit.
-                    ContainerMetadataUpdateTransactionTests.assertMetadataSame("Before commit" + utId, previousMetadata, metadata);
+                    ContainerMetadataUpdateTransactionTests.assertMetadataSame("Before commit " + utId, previousMetadata, metadata);
                 }
 
                 // Commit and verify.
                 updater.commit(utId);
-                ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit" + utId, expectedMetadata, metadata);
+                ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit " + utId, expectedMetadata, metadata);
                 lastCommittedTxnId = utId;
                 txnGroupSize++;
                 previousMetadata = expectedMetadata;
@@ -168,10 +147,120 @@ public class OperationMetadataUpdaterTests {
      * Tests the ability to rollback update transactions.
      */
     @Test
-    public void testRollback() {
-        // Create a number of transactions. In each: we create a segment, make an append, a seal and a merge.
+    public void testRollback() throws Exception {
         // 2 out of 3 transactions are failed (to verify multi-failure).
         // Commit the rest and verify final metadata is as it should.
+        final int failEvery = 3;
+        Predicate<Integer> isIgnored = index -> index % failEvery > 0;
+        Predicate<Integer> shouldFail = index -> index % failEvery == failEvery - 1;
+
+        val referenceMetadata = createBlankMetadata();
+        val metadata = createBlankMetadata();
+        val updater = new OperationMetadataUpdater(metadata);
+        val lastSegmentId = new AtomicLong(-1);
+        val lastSegmentTxnId = new AtomicLong(-1);
+
+        val updateTransactions = new ArrayList<Map.Entry<Long, ContainerMetadata>>();
+        for (int i = 0; i < TRANSACTION_COUNT; i++) {
+            // Check to see if this UpdateTransaction is going to end up being rolled back. If so, we should not update
+            // the reference metadata at all.
+            UpdateableContainerMetadata txnReferenceMetadata = isIgnored.test(i) ? null : referenceMetadata;
+            populateUpdateTransaction(updater, txnReferenceMetadata, lastSegmentId, lastSegmentTxnId);
+
+            if (shouldFail.test(i)) {
+                long prevUtId = updateTransactions.get(updateTransactions.size() - 1).getKey();
+                updater.rollback(prevUtId + 1);
+            } else if (txnReferenceMetadata != null) {
+                // Not failing and not ignored: this UpdateTransaction will survive, so record it.
+                long utId = updater.sealTransaction();
+                if (updateTransactions.size() > 0) {
+                    long prevUtId = updateTransactions.get(updateTransactions.size() - 1).getKey();
+                    Assert.assertEquals("Unexpected UpdateTransaction.Id.",
+                            prevUtId + failEvery - 1, utId);
+                }
+
+                updateTransactions.add(new AbstractMap.SimpleImmutableEntry<>(utId, clone(txnReferenceMetadata)));
+            }
+        }
+
+        ContainerMetadata previousMetadata = null;
+        for (val t : updateTransactions) {
+            val utId = t.getKey();
+            val expectedMetadata = t.getValue();
+
+            // Check to see if it's time to commit.
+            if (previousMetadata != null) {
+                // Verify no changes to the metadata prior to commit.
+                ContainerMetadataUpdateTransactionTests.assertMetadataSame("Before commit " + utId, previousMetadata, metadata);
+            }
+
+            // Commit and verify.
+            updater.commit(utId);
+            ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit " + utId, expectedMetadata, metadata);
+            previousMetadata = expectedMetadata;
+        }
+    }
+
+    /**
+     * Tests a mixed scenario where we commit one UpdateTransaction and then rollback the next one, one after another.
+     * testRollback() verifies a bunch of rollbacks and then commits in sequence; this test alternates one with the other.
+     */
+    @Test
+    public void testCommitRollbackAlternate() throws Exception {
+        Predicate<Integer> shouldFail = index -> index % 2 == 1;
+
+        val referenceMetadata = createBlankMetadata();
+        val metadata = createBlankMetadata();
+        val updater = new OperationMetadataUpdater(metadata);
+        val lastSegmentId = new AtomicLong(-1);
+        val lastSegmentTxnId = new AtomicLong(-1);
+
+        for (int i = 0; i < TRANSACTION_COUNT; i++) {
+            // Check to see if this UpdateTransaction is going to end up being rolled back. If so, we should not update
+            // the reference metadata at all.
+            UpdateableContainerMetadata txnReferenceMetadata = shouldFail.test(i) ? null : referenceMetadata;
+            populateUpdateTransaction(updater, txnReferenceMetadata, lastSegmentId, lastSegmentTxnId);
+
+            if (shouldFail.test(i)) {
+                updater.rollback(0);
+                ContainerMetadataUpdateTransactionTests.assertMetadataSame("After rollback " + i, referenceMetadata, metadata);
+            } else {
+                updater.commitAll();
+                ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit " + i, referenceMetadata, metadata);
+            }
+        }
+    }
+
+    private void populateUpdateTransaction(OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata,
+                                           AtomicLong lastSegmentId, AtomicLong lastSegmentTxnId) throws Exception {
+        // Create a segment
+        long segmentId = mapSegment(updater, referenceMetadata);
+
+        // Make an append (to each segment known so far.)
+        for (long sId : updater.getAllStreamSegmentIds()) {
+            val rsm = updater.getStreamSegmentMetadata(sId);
+            if (!rsm.isMerged() && !rsm.isSealed()) {
+                recordAppend(sId, this.nextAppendLength.get(), updater, referenceMetadata);
+            }
+        }
+
+        // Create a SegmentTransaction for the segment created in the previous UpdateTransaction
+        long txnId = lastSegmentTxnId.get();
+        if (lastSegmentId.get() >= 0) {
+            txnId = mapTransaction(lastSegmentId.get(), updater, referenceMetadata);
+        }
+
+        if (lastSegmentTxnId.get() >= 0) {
+            // Seal&Merge the transaction created in the previous UpdateTransaction
+            sealSegment(lastSegmentTxnId.get(), updater, referenceMetadata);
+            mergeTransaction(lastSegmentTxnId.get(), updater, referenceMetadata);
+        }
+
+        if (referenceMetadata != null) {
+            // Don't remember these segment ids if we're going to be tossing them away.
+            lastSegmentId.set(segmentId);
+            lastSegmentTxnId.set(txnId);
+        }
     }
 
     private UpdateableContainerMetadata createBlankMetadata() {

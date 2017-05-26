@@ -37,8 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 class OperationMetadataUpdater implements ContainerMetadata {
     //region Members
 
-    static long MIN_TRANSACTION = Long.MIN_VALUE;
-    static long MAX_TRANSACTION = Long.MAX_VALUE;
+    private static long MAX_TRANSACTION = Long.MAX_VALUE;
     private final String traceObjectId;
     private final UpdateableContainerMetadata metadata;
     private final ArrayDeque<ContainerMetadataUpdateTransaction> transactions;
@@ -128,6 +127,13 @@ class OperationMetadataUpdater implements ContainerMetadata {
         // Always return nextTransactionId - 1, since otherwise we are at risk of returning a value we previously returned
         // (for example, if we rolled back a transaction).
         return this.nextTransactionId - 1;
+    }
+
+    /**
+     * Commits all outstanding changes to the base Container Metadata.
+     */
+    void commitAll() {
+        commit(MAX_TRANSACTION);
     }
 
     /**
