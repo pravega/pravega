@@ -26,6 +26,8 @@ import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+
 import lombok.Cleanup;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -48,6 +50,7 @@ public class SegmentOutputStreamTest {
 
     private static final String SEGMENT = "segment";
     private static final int SERVICE_PORT = 12345;
+    private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     private static ByteBuffer getBuffer(String s) {
         return ByteBuffer.wrap(s.getBytes());
@@ -61,7 +64,7 @@ public class SegmentOutputStreamTest {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, s -> {});
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -78,7 +81,7 @@ public class SegmentOutputStreamTest {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, s -> {});
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -97,7 +100,7 @@ public class SegmentOutputStreamTest {
         InOrder inOrder = inOrder(connection);
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, s -> {});
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         
         output.setupConnection();
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -153,7 +156,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
 
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, s -> {});
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -186,7 +189,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, s -> {});
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -239,7 +242,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, s -> {});
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -265,7 +268,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, s -> {});
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -288,7 +291,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, s -> {});
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -305,5 +308,4 @@ public class SegmentOutputStreamTest {
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
-    
 }

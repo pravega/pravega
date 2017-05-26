@@ -85,7 +85,8 @@ public class SegmentSelector {
 
     /**
      * Refresh the latest list of segments in the given stream.
-     * 
+     *
+     * @param segmentSealedCallBack Method to be executed on receiving SegmentSealed from SSS.
      * @return A list of events that were sent to old segments and never acked. These should be
      *         re-sent.
      */

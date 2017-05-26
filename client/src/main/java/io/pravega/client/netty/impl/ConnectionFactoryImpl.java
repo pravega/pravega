@@ -141,6 +141,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         if (closed.compareAndSet(false, true)) {
             // Shut down the event loop to terminate all threads.
             group.shutdownGracefully();
+            executor.shutdown();
         }
     }
 

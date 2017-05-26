@@ -22,6 +22,7 @@ public interface SegmentOutputStreamFactory {
      *
      * @param segment The segment the transaction belongs to.
      * @param txId    The transaction id.
+     * @param segmentSealedCallback Method to be executed on receiving SegmentSealed from SSS.
      * @return New instance of SegmentOutputStream with an open transaction.
      */
     SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment> segmentSealedCallback);
@@ -34,6 +35,7 @@ public interface SegmentOutputStreamFactory {
      * in the same process space).
      *
      * @param segment The segment.
+     * @param segmentSealedCallback Method to be executed on receiving SegmentSealed from SSS.
      * @return New instance of SegmentOutputStream for writing.
      */
     SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback);

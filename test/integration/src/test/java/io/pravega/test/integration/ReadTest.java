@@ -58,6 +58,8 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -72,6 +74,7 @@ public class ReadTest {
 
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
+    private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @Before
     public void setup() throws Exception {
@@ -170,7 +173,7 @@ public class ReadTest {
                                        .getSegments().iterator().next();
 
         @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment);
+        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback);
         out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
