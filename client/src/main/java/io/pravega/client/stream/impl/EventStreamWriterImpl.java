@@ -108,9 +108,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             }
         }
 
-        //shrids: The goal is to remove the need of flushInternal here. i.e. FlushInternal is used to handle segment
-        //sealed exception which should now be performed on the thread pool (Used the forkjoin pool!).
-        //This also implies that eventStreamWriterImpl does not need the internal executor.
+        //The goal is to remove the need of flushInternal here. i.e. FlushInternal is used to handle segment
+        //sealed exception which should now be performed on the internalExecutor.
         CompletableFuture<Void> result = new CompletableFuture<>();
         ackFuture.whenComplete((bool, exception) -> {
             if (exception != null) {

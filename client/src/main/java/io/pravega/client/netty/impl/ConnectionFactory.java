@@ -30,7 +30,10 @@ public interface ConnectionFactory extends AutoCloseable {
      */
     CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
 
-    //TODO: shrids add comment.
+    /**
+     * Get the internal executor which is used by the client.
+     * @return A ScheduledExecutorService.
+     */
     ScheduledExecutorService getInternalExecutor();
 
     @Override

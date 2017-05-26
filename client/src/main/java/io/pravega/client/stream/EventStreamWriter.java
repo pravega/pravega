@@ -29,13 +29,12 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * than to wrap this with custom retry logic.
      * 
      * @param event The event to be written to the stream (Null is disallowed)
-     * @return A future that will complete when the event has been durably stored on the configured number of
+     * @return A completableFuture that will complete when the event has been durably stored on the configured number of
      *         replicas, and is available for readers to see. This future may complete exceptionally if this
      *         cannot happen, however these exceptions are not transient failures. Failures that occur as a
      *         result of connection drops or host death are handled internally with multiple retires and
      *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
-    //TODO: shrids update documentation
     CompletableFuture<Void> writeEvent(Type event);
     
     
@@ -52,13 +51,12 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *        the same routingKey are guaranteed to be read in order. Two events with different routing keys
      *        may be read in parallel. 
      * @param event The event to be written to the stream (Null is disallowed)
-     * @return A future that will complete when the event has been durably stored on the configured number of
+     * @return A completableFuture that will complete when the event has been durably stored on the configured number of
      *         replicas, and is available for readers to see. This future may complete exceptionally if this
      *         cannot happen, however these exceptions are not transient failures. Failures that occur as a
      *         result of connection drops or host death are handled internally with multiple retires and
      *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
-    //TODO: shrids update documentation
     CompletableFuture<Void> writeEvent(String routingKey, Type event);
 
     /**
