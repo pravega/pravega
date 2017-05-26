@@ -9,7 +9,8 @@
 #
 FROM java:8
 
-RUN apt-get install -q nfs-utils
+RUN apt-get update
+RUN apt-get install -y -q rpcbind nfs-common
 
 EXPOSE 9090 9091 10000 12345
 WORKDIR /opt/pravega
