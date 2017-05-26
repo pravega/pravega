@@ -867,7 +867,7 @@ public class ContainerMetadataUpdateTransactionTests {
         // Checkpoint 1 Should have original metadata.
         processOperation(checkpoint1, txn, seqNo::incrementAndGet);
         UpdateableContainerMetadata checkpointedMetadata = getCheckpointedMetadata(checkpoint1);
-        assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
+        assertMetadataSame("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
 
         // Map another StreamSegment, and add an append
         StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
@@ -879,7 +879,7 @@ public class ContainerMetadataUpdateTransactionTests {
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
         txn.commit(metadata);
         checkpointedMetadata = getCheckpointedMetadata(checkpoint2);
-        assertMetadataEquals("Unexpected metadata after deserializing checkpoint.", metadata, checkpointedMetadata);
+        assertMetadataSame("Unexpected metadata after deserializing checkpoint.", metadata, checkpointedMetadata);
     }
 
     /**
@@ -925,7 +925,7 @@ public class ContainerMetadataUpdateTransactionTests {
         metadata2.exitRecoveryMode();
 
         // Verify that the Storage Length & StorageSealed status are applied correctly.
-        assertMetadataEquals("Unexpected metadata after applying storage checkpoint.", metadata1, metadata2);
+        assertMetadataSame("Unexpected metadata after applying storage checkpoint.", metadata1, metadata2);
     }
 
     /**
@@ -1240,7 +1240,7 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     private ContainerMetadataUpdateTransaction createUpdateTransaction(UpdateableContainerMetadata metadata) {
-        return new ContainerMetadataUpdateTransaction(metadata, "Test");
+        return new ContainerMetadataUpdateTransaction(metadata, 0);
     }
 
     private StreamSegmentAppendOperation createAppendNoOffset() {
@@ -1322,15 +1322,15 @@ public class ContainerMetadataUpdateTransactionTests {
     /**
      * Verify that the given ContainerMetadata objects contain the same data.
      */
-    private void assertMetadataEquals(String message, UpdateableContainerMetadata expected, UpdateableContainerMetadata actual) {
+    static void assertMetadataSame(String message, ContainerMetadata expected, ContainerMetadata actual) {
         Assert.assertEquals("Unexpected ContainerId.", expected.getContainerId(), actual.getContainerId());
         Collection<Long> expectedSegmentIds = expected.getAllStreamSegmentIds();
         Collection<Long> actualSegmentIds = actual.getAllStreamSegmentIds();
-        AssertExtensions.assertContainsSameElements(message + " Unexpected StreamSegments mapped.", expectedSegmentIds, actualSegmentIds);
+        AssertExtensions.assertContainsSameElements(message + " Unexpected Segments mapped.", expectedSegmentIds, actualSegmentIds);
         for (long streamSegmentId : expectedSegmentIds) {
             SegmentMetadata expectedSegmentMetadata = expected.getStreamSegmentMetadata(streamSegmentId);
             SegmentMetadata actualSegmentMetadata = actual.getStreamSegmentMetadata(streamSegmentId);
-            Assert.assertNotNull(message + " No metadata for StreamSegment " + streamSegmentId, actualSegmentMetadata);
+            Assert.assertNotNull(message + " No metadata for Segment " + streamSegmentId, actualSegmentMetadata);
             SegmentMetadataComparer.assertEquals(message, expectedSegmentMetadata, actualSegmentMetadata);
         }
     }

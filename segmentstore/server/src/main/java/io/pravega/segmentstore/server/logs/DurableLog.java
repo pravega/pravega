@@ -395,7 +395,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Commit whatever changes we have in the metadata updater to the Container Metadata.
         // This code will only be invoked if we haven't encountered any exceptions during recovery.
-        metadataUpdater.commit();
+        metadataUpdater.commit(OperationMetadataUpdater.MAX_TRANSACTION);
         LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverFromDataFrameLog", traceId, recoveredItemCount);
         return recoveredItemCount > 0;
     }

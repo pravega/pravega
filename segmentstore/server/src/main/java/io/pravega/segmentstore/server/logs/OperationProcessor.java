@@ -399,7 +399,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         @GuardedBy("lock")
         private final MetadataCheckpointPolicy checkpointPolicy;
         @GuardedBy("lock")
-        private final HashMap<DataFrameBuilder.DataFrameCommitArgs, Long> checkpoints;
+        private final HashMap<DataFrameBuilder.DataFrameCommitArgs, Long> metadataTransactions;
         @GuardedBy("lock")
         private long highestCommittedDataFrame;
 
@@ -411,7 +411,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             this.lock = Preconditions.checkNotNull(lock, "lock");
             this.traceObjectId = traceObjectId;
             this.pendingOperations = new LinkedList<>(); // TODO: ArrayDeque? This is long-lived, with many adds/removes.
-            this.checkpoints = new HashMap<>();
+            this.metadataTransactions = new HashMap<>();
             this.highestCommittedDataFrame = -1;
         }
 
@@ -437,9 +437,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
         void checkpoint(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
             synchronized (this.lock) {
-                long checkpointId = this.metadataUpdater.createCheckpoint();
-                this.checkpoints.put(commitArgs, checkpointId);
-                System.out.println(String.format("State.checkpoint: %s, %d", commitArgs, checkpointId));
+                long transactionId = this.metadataUpdater.sealTransaction();
+                this.metadataTransactions.put(commitArgs, transactionId);
+                System.out.println(String.format("State.transaction: %s, %d", commitArgs, transactionId));
             }
         }
 
@@ -452,18 +452,18 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             log.debug("{}: CommitSuccess ({}).", this.traceObjectId, commitArgs);
 
             synchronized (this.lock) {
-                System.out.println(String.format("State.commit    : %s", commitArgs));
+                System.out.println(String.format("State.commit     : %s", commitArgs));
                 // Record the Truncation marker.
                 this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
                 if (commitArgs.getLogAddress().getSequence() <= this.highestCommittedDataFrame) {
                     // Ack came out of order (we already processed one with a higher SeqNo).
-                    System.out.println(String.format("State.reject    : %s", commitArgs));
+                    System.out.println(String.format("State.reject     : %s", commitArgs));
                     return;
                 }
 
                 // Commit any changes to the metadata.
-                final Long checkpointId = getCheckpoint(commitArgs);
-                removeCheckpoints(c -> c <= checkpointId);
+                final Long checkpointId = getMetadataTransaction(commitArgs);
+                removeTransactions(c -> c <= checkpointId);
                 this.metadataUpdater.commit(checkpointId);
 
                 // Acknowledge all pending entries, in the order in which they are in the queue (ascending seq no).
@@ -506,9 +506,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 System.err.println(String.format("State.fail      : %s, %s", commitArgs, ex));
 
                 // Discard all updates to the metadata.
-                final Long checkpointId = getCheckpoint(commitArgs);
-                removeCheckpoints(c -> c >= checkpointId);
-                this.metadataUpdater.rollback(checkpointId);
+                final Long transactionId = getMetadataTransaction(commitArgs);
+                removeTransactions(c -> c >= transactionId);
+                this.metadataUpdater.rollback(transactionId);
 
                 // Fail all pending entries.
                 if (!this.pendingOperations.isEmpty()) {
@@ -529,24 +529,22 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         @GuardedBy("lock")
-        private long getCheckpoint(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
-            Long checkpointId = this.checkpoints.remove(commitArgs);
-            if (checkpointId != null) {
-                return checkpointId;
-            } else if (this.checkpoints.isEmpty()) {
-                return OperationMetadataUpdater.MAX_CHECKPOINT;
+        private long getMetadataTransaction(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
+            Long transactionId = this.metadataTransactions.remove(commitArgs);
+            if (transactionId != null) {
+                return transactionId;
             }
 
-            throw new AssertionError("No OperationMetadataUpdater checkpoint found for " + commitArgs);
+            throw new AssertionError("No Metadata UpdateTransaction found for " + commitArgs);
         }
 
         @GuardedBy("lock")
-        private void removeCheckpoints(Predicate<Long> checkpointTester) {
-            val toRemove = this.checkpoints.entrySet().stream()
-                                           .filter(e -> checkpointTester.test(e.getValue()))
-                                           .map(Map.Entry::getKey)
-                                           .collect(Collectors.toList());
-            toRemove.forEach(this.checkpoints::remove);
+        private void removeTransactions(Predicate<Long> tester) {
+            val toRemove = this.metadataTransactions.entrySet().stream()
+                                                    .filter(e -> tester.test(e.getValue()))
+                                                    .map(Map.Entry::getKey)
+                                                    .collect(Collectors.toList());
+            toRemove.forEach(this.metadataTransactions::remove);
         }
     }
 

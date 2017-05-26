@@ -74,7 +74,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     /**
      * Creates a new instance of the SegmentMetadataUpdateTransaction class.
      *
-     * @param baseMetadata   The base StreamSegment Metadata.
+     * @param baseMetadata   The base SegmentMetadata.
      * @param recoveryMode Whether the metadata is currently in recovery mode.
      */
     SegmentMetadataUpdateTransaction(SegmentMetadata baseMetadata, boolean recoveryMode) {
@@ -193,15 +193,15 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     /**
      * Pre-processes a StreamSegmentAppendOperation.
-     * After this method returns, the given operation will have its StreamSegmentOffset property set to the current
-     * StreamSegmentLength, and all AttributeUpdates will be set to the current values.
+     * After this method returns, the given operation will have its SegmentOffset property set to the current
+     * SegmentLength, and all AttributeUpdates will be set to the current values.
      *
      * @param operation The operation to pre-process.
-     * @throws StreamSegmentSealedException If the StreamSegment is sealed.
-     * @throws StreamSegmentMergedException If the StreamSegment is merged into another.
+     * @throws StreamSegmentSealedException If the Segment is sealed.
+     * @throws StreamSegmentMergedException If the Segment is merged into another.
      * @throws BadOffsetException           If the operation has an assigned offset, but it doesn't match the current
      *                                      Segment DurableLogOffset.
-     * @throws IllegalArgumentException     If the operation is for a different StreamSegment.
+     * @throws IllegalArgumentException     If the operation is for a different Segment.
      * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
      *                                      values of the segment.
      */
@@ -209,7 +209,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             BadOffsetException, BadAttributeUpdateException {
         ensureSegmentId(operation);
         if (this.merged) {
-            // We do not allow any operation after merging (since after merging the StreamSegment disappears).
+            // We do not allow any operation after merging (since after merging the Segment disappears).
             throw new StreamSegmentMergedException(this.name);
         }
 
@@ -241,9 +241,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * those attributes.
      *
      * @param operation The operation to pre-process.
-     * @throws StreamSegmentSealedException If the StreamSegment is sealed.
-     * @throws StreamSegmentMergedException If the StreamSegment is merged into another.
-     * @throws IllegalArgumentException     If the operation is for a different StreamSegment.
+     * @throws StreamSegmentSealedException If the Segment is sealed.
+     * @throws StreamSegmentMergedException If the Segment is merged into another.
+     * @throws IllegalArgumentException     If the operation is for a different Segment.
      * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
      *                                      values of the segment.
      */
@@ -251,7 +251,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             BadAttributeUpdateException {
         ensureSegmentId(operation);
         if (this.merged) {
-            // We do not allow any operation after merging (since after merging the StreamSegment disappears).
+            // We do not allow any operation after merging (since after merging the Segment disappears).
             throw new StreamSegmentMergedException(this.name);
         }
 
@@ -266,12 +266,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     /**
      * Pre-processes a StreamSegmentSealOperation.
-     * After this method returns, the operation will have its StreamSegmentLength property set to the current length of the StreamSegment.
+     * After this method returns, the operation will have its egmentLength property set to the current length of the Segment.
      *
      * @param operation The Operation.
-     * @throws StreamSegmentSealedException If the StreamSegment is already sealed.
-     * @throws StreamSegmentMergedException If the StreamSegment is merged into another.
-     * @throws IllegalArgumentException     If the operation is for a different StreamSegment.
+     * @throws StreamSegmentSealedException If the Segment is already sealed.
+     * @throws StreamSegmentMergedException If the Segment is merged into another.
+     * @throws IllegalArgumentException     If the operation is for a different Segment.
      */
     void preProcessOperation(StreamSegmentSealOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException {
         ensureSegmentId(operation);
@@ -292,14 +292,14 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Pre-processes the given MergeTransactionOperation as a Parent StreamSegment.
-     * After this method returns, the operation will have its TargetStreamSegmentOffset set to the length of the Parent StreamSegment.
+     * Pre-processes the given MergeTransactionOperation as a Parent Segment.
+     * After this method returns, the operation will have its TargetSegmentOffset set to the length of the Parent Segment.
      *
      * @param operation           The operation to pre-process.
      * @param transactionMetadata The metadata for the Transaction Stream Segment to merge.
      * @throws StreamSegmentSealedException If the parent stream is already sealed.
      * @throws MetadataUpdateException      If the operation cannot be processed because of the current state of the metadata.
-     * @throws IllegalArgumentException     If the operation is for a different StreamSegment.
+     * @throws IllegalArgumentException     If the operation is for a different Segment.
      */
     void preProcessAsParentSegment(MergeTransactionOperation operation, SegmentMetadataUpdateTransaction transactionMetadata)
             throws StreamSegmentSealedException, MetadataUpdateException {
@@ -312,38 +312,38 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (isTransaction()) {
             throw new MetadataUpdateException(this.containerId,
-                    "Cannot merge a StreamSegment into a Transaction StreamSegment: " + operation.toString());
+                    "Cannot merge a StreamSegment into a Transaction Segment: " + operation.toString());
         }
 
         // Check that the Transaction has been properly sealed and has its length set.
         if (!transactionMetadata.isSealed()) {
             throw new MetadataUpdateException(this.containerId,
-                    "Transaction StreamSegment to be merged needs to be sealed: " + operation.toString());
+                    "Transaction Segment to be merged needs to be sealed: " + operation.toString());
         }
 
         long transLength = operation.getLength();
         if (transLength < 0) {
             throw new MetadataUpdateException(this.containerId,
-                    "MergeTransactionOperation does not have its Transaction StreamSegment Length set: " + operation.toString());
+                    "MergeTransactionOperation does not have its Transaction Segment Length set: " + operation.toString());
         }
 
         if (!this.recoveryMode) {
-            // Assign entry StreamSegment offset and update StreamSegment offset afterwards.
+            // Assign entry Segment offset and update Segment offset afterwards.
             operation.setStreamSegmentOffset(this.durableLogLength);
         }
     }
 
     /**
-     * Pre-processes the given operation as a Transaction StreamSegment.
+     * Pre-processes the given operation as a Transaction Segment.
      *
      * @param operation The operation
      * @throws IllegalArgumentException     If the operation is for a different stream segment.
-     * @throws MetadataUpdateException      If the StreamSegment is not sealed.
-     * @throws StreamSegmentMergedException If the StreamSegment is already merged.
+     * @throws MetadataUpdateException      If the Segment is not sealed.
+     * @throws StreamSegmentMergedException If the Segment is already merged.
      */
     void preProcessAsTransactionSegment(MergeTransactionOperation operation) throws MetadataUpdateException, StreamSegmentMergedException {
         Exceptions.checkArgument(this.id == operation.getTransactionSegmentId(),
-                "operation", "Invalid Operation Transaction StreamSegment Id.");
+                "operation", "Invalid Operation Transaction Segment Id.");
 
         if (this.merged) {
             throw new StreamSegmentMergedException(this.name);
@@ -351,7 +351,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (!this.sealed) {
             throw new MetadataUpdateException(this.containerId,
-                    "Transaction StreamSegment to be merged needs to be sealed: " + operation.toString());
+                    "Transaction Segment to be merged needs to be sealed: " + operation);
         }
 
         if (!this.recoveryMode) {
@@ -427,14 +427,14 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * Accepts a StreamSegmentAppendOperation in the metadata.
      *
      * @param operation The operation to accept.
-     * @throws MetadataUpdateException  If the operation StreamSegmentOffset is different from the current StreamSegment Length.
-     * @throws IllegalArgumentException If the operation is for a different StreamSegment.
+     * @throws MetadataUpdateException  If the operation SegmentOffset is different from the current Segment Length.
+     * @throws IllegalArgumentException If the operation is for a different Segment.
      */
     void acceptOperation(StreamSegmentAppendOperation operation) throws MetadataUpdateException {
         ensureSegmentId(operation);
         if (operation.getStreamSegmentOffset() != this.durableLogLength) {
             throw new MetadataUpdateException(this.containerId,
-                    String.format("StreamSegmentAppendOperation offset mismatch. Expected %d, actual %d.",
+                    String.format("SegmentAppendOperation offset mismatch. Expected %d, actual %d.",
                             this.durableLogLength, operation.getStreamSegmentOffset()));
         }
 
@@ -447,7 +447,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * Accepts an UpdateAttributesOperation in the metadata.
      *
      * @param operation The operation to accept.
-     * @throws IllegalArgumentException If the operation is for a different StreamSegment.
+     * @throws IllegalArgumentException If the operation is for a different Segment.
      */
     void acceptOperation(UpdateAttributesOperation operation) {
         ensureSegmentId(operation);
@@ -456,11 +456,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Accepts a StreamSegmentSealOperation in the metadata.
+     * Accepts a SegmentSealOperation in the metadata.
      *
      * @param operation The operation to accept.
      * @throws MetadataUpdateException  If the operation hasn't been pre-processed.
-     * @throws IllegalArgumentException If the operation is for a different StreamSegment.
+     * @throws IllegalArgumentException If the operation is for a different Segment.
      */
     void acceptOperation(StreamSegmentSealOperation operation) throws MetadataUpdateException {
         ensureSegmentId(operation);
@@ -482,12 +482,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Accepts the given MergeTransactionOperation as a Parent StreamSegment.
+     * Accepts the given MergeTransactionOperation as a Parent Segment.
      *
      * @param operation           The operation to accept.
      * @param transactionMetadata The metadata for the Transaction Stream Segment to merge.
      * @throws MetadataUpdateException  If the operation cannot be processed because of the current state of the metadata.
-     * @throws IllegalArgumentException If the operation is for a different StreamSegment.
+     * @throws IllegalArgumentException If the operation is for a different Segment.
      */
     void acceptAsParentSegment(MergeTransactionOperation operation, SegmentMetadataUpdateTransaction transactionMetadata) throws MetadataUpdateException {
         ensureSegmentId(operation);
@@ -512,11 +512,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * Accepts the given operation as a Transaction Stream Segment.
      *
      * @param operation The operation
-     * @throws IllegalArgumentException If the operation is for a different StreamSegment.
+     * @throws IllegalArgumentException If the operation is for a different Segment.
      */
     void acceptAsTransactionSegment(MergeTransactionOperation operation) {
         Exceptions.checkArgument(this.id == operation.getTransactionSegmentId(),
-                "operation", "Invalid Operation Transaction StreamSegment Id.");
+                "operation", "Invalid Operation Transaction Segment Id.");
 
         this.sealed = true;
         this.merged = true;
@@ -562,7 +562,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Applies all the outstanding changes to the base StreamSegmentMetadata object.
+     * Applies all the outstanding changes to the base SegmentMetadata object.
      */
     void apply(UpdateableSegmentMetadata target) {
         if (!this.isChanged) {
@@ -599,7 +599,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     private void ensureSegmentId(SegmentOperation operation) {
         Exceptions.checkArgument(this.id == operation.getStreamSegmentId(),
-                "operation", "Invalid Log Operation StreamSegment Id.");
+                "operation", "Invalid Log Operation Segment Id.");
     }
 
     //endregion
