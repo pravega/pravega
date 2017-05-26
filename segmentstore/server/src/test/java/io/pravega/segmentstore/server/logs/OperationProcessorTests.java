@@ -67,6 +67,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
+    private static final OperationProcessor.Config DEFAULT_CONFIG = OperationProcessor.Config.builder()
+                                                                                             .maxConcurrentWrites(1)
+                                                                                             .build();
 
     /**
      * Tests the ability of the OperationProcessor to process Operations in a failure-free environment.
@@ -85,14 +88,16 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Generate some test data.
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         AbstractMap<Long, Long> transactions = createTransactionsInMetadata(streamSegmentIds, transactionsPerStreamSegment, context.metadata);
-        List<Operation> operations = generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
+        List<Operation> operations = generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment,
+                METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
+        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -133,14 +138,16 @@ public class OperationProcessorTests extends OperationLogTestBase {
         streamSegmentIds.add(nonExistentStreamSegmentId);
         context.metadata.getStreamSegmentMetadata(sealedStreamSegmentId).markSealed();
         context.metadata.getStreamSegmentMetadata(deletedStreamSegmentId).markDeleted();
-        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment,
+                METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
+        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -165,7 +172,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
             if (oc.operation instanceof StorageOperation) {
                 long streamSegmentId = ((StorageOperation) oc.operation).getStreamSegmentId();
                 if (streamSegmentsWithNoContents.contains(streamSegmentId)) {
-                    Assert.assertTrue("Completion future for invalid StreamSegment " + streamSegmentId + " did not complete exceptionally.", oc.completion.isCompletedExceptionally());
+                    Assert.assertTrue("Completion future for invalid StreamSegment " + streamSegmentId + " did not complete exceptionally.",
+                            oc.completion.isCompletedExceptionally());
                     Predicate<Throwable> errorValidator;
                     if (streamSegmentId == sealedStreamSegmentId) {
                         errorValidator = ex -> ex instanceof StreamSegmentSealedException;
@@ -203,7 +211,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment,
+                METADATA_CHECKPOINT_EVERY, false, false);
 
         // Replace some of the Append Operations with a FailedAppendOperations. Some operations fail at the beginning,
         // some at the end of the serialization.
@@ -223,7 +232,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
+        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -272,14 +282,16 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment,
+                METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
+        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
@@ -320,14 +332,16 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment,
+                METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
+        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
@@ -374,14 +388,16 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment,
+                METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
+        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -405,10 +421,14 @@ public class OperationProcessorTests extends OperationLogTestBase {
         boolean encounteredFirstFailure = false;
         for (int i = 0; i < completionFutures.size(); i++) {
             OperationWithCompletion oc = completionFutures.get(i);
+            if (!oc.operation.canSerialize()) {
+                // Non-serializable operations (i.e., ProbeOperations always complete normally).
+                continue;
+            }
 
             // Once an operation failed (in our scenario), no other operation can succeed.
             if (encounteredFirstFailure) {
-                Assert.assertTrue("Encountered successful operation after a failed operation.", oc.completion.isCompletedExceptionally());
+                Assert.assertTrue("Encountered successful operation after a failed operation: " + oc.operation, oc.completion.isCompletedExceptionally());
             }
             if (i < failAtOperationIndex) {
                 // The operation that failed may have inadvertently failed other operations that were aggregated together
@@ -466,7 +486,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
+        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -485,7 +506,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         return completionFutures;
     }
 
-    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, SequencedItemList<Operation> memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
+    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, SequencedItemList<Operation> memoryLog,
+                                           DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
         // Log Operation based checks
         @Cleanup
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);

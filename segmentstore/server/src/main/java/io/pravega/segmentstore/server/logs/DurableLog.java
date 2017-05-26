@@ -23,7 +23,6 @@ import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamingException;
-import io.pravega.segmentstore.server.logs.operations.OperationFactory;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.LogItemFactory;
@@ -32,6 +31,7 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationFactory;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -109,7 +109,12 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.inMemoryOperationLog = new SequencedItemList<>();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
-        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
+        OperationProcessor.Config opConfig = OperationProcessor.Config
+                .builder()
+                .maxConcurrentWrites(this.config.getMaxConcurrentWrites())
+                .build();
+        this.operationProcessor = new OperationProcessor(opConfig, this.metadata, this.memoryStateUpdater, this.durableDataLog,
+                checkpointPolicy, executor);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
