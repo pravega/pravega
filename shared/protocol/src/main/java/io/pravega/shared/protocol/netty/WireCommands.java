@@ -703,8 +703,8 @@ public final class WireCommands {
             String segment = in.readUTF();
             UUID attributeId = new UUID(in.readLong(), in.readLong());
             long newValue = in.readLong();                
-            long expectedValue = in.readLong();
-            return new UpdateSegmentAttribute(requestId, segment, attributeId, newValue, expectedValue);
+            long excpecteValue = in.readLong();                
+            return new UpdateSegmentAttribute(requestId, segment, attributeId, newValue, excpecteValue);
         }
     }
     
