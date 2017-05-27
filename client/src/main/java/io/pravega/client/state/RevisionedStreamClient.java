@@ -54,13 +54,13 @@ public interface RevisionedStreamClient<T> {
     void writeUnconditionally(T value);
     
     /**
-     * Returns a location previously set by {@link #compareAndSetMark(Revision, Revision)}
+     * Returns a location previously set by {@link #compareAndSetMark(Revision, Revision)}.
      * @return The marked location. (null if setMark was never been called)
      */
     Revision getMark();
     
     /**
-     * Records a provided location that can later be obtained by calling {@link #getMark()}
+     * Records a provided location that can later be obtained by calling {@link #getMark()}.
      * Atomically set the mark to newLocation if it is the expected value.
      * @param expected The expected value (May be null to indicate the mark is expected to be null)
      * @param newLocation The new value 

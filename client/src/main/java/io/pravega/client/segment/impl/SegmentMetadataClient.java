@@ -1,5 +1,17 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.client.segment.impl;
 
+/**
+ * A client for looking at an editing the metadata related to a specific segment.
+ */
 public interface SegmentMetadataClient {
     
     /**
@@ -17,7 +29,7 @@ public interface SegmentMetadataClient {
     abstract long getProperty(SegmentAttribute attribute);
 
     /**
-     * Atomically replaces the value of attribute with newValue if it is expectedValue
+     * Atomically replaces the value of attribute with newValue if it is expectedValue.
      * 
      * @param attribute The attribute to set
      * @param expectedValue The value the attribute is expected to be
