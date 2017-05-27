@@ -11,6 +11,7 @@ package io.pravega.client.state.impl;
 
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
@@ -29,6 +30,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
 import lombok.Data;
 import org.apache.commons.lang.NotImplementedException;
@@ -81,6 +83,7 @@ public class SynchronizerTest {
         private BlockingUpdate init;
         private BlockingUpdate[] updates;
         private int visableLength = 0;
+        private final AtomicLong mark = new AtomicLong(SegmentAttribute.NULL_VALUE);
 
         @Override
         public Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> readFrom(
@@ -123,6 +126,18 @@ public class SynchronizerTest {
             return new RevisionImpl(segment, visableLength, visableLength);
         }
 
+        @Override
+        public Revision getMark() {
+            long location = mark.get();
+            return location == SegmentAttribute.NULL_VALUE ? null : new RevisionImpl(segment, location, 0);
+        }
+
+        @Override
+        public boolean compareAndSetMark(Revision expected, Revision newLocation) {
+            long exp = expected == null ? SegmentAttribute.NULL_VALUE : expected.asImpl().getOffsetInSegment();
+            long value = newLocation == null ? SegmentAttribute.NULL_VALUE : newLocation.asImpl().getOffsetInSegment();
+            return mark.compareAndSet(exp, value);
+        }
     }
 
     @Test(timeout = 20000)

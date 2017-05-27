@@ -10,10 +10,6 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
-import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
-
-import java.util.concurrent.CompletableFuture;
-
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -24,8 +20,6 @@ import lombok.RequiredArgsConstructor;
 abstract class AsyncSegmentInputStream implements AutoCloseable {
     @Getter
     protected final Segment segmentId;
-    
-    public abstract CompletableFuture<StreamSegmentInfo> getSegmentInfo();
 
     public interface ReadFuture {
         /**

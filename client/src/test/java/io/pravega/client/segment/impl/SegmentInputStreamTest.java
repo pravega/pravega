@@ -95,11 +95,6 @@ public class SegmentInputStreamTest {
                 return FutureHelpers.getAndHandleExceptions(future, RuntimeException::new);
             }
         }
-
-        @Override
-        public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo() {
-            throw new UnsupportedOperationException();
-        }
     }
 
     private ByteBuffer createEventFromData(byte[] data) {

@@ -12,6 +12,7 @@ package io.pravega.client.state.impl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.state.Revision;
@@ -31,6 +32,9 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.client.segment.impl.SegmentAttribute.NULL_VALUE;
+import static io.pravega.client.segment.impl.SegmentAttribute.RevisionStreamClientMark;
+
 @RequiredArgsConstructor
 @Slf4j
 public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> {
@@ -40,6 +44,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     private final SegmentInputStream in;
     @GuardedBy("lock")
     private final SegmentOutputStream out;
+    @GuardedBy("lock")
+    private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
     private final Object lock = new Object();
 
@@ -93,7 +99,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public Iterator<Entry<Revision, T>> readFrom(Revision start) {
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
-            long endOffset = in.fetchCurrentStreamLength();
+            long endOffset = meta.fetchCurrentStreamLength();
             log.trace("Creating iterator from {} until {}", startOffset, endOffset);
             return new StreamIterator(startOffset, endOffset);
         }
@@ -102,7 +108,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public Revision fetchRevision() {
         synchronized (lock) {
-            long streamLength = in.fetchCurrentStreamLength();
+            long streamLength = meta.fetchCurrentStreamLength();
             return new RevisionImpl(segment, streamLength, 0);
         }
     }
@@ -141,6 +147,23 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 revision = new RevisionImpl(segment, offset.get(), 0);
             }
             return new AbstractMap.SimpleImmutableEntry<>(revision, serializer.deserialize(data));
+        }
+    }
+
+    @Override
+    public Revision getMark() {
+        synchronized (lock) {
+            long value = meta.getProperty(RevisionStreamClientMark);
+            return value == NULL_VALUE ? null : new RevisionImpl(segment, value, 0);
+        }
+    }
+
+    @Override
+    public boolean compareAndSetMark(Revision expected, Revision newLocation) {
+        long expectedValue = expected == null ? NULL_VALUE : expected.asImpl().getOffsetInSegment();
+        long newValue = newLocation == null ? NULL_VALUE : expected.asImpl().getOffsetInSegment();
+        synchronized (lock) {
+            return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
         }
     }
 }

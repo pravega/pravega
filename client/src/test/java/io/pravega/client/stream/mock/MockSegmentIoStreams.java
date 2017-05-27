@@ -11,7 +11,9 @@ package io.pravega.client.stream.mock;
 
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -20,12 +22,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream {
+public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream, SegmentMetadataClient {
 
     private final Segment segment;
     @GuardedBy("$lock")
@@ -38,6 +41,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     private final ArrayList<ByteBuffer> dataWritten = new ArrayList<>();
     @GuardedBy("$lock")
     private final ArrayList<Long> offsetList = new ArrayList<>(); 
+    private final ConcurrentHashMap<SegmentAttribute, Long> attributes = new ConcurrentHashMap<>();
     
     @Override
     @Synchronized
@@ -60,7 +64,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return offsetList.get(readIndex);
     }
 
-    @Override
     @Synchronized
     public long fetchCurrentStreamLength() {
         return writeOffset;
@@ -130,6 +133,18 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     public String getSegmentName() {
         return segment.getScopedName();
+    }
+
+    @Override
+    public long getProperty(SegmentAttribute attribute) {
+        Long result = attributes.get(attribute);
+        return result == null ? SegmentAttribute.NULL_VALUE : result;
+    }
+
+    @Override
+    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
+        attributes.putIfAbsent(attribute, SegmentAttribute.NULL_VALUE);
+        return attributes.replace(attribute, expectedValue, newValue);
     }
 
 }
