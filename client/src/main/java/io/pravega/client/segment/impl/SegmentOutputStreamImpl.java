@@ -64,6 +64,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 @ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
+
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
     @Getter
     private final String segmentName;
@@ -74,6 +75,17 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
+    public SegmentOutputStreamImpl(String segmentName, Controller controller, ConnectionFactory connectionFactory,
+            UUID writerId, ClientConnection initialConnection) {
+        this(segmentName, controller, connectionFactory, writerId);
+        try {
+            this.setupAppend(initialConnection);
+        } catch (ConnectionFailedException e) {
+            log.warn("Initial connection setup failed: ", e);
+        }
+    }
+
+    
     /**
      * Internal object that tracks the state of the connection.
      * All mutations of data occur inside of this class. All operations are protected by the lock object.
@@ -350,7 +362,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
                                        event.getExpectedOffset()));
         } catch (ConnectionFailedException e) {
-            log.warn("Connection failed due to: ", e);
+            state.failConnection(e);
             getConnection(); // As the messages is inflight, this will perform the retransmition.
         }
     }
@@ -369,7 +381,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             return state.waitForConnection();
         });
     }
-
+    
     @Synchronized
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
@@ -377,11 +389,19 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
                 .thenCompose((PravegaNodeUri uri) -> {
                     return connectionFactory.establishConnection(uri, responseProcessor);
-                });
-            ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
-            state.newConnection(connection);
-            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
+                });    
+            setupAppend(getAndHandleExceptions(newConnection, ConnectionFailedException::new));
+        }
+    }
+    
+    private void setupAppend(ClientConnection connection) throws ConnectionFailedException {
+        state.newConnection(connection);
+        SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
+        try{   
             connection.send(cmd);
+        } catch (ConnectionFailedException e) {
+            state.failConnection(e);
+            throw e;
         }
     }
 
