@@ -71,8 +71,7 @@ public class Main {
                 .build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
-                .scheduledExecutorThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
                 .controllerClusterListenerEnabled(true)

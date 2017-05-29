@@ -108,8 +108,7 @@ public abstract class ControllerServiceMainTest {
                 .build();
 
         return ControllerServiceConfigImpl.builder()
-                .threadPoolSize(7)
-                .scheduledExecutorThreadPoolSize(7)
+                .threadPoolSize(15)
                 .storeClientConfig(storeClientConfig)
                 .controllerClusterListenerEnabled(!disableControllerCluster)
                 .hostMonitorConfig(hostMonitorConfig)

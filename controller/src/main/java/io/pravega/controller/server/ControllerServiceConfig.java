@@ -23,18 +23,11 @@ import java.util.Optional;
  */
 public interface ControllerServiceConfig {
     /**
-     * Fetches the size of the thread pool used by controller service API handler.
+     * Fetches the size of the thread pool used by controller.
      *
-     * @return The size of the thread pool used by controller service API handler.
+     * @return The size of the thread pool used by controller.
      */
     int getThreadPoolSize();
-
-    /**
-     * Fetches the size of the thread pool used by controller's task processor.
-     *
-     * @return The size of the thread pool used by controller's task processor.
-     */
-    int getScheduledExecutorThreadPoolSize();
 
     /**
      * Fetches the configuration of the store client used for accessing stream metadata store.

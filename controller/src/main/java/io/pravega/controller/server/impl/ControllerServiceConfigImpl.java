@@ -31,7 +31,6 @@ import java.util.Optional;
 public class ControllerServiceConfigImpl implements ControllerServiceConfig {
 
     private final int threadPoolSize;
-    private final int scheduledExecutorThreadPoolSize;
     private final StoreClientConfig storeClientConfig;
     private final HostMonitorConfig hostMonitorConfig;
     private final boolean controllerClusterListenerEnabled;
@@ -45,7 +44,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
 
     @Builder
     ControllerServiceConfigImpl(final int threadPoolSize,
-                                final int scheduledExecutorThreadPoolSize,
                                 final StoreClientConfig storeClientConfig,
                                 final HostMonitorConfig hostMonitorConfig,
                                 final boolean controllerClusterListenerEnabled,
@@ -54,8 +52,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final Optional<GRPCServerConfig> grpcServerConfig,
                                 final Optional<RESTServerConfig> restServerConfig) {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
-        Exceptions.checkArgument(scheduledExecutorThreadPoolSize > 0,
-                "scheduledExecutorThreadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
         Preconditions.checkNotNull(timeoutServiceConfig, "timeoutServiceConfig");
@@ -76,7 +72,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         }
 
         this.threadPoolSize = threadPoolSize;
-        this.scheduledExecutorThreadPoolSize = scheduledExecutorThreadPoolSize;
         this.storeClientConfig = storeClientConfig;
         this.hostMonitorConfig = hostMonitorConfig;
         this.controllerClusterListenerEnabled = controllerClusterListenerEnabled;

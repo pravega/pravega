@@ -140,8 +140,7 @@ public class ControllerServiceConfigTest {
         // If eventProcessor config is enabled, it should be non-null
         AssertExtensions.assertThrows(NullPointerException.class,
                 () -> ControllerServiceConfigImpl.builder()
-                        .threadPoolSize(7)
-                        .scheduledExecutorThreadPoolSize(7)
+                        .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
                         .timeoutServiceConfig(timeoutServiceConfig)
@@ -153,8 +152,7 @@ public class ControllerServiceConfigTest {
         // If grpcServerConfig is present it should be non-null
         AssertExtensions.assertThrows(NullPointerException.class,
                 () -> ControllerServiceConfigImpl.builder()
-                        .threadPoolSize(7)
-                        .scheduledExecutorThreadPoolSize(7)
+                        .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
                         .timeoutServiceConfig(timeoutServiceConfig)
@@ -166,8 +164,7 @@ public class ControllerServiceConfigTest {
         // If restServerConfig is present it should be non-null
         AssertExtensions.assertThrows(NullPointerException.class,
                 () -> ControllerServiceConfigImpl.builder()
-                        .threadPoolSize(7)
-                        .scheduledExecutorThreadPoolSize(7)
+                        .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
                         .timeoutServiceConfig(timeoutServiceConfig)
@@ -178,8 +175,7 @@ public class ControllerServiceConfigTest {
 
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> ControllerServiceConfigImpl.builder()
-                        .threadPoolSize(7)
-                        .scheduledExecutorThreadPoolSize(7)
+                        .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
                         .controllerClusterListenerEnabled(true)

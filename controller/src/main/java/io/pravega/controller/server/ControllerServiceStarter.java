@@ -49,7 +49,6 @@ import java.net.UnknownHostException;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -63,8 +62,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final StoreClient storeClient;
     private final String objectId;
 
-    private ExecutorService controllerExecutor;
-    private ScheduledExecutorService controllerScheduledExecutor;
+    private ScheduledExecutorService controllerExecutor;
 
     private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
@@ -112,18 +110,14 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
         try {
             //Initialize the executor service.
-            controllerExecutor = Executors.newFixedThreadPool(serviceConfig.getThreadPoolSize(),
+            controllerExecutor = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
                     new ThreadFactoryBuilder().setNameFormat("controllerpool-%d").build());
-
-            controllerScheduledExecutor = Executors.newScheduledThreadPool(
-                    serviceConfig.getScheduledExecutorThreadPoolSize(),
-                    new ThreadFactoryBuilder().setNameFormat("scheduledpool-%d").build());
 
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);
 
             log.info("Creating the task store");
-            taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerScheduledExecutor);
+            taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
 
             log.info("Creating the host store");
             hostStore = HostStoreFactory.createStore(serviceConfig.getHostMonitorConfig(), storeClient);
@@ -148,9 +142,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             connectionFactory = new ConnectionFactoryImpl(false);
             SegmentHelper segmentHelper = new SegmentHelper();
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerScheduledExecutor, host.getHostId(), connectionFactory);
+                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, taskMetadataStore, segmentHelper, controllerScheduledExecutor, host.getHostId(), connectionFactory);
+                    hostStore, taskMetadataStore, segmentHelper, controllerExecutor, host.getHostId(), connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig());
 
@@ -160,7 +154,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // are processed and deleted, that failed HostId is removed from FH folder.
             // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
             // controllers and starts sweeping tasks orphaned by those hostIds.
-            TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.getHostId(), controllerScheduledExecutor,
+            TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.getHostId(), controllerExecutor,
                     streamMetadataTasks, streamTransactionMetadataTasks);
 
             // Setup and start controller cluster listener.
@@ -185,12 +179,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        hostStore, segmentHelper, connectionFactory, streamMetadataTasks, controllerScheduledExecutor);
+                        hostStore, segmentHelper, connectionFactory, streamMetadataTasks, controllerExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
                 controllerEventProcessors.bootstrap(streamTransactionMetadataTasks)
-                        .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), controllerScheduledExecutor);
+                        .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), controllerExecutor);
             }
 
             // Start RPC server.
@@ -286,11 +280,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Next stop all executors
             log.info("Stopping executors");
-            controllerScheduledExecutor.shutdownNow();
+            controllerExecutor.shutdownNow();
             controllerExecutor.shutdownNow();
 
             log.info("Awaiting termination of controller scheduled executor");
-            controllerScheduledExecutor.awaitTermination(5, TimeUnit.SECONDS);
+            controllerExecutor.awaitTermination(5, TimeUnit.SECONDS);
 
             log.info("Awaiting termination of controller executor");
             controllerExecutor.awaitTermination(5, TimeUnit.SECONDS);
