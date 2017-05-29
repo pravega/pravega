@@ -279,12 +279,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             // Next stop all executors
-            log.info("Stopping executors");
+            log.info("Stopping controller executor");
             controllerExecutor.shutdownNow();
-            controllerExecutor.shutdownNow();
-
-            log.info("Awaiting termination of controller scheduled executor");
-            controllerExecutor.awaitTermination(5, TimeUnit.SECONDS);
 
             log.info("Awaiting termination of controller executor");
             controllerExecutor.awaitTermination(5, TimeUnit.SECONDS);
