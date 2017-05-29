@@ -31,6 +31,7 @@ configure_nfs_s3_hdfs() {
 
     echo "Trying to check whether NFS mounting is required"
     if [ "${ENABLE_NFS}" = "true" ] && [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
+    NFS_MOUNT=${NFS_MOUNT:-"/nfs/"}
         echo "Mounting the NFS share"
         mkdir -p ${NFS_MOUNT}
         while [ true ]
