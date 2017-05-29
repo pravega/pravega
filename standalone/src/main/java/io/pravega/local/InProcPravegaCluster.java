@@ -67,6 +67,9 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private String controllerURI = null;
 
+    /*REST server related variables*/
+    private int restServerPort;
+
     /*SegmentStore related variables*/
     private boolean isInProcSegmentStore;
     private int segmentStoreCount = 0;
@@ -93,13 +96,14 @@ public class InProcPravegaCluster implements AutoCloseable {
     private ControllerServiceMain[] controllerServers;
 
     private String zkUrl;
-    private boolean startRestServer = false;
+    private boolean startRestServer = true;
 
     @Builder
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
                                 boolean isInProcHDFS,
                                 boolean isInProcController, int controllerCount, String controllerURI,
-                                boolean isInProcSegmentStore, int segmentStoreCount, int containerCount, boolean startRestServer) {
+                                boolean isInProcSegmentStore, int segmentStoreCount, int containerCount,
+                                boolean startRestServer, int restServerPort) {
 
         //Check for valid combinations of flags
         //For ZK
@@ -130,6 +134,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.segmentStoreCount = segmentStoreCount;
         this.containerCount = containerCount;
         this.startRestServer = startRestServer;
+        this.restServerPort = restServerPort;
     }
 
     @Synchronized
@@ -304,7 +309,10 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .build();
 
-        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder().host("localhost").port(9091).build();
+        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
+                .host("localhost")
+                .port(this.restServerPort)
+                .build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
