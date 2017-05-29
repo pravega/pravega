@@ -421,6 +421,8 @@ project('test:system') {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
+        // https://mvnrepository.com/artifact/com.spotify/docker-client
+        compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
         compile project(':controller')
         compile project(":client")
         compile project(":test:testcommon")
