@@ -153,7 +153,7 @@ public class PravegaTest {
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         for (int i = 0; i < NUM_EVENTS; i++) {
-            String event = "\n Publish \n";
+            String event = "Publish " + i + "\n";
             log.debug("Producing event: {} ", event);
             writer.writeEvent("", event);
             writer.flush();

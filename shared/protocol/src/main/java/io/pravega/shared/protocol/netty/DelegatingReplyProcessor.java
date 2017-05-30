@@ -9,6 +9,8 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
+
 /**
  * A ReplyProcessor that hands off all implementation to another ReplyProcessor.
  * This is useful for creating subclasses that only handle a subset of Commands.
@@ -38,8 +40,14 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void noSuchBatch(WireCommands.NoSuchTransaction noSuchBatch) {
-        getNextReplyProcessor().noSuchBatch(noSuchBatch);
+    public void noSuchTransaction(WireCommands.NoSuchTransaction noSuchTransaction) {
+        getNextReplyProcessor().noSuchTransaction(noSuchTransaction);
+    }
+    
+
+    @Override
+    public void invalidEventNumber(InvalidEventNumber invalidEventNumber) {
+        getNextReplyProcessor().invalidEventNumber(invalidEventNumber);
     }
 
     @Override
@@ -60,6 +68,16 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     @Override
     public void segmentRead(WireCommands.SegmentRead data) {
         getNextReplyProcessor().segmentRead(data);
+    }
+    
+    @Override
+    public void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated) {
+        getNextReplyProcessor().segmentAttributeUpdated(segmentAttributeUpdated);
+    }
+    
+    @Override
+    public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
+        getNextReplyProcessor().segmentAttribute(segmentAttribute);
     }
 
     @Override
