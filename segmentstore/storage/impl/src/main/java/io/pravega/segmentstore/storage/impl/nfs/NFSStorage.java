@@ -276,6 +276,8 @@ public class NFSStorage implements Storage {
     }
 
 
+
+
     private void syncGetStreamSegmentInfo(String streamSegmentName, Duration timeout,
                                           CompletableFuture<SegmentProperties> retVal) {
         try {
@@ -328,29 +330,29 @@ public class NFSStorage implements Storage {
         log.trace("Writing {} to segment {} at offset {}", length, handle.getSegmentName(), offset);
         Path path = Paths.get(config.getNfsRoot(), handle.getSegmentName());
 
-        if ( handle.isReadOnly()) {
+        if (handle.isReadOnly()) {
             log.info("Write called on a readonly handle of segment {}", handle.getSegmentName());
             retVal.completeExceptionally(new IllegalArgumentException());
             return;
         }
 
-        if ( !Files.exists( path)) {
+        if (!Files.exists(path)) {
             retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
             return;
         }
 
-        if ( !Files.isWritable( path)) {
-            retVal.completeExceptionally( new StreamSegmentSealedException( handle.getSegmentName()));
-            return;
-        }
-
         try {
+            if (!isWritableFile(path)) {
+                retVal.completeExceptionally(new StreamSegmentSealedException(handle.getSegmentName()));
+                return;
+            }
+
             long fileSize = path.toFile().length();
-            if ( fileSize < offset) {
-                retVal.completeExceptionally( new BadOffsetException(handle.getSegmentName(), fileSize, offset));
+            if (fileSize < offset) {
+                retVal.completeExceptionally(new BadOffsetException(handle.getSegmentName(), fileSize, offset));
             } else {
-                try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
-                     ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
+                try (FileChannel channel = FileChannel.open(path,
+                        StandardOpenOption.WRITE); ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
                     long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
                     channel.force(true);
                 }
@@ -360,7 +362,7 @@ public class NFSStorage implements Storage {
             log.info("Write to segment {} at offset {} failed with exception {} ", handle.getSegmentName(), offset,
                     exc.getMessage());
             if (exc instanceof AccessDeniedException) {
-                retVal.completeExceptionally( new IllegalStateException( handle.getSegmentName()));
+                retVal.completeExceptionally(new IllegalStateException(handle.getSegmentName()));
             } else if (exc instanceof NonWritableChannelException) {
                 retVal.completeExceptionally(new IllegalArgumentException(exc));
             } else if (exc instanceof ClosedChannelException) {
@@ -369,6 +371,14 @@ public class NFSStorage implements Storage {
                 retVal.completeExceptionally(exc);
             }
         }
+
+    }
+
+    private boolean isWritableFile(Path path) throws IOException {
+        PosixFileAttributes attrs = null;
+            attrs = Files.readAttributes(path,
+                    PosixFileAttributes.class);
+            return attrs.permissions().contains(OWNER_WRITE);
 
     }
 
@@ -406,20 +416,18 @@ public class NFSStorage implements Storage {
                             CompletableFuture<Void> retVal) {
 
         Path sourcePath = Paths.get(config.getNfsRoot(), sourceSegment);
-        Path  targetPath = Paths.get(config.getNfsRoot(), targetHandle.getSegmentName());
+        Path targetPath = Paths.get(config.getNfsRoot(), targetHandle.getSegmentName());
 
-        if (Files.isWritable(sourcePath)) {
-            retVal.completeExceptionally(new IllegalStateException(sourceSegment));
-            return;
-        }
-
-        try ( FileChannel targetChannel = new RandomAccessFile( String.valueOf(targetPath), "rw").getChannel();
-              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
+        try (FileChannel targetChannel = new RandomAccessFile(String.valueOf(targetPath), "rw").getChannel();
+             RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
+            if (isWritableFile(sourcePath)) {
+                retVal.completeExceptionally(new IllegalStateException(sourceSegment));
+                return;
+            }
 
             targetChannel.transferFrom(sourceFile.getChannel(), offset, sourceFile.length());
             Files.delete(Paths.get(config.getNfsRoot(), sourceSegment));
             retVal.complete(null);
-
         } catch (IOException e) {
             log.info("Concat of {} on {} failed with {}", sourceSegment, targetHandle.getSegmentName(), e);
             if (e instanceof NoSuchFileException || e instanceof FileNotFoundException) {
