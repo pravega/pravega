@@ -11,9 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.ServiceShutdownListener;
-import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -306,10 +304,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "No operations failed.",
                 OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof IOException
-                        || ex instanceof DurableDataLogException
-                        || ex instanceof OrderedItemProcessor.ProcessingException
-                        || ex instanceof ObjectClosedException);
+                super::isExpectedExceptionForNonDataCorruption);
 
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
@@ -455,10 +450,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
                         oc.completion::join,
-                        ex -> ex instanceof DataCorruptionException
-                                || ex instanceof IllegalContainerStateException
-                                || ex instanceof ObjectClosedException
-                                || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException)));
+                        super::isExpectedExceptionForDataCorruption);
             }
         }
 

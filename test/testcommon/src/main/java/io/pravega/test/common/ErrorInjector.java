@@ -73,6 +73,7 @@ public class ErrorInjector<T extends Throwable> {
      * @param injector      The Error Injector to use.
      * @param successFuture A Supplier that generates the future to return if no exception happened.
      * @param <ExceptionT>  The type of exception to throw.
+     * @param <ReturnT> The type of the return value.
      */
     public static <ReturnT, ExceptionT extends Throwable> CompletableFuture<ReturnT> throwAsyncExceptionIfNeeded(
             ErrorInjector<ExceptionT> injector, Supplier<CompletableFuture<ReturnT>> successFuture) {

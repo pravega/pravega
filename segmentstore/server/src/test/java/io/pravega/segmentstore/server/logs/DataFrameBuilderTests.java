@@ -191,9 +191,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
 
                 b.close(true);
             } catch (ObjectClosedException ex) {
-                if(b.failureCause() == null){
-                    System.out.println();
-                }
+                await(() -> b.failureCause() != null, 20);
+
                 // If DataFrameBuilder is closed, then we must have had an exception thrown via the callback before.
                 Assert.assertNotNull("DataFrameBuilder is closed, yet failure cause is not set yet.", b.failureCause());
                 checkFailureCause(b, ce -> ce instanceof IntentionalException);

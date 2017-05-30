@@ -10,27 +10,32 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.collect.Iterators;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
+import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.containers.InMemoryStateStore;
-import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.containers.InMemoryStateStore;
 import io.pravega.segmentstore.server.containers.StreamSegmentMapper;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -274,9 +279,6 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             } else {
                 Assert.assertEquals("Unexpected seal state for StreamSegment " + streamSegmentId,
                         expectSegmentsSealed, segmentMetadata.isSealed());
-                if((int) expectedLengths.getOrDefault(streamSegmentId, 0)!= segmentMetadata.getDurableLogLength()){
-                    System.out.println();
-                }
                 Assert.assertEquals("Unexpected length for StreamSegment " + streamSegmentId,
                         (int) expectedLengths.getOrDefault(streamSegmentId, 0), segmentMetadata.getDurableLogLength());
             }
@@ -303,6 +305,21 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
 
             Assert.assertEquals("Not enough bytes were read from the ReadIndex for StreamSegment " + e.getKey(), expectedLength, readLength);
         }
+    }
+
+    boolean isExpectedExceptionForNonDataCorruption(Throwable ex) {
+        return ex instanceof IOException
+                || ex instanceof DurableDataLogException
+                || ex instanceof OrderedItemProcessor.ProcessingException
+                || ex instanceof ObjectClosedException;
+    }
+
+    boolean isExpectedExceptionForDataCorruption(Throwable ex) {
+        return ex instanceof DataCorruptionException
+                || ex instanceof IllegalContainerStateException
+                || ex instanceof ObjectClosedException
+                || ex instanceof OrderedItemProcessor.ProcessingException
+                || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException));
     }
 
     /**

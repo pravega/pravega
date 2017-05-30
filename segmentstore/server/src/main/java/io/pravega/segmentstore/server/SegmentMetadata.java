@@ -93,7 +93,7 @@ public interface SegmentMetadata extends SegmentProperties {
     }
 
     @Override
-    default long getLength(){
+    default long getLength() {
         return getDurableLogLength();
     }
 }

@@ -37,7 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 class OperationMetadataUpdater implements ContainerMetadata {
     //region Members
 
-    private static long MAX_TRANSACTION = Long.MAX_VALUE;
+    private static final long MAX_TRANSACTION = Long.MAX_VALUE;
     private final String traceObjectId;
     private final UpdateableContainerMetadata metadata;
     private final ArrayDeque<ContainerMetadataUpdateTransaction> transactions;

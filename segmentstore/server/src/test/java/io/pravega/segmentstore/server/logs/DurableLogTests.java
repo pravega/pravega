@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.util.ArrayView;
@@ -23,7 +22,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.ConfigHelpers;
 import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -330,8 +328,7 @@ public class DurableLogTests extends OperationLogTestBase {
     public void testAddWithDataLogFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
-        int failSyncCommitFrequency = 3; // Fail (synchronously) every X DataFrame commits (to DataLog).
-        int failAsyncCommitFrequency = 5; // Fail (asynchronously) every X DataFrame commits (to DataLog).
+        int failAsyncAfter = 5; // Fail (asynchronously) after X DataFrame commits (to DataLog).
 
         // Setup a DurableLog and start it.
         @Cleanup
@@ -347,13 +344,10 @@ public class DurableLogTests extends OperationLogTestBase {
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
 
         List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
-        ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
-                count -> count % failSyncCommitFrequency == 0,
-                () -> new IOException("intentional"));
         ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
-                count -> count % failAsyncCommitFrequency == 0,
+                count -> count >= failAsyncAfter,
                 () -> new DurableDataLogException("intentional"));
-        setup.dataLog.get().setAppendErrorInjectors(syncErrorInjector, aSyncErrorInjector);
+        setup.dataLog.get().setAppendErrorInjectors(null, aSyncErrorInjector);
 
         // Process all generated operations.
         List<OperationWithCompletion> completionFutures = processOperations(operations, durableLog);
@@ -362,7 +356,7 @@ public class DurableLogTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "No operations failed.",
                 OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof IOException || ex instanceof DurableDataLogException);
+                super::isExpectedExceptionForNonDataCorruption);
 
         performLogOperationChecks(completionFutures, durableLog);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, setup.metadata, false, false);
@@ -474,10 +468,7 @@ public class DurableLogTests extends OperationLogTestBase {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
                         oc.completion::join,
-                        ex -> ex instanceof DataCorruptionException
-                                || ex instanceof IllegalContainerStateException
-                                || ex instanceof ObjectClosedException
-                                || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException)));
+                        super::isExpectedExceptionForDataCorruption);
                 encounteredFirstFailure = true;
             } else {
                 successCount++;

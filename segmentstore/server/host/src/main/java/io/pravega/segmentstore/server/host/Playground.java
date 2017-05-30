@@ -47,7 +47,7 @@ public class Playground {
             new WriteArgs(1000, 10000),
             new WriteArgs(250, 1000000),
     };
-    private static final List<Integer> BOOKIE_PORTS = Arrays.asList(8101);//, 8102, 8103);
+    private static final List<Integer> BOOKIE_PORTS = Arrays.asList(8101); //, 8102, 8103);
     private static final int ZK_PORT = 2181;
     private static final String LEDGERS_PATH = "/test/ledgers";
 
