@@ -430,4 +430,16 @@ public interface StreamMetadataStore {
      * @return Completable Future
      */
     CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number, final OperationContext context, final Executor executor);
+
+    /**
+     * Get all scale history segments.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param executor callers executor
+     * @param context  operation context
+     * @return currently active segments
+     */
+    CompletableFuture<List<ScaleIndicent>> getScaleIncidents(final String scope, final String name, final OperationContext context, final Executor executor);
+
 }

@@ -120,6 +120,11 @@ class InMemoryStream implements Stream {
         }
 
         @Override
+        public CompletableFuture<List<ScaleIndicent>> getScaleIncidents() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
         public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
@@ -301,6 +306,11 @@ class InMemoryStream implements Stream {
     @Override
     public CompletableFuture<List<Integer>> getSuccessors(int number) {
         return CompletableFuture.completedFuture(segments.get(number).getSuccessors());
+    }
+
+    @Override
+    public CompletableFuture<List<ScaleIndicent>> getScaleIncidents() {
+        throw new NotImplementedException();
     }
 
     @Override
