@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -270,12 +271,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
     /**
      * Tests the ability of the OperationProcessor to process Operations when there are DataLog write failures.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testWithDataLogFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
-        int failSyncCommitFrequency = 3; // Fail (synchronously) every X DataFrame commits (to DataLog).
-        int failAsyncCommitFrequency = 5; // Fail (asynchronously) every X DataFrame commits (to DataLog).
+        int failAfterCommits = 5; // Fail (asynchronously) after X DataFrame commits (to DataLog).
 
         @Cleanup
         TestContext context = new TestContext();
@@ -294,13 +294,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
-        ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
-                count -> count % failSyncCommitFrequency == 0,
-                () -> new IOException("intentional"));
         ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
-                count -> count % failAsyncCommitFrequency == 0,
+                count -> count >= failAfterCommits,
                 () -> new DurableDataLogException("intentional"));
-        dataLog.setAppendErrorInjectors(syncErrorInjector, aSyncErrorInjector);
+        dataLog.setAppendErrorInjectors(null, aSyncErrorInjector);
 
         // Process all generated operations.
         List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
@@ -309,7 +306,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "No operations failed.",
                 OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof IOException || ex instanceof DurableDataLogException);
+                ex -> ex instanceof IOException
+                        || ex instanceof DurableDataLogException
+                        || ex instanceof OrderedItemProcessor.ProcessingException
+                        || ex instanceof ObjectClosedException);
 
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
@@ -448,6 +448,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                         "Unexpected exception for intentionally failed Operation.",
                         oc.completion::join,
                         ex -> ex instanceof DataCorruptionException
+                                || ex instanceof IllegalContainerStateException
                                 || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException)));
                 encounteredFirstFailure = true;
             } else {

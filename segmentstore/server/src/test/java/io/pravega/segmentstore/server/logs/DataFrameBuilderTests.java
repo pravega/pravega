@@ -112,6 +112,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                         failedIndices.add(i);
                     }
                 }
+
+                b.close(true);
             }
             // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
             List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
@@ -186,7 +188,12 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                 for (val r : records) {
                     b.append(r);
                 }
+
+                b.close(true);
             } catch (ObjectClosedException ex) {
+                if(b.failureCause() == null){
+                    System.out.println();
+                }
                 // If DataFrameBuilder is closed, then we must have had an exception thrown via the callback before.
                 Assert.assertNotNull("DataFrameBuilder is closed, yet failure cause is not set yet.", b.failureCause());
                 checkFailureCause(b, ce -> ce instanceof IntentionalException);
@@ -294,6 +301,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                 for (TestLogItem item : records) {
                     b.append(item);
                 }
+
+                b.close(true);
             }
 
             // Wait for all the frames commit callbacks to be invoked. Even though the DataFrameBuilder waits (upon close)
@@ -316,9 +325,6 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                     AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLastStartedSequenceNumber() is not monotonically increasing.",
                             previousCommitArgs.getLastStartedSequenceNumber(), ca.getLastStartedSequenceNumber());
 
-                    if (ca.getLogAddress().getSequence() < previousCommitArgs.getLogAddress().getSequence()) {
-                        System.out.println(ca);
-                    }
                     AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLogAddress() is not monotonically increasing.",
                             previousCommitArgs.getLogAddress().getSequence(), ca.getLogAddress().getSequence());
                 }

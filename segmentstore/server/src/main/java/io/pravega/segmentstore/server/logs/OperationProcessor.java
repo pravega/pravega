@@ -16,6 +16,7 @@ import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.util.BlockingDrainingQueue;
+import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -229,7 +230,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     operations = this.operationQueue.poll(this.config.maxReadAtOnce);
                     if (operations.isEmpty()) {
                         log.debug("{}: processOperations (Flush).", this.traceObjectId);
-                        builder.flush();
+                        synchronized (this.stateLock) {
+                            builder.flush();
+                        }
                     } else {
                         log.debug("{}: processOperations (Add OperationCount = {}).", this.traceObjectId, operations.size());
                     }
@@ -283,13 +286,11 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
                 // Entry is ready to be serialized; assign a sequence number.
                 entry.setSequenceNumber(this.metadataUpdater.nextOperationSequenceNumber());
+                dataFrameBuilder.append(operation.getOperation());
+                this.metadataUpdater.acceptOperation(entry);
             }
 
             log.trace("{}: DataFrameBuilder.Append {}.", this.traceObjectId, operation.getOperation());
-            dataFrameBuilder.append(operation.getOperation());
-            synchronized (this.stateLock) {
-                this.metadataUpdater.acceptOperation(entry);
-            }
         } catch (ObjectClosedException ex) {
             // DataFrameBuilder is in a closed/failed state. We cannot proceed with this operation, or any other one,
             // so we need to re-throw the exception for it to be handled upstream.
@@ -298,10 +299,11 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 ex.addSuppressed(rootCause);
             }
 
-            operation.fail(ex);
+            this.state.fail(operation, ex);
             throw ex;
         } catch (Exception ex) {
-            operation.fail(ex);
+            this.state.fail(operation, ex);
+
             Throwable cause = ExceptionHelpers.getRealException(ex);
             if (cause instanceof DataCorruptionException) {
                 // Besides failing the operation, DataCorruptionExceptions are pretty serious. We should shut down the
@@ -342,7 +344,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         int cancelCount = 0;
         for (CompletableOperation o : operations) {
             if (!o.isDone()) {
-                o.fail(failException);
+                this.state.fail(o, failException);
                 cancelCount++;
             }
         }
@@ -365,7 +367,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     /**
      * Temporary State for the QueueProcessor. Keeps track of pending Operations and allows committing or failing all of them.
      */
-    @Slf4j
     @ThreadSafe
     private static class QueueProcessingState {
         private final String traceObjectId;
@@ -383,6 +384,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         private final HashMap<DataFrameBuilder.DataFrameCommitArgs, Long> metadataTransactions;
         @GuardedBy("lock")
         private long highestCommittedDataFrame;
+        @GuardedBy("lock")
+        private Throwable stopException;
 
         QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryStateUpdater stateUpdater, MetadataCheckpointPolicy checkpointPolicy,
                              Consumer<Throwable> fatalExceptionCallback, Object lock, String traceObjectId) {
@@ -408,28 +411,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             }
 
             autoCompleteIfNeeded();
-        }
-
-        /**
-         * Auto-completes any non-serialization operations at the beginning of the Pending Operations queue. Due to their
-         * nature, these operations are at risk of never being completed, and, if there are no more pending operations
-         * before that, they can be completed without further delay.
-         */
-        private void autoCompleteIfNeeded() {
-            Collection<CompletableOperation> toComplete = null;
-            synchronized (this.lock) {
-                while (!this.pendingOperations.isEmpty() && !this.pendingOperations.peekFirst().getOperation().canSerialize()) {
-                    if (toComplete == null) {
-                        toComplete = new ArrayList<>();
-                    }
-
-                    toComplete.add(this.pendingOperations.pollFirst());
-                }
-            }
-
-            if (toComplete != null) {
-                toComplete.forEach(CompletableOperation::complete);
-            }
         }
 
         /**
@@ -474,22 +455,30 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 final long lastSeqNo = commitArgs.getLastFullySerializedSequenceNumber();
                 while (!this.pendingOperations.isEmpty()
                         && this.pendingOperations.peekFirst().getOperation().getSequenceNumber() <= lastSeqNo) {
-                    CompletableOperation e = this.pendingOperations.pollFirst();
+                    CompletableOperation op = this.pendingOperations.pollFirst();
                     try {
-                        this.logUpdater.process(e.getOperation());
+                        this.logUpdater.process(op.getOperation());
                     } catch (Throwable ex) {
                         // MemoryStateUpdater.process() should only throw DataCorruptionExceptions, but just in case it
                         // throws something else (i.e. NullPtr), we still need to handle it.
                         // First, fail the operation, since it has already been taken off the pending list.
-                        log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
-                        e.fail(ex);
+                        log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, op.getOperation(), ex);
+                        fail(op, ex);
 
                         // Then fail the remaining operations (which also handles fatal errors) and bail out.
                         fail(ex, commitArgs);
                         return;
                     }
 
-                    e.complete();
+                    if (this.stopException != null) {
+                        // Even if the operation succeeded, we encountered a stop exception (fatal failure) and most likely
+                        // this operation will be corrupted in the DurableDataLog. Do not ack it as success. If the owning
+                        // Container does end up recovering successfully, it's up to the client to figure out the state
+                        // of the affected segments so it can resume operations.
+                        fail(op, this.stopException);
+                    } else {
+                        op.complete();
+                    }
                 }
 
                 this.logUpdater.flush();
@@ -507,6 +496,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
         void fail(Throwable ex, DataFrameBuilder.DataFrameCommitArgs commitArgs) {
+            boolean isFatal = false;
             synchronized (this.lock) {
                 // Discard all updates to the metadata.
                 long updateTransactionId;
@@ -520,17 +510,64 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 this.metadataUpdater.rollback(updateTransactionId);
 
                 // Fail all pending entries.
-                while (!this.pendingOperations.isEmpty()) {
-                    CompletableOperation e = this.pendingOperations.pollLast();
-                    e.fail(ex);
+                long seqNo = getLastKnownSuccessfulSeqNo(updateTransactionId);
+                while (!this.pendingOperations.isEmpty() && shouldFail(this.pendingOperations.peekLast(), seqNo)) {
+                    CompletableOperation op = this.pendingOperations.pollLast();
+                    fail(op, ex);
+                }
+
+                if (isFatalException(ex)) {
+                    this.stopException = ex;
+                    isFatal = true;
                 }
             }
 
-            if (isFatalException(ex)) {
+            if (isFatal) {
                 CallbackHelpers.invokeSafely(this.fatalExceptionCallback, ex, null);
             }
 
             autoCompleteIfNeeded();
+        }
+
+        /**
+         * Fails the given Operation either with the given failure cause, or with the general stop exception.
+         *
+         * @param operation    The CompletableOperation to fail.
+         * @param failureCause The original failure cause. The operation will be failed with this exception, unless
+         *                     the general stopException is set, in which case that takes precedence.
+         */
+        void fail(CompletableOperation operation, Throwable failureCause) {
+            synchronized (this.lock) {
+                if (this.stopException != null) {
+                    failureCause = this.stopException;
+                }
+            }
+
+            operation.fail(failureCause);
+        }
+
+        /**
+         * Determines whether to fail the CompletableOperation, given the SeqNo of the last known successfully committed
+         * operation.
+         */
+        private boolean shouldFail(CompletableOperation co, long lastKnownSuccessfulSeqNo) {
+            return !co.getOperation().canSerialize()
+                    || co.getOperation().getSequenceNumber() > lastKnownSuccessfulSeqNo;
+        }
+
+        /**
+         * Determines the SeqNo of the last known successfully committed operation.
+         */
+        @GuardedBy("lock")
+        private long getLastKnownSuccessfulSeqNo(long failedUpdateTransactionId) {
+            long seqNo = ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER;
+            for (val e : this.metadataTransactions.entrySet()) {
+                if (e.getValue() < failedUpdateTransactionId) {
+                    seqNo = Math.max(seqNo, e.getKey().getLastFullySerializedSequenceNumber());
+                }
+            }
+
+            return seqNo;
         }
 
         @GuardedBy("lock")
@@ -547,9 +584,33 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                                                     .collect(Collectors.toList());
             toRemove.forEach(this.metadataTransactions::remove);
         }
+
+        /**
+         * Auto-completes any non-serialization operations at the beginning of the Pending Operations queue. Due to their
+         * nature, these operations are at risk of never being completed, and, if there are no more pending operations
+         * before that, they can be completed without further delay.
+         */
+        private void autoCompleteIfNeeded() {
+            Collection<CompletableOperation> toComplete = null;
+            synchronized (this.lock) {
+                while (!this.pendingOperations.isEmpty() && !this.pendingOperations.peekFirst().getOperation().canSerialize()) {
+                    if (toComplete == null) {
+                        toComplete = new ArrayList<>();
+                    }
+
+                    toComplete.add(this.pendingOperations.pollFirst());
+                }
+            }
+
+            if (toComplete != null) {
+                toComplete.forEach(CompletableOperation::complete);
+            }
+        }
     }
 
     //endregion
+
+    //region Config
 
     @Builder
     static class Config {
@@ -560,4 +621,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         @Builder.Default
         private Duration shutdownTimeout = Duration.ofSeconds(10);
     }
+
+    //endregion
 }

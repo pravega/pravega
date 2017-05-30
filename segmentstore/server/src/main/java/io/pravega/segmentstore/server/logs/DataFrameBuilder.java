@@ -22,12 +22,12 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,19 +37,15 @@ import lombok.extern.slf4j.Slf4j;
  * and publishes the finished Data Frames to the given DataFrameLog.
  */
 @Slf4j
-@ThreadSafe
+@NotThreadSafe
 class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region Members
 
-    @GuardedBy("this")
     private final DataFrameOutputStream outputStream;
     private final OrderedItemProcessor<ArrayView, LogAddress> frameProcessor;
     private final Args args;
-    @GuardedBy("this")
-    private boolean closed;
-    @GuardedBy("this")
+    private final AtomicBoolean closed;
     private long lastSerializedSequenceNumber;
-    @GuardedBy("this")
     private long lastStartedSequenceNumber;
     private final AtomicReference<Throwable> failureCause;
 
@@ -74,6 +70,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
         this.failureCause = new AtomicReference<>();
+        this.closed = new AtomicBoolean();
     }
 
     private Function<ArrayView, CompletableFuture<LogAddress>> createAppender(DurableDataLog targetLog) {
@@ -85,21 +82,25 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region AutoCloseable Implementation
 
     @Override
-    public synchronized void close() {
-        if (!this.closed) {
-            this.closed = true;
+    public void close() {
+        close(false);
+    }
 
-            // Seal & ship whatever frame we currently have (if any).
-            if (!this.outputStream.isClosed()) {
-                this.outputStream.flush();
-            }
-
-            // Close the Frame Processor. This waits until all pending frames have been committed.
-            this.frameProcessor.close();
-
-            // Close the underlying stream (which destroys whatever we have in flight - but there shouldn't be any at this point).
-            this.outputStream.close();
+    public void close(boolean waitForPendingFrames) {
+        if (this.closed.getAndSet(true)) {
+            return;
         }
+
+        // Seal & ship whatever frame we currently have (if any).
+        if (!this.outputStream.isClosed()) {
+            this.outputStream.flush();
+        }
+
+        // Close the Frame Processor.
+        this.frameProcessor.close(waitForPendingFrames);
+
+        // Close the underlying stream (which destroys whatever we have in flight).
+        this.outputStream.close();
     }
 
     //endregion
@@ -110,8 +111,8 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * Forces a flush of the current DataFrame. This should be invoked if there are no more items to add to the current
      * DataFrame, but it is desired to have its outstanding contents flushed to the underlying DurableDataLog.
      */
-    synchronized void flush() {
-        Exceptions.checkNotClosed(this.closed, this);
+    void flush() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         this.outputStream.flush();
     }
 
@@ -140,8 +141,8 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      *                              the LogItem failed to commit to the DataFrameLog.
      * @throws ObjectClosedException If the DataFrameBuilder is closed (or in in a failed state) and cannot be used anymore.
      */
-    synchronized void append(T logItem) throws IOException {
-        Exceptions.checkNotClosed(this.closed, this);
+    void append(T logItem) throws IOException {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         long seqNo = logItem.getSequenceNumber();
         Exceptions.checkArgument(this.lastSerializedSequenceNumber < seqNo, "logItem",
                 "Invalid sequence number. Expected: greater than %d, given: %d.", this.lastSerializedSequenceNumber, seqNo);
@@ -184,7 +185,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @throws NullPointerException     If the data frame is null.
      * @throws IllegalArgumentException If the data frame is not sealed.
      */
-    @GuardedBy("this")
     private void handleDataFrameComplete(DataFrame dataFrame) {
         Exceptions.checkArgument(dataFrame.isSealed(), "dataFrame", "Cannot publish a non-sealed DataFrame.");
 
