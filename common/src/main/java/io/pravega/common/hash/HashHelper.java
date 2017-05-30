@@ -45,7 +45,8 @@ public class HashHelper {
      * Converts a 128 bit array into a UUID.
      * Copied from UUID's private constructor.
      */
-    private UUID bytesToUUID(byte[] data) {
+    @VisibleForTesting
+    static UUID bytesToUUID(byte[] data) {
         long msb = 0;
         long lsb = 0;
         assert data.length == 16 : "data must be 16 bytes in length";

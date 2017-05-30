@@ -187,6 +187,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         getConnection().thenAccept((ClientConnection c) -> {
             log.debug("Sending read request {}", read);
             c.sendAsync(read.request);
+        }).exceptionally(e -> {
+            read.completeExceptionally(new RuntimeException(e));
+            return null;
         });
         return read;
     }
