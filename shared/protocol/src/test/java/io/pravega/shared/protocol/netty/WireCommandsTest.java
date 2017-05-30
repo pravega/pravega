@@ -87,7 +87,28 @@ public class WireCommandsTest {
     public void testSegmentRead() throws IOException {
         testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buffer));
     }
+    
+    @Test
+    public void testUpdateSegmentAttribute() throws IOException {
+        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, l));
+    }
+    
+    @Test
+    public void testSegmentAttributeUpdated() throws IOException {
+        testCommand(new WireCommands.SegmentAttributeUpdated(l, true));
+        testCommand(new WireCommands.SegmentAttributeUpdated(l, false));
+    }
 
+    @Test
+    public void testGetSegmentAttribute() throws IOException {
+        testCommand(new WireCommands.GetSegmentAttribute(l, testString1, uuid));
+    }
+    
+    @Test
+    public void testSegmentAttribute() throws IOException {
+        testCommand(new WireCommands.SegmentAttribute(l, l+1));
+    }
+    
     @Test
     public void testGetStreamSegmentInfo() throws IOException {
         testCommand(new WireCommands.GetStreamSegmentInfo(l, testString1));
@@ -201,6 +222,11 @@ public class WireCommandsTest {
     @Test
     public void testNoSuchTransaction() throws IOException {
         testCommand(new WireCommands.NoSuchTransaction(l, testString1));
+    }
+    
+    @Test
+    public void testInvalidEventNumber() throws IOException {
+        testCommand(new WireCommands.InvalidEventNumber(uuid, i));
     }
 
     @Test

@@ -23,7 +23,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Getter
 @Setter
-@EqualsAndHashCode(of = {"attributeId", "value"})
+@EqualsAndHashCode
 @NotThreadSafe
 public class AttributeUpdate {
     /**

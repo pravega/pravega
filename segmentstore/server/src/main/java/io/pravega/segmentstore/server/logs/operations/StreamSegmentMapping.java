@@ -22,6 +22,13 @@ public interface StreamSegmentMapping {
     long getStreamSegmentId();
 
     /**
+     * Sets the StreamSegmentId for this operation.
+     *
+     * @param value The Id of the segment to set.
+     */
+    void setStreamSegmentId(long value);
+
+    /**
      * Gets a value indicating the Name of the StreamSegment.
      */
     String getStreamSegmentName();

@@ -25,8 +25,7 @@ public class ExceptionHelpers {
      * @return True if a fatal error which must be rethrown, false otherwise (it can be handled in a catch block).
      */
     public static boolean mustRethrow(Throwable ex) {
-        return ex instanceof OutOfMemoryError
-                || ex instanceof StackOverflowError;
+        return ex instanceof VirtualMachineError;
     }
 
     /**
@@ -46,6 +45,27 @@ public class ExceptionHelpers {
         return ex;
     }
 
+    /**
+     * Returns true if the provided class is CompletionException or ExecutionException which need to be unwrapped.
+     * @param c The class to be tested
+     * @return True if {@link #getRealException(Throwable)} should be called on exceptions of this type
+     */
+    public static boolean shouldUnwrap(Class<? extends Exception> c) {
+        return c.equals(CompletionException.class) || c.equals(ExecutionException.class);
+    }
+    
+    /**
+     * If the provided exception is a CompletionException or ExecutionException which need be unwraped.
+     * @param e The exception to be unwrapped.
+     * @return The cause or the exception provided.
+     */
+    public static Throwable unwrapIfRequired(Throwable e) {
+        if ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
+            return e.getCause();
+        }
+        return e;
+    }
+    
     private static boolean canInspectCause(Throwable ex) {
         return ex instanceof CompletionException
                 || ex instanceof ExecutionException

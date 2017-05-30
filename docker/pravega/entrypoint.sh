@@ -28,6 +28,25 @@ configure_controller() {
 
 configure_nfs_s3_hdfs() {
     add_system_property "tier2.enableNfs" "${ENABLE_NFS}"
+
+    echo "Trying to check whether NFS mounting is required"
+    if [ "${ENABLE_NFS}" = "true" ] && [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
+        while [ -z ${NFS_SERVER} ]
+        do
+            echo "NFS_SERVER not set. Looping till the container is restarted with NFS_SERVER set."
+            sleep 60
+        done
+
+        NFS_MOUNT=${NFS_MOUNT:-"/nfs/"}
+        echo "Mounting the NFS share"
+        mkdir -p ${NFS_MOUNT}
+        while [ true ]
+        do
+            mount -t nfs ${NFS_SERVER} ${NFS_MOUNT} -o nolock && break
+            echo "Mount failed. Retrying after 5 sec ..."
+            sleep 5
+        done
+    fi
     add_system_property "nfs.nfsRoot" "${NFS_MOUNT}"
     add_system_property "tier2.enableHdfs" "${ENABLE_HDFS}"
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"

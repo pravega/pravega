@@ -40,6 +40,7 @@ public class SegmentStateTests {
 
             ByteArraySegment serialization = innerStream.getData();
             SegmentState deserialized = SegmentState.deserialize(new DataInputStream(serialization.getReader()));
+            Assert.assertEquals("Unexpected segment id", original.getSegmentId(), deserialized.getSegmentId());
             Assert.assertEquals("Unexpected segment name.", original.getSegmentName(), deserialized.getSegmentName());
             AssertExtensions.assertMapEquals("Unexpected attributes.", original.getAttributes(), deserialized.getAttributes());
         }
@@ -51,7 +52,7 @@ public class SegmentStateTests {
             attributes.put(UUID.randomUUID(), (long) i);
         }
 
-        return new SegmentState(
+        return new SegmentState(attributeCount,
                 new StreamSegmentInformation(Integer.toString(attributeCount), 0, false, false, attributes, new ImmutableDate()));
     }
 }

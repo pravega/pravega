@@ -21,6 +21,7 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -254,4 +255,55 @@ public class SegmentOutputStreamTest {
         assertEquals(false, acked.isDone());
         verifyNoMoreInteractions(connection);
     }
+    
+    @Test(timeout = 10000)
+    public void testSealedBeforeFlush() throws ConnectionFailedException, SegmentSealedException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        output.setupConnection();
+        order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        CompletableFuture<Boolean> ack = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
+        assertEquals(false, ack.isDone());
+        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+    }
+
+    @Test(timeout = 10000)
+    public void testSealedAfterFlush() throws ConnectionFailedException, SegmentSealedException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        output.setupConnection();
+        order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        CompletableFuture<Boolean> ack = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
+        assertEquals(false, ack.isDone());
+        Async.testBlocking(() -> {
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        }, () -> {
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+        });
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+    }
+    
 }

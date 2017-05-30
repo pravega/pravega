@@ -53,6 +53,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             PendingEvent event = new PendingEvent(null, serialized, wasWritten, offset);
             synchronized (lock) {
                 out.write(event);
+                out.flush();
             }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
@@ -80,6 +81,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
                 out.write(event);
+                out.flush();
             }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
