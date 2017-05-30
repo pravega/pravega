@@ -116,7 +116,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     private void closeConnection(Exception exceptionToInflightRequests) {
-        log.trace("Closing connection with exception: {}", exceptionToInflightRequests.toString());
+        log.info("Closing connection with exception: {}", exceptionToInflightRequests.toString());
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
             c = connection;
@@ -164,6 +164,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             }
         }
         return controller.getEndpointForSegment(segmentId.getScopedName()).thenCompose((PravegaNodeUri uri) -> {
+            log.info("Connecting to {}", uri);
             synchronized (lock) {
                 if (connection == null) {
                     connection = connectionFactory.establishConnection(uri, responseProcessor);
@@ -181,11 +182,14 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             try {
-                log.trace("Getting segment info");
+                log.debug("Getting segment info for segment: {}", segmentId);
                 c.send(new WireCommands.GetStreamSegmentInfo(requestId, segmentId.getScopedName()));
             } catch (ConnectionFailedException e) {
                 closeConnection(e);
             }
+        }).exceptionally(e -> {
+            result.completeExceptionally(new RuntimeException(e));
+            return null;
         });
         return result;
     }
@@ -198,11 +202,14 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             try {
-                log.trace("Getting segment attribute: " + attributeId);
+                log.debug("Getting segment attribute: {}", attributeId);
                 c.send(new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId));
             } catch (ConnectionFailedException e) {
                 closeConnection(e);
             }
+        }).exceptionally(e -> {
+            result.completeExceptionally(new RuntimeException(e));
+            return null;
         });
         return result;
     }
@@ -215,11 +222,14 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             try {
-                log.trace("Updating segment attribute: " + attributeId);
+                log.trace("Updating segment attribute: {}", attributeId);
                 c.send(new WireCommands.UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, value, expected));
             } catch (ConnectionFailedException e) {
                 closeConnection(e);
             }
+        }).exceptionally(e -> {
+            result.completeExceptionally(new RuntimeException(e));
+            return null;
         });
         return result;
     }

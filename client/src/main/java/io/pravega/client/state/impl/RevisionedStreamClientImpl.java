@@ -161,7 +161,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public boolean compareAndSetMark(Revision expected, Revision newLocation) {
         long expectedValue = expected == null ? NULL_VALUE : expected.asImpl().getOffsetInSegment();
-        long newValue = newLocation == null ? NULL_VALUE : expected.asImpl().getOffsetInSegment();
+        long newValue = newLocation == null ? NULL_VALUE : newLocation.asImpl().getOffsetInSegment();
         synchronized (lock) {
             return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
         }
