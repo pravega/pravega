@@ -11,6 +11,7 @@ package io.pravega.client.state.impl;
 
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
@@ -18,6 +19,8 @@ import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
+import io.pravega.client.state.examples.SetSynchronizer;
+import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
@@ -29,12 +32,17 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
 import lombok.Data;
 import org.apache.commons.lang.NotImplementedException;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class SynchronizerTest {
 
@@ -81,6 +89,7 @@ public class SynchronizerTest {
         private BlockingUpdate init;
         private BlockingUpdate[] updates;
         private int visableLength = 0;
+        private final AtomicLong mark = new AtomicLong(SegmentAttribute.NULL_VALUE);
 
         @Override
         public Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> readFrom(
@@ -119,10 +128,27 @@ public class SynchronizerTest {
         }
 
         @Override
-        public Revision fetchRevision() {
+        public Revision fetchLatestRevision() {
             return new RevisionImpl(segment, visableLength, visableLength);
         }
 
+        @Override
+        public Revision getMark() {
+            long location = mark.get();
+            return location == SegmentAttribute.NULL_VALUE ? null : new RevisionImpl(segment, location, 0);
+        }
+
+        @Override
+        public boolean compareAndSetMark(Revision expected, Revision newLocation) {
+            long exp = expected == null ? SegmentAttribute.NULL_VALUE : expected.asImpl().getOffsetInSegment();
+            long value = newLocation == null ? SegmentAttribute.NULL_VALUE : newLocation.asImpl().getOffsetInSegment();
+            return mark.compareAndSet(exp, value);
+        }
+
+        @Override
+        public Revision fetchOldestRevision() {
+            return new RevisionImpl(segment, 0, 0);
+        }
     }
 
     @Test(timeout = 20000)
@@ -206,5 +232,62 @@ public class SynchronizerTest {
         });
         assertEquals(6, callCount.get());
     }
+    
+    @Test(timeout = 20000)
+    public void testCompactionShrinksSet() throws EndOfSegmentException {
+        String streamName = "testCompactionShrinksSet";
+        String scope = "scope";
+        
+        MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        SetSynchronizer<String> set = SetSynchronizer.createNewSet(streamName, clientFactory);
+        RevisionedStreamClient<byte[]> rsc = clientFactory.createRevisionedStreamClient(streamName, new ByteArraySerializer(),
+                                                                                   SynchronizerConfig.builder().build());
+        set.add("Foo");
+        assertNull(rsc.getMark());
+        set.add("Bar");
+        assertNull(rsc.getMark());
+        set.clear();
+        assertNotNull(rsc.getMark());
+        Iterator<?> iter = rsc.readFrom(rsc.getMark());
+        assertTrue(iter.hasNext());
+        iter.next();
+        assertFalse(iter.hasNext());
+        set.add("Foo2");
+        assertNotNull(rsc.getMark());
+        assertEquals(1, set.getCurrentSize());
+    }
 
+    @Test(timeout = 20000)
+    public void testSetOperations() throws EndOfSegmentException {
+        String streamName = "testCompactionShrinksSet";
+        String scope = "scope";
+        
+        MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        SetSynchronizer<String> set = SetSynchronizer.createNewSet(streamName, clientFactory);
+        SetSynchronizer<String> set2 = SetSynchronizer.createNewSet(streamName, clientFactory);
+        assertEquals(0, set.getCurrentSize());
+        set.add("Foo");
+        set2.add("Bar");
+        set.update();
+        assertEquals(2, set.getCurrentSize());
+        set.clear();
+        assertEquals(0, set.getCurrentSize());
+        set.add("Baz");
+        assertEquals(2, set2.getCurrentSize());
+        set2.remove("Bar");
+        assertEquals(1, set2.getCurrentSize());
+        set2.remove("Baz");
+        assertEquals(0, set2.getCurrentSize());
+        set.update();
+        assertEquals(0, set.getCurrentSize());
+        SetSynchronizer<String> set3 = SetSynchronizer.createNewSet(streamName, clientFactory);
+        set3.update();
+        assertEquals(0, set3.getCurrentSize());
+    }
+
+    
 }
