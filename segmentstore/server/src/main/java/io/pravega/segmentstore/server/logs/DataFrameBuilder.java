@@ -161,7 +161,12 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             this.outputStream.endRecord();
             this.lastSerializedSequenceNumber = seqNo;
         } catch (Exception ex) {
-            if (ex instanceof ObjectClosedException) {
+            if (this.closed.get()) {
+                // It's possible that an async callback resulted in an error and this object got closed after the check
+                // at the beginning of this method (which could result in all sorts of errors. If that's the case, we need
+                // to indicate that we are closed by throwing ObjectClosedException.
+                throw new ObjectClosedException(this, ex);
+            }else if (ex instanceof ObjectClosedException) {
                 // OrderedItemProcessor has closed (most likely due to a DataFrame commit failure. We need to close as well.
                 close();
             } else {
@@ -178,8 +183,8 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     /**
      * Publishes a data frame to the DataFrameLog. The outcome of the publish operation, whether success or failure, is
      * routed to the appropriate callback handlers given in this constructor. This method is called synchronously by the
-     * DataFrameOutputStream, via the LogItem.serialize() method through the append() method, and as such, its execution
-     * is synchronized on this object's instance.
+     * DataFrameOutputStream, via the LogItem.serialize() method through the append() method, and as such, it is executed
+     * on the same thread that invoked append().
      *
      * @param dataFrame The data frame to publish.
      * @throws NullPointerException     If the data frame is null.
