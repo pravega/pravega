@@ -14,6 +14,7 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.client.stream.StreamConfiguration;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -339,12 +340,15 @@ public interface StreamMetadataStore {
      *
      * @param scope    scope
      * @param stream   stream
+     * @param epoch    transaction epoch
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
      * @return transaction status.
      */
-    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
+    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final int epoch,
+                                                   final UUID txId, final OperationContext context,
+                                                   final Executor executor);
 
     /**
      * Update stream store to mark transaction as sealed.
@@ -358,21 +362,24 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return Transaction status.
      */
-    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId,
-                                                 final boolean commit, final Optional<Integer> version,
-                                                 final OperationContext context, final Executor executor);
+    CompletableFuture<Pair<TxnStatus, Integer>> sealTransaction(final String scope, final String stream, final UUID txId,
+                                                                final boolean commit, final Optional<Integer> version,
+                                                                final OperationContext context, final Executor executor);
 
     /**
      * Update stream store to mark the transaction as aborted.
      *
      * @param scope    scope
      * @param stream   stream
+     * @param epoch    transaction epoch
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
      * @return transaction status
      */
-    CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
+    CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final int epoch,
+                                                  final UUID txId, final OperationContext context,
+                                                  final Executor executor);
 
     /**
      * Returns a boolean indicating whether any transaction is active on the specified stream.

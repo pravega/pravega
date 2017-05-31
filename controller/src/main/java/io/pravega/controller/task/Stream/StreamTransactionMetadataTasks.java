@@ -239,11 +239,14 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
                                                       final Integer version, final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, Optional.ofNullable(version), context, executor)
-                .thenComposeAsync(status -> {
+                .thenComposeAsync(pair -> {
+                    TxnStatus status = pair.getLeft();
                     if (status == TxnStatus.ABORTING) {
+                        int epoch = pair.getRight();
+                        String key = txid.toString();
+                        AbortEvent event = new AbortEvent(scope, stream, epoch, txid);
                         return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter,
-                                        abortStreamName, txid.toString(), new AbortEvent(scope, stream, txid), txid, status),
-                                executor);
+                                abortStreamName, key, event, txid, status), executor);
                     } else {
                         // Status is ABORTED, return it.
                         return CompletableFuture.completedFuture(status);
@@ -254,11 +257,14 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid,
                                                        final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty(), context, executor)
-                .thenComposeAsync(status -> {
+                .thenComposeAsync(pair -> {
+                    TxnStatus status = pair.getLeft();
                     if (status == TxnStatus.COMMITTING) {
+                        int epoch = pair.getRight();
+                        String key = scope + stream;
+                        CommitEvent event = new CommitEvent(scope, stream, epoch, txid);
                         return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter,
-                                commitStreamName, scope + stream, new CommitEvent(scope, stream, txid), txid, status),
-                                executor);
+                                commitStreamName, key, event, txid, status), executor);
                     } else {
                         // Status is COMMITTED, return it.
                         return CompletableFuture.completedFuture(status);

@@ -77,6 +77,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     protected void process(CommitEvent event, Position position) {
         String scope = event.getScope();
         String stream = event.getStream();
+        int epoch = event.getEpoch();
         UUID txId = event.getTxid();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
@@ -87,7 +88,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                                 .parallel()
                                 .map(segment -> notifyCommitToHost(scope, stream, segment.getNumber(), txId))
                                 .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txId, context, executor))
+                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, epoch, txId, context, executor))
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         log.error("Failed committing transaction {} on stream {}/{}", event.getTxid(),

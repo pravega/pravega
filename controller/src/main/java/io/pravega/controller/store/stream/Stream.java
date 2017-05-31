@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.client.stream.StreamConfiguration;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
 import java.util.List;
@@ -225,7 +226,8 @@ interface Stream {
      * @param txId
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit, final Optional<Integer> version);
+    CompletableFuture<Pair<TxnStatus, Integer>> sealTransaction(final UUID txId, final boolean commit,
+                                                                final Optional<Integer> version);
 
     /**
      * Returns transaction's status
@@ -243,7 +245,7 @@ interface Stream {
      * @param txId
      * @return
      */
-    CompletableFuture<TxnStatus> commitTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId) throws OperationOnTxNotAllowedException;
 
     /**
      * Commits a transaction
@@ -253,7 +255,7 @@ interface Stream {
      * @param txId
      * @return
      */
-    CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId) throws OperationOnTxNotAllowedException;
 
     /**
      * Return whether any transaction is active on the stream.
