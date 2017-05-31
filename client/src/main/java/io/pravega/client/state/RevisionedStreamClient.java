@@ -22,11 +22,18 @@ import java.util.Map.Entry;
 public interface RevisionedStreamClient<T> {
     
     /**
+     * Returns the oldest revision than can be read.
+     *
+     * @return The oldest readable revision.
+     */
+    Revision fetchOldestRevision();
+    
+    /**
      * Returns the latest revision.
      *
      * @return Latest revision.
      */
-    Revision fetchRevision();
+    Revision fetchLatestRevision();
     
     /**
      * Read from a specified revision to the end of the stream.

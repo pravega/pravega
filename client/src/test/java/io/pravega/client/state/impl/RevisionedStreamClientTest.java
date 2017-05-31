@@ -50,7 +50,7 @@ public class RevisionedStreamClientTest {
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
-        Revision initialRevision = client.fetchRevision();
+        Revision initialRevision = client.fetchLatestRevision();
         client.writeUnconditionally("a");
         client.writeUnconditionally("b");
         client.writeUnconditionally("c");
@@ -89,15 +89,15 @@ public class RevisionedStreamClientTest {
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
         client.writeUnconditionally("a");
-        Revision revision = client.fetchRevision();
+        Revision revision = client.fetchLatestRevision();
         Revision newRevision = client.writeConditionally(revision, "b");
         assertNotNull(newRevision);
         assertTrue(newRevision.compareTo(revision) > 0);
-        assertEquals(newRevision, client.fetchRevision());
+        assertEquals(newRevision, client.fetchLatestRevision());
         
         Revision failed = client.writeConditionally(revision, "fail");
         assertNull(failed);
-        assertEquals(newRevision, client.fetchRevision());
+        assertEquals(newRevision, client.fetchLatestRevision());
         
         Iterator<Entry<Revision, String>> iter = client.readFrom(revision);
         assertTrue(iter.hasNext());
@@ -122,11 +122,11 @@ public class RevisionedStreamClientTest {
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
         client.writeUnconditionally("a");
-        Revision ra = client.fetchRevision();
+        Revision ra = client.fetchLatestRevision();
         client.writeUnconditionally("b");
-        Revision rb = client.fetchRevision();
+        Revision rb = client.fetchLatestRevision();
         client.writeUnconditionally("c");
-        Revision rc = client.fetchRevision();
+        Revision rc = client.fetchLatestRevision();
         assertTrue(client.compareAndSetMark(null, ra));
         assertEquals(ra, client.getMark());
         assertTrue(client.compareAndSetMark(ra, rb));

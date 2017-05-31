@@ -106,7 +106,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     }
     
     @Override
-    public Revision fetchRevision() {
+    public Revision fetchLatestRevision() {
         synchronized (lock) {
             long streamLength = meta.fetchCurrentStreamLength();
             return new RevisionImpl(segment, streamLength, 0);
@@ -165,5 +165,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
         }
+    }
+
+    @Override
+    public Revision fetchOldestRevision() {
+        return new RevisionImpl(segment, 0, 0);
     }
 }
