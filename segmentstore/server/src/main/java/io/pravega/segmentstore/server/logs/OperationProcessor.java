@@ -378,7 +378,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         private final MetadataCheckpointPolicy checkpointPolicy;
         private final Consumer<Throwable> fatalExceptionCallback;
         @GuardedBy("lock")
-        private final SortedDeque<DataFrameBuilder.DataFrameCommitArgs> metadataTransactions;
+        private final SortedDeque<DataFrameBuilder.CommitArgs> metadataTransactions;
         @GuardedBy("lock")
         private long highestCommittedDataFrame;
         @GuardedBy("lock")
@@ -411,13 +411,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         /**
-         * Creates a checkpoint keyed in with the given DataFrameCommitArgs. This indicates that the DataFrame represented
+         * Creates a checkpoint keyed in with the given CommitArgs. This indicates that the DataFrame represented
          * by the given args has been sealed and is about to be committed. This checkpoint will mark a point in the
          * OperationMetadataUpdater that corresponds to the end of that DataFrame.
          *
-         * @param commitArgs The DataFrameCommitArgs to create a checkpoint for.
+         * @param commitArgs The CommitArgs to create a checkpoint for.
          */
-        void checkpoint(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
+        void checkpoint(DataFrameBuilder.CommitArgs commitArgs) {
             synchronized (this.lock) {
                 commitArgs.setIndexKey(this.metadataUpdater.sealTransaction());
                 this.metadataTransactions.addLast(commitArgs);
@@ -429,7 +429,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          *
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
-        void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
+        void commit(DataFrameBuilder.CommitArgs commitArgs) {
             log.debug("{}: CommitSuccess ({}).", this.traceObjectId, commitArgs);
 
             List<CompletableOperation> toComplete = new ArrayList<>();
@@ -449,7 +449,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     }
 
                     // Commit any changes to the metadata.
-                    final DataFrameBuilder.DataFrameCommitArgs checkpoint = this.metadataTransactions.removeFirst(commitArgs);
+                    final DataFrameBuilder.CommitArgs checkpoint = this.metadataTransactions.removeFirst(commitArgs);
                     assert checkpoint != null && checkpoint == commitArgs : "No Metadata UpdateTransaction found for " + commitArgs;
                     this.metadataUpdater.commit(checkpoint.key());
 
@@ -508,7 +508,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param ex The cause of the failure. The operations will be failed with this as a cause.
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
-        void fail(Throwable ex, DataFrameBuilder.DataFrameCommitArgs commitArgs) {
+        void fail(Throwable ex, DataFrameBuilder.CommitArgs commitArgs) {
             Map<CompletableOperation, Throwable> toFail = new HashMap<>();
             try {
                 synchronized (this.lock) {
@@ -551,15 +551,15 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * are not failed (since this method executes while holding the lock).
          *
          * @param ex         The Exception that triggered the failure.
-         * @param commitArgs The DataFrameCommitArgs that points to the DataFrame which failed to commit.
+         * @param commitArgs The CommitArgs that points to the DataFrame which failed to commit.
          * @param target     A Map where the failure candidates will be collected. Key=Operation, Value=Failure Exception.
          */
         @GuardedBy("lock")
-        private void collectFailureCandidates(Throwable ex, DataFrameBuilder.DataFrameCommitArgs commitArgs, Map<CompletableOperation, Throwable> target) {
+        private void collectFailureCandidates(Throwable ex, DataFrameBuilder.CommitArgs commitArgs, Map<CompletableOperation, Throwable> target) {
             // Discard all updates to the metadata.
             long updateTransactionId = 0;
             if (commitArgs != null) {
-                DataFrameBuilder.DataFrameCommitArgs checkpoint = this.metadataTransactions.removeLast(commitArgs);
+                DataFrameBuilder.CommitArgs checkpoint = this.metadataTransactions.removeLast(commitArgs);
                 if (checkpoint != null) {
                     updateTransactionId = checkpoint.key();
                 }

@@ -196,7 +196,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         Exceptions.checkArgument(dataFrame.isSealed(), "dataFrame", "Cannot publish a non-sealed DataFrame.");
 
         // Write DataFrame to DataFrameLog.
-        DataFrameCommitArgs commitArgs = new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getLength());
+        CommitArgs commitArgs = new CommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getLength());
 
         try {
             this.args.beforeCommit.accept(commitArgs);
@@ -216,7 +216,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         }
     }
 
-    private Void handleProcessingException(Throwable ex, DataFrameCommitArgs commitArgs) {
+    private Void handleProcessingException(Throwable ex, CommitArgs commitArgs) {
         // This failure is due to us being unable to commit a DataFrame, whether synchronously or via a callback. The
         // DataFrameBuilder cannot recover from this; as such it will close and will leave it to the caller to handle
         // the failure.
@@ -233,12 +233,12 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
     //endregion
 
-    //region DataFrameCommitArgs
+    //region CommitArgs
 
     /**
      * Contains Information about the committal of a DataFrame.
      */
-    static class DataFrameCommitArgs implements SortedIndex.IndexEntry {
+    static class CommitArgs implements SortedIndex.IndexEntry {
         /**
          * The Sequence Number of the last LogItem that was fully serialized (and committed).
          * If this value is different than 'getLastStartedSequenceNumber' then we currently have a LogItem that was split
@@ -267,13 +267,13 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         private long indexKey;
 
         /**
-         * Creates a new instance of the DataFrameCommitArgs class.
+         * Creates a new instance of the CommitArgs class.
          *
          * @param lastFullySerializedSequenceNumber The Sequence Number of the last LogItem that was fully serialized (and committed).
          * @param lastStartedSequenceNumber         The Sequence Number of the last LogItem that was started (but not necessarily committed).
          * @param dataFrameLength                   The length of the DataFrame that is to be committed.
          */
-        private DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, int dataFrameLength) {
+        private CommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, int dataFrameLength) {
             assert lastFullySerializedSequenceNumber <= lastStartedSequenceNumber : "lastFullySerializedSequenceNumber (" +
                     lastFullySerializedSequenceNumber + ") is greater than lastStartedSequenceNumber (" + lastStartedSequenceNumber + ")";
 
@@ -319,7 +319,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
          * submitted to the DurableDataLog processor. The invocation of this method does not imply that the DataFrame
          * has been successfully committed, or even attempted to be committed.
          */
-        final Consumer<DataFrameCommitArgs> beforeCommit;
+        final Consumer<CommitArgs> beforeCommit;
 
         /**
          * A Callback that will be invoked asynchronously upon every successful commit of a Data Frame. When this is
@@ -327,14 +327,14 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
          * LastFullySerializedSequenceNumber have been committed. Any entry with a Sequence Number higher than that
          * is not yet committed.
          */
-        final Consumer<DataFrameCommitArgs> commitSuccess;
+        final Consumer<CommitArgs> commitSuccess;
 
         /**
          * A Callback that will be invoked asynchronously upon a failed commit of a Data Frame. When this is called, all
          * entries added via append() that have a sequence number up to, and including, LastStartedSequenceNumber that
          * have not previously been acknowledged, should be failed.
          */
-        final BiConsumer<Throwable, DataFrameCommitArgs> commitFailure;
+        final BiConsumer<Throwable, CommitArgs> commitFailure;
         final Executor executor;
         final Duration writeTimeout = Duration.ofSeconds(30); // TODO: actual timeout.
     }

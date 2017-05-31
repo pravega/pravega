@@ -100,8 +100,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
-            List<DataFrameBuilder.DataFrameCommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
-            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+            List<DataFrameBuilder.CommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
+            BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
@@ -154,8 +154,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         // is because the array index equals the LogItem.SequenceNumber - this simplifies things a lot.
         AtomicInteger lastCommitIndex = new AtomicInteger(-1);
         AtomicInteger failCount = new AtomicInteger();
-        List<DataFrameBuilder.DataFrameCommitArgs> successCommits = Collections.synchronizedList(new ArrayList<>());
-        Consumer<DataFrameBuilder.DataFrameCommitArgs> commitCallback = cc -> {
+        List<DataFrameBuilder.CommitArgs> successCommits = Collections.synchronizedList(new ArrayList<>());
+        Consumer<DataFrameBuilder.CommitArgs> commitCallback = cc -> {
             successCommits.add(cc);
             synchronized (lastCommitIndex) {
                 lastCommitIndex.set(Math.max(lastCommitIndex.get(), (int) cc.getLastFullySerializedSequenceNumber()));
@@ -164,7 +164,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
 
         // Keep a reference to the builder (once created) so we can inspect its failure cause).
         val builderRef = new AtomicReference<DataFrameBuilder>();
-        BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) -> {
+        BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) -> {
             // Check that we actually did want an exception to happen.
             Throwable expectedError = ExceptionHelpers.getRealException(asyncInjector.getLastCycleException());
             Assert.assertNotNull("An error happened but none was expected: " + ex, expectedError);
@@ -253,8 +253,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
-            List<DataFrameBuilder.DataFrameCommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
-            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+            List<DataFrameBuilder.CommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
+            BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
 
@@ -291,9 +291,9 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, delayMillis, executorService())) {
             dataLog.initialize(TIMEOUT);
 
-            val order = new HashMap<DataFrameBuilder.DataFrameCommitArgs, Integer>();
-            List<DataFrameBuilder.DataFrameCommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
-            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+            val order = new HashMap<DataFrameBuilder.CommitArgs, Integer>();
+            List<DataFrameBuilder.CommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
+            BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(writeCapacity, DataFrameTestHelpers.appendOrder(order), commitFrames::add, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
@@ -316,15 +316,15 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
 
             // Check the correctness of the commit callback.
             AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, commitFrames.size());
-            DataFrameBuilder.DataFrameCommitArgs previousCommitArgs = null;
+            DataFrameBuilder.CommitArgs previousCommitArgs = null;
             for (val ca : commitFrames) {
                 if (previousCommitArgs != null) {
-                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLastFullySerializedSequenceNumber() is not monotonically increasing.",
+                    AssertExtensions.assertGreaterThanOrEqual("CommitArgs.getLastFullySerializedSequenceNumber() is not monotonically increasing.",
                             previousCommitArgs.getLastFullySerializedSequenceNumber(), ca.getLastFullySerializedSequenceNumber());
-                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLastStartedSequenceNumber() is not monotonically increasing.",
+                    AssertExtensions.assertGreaterThanOrEqual("CommitArgs.getLastStartedSequenceNumber() is not monotonically increasing.",
                             previousCommitArgs.getLastStartedSequenceNumber(), ca.getLastStartedSequenceNumber());
 
-                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLogAddress() is not monotonically increasing.",
+                    AssertExtensions.assertGreaterThanOrEqual("CommitArgs.getLogAddress() is not monotonically increasing.",
                             previousCommitArgs.getLogAddress().getSequence(), ca.getLogAddress().getSequence());
                 }
 

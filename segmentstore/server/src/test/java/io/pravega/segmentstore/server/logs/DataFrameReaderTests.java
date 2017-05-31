@@ -63,7 +63,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
-            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+            BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, DataFrameTestHelpers::doNothing, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
@@ -95,8 +95,8 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
             dataLog.initialize(TIMEOUT);
 
             // TODO: assign order here.
-            ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+            ArrayList<DataFrameBuilder.CommitArgs> commitFrames = new ArrayList<>();
+            BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
@@ -133,7 +133,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
-            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+            BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, DataFrameTestHelpers::doNothing, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
@@ -167,7 +167,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
-            BiConsumer<Throwable, DataFrameBuilder.DataFrameCommitArgs> errorCallback = (ex, a) ->
+            BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, DataFrameTestHelpers::doNothing, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
