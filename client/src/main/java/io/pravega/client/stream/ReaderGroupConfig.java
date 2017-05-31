@@ -22,9 +22,12 @@ public class ReaderGroupConfig implements Serializable {
    private final Sequence startingPosition;
    @Getter
    private final long groupRefreshTimeMillis;
+   @Getter
+   private final boolean disableCheckpoints;   
 
    public static final class ReaderGroupConfigBuilder {
        long groupRefreshTimeMillis = 3000;
+       boolean disableCheckpoints = false;
 
        /**
          * Returns a config builder that started at  a given time.

@@ -436,7 +436,9 @@ class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders());
+            if (!state.getConfig().isDisableCheckpoints()) {
+                state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders());
+            }
         }
     }
     

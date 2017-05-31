@@ -136,7 +136,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReinitializationRequiredException {
         try {
-            if (atCheckpoint) {
+            if (groupState.areCheckpointsDisabled() || atCheckpoint) {
                 releaseSegmentsIfNeeded();
                 atCheckpoint = false;
             }
