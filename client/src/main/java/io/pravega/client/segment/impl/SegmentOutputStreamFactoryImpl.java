@@ -40,9 +40,9 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     private final ConnectionFactory cf;
 
     @Override
-    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment>
-            segmentSealedCallback
-    ) {
+    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
+                                                                Consumer<Segment> segmentSealedCallback) {
+
         CompletableFuture<String> name = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
