@@ -64,7 +64,6 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 @ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
-
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
     @Getter
     private final String segmentName;
@@ -362,7 +361,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
                                        event.getExpectedOffset()));
         } catch (ConnectionFailedException e) {
-            state.failConnection(e);
+            log.warn("Connection failed due to: ", e);
             getConnection(); // As the messages is inflight, this will perform the retransmition.
         }
     }
@@ -381,7 +380,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             return state.waitForConnection();
         });
     }
-    
+
     @Synchronized
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
