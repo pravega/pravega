@@ -368,7 +368,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws BadAttributeUpdateException If any of the given AttributeUpdates is invalid given the current state of
      *                                     the segment.
      */
-    void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException {
+    private void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException {
         if (attributeUpdates == null) {
             return;
         }
@@ -376,12 +376,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         for (AttributeUpdate u : attributeUpdates) {
             AttributeUpdateType updateType = u.getUpdateType();
             long previousValue = this.attributeValues.getOrDefault(u.getAttributeId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE);
-            boolean hasValue = previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE;
 
             // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
             switch (updateType) {
                 case ReplaceIfGreater:
                     // Verify value against existing value, if any.
+                    boolean hasValue = previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE;
                     if (hasValue && u.getValue() <= previousValue) {
                         throw new BadAttributeUpdateException(this.name, u,
                                 String.format("Expected greater than '%s'.", previousValue));
@@ -390,10 +390,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                     break;
                 case ReplaceIfEquals:
                     // Verify value against existing value, if any.
-                    if (!hasValue || u.getComparisonValue() != previousValue) {
+                    if (u.getComparisonValue() != previousValue) {
                         throw new BadAttributeUpdateException(this.name, u,
                                 String.format("Expected existing value to be '%s', actual '%s'.",
-                                        u.getComparisonValue(), hasValue ? previousValue : "(not set)"));
+                                        u.getComparisonValue(), previousValue));
                     }
 
                     break;
@@ -528,7 +528,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      *
      * @param attributeUpdates The Attribute updates to accept.
      */
-    void acceptAttributes(Collection<AttributeUpdate> attributeUpdates) {
+    private void acceptAttributes(Collection<AttributeUpdate> attributeUpdates) {
         if (attributeUpdates == null) {
             return;
         }

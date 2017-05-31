@@ -391,7 +391,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public void recordTruncationMarker(long operationSequenceNumber, LogAddress address) {
-        Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
+        Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber",
+                "Operation Sequence Number must be a positive number.");
         Preconditions.checkNotNull(address, "address");
         synchronized (this.truncationMarkers) {
             LogAddress existing = this.truncationMarkers.getOrDefault(operationSequenceNumber, null);
