@@ -74,17 +74,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
-    public SegmentOutputStreamImpl(String segmentName, Controller controller, ConnectionFactory connectionFactory,
-            UUID writerId, ClientConnection initialConnection) {
-        this(segmentName, controller, connectionFactory, writerId);
-        try {
-            this.setupAppend(initialConnection);
-        } catch (ConnectionFailedException e) {
-            log.warn("Initial connection setup failed: ", e);
-        }
-    }
-
-    
     /**
      * Internal object that tracks the state of the connection.
      * All mutations of data occur inside of this class. All operations are protected by the lock object.
@@ -388,19 +377,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
                 .thenCompose((PravegaNodeUri uri) -> {
                     return connectionFactory.establishConnection(uri, responseProcessor);
-                });    
-            setupAppend(getAndHandleExceptions(newConnection, ConnectionFailedException::new));
-        }
-    }
-    
-    private void setupAppend(ClientConnection connection) throws ConnectionFailedException {
-        state.newConnection(connection);
-        SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
-        try{   
+                });
+            ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
+            state.newConnection(connection);
+            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
             connection.send(cmd);
-        } catch (ConnectionFailedException e) {
-            state.failConnection(e);
-            throw e;
         }
     }
 
