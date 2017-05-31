@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import lombok.RequiredArgsConstructor;
@@ -101,6 +102,12 @@ public class SortedDequeTests {
         Assert.assertNull("Unexpected result from peekLast() when empty.", d.peekLast());
         Assert.assertNull("Unexpected result from removeFirst() when empty.", d.removeFirst());
         Assert.assertNull("Unexpected result from removeLast() when empty.", d.removeLast());
+
+        d.addLast(new TestItem(0));
+        AssertExtensions.assertThrows(
+                "addLast allowed adding duplicate or out of order items.",
+                () -> d.addLast(new TestItem(0)),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
     /**
