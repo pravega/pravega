@@ -153,7 +153,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public Revision getMark() {
         synchronized (lock) {
-            long value = meta.getProperty(RevisionStreamClientMark);
+            long value = meta.fetchProperty(RevisionStreamClientMark);
             return value == NULL_VALUE ? null : new RevisionImpl(segment, value, 0);
         }
     }

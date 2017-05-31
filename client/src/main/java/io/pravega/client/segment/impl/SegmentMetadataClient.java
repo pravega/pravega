@@ -10,7 +10,7 @@
 package io.pravega.client.segment.impl;
 
 /**
- * A client for looking at an editing the metadata related to a specific segment.
+ * A client for looking at and editing the metadata related to a specific segment.
  */
 public interface SegmentMetadataClient {
     
@@ -26,7 +26,7 @@ public interface SegmentMetadataClient {
      * @param attribute The attribute to get the value of.
      * @return The value of the attribute or {@link SegmentAttribute#NULL_VALUE} if it is not set.
      */
-    abstract long getProperty(SegmentAttribute attribute);
+    abstract long fetchProperty(SegmentAttribute attribute);
 
     /**
      * Atomically replaces the value of attribute with newValue if it is expectedValue.

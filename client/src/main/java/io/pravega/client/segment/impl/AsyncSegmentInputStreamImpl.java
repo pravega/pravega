@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -188,7 +189,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             log.debug("Sending read request {}", read);
             c.sendAsync(read.request);
         }).exceptionally(e -> {
-            read.completeExceptionally(new RuntimeException(e));
+            read.completeExceptionally(new CompletionException(e));
             return null;
         });
         return read;

@@ -72,7 +72,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(new WireCommands.GetSegmentAttribute(1, segment.getScopedName(), attributeId));
-        long value = client.getProperty(SegmentAttribute.RevisionStreamClientMark);
+        long value = client.fetchProperty(SegmentAttribute.RevisionStreamClientMark);
         assertEquals(123, value);
     }
 

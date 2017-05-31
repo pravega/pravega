@@ -136,7 +136,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public long getProperty(SegmentAttribute attribute) {
+    public long fetchProperty(SegmentAttribute attribute) {
         Long result = attributes.get(attribute);
         return result == null ? SegmentAttribute.NULL_VALUE : result;
     }

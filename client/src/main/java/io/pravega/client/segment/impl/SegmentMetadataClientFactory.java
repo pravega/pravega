@@ -16,7 +16,7 @@ public interface SegmentMetadataClientFactory {
     /**
      * Opens an existing segment for metadata operations. This operation will fail if the
      * segment does not exist.
-     * This operation may be called multiple times on the same stream from the
+     * This operation may be called multiple times on the same segment from the
      * same client (i.e., there can be concurrent metadata clients in the same
      * process space).
      *
