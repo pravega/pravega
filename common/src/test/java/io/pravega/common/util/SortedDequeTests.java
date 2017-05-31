@@ -151,7 +151,7 @@ public class SortedDequeTests {
             d.addLast(item);
         }
 
-        int toRemove = (ITEM_COUNT - 1);
+        int toRemove = ITEM_COUNT - 1;
         int expectedSize = d.size() - 1;
         while (!d.isEmpty()) {
             val removed = d.removeLast(new TestItem(toRemove));
@@ -182,7 +182,7 @@ public class SortedDequeTests {
             Assert.assertNotNull("Expected non-null result from removeFirst() when removing " + toRemove, removed);
             Assert.assertEquals("Unexpected removed item when removing " + toRemove, toRemove, removed.key());
             Assert.assertEquals("Unexpected size when removing " + toRemove, expectedSize, d.size());
-            toRemove = Math.min((ITEM_COUNT - 1), toRemove + removeAtOnce);
+            toRemove = Math.min(ITEM_COUNT - 1, toRemove + removeAtOnce);
             expectedSize = Math.max(0, expectedSize - removeAtOnce);
         }
     }

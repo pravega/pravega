@@ -21,11 +21,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 public class SortedDeque<E extends SortedIndex.IndexEntry> {
     //region Members
 
+    private static final int MIN_INITIAL_CAPACITY = 8;
     private transient SortedIndex.IndexEntry[] elements;
     private transient int lastSlotIndex;
     private transient int head;
     private transient int tail;
-    private static final int MIN_INITIAL_CAPACITY = 8;
 
     //endregion
 
