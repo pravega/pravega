@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -26,6 +27,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsData;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import java.io.ByteArrayInputStream;
@@ -33,6 +35,7 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.Data;
@@ -193,6 +196,95 @@ public class PravegaRequestProcessorTest {
         OpStatsData createSegmentStats = PravegaRequestProcessor.CREATE_STREAM_SEGMENT.toOpStatsData();
         assertNotEquals(0, createSegmentStats.getNumSuccessfulEvents());
         assertEquals(0, createSegmentStats.getNumFailedEvents());
+    }
+    
+    @Test(timeout = 20000)
+    public void testTransaction() throws Exception {
+        String streamSegmentName = "testCreateSegment";
+        UUID txnid = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
+                                                               WireCommands.CreateSegment.NO_SCALE, 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
+
+        processor.createTransaction(new WireCommands.CreateTransaction(1, streamSegmentName, txnid));
+        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(2, streamSegmentName, txnid));
+        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
+        order.verify(connection).send(new WireCommands.TransactionCreated(1, streamSegmentName, txnid));
+        order.verify(connection).send(Mockito.argThat(t -> {
+            return t instanceof TransactionInfo && ((TransactionInfo) t).exists();
+        }));
+        processor.commitTransaction(new WireCommands.CommitTransaction(3, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.TransactionCommitted(3, streamSegmentName, txnid));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(4, streamSegmentName, txnid));
+        order.verify(connection)
+             .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
+                                                                                                     txnid)));
+
+        txnid = UUID.randomUUID();
+        processor.createTransaction(new WireCommands.CreateTransaction(1, streamSegmentName, txnid));
+        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        order.verify(connection).send(new WireCommands.TransactionCreated(1, streamSegmentName, txnid));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(2, streamSegmentName, txnid));
+        order.verify(connection).send(Mockito.argThat(t -> {
+            return t instanceof TransactionInfo && ((TransactionInfo) t).exists();
+        }));
+        processor.abortTransaction(new WireCommands.AbortTransaction(3, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.TransactionAborted(3, streamSegmentName, txnid));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(4, streamSegmentName, txnid));
+        order.verify(connection)
+             .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
+                                                                                                     txnid)));
+
+        order.verifyNoMoreInteractions();
+    }
+    
+    @Test(timeout = 20000)
+    public void testSegmentAttribute() throws Exception {
+        String streamSegmentName = "testSegmentAttribute";
+        UUID attribute = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
+        processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
+        
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(2, streamSegmentName, attribute));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(2, WireCommands.NULL_ATTRIBUTE_VALUE));
+        
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(2, streamSegmentName, attribute, 1, WireCommands.NULL_ATTRIBUTE_VALUE));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(2, true));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(3, streamSegmentName, attribute));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(3, 1));
+        
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(4, streamSegmentName, attribute, 5, WireCommands.NULL_ATTRIBUTE_VALUE));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(4, false));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(5, streamSegmentName, attribute));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(5, 1));
+        
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(6, streamSegmentName, attribute, 10, 1));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(6, true));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(7, streamSegmentName, attribute));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(7, 10));
+        
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(8, streamSegmentName, attribute, WireCommands.NULL_ATTRIBUTE_VALUE, 10));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(8, true));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(9, streamSegmentName, attribute));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(9, WireCommands.NULL_ATTRIBUTE_VALUE));
     }
 
     @Test(timeout = 20000)
