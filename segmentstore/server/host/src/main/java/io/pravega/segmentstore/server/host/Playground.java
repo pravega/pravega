@@ -22,7 +22,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -264,39 +263,14 @@ public class Playground {
         context.getLoggerList().get(0).setLevel(Level.OFF);
         //context.reset();
 
-        //testSemaphore();
-
         try {
             //testBookKeeperSync();
             //testBookKeeperAsyncNoLimit();
-            testBookKeeperAsyncWithLimit(10000);
+            //testBookKeeperAsyncWithLimit(10000);
             //testBookKeeperAsyncWithLimitAndBatches(10);
         } catch (Exception ex) {
             System.err.println(ex);
             ex.printStackTrace();
-        }
-    }
-
-    private static void testSemaphore() {
-        int capacity = 5;
-        int supply = capacity * 10;
-        Semaphore s = new Semaphore(capacity, true);
-        @Cleanup("shutdown")
-        val executor = Executors.newScheduledThreadPool(supply + 10);
-        for (int i = 0; i < supply; i++) {
-            val index = i;
-            executor.execute(() -> {
-                Exceptions.handleInterrupted(() -> {
-                    s.acquire();
-                    try {
-                        System.out.println("Started " + index);
-                        Thread.sleep(1000 + new Random().nextInt(1000));
-                        System.out.println("Finished " + index);
-                    } finally {
-                        s.release();
-                    }
-                });
-            });
         }
     }
 }

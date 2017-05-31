@@ -16,6 +16,7 @@ import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.util.BlockingDrainingQueue;
+import io.pravega.common.util.SortedDeque;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
@@ -37,8 +38,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Builder;
@@ -379,7 +378,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         private final MetadataCheckpointPolicy checkpointPolicy;
         private final Consumer<Throwable> fatalExceptionCallback;
         @GuardedBy("lock")
-        private final HashMap<DataFrameBuilder.DataFrameCommitArgs, Long> metadataTransactions;
+        private final SortedDeque<DataFrameBuilder.DataFrameCommitArgs> metadataTransactions;
         @GuardedBy("lock")
         private long highestCommittedDataFrame;
         @GuardedBy("lock")
@@ -394,7 +393,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             this.lock = Preconditions.checkNotNull(lock, "lock");
             this.traceObjectId = traceObjectId;
             this.pendingOperations = new ArrayDeque<>();
-            this.metadataTransactions = new HashMap<>();
+            this.metadataTransactions = new SortedDeque<>();
             this.highestCommittedDataFrame = -1;
         }
 
@@ -420,8 +419,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          */
         void checkpoint(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
             synchronized (this.lock) {
-                long transactionId = this.metadataUpdater.sealTransaction();
-                this.metadataTransactions.put(commitArgs, transactionId);
+                commitArgs.setIndexKey(this.metadataUpdater.sealTransaction());
+                this.metadataTransactions.addLast(commitArgs);
             }
         }
 
@@ -450,10 +449,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     }
 
                     // Commit any changes to the metadata.
-                    final long checkpointId = getMetadataTransaction(commitArgs);
-                    assert checkpointId >= 0 : "No Metadata UpdateTransaction found for " + commitArgs;
-                    removeTransactions(c -> c <= checkpointId);
-                    this.metadataUpdater.commit(checkpointId);
+                    final DataFrameBuilder.DataFrameCommitArgs checkpoint = this.metadataTransactions.removeFirst(commitArgs);
+                    assert checkpoint != null && checkpoint == commitArgs : "No Metadata UpdateTransaction found for " + commitArgs;
+                    this.metadataUpdater.commit(checkpoint.key());
 
                     // Acknowledge all pending entries, in the order in which they are in the queue (ascending seq no).
                     while (!this.pendingOperations.isEmpty()
@@ -559,18 +557,24 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         @GuardedBy("lock")
         private void collectFailureCandidates(Throwable ex, DataFrameBuilder.DataFrameCommitArgs commitArgs, Map<CompletableOperation, Throwable> target) {
             // Discard all updates to the metadata.
-            long updateTransactionId;
-            if (commitArgs == null) {
-                updateTransactionId = 0;
-            } else {
-                updateTransactionId = getMetadataTransaction(commitArgs);
+            long updateTransactionId = 0;
+            if (commitArgs != null) {
+                DataFrameBuilder.DataFrameCommitArgs checkpoint = this.metadataTransactions.removeLast(commitArgs);
+                if (checkpoint != null) {
+                    updateTransactionId = checkpoint.key();
+                }
             }
 
-            removeTransactions(c -> c >= updateTransactionId);
+            if (updateTransactionId == 0) {
+                this.metadataTransactions.clear();
+            }
+
             this.metadataUpdater.rollback(updateTransactionId);
 
             // Fail all pending entries.
-            long seqNo = getLastKnownSuccessfulSeqNo(updateTransactionId);
+            long seqNo = this.metadataTransactions.isEmpty() ?
+                    ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER :
+                    this.metadataTransactions.peekLast().getLastFullySerializedSequenceNumber();
             while (!this.pendingOperations.isEmpty() && shouldFail(this.pendingOperations.peekLast(), seqNo)) {
                 target.put(this.pendingOperations.pollLast(), ex);
             }
@@ -583,36 +587,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         private boolean shouldFail(CompletableOperation co, long lastKnownSuccessfulSeqNo) {
             return !co.getOperation().canSerialize()
                     || co.getOperation().getSequenceNumber() > lastKnownSuccessfulSeqNo;
-        }
-
-        /**
-         * Determines the SeqNo of the last known successfully committed operation.
-         */
-        @GuardedBy("lock")
-        private long getLastKnownSuccessfulSeqNo(long failedUpdateTransactionId) {
-            long seqNo = ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER;
-            for (val e : this.metadataTransactions.entrySet()) {
-                if (e.getValue() < failedUpdateTransactionId) {
-                    seqNo = Math.max(seqNo, e.getKey().getLastFullySerializedSequenceNumber());
-                }
-            }
-
-            return seqNo;
-        }
-
-        @GuardedBy("lock")
-        private long getMetadataTransaction(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
-            Long transactionId = this.metadataTransactions.remove(commitArgs);
-            return transactionId == null ? -1 : transactionId;
-        }
-
-        @GuardedBy("lock")
-        private void removeTransactions(Predicate<Long> tester) {
-            val toRemove = this.metadataTransactions.entrySet().stream()
-                                                    .filter(e -> tester.test(e.getValue()))
-                                                    .map(Map.Entry::getKey)
-                                                    .collect(Collectors.toList());
-            toRemove.forEach(this.metadataTransactions::remove);
         }
 
         /**
