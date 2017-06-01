@@ -401,7 +401,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit,
                                                         final Optional<Integer> version) {
-        return verifyLegalState(checkTransactionStatus(txId)
+        val result = checkTransactionStatus(txId)
                 .thenCompose(x -> {
                     if (commit) {
                         switch (x) {
@@ -430,7 +430,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 throw new TransactionNotFoundException(txId.toString());
                         }
                     }
-                }));
+                });
+        return verifyLegalState(result);
     }
 
     @Override

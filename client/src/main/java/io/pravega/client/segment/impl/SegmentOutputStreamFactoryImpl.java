@@ -14,7 +14,6 @@ import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
@@ -72,14 +71,15 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
             } catch (ConnectionFailedException e) {
                 throw new RuntimeException(e);
             }
-        }).whenComplete((v, t) -> {
-            if (t != null) {
-                name.completeExceptionally(t);
-            }
-            FutureHelpers.getAndHandleExceptions(connectionFuture,  RuntimeException::new).close();
+        }).exceptionally(t -> {
+            name.completeExceptionally(t);
+            return null;
+        });
+        name.whenComplete((s, e) -> {
+            getAndHandleExceptions(connectionFuture, RuntimeException::new).close();
         });
         return new SegmentOutputStreamImpl(getAndHandleExceptions(name, RuntimeException::new), controller, cf,
-                                           UUID.randomUUID());
+                UUID.randomUUID());
     }
 
     @Override

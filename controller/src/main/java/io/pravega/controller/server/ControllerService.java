@@ -282,7 +282,7 @@ public class ControllerService {
         return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
-                        // TODO: return appropriate failures to user.
+                        log.warn("Transaction commit failed", ex);
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
                         timeoutService.removeTxn(scope, stream, txId);
@@ -299,7 +299,7 @@ public class ControllerService {
         return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, null, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
-                        // TODO: return appropriate failures to user.
+                        log.warn("Transaction abort failed", ex);
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
                         timeoutService.removeTxn(scope, stream, txId);
