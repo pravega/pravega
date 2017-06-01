@@ -23,7 +23,7 @@ public class FSStorageFactory implements StorageFactory {
     private final ExecutorService executor;
 
     /**
-     * Creates a new instance of the NFSStorageFactory class.
+     * Creates a new instance of the FSStorageFactory class.
      *
      * @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
