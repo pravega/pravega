@@ -139,6 +139,7 @@ public class MultiReadersEndToEndTest {
         Assert.assertEquals(NUM_TEST_EVENTS * streamNames.size(), read.size());
         // Check unique events.
         Assert.assertEquals(NUM_TEST_EVENTS, new TreeSet<>(read).size());
+        readerGroupManager.deleteReaderGroup(readerGroupName);
     }
 
     private Collection<Integer> readAllEvents(final int numParallelReaders, ClientFactory clientFactory,
@@ -220,5 +221,6 @@ public class MultiReadersEndToEndTest {
         Assert.assertEquals(NUM_TEST_EVENTS * streamNames.size(), read.size());
         // Check unique events.
         Assert.assertEquals(NUM_TEST_EVENTS, new TreeSet<>(read).size());
+        streamManager.deleteReaderGroup(readerGroupName);
     }
 }

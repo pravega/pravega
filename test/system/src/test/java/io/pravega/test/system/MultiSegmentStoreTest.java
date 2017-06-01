@@ -186,9 +186,9 @@ public class MultiSegmentStoreTest {
 
         log.info("Invoking reader with controller URI: {}", controllerUri);
         final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
-        ReaderGroupManager.withScope(scope, controllerUri)
-                .createReaderGroup(readerGroup, ReaderGroupConfig.builder().startingTime(0).build(),
-                        Collections.singleton(stream));
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerUri);
+        groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().startingTime(0).build(),
+                                       Collections.singleton(stream));
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
@@ -204,5 +204,6 @@ public class MultiSegmentStoreTest {
                 throw new IllegalStateException("Unexpected request to reinitialize");
             }
         }
+        groupManager.deleteReaderGroup(readerGroup);
     }
 }

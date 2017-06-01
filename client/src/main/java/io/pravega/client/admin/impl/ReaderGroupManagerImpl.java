@@ -12,6 +12,7 @@ package io.pravega.client.admin.impl;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -26,6 +27,8 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.Set;
+import lombok.Lombok;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
@@ -33,6 +36,7 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 /**
  * A stream manager. Used to bootstrap the client.
  */
+@Slf4j
 public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     private final String scope;
@@ -78,8 +82,19 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        getAndHandleExceptions(controller.deleteStream(scope, getStreamForReaderGroup(groupName)),
+        getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
+                                         .thenCompose(b -> controller.deleteStream(scope,
+                                                                                   getStreamForReaderGroup(groupName)))
+                                         .exceptionally(e -> {
+                                             if (e instanceof InvalidStreamException) {
+                                                 return null;
+                                             } else {
+                                                 log.warn("Failed to delete stream", e);
+                                             }
+                                             throw Lombok.sneakyThrow(e);
+                                         }),
                                RuntimeException::new);
+        
     }
 
     @Override
