@@ -138,8 +138,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      */
     @GuardedBy("lock")
     private void handleLogSealed(Segment segment) {
-        List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack);
-        resend(toResend);
+        synchronized (lock) {
+            List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack);
+            resend(toResend);
+        }
     }
 
     @GuardedBy("lock")
