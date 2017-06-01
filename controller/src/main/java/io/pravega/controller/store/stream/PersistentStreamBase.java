@@ -328,10 +328,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                                          final long maxExecutionTime,
                                                                          final long scaleGracePeriod) {
         final long current = System.currentTimeMillis();
-        return verifyLegalState(createNewTransaction(txnId, current, current + lease, current + maxExecutionTime, scaleGracePeriod)
-                .thenApply(x ->
-                        new VersionedTransactionData(x, txnId, 0, TxnStatus.OPEN, current,
-                                current + maxExecutionTime, scaleGracePeriod)));
+        final long leaseTimestamp = current + lease;
+        final long maxExecTimestamp = current + maxExecutionTime;
+        return verifyLegalState(createNewTransaction(txnId, current, leaseTimestamp, maxExecTimestamp, scaleGracePeriod)
+                .thenApply(epoch -> new VersionedTransactionData(epoch, txnId, 0, TxnStatus.OPEN, current,
+                        current + maxExecutionTime, scaleGracePeriod)));
     }
 
     @Override
@@ -820,10 +821,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> createSegmentFile(final Create create);
 
     abstract CompletableFuture<Integer> createNewTransaction(final UUID txId,
-                                                          final long timestamp,
-                                                          final long leaseExpiryTime,
-                                                          final long maxExecutionExpiryTime,
-                                                          final long scaleGracePeriod);
+                                                             final long timestamp,
+                                                             final long leaseExpiryTime,
+                                                             final long maxExecutionExpiryTime,
+                                                             final long scaleGracePeriod);
 
     abstract CompletableFuture<Integer> getTransactionEpoch(UUID txId);
 

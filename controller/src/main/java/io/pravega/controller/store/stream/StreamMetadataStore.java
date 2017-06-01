@@ -360,11 +360,13 @@ public interface StreamMetadataStore {
      * @param version  Expected version of the transaction record in the store.
      * @param context  operation context
      * @param executor callers executor
-     * @return Transaction status.
+     * @return         Pair containing the transaction status after sealing and transaction epoch.
      */
-    CompletableFuture<Pair<TxnStatus, Integer>> sealTransaction(final String scope, final String stream, final UUID txId,
-                                                                final boolean commit, final Optional<Integer> version,
-                                                                final OperationContext context, final Executor executor);
+    CompletableFuture<Pair<TxnStatus, Integer>> sealTransaction(final String scope, final String stream,
+                                                                final UUID txId, final boolean commit,
+                                                                final Optional<Integer> version,
+                                                                final OperationContext context,
+                                                                final Executor executor);
 
     /**
      * Update stream store to mark the transaction as aborted.
