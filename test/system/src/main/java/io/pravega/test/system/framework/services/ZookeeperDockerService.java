@@ -9,18 +9,15 @@
  */
 package io.pravega.test.system.framework.services;
 
+import com.google.common.collect.ImmutableList;
+import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
-import com.spotify.docker.client.messages.swarm.ContainerSpec;
-import com.spotify.docker.client.messages.swarm.EndpointSpec;
-import com.spotify.docker.client.messages.swarm.PortConfig;
-import com.spotify.docker.client.messages.swarm.ResourceRequirements;
-import com.spotify.docker.client.messages.swarm.Resources;
-import com.spotify.docker.client.messages.swarm.ServiceMode;
-import com.spotify.docker.client.messages.swarm.ServiceSpec;
-import com.spotify.docker.client.messages.swarm.TaskSpec;
+import com.spotify.docker.client.messages.swarm.*;
+import com.spotify.docker.client.messages.swarm.Service;
 import lombok.extern.slf4j.Slf4j;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -33,36 +30,37 @@ import static org.junit.Assert.assertThat;
 public class ZookeeperDockerService extends DockerBasedService {
 
      private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
-     private String serviceId;
      private int instances = 1;
      private double cpu = 1.0 * Math.pow(10.0, 9.0);
      private long mem = 1024 * 1024 * 1024L;
 
      public ZookeeperDockerService(String serviceName) {
-
      super(serviceName);
-
      }
 
      @Override
      public void stop() {
          try {
-             docker.removeService(this.serviceId);
+             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
+             List<Service> serviceList = docker.listServices(criteria);
+             for(int i=0;i< serviceList.size();i++) {
+                 String serviceId = serviceList.get(i).id();
+                 docker.removeService(serviceId);
+             }
          } catch (DockerException | InterruptedException e) {
              log.error("unable to remove service {}", e);
          }
-
+        //super.stop();
      }
 
     @Override
     public void clean() {
-
     }
 
     @Override
     public void start(final boolean wait) {
         try {
-           ServiceCreateResponse serviceCreateResponse = docker.createService(setServiceSpec());
+            ServiceCreateResponse serviceCreateResponse = docker.createService(setServiceSpec());
             if (wait) {
                 waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
@@ -76,16 +74,17 @@ public class ZookeeperDockerService extends DockerBasedService {
 
         final TaskSpec taskSpec = TaskSpec
                 .builder()
-                .containerSpec(ContainerSpec.builder().image(ZK_IMAGE)
-                .healthcheck(ContainerConfig.Healthcheck.create(null, 30L, 3L, 3)).build())
+                .containerSpec(ContainerSpec.builder().image(ZK_IMAGE).command("/opt/zookeeper/bin/zkServer.sh", "start-foreground")
+                .healthcheck(ContainerConfig.Healthcheck.create(null,
+                        1000000000L, 1000000000L, 3)).build())
                 .resources(ResourceRequirements.builder()
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())
                 .build();
-        ServiceSpec spec =  ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec)
+        ServiceSpec spec =  ServiceSpec.builder().name(serviceName).networks(NetworkAttachmentConfig.builder().target("network-name").build()).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
                 .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder()
-                .publishedPort(ZKSERVICE_ZKPORT).targetPort(ZKSERVICE_ZKPORT).protocol("TCP").build())
-               .build()).mode(ServiceMode.withReplicas(instances)).build();
+                        .targetPort(ZKSERVICE_ZKPORT).protocol("TCP").build())
+                        .build()).build();
 
         return spec;
     }

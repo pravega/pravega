@@ -14,14 +14,8 @@ import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.mount.VolumeOptions;
-import com.spotify.docker.client.messages.swarm.ContainerSpec;
-import com.spotify.docker.client.messages.swarm.EndpointSpec;
-import com.spotify.docker.client.messages.swarm.PortConfig;
-import com.spotify.docker.client.messages.swarm.ResourceRequirements;
-import com.spotify.docker.client.messages.swarm.Resources;
-import com.spotify.docker.client.messages.swarm.ServiceMode;
-import com.spotify.docker.client.messages.swarm.ServiceSpec;
-import com.spotify.docker.client.messages.swarm.TaskSpec;
+import com.spotify.docker.client.messages.swarm.*;
+
 import static io.pravega.test.system.framework.services.MarathonBasedService.IMAGE_PATH;
 import static io.pravega.test.system.framework.services.MarathonBasedService.PRAVEGA_VERSION;
 import static org.hamcrest.core.Is.is;
@@ -32,72 +26,74 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class PravegaControllerDockerService extends  DockerBasedService {
 
-    private static final int CONTROLLER_PORT = 9092;
     private static final int REST_PORT = 10080;
-    private final URI zkUri;
-    private String serviceId;
+    //private final URI zkUri;
+    //private String serviceId;
     private int instances = 1;
     private double cpu = 0.1 * Math.pow(10.0, 9.0);
     private long mem = 700 * 1024 * 1024L;
 
-    public PravegaControllerDockerService(final String serviceName, final URI zkUri) {
-
+    public PravegaControllerDockerService(final String serviceName) {
         super(serviceName);
-        this.zkUri = zkUri;
+        //this.zkUri = zkUri;
     }
 
     @Override
     public void stop() {
         try {
-            docker.removeService(this.serviceId);
+            com.spotify.docker.client.messages.swarm.Service.Criteria criteria = com.spotify.docker.client.messages.swarm.Service.Criteria.builder().serviceName(this.serviceName).build();
+            List<com.spotify.docker.client.messages.swarm.Service> serviceList = docker.listServices(criteria);
+            for(int i=0;i< serviceList.size();i++) {
+                String serviceId = serviceList.get(i).id();
+                docker.removeService(serviceId);
+            }
         } catch (DockerException | InterruptedException e) {
-           log.error("unable to remove service {}", e);
+            log.error("unable to remove service {}", e);
         }
     }
 
     @Override
     public void clean() {
-
     }
 
     @Override
     public void start(final boolean wait) {
         try {
             ServiceCreateResponse serviceCreateResponse = docker.createService(setServiceSpec());
+            if (wait) {
+                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
+            }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
-        } catch (InterruptedException | DockerException e) {
+        } catch (InterruptedException | DockerException | ExecutionException | TimeoutException e) {
             log.error("unable to create service {}", e);
         }
     }
 
     private ServiceSpec setServiceSpec() {
-
-        Mount mount = Mount.builder().type("Volume").source("/mnt/logs").target("/tmp/logs").volumeOptions(VolumeOptions.builder().build()).readOnly(false).build();
-
-        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
-
+        Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/tmp/logs").build();
+        String zk = "zookeeper" + ":" + ZKSERVICE_ZKPORT;
         String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", docker.getHost()) +
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG");
-
         String env1 = "PRAVEGA_CONTROLLER_OPTS="+controllerSystemProperties;
         String env2 = "JAVA_OPTS=-Xmx512m";
-
         List<String> stringList =  new ArrayList<>();
         stringList.add(env1);
         stringList.add(env2);
-
         final TaskSpec taskSpec = TaskSpec
                 .builder()
-                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
-                        .healthcheck(ContainerConfig.Healthcheck.create(null, 30L, 3L, 3))
+                .containerSpec(ContainerSpec.builder().image("asdrepo.isus.emc.com:8103" + "/nautilus/pravega:0.1.0-1415.b5f03f5")
+                        .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount))
                         .env(stringList).args("controller").build())
                 .resources(ResourceRequirements.builder()
@@ -110,10 +106,27 @@ public class PravegaControllerDockerService extends  DockerBasedService {
         PortConfig port2 = PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).protocol("TCP").build();
         portConfigs.add(port1);
         portConfigs.add(port2);
-
-        ServiceSpec spec =  ServiceSpec.builder().name("controller").taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances)).
-                endpointSpec(EndpointSpec.builder().ports(portConfigs)
+        ServiceSpec spec =  ServiceSpec.builder().name("controller").taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
+                .name(serviceName).networks(NetworkAttachmentConfig.builder().target("network-name").build())
+                .endpointSpec(EndpointSpec.builder().ports(portConfigs)
                         .build()).build();
         return spec;
+    }
+    public static void main(String[] args) {
+        ZookeeperDockerService zookeeperDockerService = new ZookeeperDockerService("zookeeper");
+        if(!zookeeperDockerService.isRunning()) {
+            zookeeperDockerService.start(true);
+        }
+        List<URI> zkUris = zookeeperDockerService.getServiceDetails();
+        BookkeeperDockerService bookkeeperDockerService = new BookkeeperDockerService("bookkeeper");
+        log.debug("zk uri details {}", zkUris.get(0).toString());
+        if(!bookkeeperDockerService.isRunning()) {
+            bookkeeperDockerService.start(true);
+        }
+        PravegaControllerDockerService pravegaControllerDockerService = new PravegaControllerDockerService("controller");
+        if(!pravegaControllerDockerService.isRunning())
+        {
+            pravegaControllerDockerService.start(true);
+        }
     }
 }

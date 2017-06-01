@@ -446,6 +446,19 @@ project('test:system') {
         from sourceSets.test.output
     }
 
+    /*task before(type: Java) {
+        main = "io.pravega.test.system.DockerSwarm"
+        classpath = sourceSets.test.runtimeClasspath
+    }
+    task Test(type: Test) {
+     dependsOn 'before'
+        main = "io.pravega.test.system.SampleTest"
+        classpath = sourceSets.test.runtimeClasspath
+        Test.finalizedBy(after)
+    }
+    task after(type: Java) {
+
+    }*/
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""

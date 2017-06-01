@@ -12,48 +12,64 @@ package io.pravega.test.system;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.LogStream;
+import com.spotify.docker.client.exceptions.DockerCertificateException;
+import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ContainerCreation;
 import com.spotify.docker.client.messages.ContainerInfo;
 import com.spotify.docker.client.messages.ExecCreation;
+import io.pravega.test.system.framework.LoginClient;
+import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.*;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
-public class SampleTest {
+import java.net.URI;
 
-    public static void main(String[] args) throws Exception {
-        // Create a client based on DOCKER_HOST and DOCKER_CERT_PATH env vars
-        DockerClient docker = DefaultDockerClient.fromEnv().build();
+import static org.apache.curator.framework.imps.CuratorFrameworkState.STARTED;
+import static org.junit.Assert.assertEquals;
 
-        // Pull an image
-        docker.pull("busybox:ubuntu");
+@Slf4j
+@RunWith(SystemTestRunner.class)
+public class SampleTest  {
 
-        // Create container with exposed ports
+    @Before
+    public static void setup() throws Exception {
+
+        DockerClient docker = DockerSwarm.retrieveDockerClient();
+        docker.pull("java:8");
         final ContainerConfig containerConfig = ContainerConfig.builder()
-                .image("busybox:ubuntu")
-                .cmd("sh", "-c", "while :; do sleep 1; done")
+                .image("java:8")
                 .build();
-
         final ContainerCreation creation = docker.createContainer(containerConfig);
         final String id = creation.id();
 
-        // Inspect container
         final ContainerInfo info = docker.inspectContainer(id);
-
-        // Start container
         docker.startContainer(id);
 
-        // Exec command inside running container with attached STDOUT and STDERR
-        final String[] command = {"bash", "-c", "ls"};
-        final ExecCreation execCreation = docker.execCreate(
-                id, command, DockerClient.ExecCreateParam.attachStdout(),
-                DockerClient.ExecCreateParam.attachStderr());
-        final LogStream output = docker.execStart(execCreation.id());
-        //final String execOutput = output.readFully();
-
-        // Kill container
-        docker.killContainer(id);
-        // Remove container
-        docker.removeContainer(id);
-        // Close the docker client
-        docker.close();
+        ZookeeperDockerService zookeeperDockerService = new ZookeeperDockerService("zookeeper");
+        if(!zookeeperDockerService.isRunning()) {
+            zookeeperDockerService.start(true);
+        }
     }
+    @Test
+    public void zkTest() throws DockerCertificateException, InterruptedException, DockerException {
+
+        log.info("Start execution of ZkTest");
+        String zk = "zookeeper:2181";
+        CuratorFramework curatorFrameworkClient =
+                CuratorFrameworkFactory.newClient(zk, new RetryOneTime(5000));
+        curatorFrameworkClient.start();
+        log.info("CuratorFramework status {} ", curatorFrameworkClient.getState());
+        assertEquals("Connection to zk client ", STARTED, curatorFrameworkClient.getState());
+        log.info("Zookeeper Service URI : {} ",URI.create(zk));
+        log.info("ZkTest  execution completed");
+    }
+
 }
