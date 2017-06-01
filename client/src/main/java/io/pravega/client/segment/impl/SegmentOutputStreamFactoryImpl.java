@@ -73,7 +73,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                 throw new RuntimeException(e);
             }
         }).whenComplete((v, t) -> {
-            if (t!=null) {
+            if (t != null) {
                 name.completeExceptionally(t);
             }
             FutureHelpers.getAndHandleExceptions(connectionFuture,  RuntimeException::new).close();
