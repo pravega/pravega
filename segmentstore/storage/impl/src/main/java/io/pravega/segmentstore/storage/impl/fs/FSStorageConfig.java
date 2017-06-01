@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.nfs;
+package io.pravega.segmentstore.storage.impl.fs;
 
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
  * Configuration for the NFS Storage component.
  */
 @Slf4j
-public class NFSStorageConfig {
+public class FSStorageConfig {
     //region Config Names
 
     public static final Property<String> ROOT = Property.named("nfsRoot", "/nfs/");
@@ -42,11 +42,11 @@ public class NFSStorageConfig {
     //region Constructor
 
     /**
-     * Creates a new instance of the NFSStorageConfig class.
+     * Creates a new instance of the FSStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
      */
-    private NFSStorageConfig(TypedProperties properties) throws ConfigurationException {
+    private FSStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.nfsRoot = properties.get(ROOT);
     }
 
@@ -55,8 +55,8 @@ public class NFSStorageConfig {
      *
      * @return A new Builder for this class.
      */
-    public static ConfigBuilder<NFSStorageConfig> builder() {
-        return new ConfigBuilder<>(COMPONENT_CODE, NFSStorageConfig::new);
+    public static ConfigBuilder<FSStorageConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, FSStorageConfig::new);
     }
 
     //endregion

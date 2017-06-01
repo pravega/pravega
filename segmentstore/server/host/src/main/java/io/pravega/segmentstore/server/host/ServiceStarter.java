@@ -24,8 +24,8 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
-import io.pravega.segmentstore.storage.impl.nfs.NFSStorageConfig;
-import io.pravega.segmentstore.storage.impl.nfs.NFSStorageFactory;
+import io.pravega.segmentstore.storage.impl.fs.FSStorageConfig;
+import io.pravega.segmentstore.storage.impl.fs.NFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.shared.metrics.MetricsConfig;
@@ -167,8 +167,8 @@ public final class ServiceStarter {
                     HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
                     return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
                 } else {
-                    NFSStorageConfig nfsConfig = setup.getConfig(NFSStorageConfig::builder);
-                    return new NFSStorageFactory(nfsConfig, setup.getExecutor());
+                    FSStorageConfig fsConfig = setup.getConfig(FSStorageConfig::builder);
+                    return new NFSStorageFactory(fsConfig, setup.getExecutor());
                 }
             } catch (Exception ex) {
                 throw new CompletionException(ex);

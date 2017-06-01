@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.nfs;
+package io.pravega.segmentstore.storage.impl.fs;
 
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -32,18 +32,18 @@ import java.nio.file.Files;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
- * Unit tests for NFSStorage.
+ * Unit tests for FSStorage.
  */
 public class NFSStorageTest extends StorageTestBase {
     private File baseDir = null;
-    private NFSStorageConfig adapterConfig;
+    private FSStorageConfig adapterConfig;
 
     @Before
     public void setUp() throws Exception {
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
-        this.adapterConfig = NFSStorageConfig
+        this.adapterConfig = FSStorageConfig
                 .builder()
-                .with(NFSStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                .with(FSStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
     }
 
@@ -224,16 +224,16 @@ public class NFSStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new NFSStorage(this.adapterConfig, executorService());
+        return new FSStorage(this.adapterConfig, executorService());
     }
 
     @Override
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
         FileChannel channel = null;
         if (readOnly) {
-            return NFSSegmentHandle.getReadHandle(segmentName);
+            return FSSegmentHandle.getReadHandle(segmentName);
         } else {
-            return NFSSegmentHandle.getWriteHandle(segmentName);
+            return FSSegmentHandle.getWriteHandle(segmentName);
         }
     }
 

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.nfs;
+package io.pravega.segmentstore.storage.impl.fs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.ImmutableDate;
@@ -60,18 +60,18 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  */
 
 @Slf4j
-public class NFSStorage implements Storage {
+public class FSStorage implements Storage {
 
     //region members
 
-    private final NFSStorageConfig config;
+    private final FSStorageConfig config;
     private final ExecutorService executor;
 
     //endregion
 
     //region constructor
 
-    public NFSStorage(NFSStorageConfig config, ExecutorService executor) {
+    public FSStorage(FSStorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
@@ -142,7 +142,7 @@ public class NFSStorage implements Storage {
             if (!Files.exists(path)) {
                 retVal[0].completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName));
             } else if (Files.isWritable(path)) {
-                NFSSegmentHandle retHandle = NFSSegmentHandle.getWriteHandle(streamSegmentName);
+                FSSegmentHandle retHandle = FSSegmentHandle.getWriteHandle(streamSegmentName);
                 retVal[0].complete(retHandle);
             } else {
                 try {
@@ -235,7 +235,7 @@ public class NFSStorage implements Storage {
             return;
         }
 
-        NFSSegmentHandle retHandle = NFSSegmentHandle.getReadHandle(streamSegmentName);
+        FSSegmentHandle retHandle = FSSegmentHandle.getReadHandle(streamSegmentName);
         retVal.complete(retHandle);
     }
 
