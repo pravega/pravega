@@ -268,6 +268,18 @@ interface Stream {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns();
 
     /**
+     * Returns the latest epoch of the specified stream.
+     * @return latest epoch of the specified stream.
+     */
+    CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch();
+
+    /**
+     * Returns the currently active epoch of the specified stream.
+     * @return currently active epoch of the specified stream.
+     */
+    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch();
+
+    /**
      * Refresh the stream object. Typically to be used to invalidate any caches.
      * This allows us reuse of stream object without having to recreate a new stream object for each new operation
      */

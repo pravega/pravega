@@ -465,6 +465,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scope, stream, context).getActiveTxns(), executor);
     }
 
+    @Override
+    public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(final String scope, final String stream,
+                                                                          final OperationContext context,
+                                                                          final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getActiveEpoch(), executor);
+    }
+
     private Stream getStream(String scope, final String name, OperationContext context) {
         Stream stream;
         if (context != null) {

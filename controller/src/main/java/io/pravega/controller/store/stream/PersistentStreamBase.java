@@ -561,6 +561,18 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
+    public CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch() {
+        // TODO: this implementation needs to change once we do epoch change in history table
+        return getActiveSegments().thenApply(list -> new ImmutablePair<>(0, list));
+    }
+
+    @Override
+    public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch() {
+        // TODO: this implementation needs to change once we do epoch change in history table
+        return getActiveSegments().thenApply(list -> new ImmutablePair<>(0, list));
+    }
+
+    @Override
     public CompletableFuture<Void> setColdMarker(int segmentNumber, long timestamp) {
 
         return verifyLegalState(getMarkerData(segmentNumber)
@@ -814,10 +826,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                           final long scaleGracePeriod);
 
     abstract CompletableFuture<Integer> getTransactionEpoch(UUID txId);
-
-    abstract CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch();
-
-    abstract CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch();
 
     abstract CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId) throws DataNotFoundException;
 

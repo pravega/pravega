@@ -10,6 +10,8 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.client.stream.AckFuture;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
@@ -21,11 +23,14 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.Position;
+import io.pravega.controller.task.Stream.WriteFailedException;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
@@ -78,32 +83,74 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         String scope = event.getScope();
         String stream = event.getStream();
         int epoch = event.getEpoch();
-        UUID txId = event.getTxid();
+        UUID txnId = event.getTxid();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        streamMetadataStore.getActiveSegments(event.getScope(), event.getStream(), context, executor)
-                .thenCompose(segments ->
-                        FutureHelpers.allOfWithResults(segments.stream()
-                                .parallel()
-                                .map(segment -> notifyCommitToHost(scope, stream, segment.getNumber(), txId))
-                                .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, epoch, txId, context, executor))
-                .whenComplete((result, error) -> {
-                    if (error != null) {
-                        log.error("Failed committing transaction {} on stream {}/{}", event.getTxid(),
-                                event.getScope(), event.getStream());
-                    } else {
-                        log.debug("Successfully committed transaction {} on stream {}/{}", event.getTxid(),
-                                event.getScope(), event.getStream());
-                        if (processedEvents != null) {
-                            processedEvents.offer(event);
-                        }
-                    }
-                }).join();
+        streamMetadataStore.getActiveEpoch(scope, stream, context, executor).thenComposeAsync(pair -> {
+            List<Integer> segments = pair.getRight();
+            int activeEpoch = pair.getLeft();
+            if (activeEpoch == epoch) {
+                return completeCommit(scope, stream, epoch, segments, txnId, context);
+            } else {
+                return postponeCommitEvent(event);
+            }
+        }).whenCompleteAsync((result, error) -> {
+            if (error != null) {
+                log.error("Failed committing transaction {} on stream {}/{}", txnId, scope, stream);
+            } else {
+                log.debug("Successfully committed transaction {} on stream {}/{}", txnId, scope, stream);
+                if (processedEvents != null) {
+                    processedEvents.offer(event);
+                }
+            }
+        }, executor).join();
     }
 
-    private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<Void> completeCommit(final String scope,
+                                                   final String stream,
+                                                   final int epoch,
+                                                   final List<Integer> segments,
+                                                   final UUID txnId,
+                                                   final OperationContext context) {
+        return notifyCommitToHost(scope, stream, segments, txnId).thenComposeAsync(x ->
+                streamMetadataStore.commitTransaction(scope, stream, epoch, txnId, context, executor), executor)
+                .thenApply(x -> null);
+    }
+
+    private CompletableFuture<Void> postponeCommitEvent(CommitEvent event) {
+        UUID txnId = event.getTxid();
+        log.debug("Transaction {}, pushing back CommitEvent to commitStream", txnId);
+        AckFuture future = this.getSelfWriter().write(event);
+        CompletableFuture<AckFuture> writeComplete = new CompletableFuture<>();
+        future.addListener(() -> writeComplete.complete(future), executor);
+        return writeComplete.thenApplyAsync(ackFuture -> {
+            try {
+                // ackFuture is complete by now, so we can do a get without blocking
+                ackFuture.get();
+                log.debug("Transaction {}, sent request to commitStream", txnId);
+                return null;
+            } catch (InterruptedException e) {
+                log.warn("Transaction {}, unexpected interruption sending event to commitStream. Retrying...", txnId);
+                throw new WriteFailedException(e);
+            } catch (ExecutionException e) {
+                Throwable realException = ExceptionHelpers.getRealException(e);
+                log.warn("Transaction {}, failed sending event to commitStream. Retrying...", txnId);
+                throw new WriteFailedException(realException);
+            }
+        }, executor);
+    }
+
+    private CompletableFuture<Void> notifyCommitToHost(final String scope, final String stream,
+                                                       final List<Integer> segments, final UUID txnId) {
+        return FutureHelpers.allOf(segments.stream()
+                .parallel()
+                .map(segment -> notifyCommitToHost(scope, stream, segment, txnId))
+                .collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream,
+                                                                       final int segmentNumber, final UUID txId) {
         final long retryInitialDelay = 100;
         final int retryMultiplier = 10;
         final int retryMaxAttempts = 100;

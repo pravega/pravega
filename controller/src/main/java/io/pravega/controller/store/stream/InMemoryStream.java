@@ -224,6 +224,16 @@ class InMemoryStream implements Stream {
         }
 
         @Override
+        public CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch() {
+            throw new NotImplementedException();
+        }
+
+        @Override
+        public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch() {
+            throw new NotImplementedException();
+        }
+
+        @Override
         public void refresh() {
         }
     }
@@ -478,6 +488,16 @@ class InMemoryStream implements Stream {
     @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         return null;
+    }
+
+    @Override
+    public CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch() {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch() {
+        throw new NotImplementedException();
     }
 
     @Override

@@ -404,6 +404,20 @@ public interface StreamMetadataStore {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
+     * Returns the currently active epoch of the specified stream.
+     *
+     * @param scope    scope.
+     * @param stream   stream.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
+     */
+    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(final String scope,
+                                                                   final String stream,
+                                                                   final OperationContext context,
+                                                                   final Executor executor);
+
+    /**
      * Api to mark a segment as cold.
      *
      * @param scope         scope for stream

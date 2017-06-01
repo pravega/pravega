@@ -22,7 +22,6 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.client.stream.StreamConfiguration;
 import org.apache.commons.lang.SerializationUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.utils.ZKPaths;
 
@@ -333,17 +332,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 throw new DataNotFoundException(txId.toString());
             }
         });
-    }
-
-    @Override
-    CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch() {
-        // TODO: this implementation needs to change once we do epoch change in history table
-        return getActiveSegments().thenApply(list -> new ImmutablePair<>(0, list));
-    }
-
-    @Override
-    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch() {
-        return getActiveSegments().thenApply(list -> new ImmutablePair<>(0, list));
     }
 
     @Override
