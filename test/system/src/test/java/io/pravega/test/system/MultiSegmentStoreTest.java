@@ -204,6 +204,5 @@ public class MultiSegmentStoreTest {
                 throw new IllegalStateException("Unexpected request to reinitialize");
             }
         }
-        groupManager.deleteReaderGroup(readerGroup);
     }
 }
