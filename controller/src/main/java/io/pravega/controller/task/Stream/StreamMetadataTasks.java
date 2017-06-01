@@ -465,10 +465,10 @@ public class StreamMetadataTasks extends TaskBase {
         Throwable cause = ExceptionHelpers.getRealException(ex);
         if (cause instanceof DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
-        } else if (ex instanceof StoreException && ((StoreException) ex).getType() == NODE_NOT_FOUND) {
+        } else if (cause instanceof StoreException && ((StoreException) cause).getType() == NODE_NOT_FOUND) {
             return UpdateStreamStatus.Status.SCOPE_NOT_FOUND;
         } else {
-            log.warn("Update stream failed due to ", ex);
+            log.warn("Update stream failed due to ", cause);
             return UpdateStreamStatus.Status.FAILURE;
         }
     }

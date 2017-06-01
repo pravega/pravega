@@ -19,6 +19,7 @@ import io.pravega.client.state.Update;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
@@ -33,7 +34,6 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     @GuardedBy("$lock")
     private StateT currentState;
     private Segment segment;
-    private RevisionImpl initialRevision;
 
     /**
      * Creates a new instance of StateSynchronizer class.
@@ -43,7 +43,6 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
      */
     public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT>> client) {
         this.segment = segment;
-        this.initialRevision = new RevisionImpl(segment, 0, 0);
         this.client = client;
     }
 
@@ -53,14 +52,23 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         return currentState;
     }
 
-    private Revision getRevision() {
+    private Revision getRevisionToReadFrom() {
         StateT state = getState();
-        return state == null ? initialRevision : state.getRevision();
+        Revision revision;
+        if (state == null) {
+            revision = client.getMark();
+            if (revision == null) {
+                revision = client.fetchOldestRevision();
+            }
+        } else {
+            revision = state.getRevision();
+        }
+        return revision;
     }
 
     @Override
     public void fetchUpdates() {
-        Revision revision = getRevision();
+        Revision revision = getRevisionToReadFrom();
         log.trace("Fetching updates after {} ", revision);
         val iter = client.readFrom(revision);
         while (iter.hasNext()) {
@@ -112,7 +120,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void initialize(InitialUpdate<StateT> initial) {
-        Revision result = client.writeConditionally(initialRevision, new UpdateOrInit<>(initial));
+        Revision result = client.writeConditionally(client.fetchOldestRevision(), new UpdateOrInit<>(initial));
         if (result == null) {
             fetchUpdates();
         } else {
@@ -122,10 +130,24 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void compact(Function<StateT, InitialUpdate<StateT>> compactor) {
+        AtomicReference<Revision> compactedVersion = new AtomicReference<Revision>(null);
         conditionallyWrite(state -> {
             InitialUpdate<StateT> init = compactor.apply(state);
-            return init == null ? null : new UpdateOrInit<>(init);
+            if (init == null) {
+                compactedVersion.set(null);
+                return null;
+            } else {
+                compactedVersion.set(state.getRevision());
+                return new UpdateOrInit<>(init);
+            }
         });
+        Revision newMark = compactedVersion.get();
+        if (newMark != null) {
+            Revision oldMark = client.getMark();
+            if (oldMark == null || oldMark.compareTo(newMark) < 0) {
+                client.compareAndSetMark(oldMark, newMark);
+            }
+        }
     }
 
     private void conditionallyWrite(Function<StateT, UpdateOrInit<StateT>> generator) {
