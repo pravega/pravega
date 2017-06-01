@@ -18,6 +18,7 @@ import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Cleanup;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -130,6 +131,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * 10) // Very frequent rollovers.
                 .with(BookKeeperConfig.ZK_METADATA_PATH, this.zkClient.get().getNamespace())
                 .build();
+        @Cleanup
         val factory = new BookKeeperLogFactory(bkConfig, this.zkClient.get(), executorService());
         AssertExtensions.assertThrows("",
                 factory::initialize,
@@ -138,11 +140,6 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                         ex.getCause().getMessage().
                                 indexOf(this.zkClient.get().getNamespace() + "/bookkeeper/ledgers/available") > 0
         );
-
-        // Close locally created factory.
-        if (factory != null) {
-            factory.close();
-        }
     }
 
     @Override

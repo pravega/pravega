@@ -16,9 +16,10 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.SequentialAsyncProcessor;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
-import io.pravega.common.util.Retry;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
@@ -27,9 +28,16 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -37,7 +45,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.bookkeeper.client.AsyncCallback;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
@@ -84,12 +91,14 @@ class BookKeeperLog implements DurableDataLog {
     private final AtomicBoolean closed;
     private final Object lock = new Object();
     private final String traceObjectId;
-    private final Retry.RetryAndThrowBase<Exception> retryPolicy;
     private final AtomicBoolean rolloverInProgress;
     @GuardedBy("lock")
     private WriteLedger writeLedger;
     @GuardedBy("lock")
     private LogMetadata logMetadata;
+    @GuardedBy("writes")
+    private final Deque<Write> writes;
+    private final SequentialAsyncProcessor writeProcessor;
 
     //endregion
 
@@ -115,9 +124,8 @@ class BookKeeperLog implements DurableDataLog {
         this.logNodePath = HierarchyUtils.getPath(logId, this.config.getZkHierarchyDepth());
         this.traceObjectId = String.format("Log[%d]", logId);
         this.rolloverInProgress = new AtomicBoolean();
-        this.retryPolicy = config.getRetryPolicy()
-                                 .retryWhen(BookKeeperLog::isRetryable)
-                                 .throwingOn(Exception.class);
+        this.writes = new ArrayDeque<>();
+        this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this.executorService);
     }
 
     //endregion
@@ -134,6 +142,15 @@ class BookKeeperLog implements DurableDataLog {
                 this.writeLedger = null;
                 this.logMetadata = null;
             }
+
+            // Cancel pending writes.
+            List<Write> toCancel;
+            synchronized (this.writes) {
+                toCancel = new ArrayList<>(this.writes);
+                this.writes.clear();
+            }
+
+            toCancel.forEach(w -> w.fail(new ObjectClosedException(this), true));
 
             if (writeLedger != null) {
                 try {
@@ -198,18 +215,29 @@ class BookKeeperLog implements DurableDataLog {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append");
         Timer timer = new Timer();
 
-        // Use a retry loop to handle retryable exceptions.
-        val result = this.retryPolicy.runAsync(() -> tryAppend(data).exceptionally(this::handleWriteException), this.executorService);
+        // Queue up the write.
+        CompletableFuture<LogAddress> result = new CompletableFuture<>();
+        synchronized (this.writes) {
+            this.writes.addLast(new Write(data, getWriteLedger(), result));
+        }
+
+        // Trigger Write Processor.
+        this.writeProcessor.runAsync();
 
         // Post append tasks. We do not need to wait for these to happen before returning the call.
-        result.thenAcceptAsync(address -> {
-            // Update metrics and take care of other logging tasks.
-            Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-            Metrics.WRITE_BYTES.add(data.getLength());
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, address, data.getLength());
+        result.whenCompleteAsync((address, ex) -> {
+            if (ex != null) {
+                handleWriteException(ex);
+            } else {
+                // Update metrics and take care of other logging tasks.
+                Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+                Metrics.WRITE_BYTES.add(data.getLength());
+                LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, address, data.getLength());
 
-            // After every append, check if we need to trigger a rollover.
-            triggerRolloverIfNecessary();
+                // After every append, check if we need to trigger a rollover. No need to invoke processWritesAsync, as that
+                // is done inside the append callback (before this is even invoked).
+                triggerRolloverIfNecessary();
+            }
         }, this.executorService);
         return result;
     }
@@ -240,76 +268,146 @@ class BookKeeperLog implements DurableDataLog {
 
     //endregion
 
-    //region Appends
+    //region Writes
 
     /**
-     * Attempts to write one append to BookKeeper.
-     *
-     * @param data An ArrayView representing the data to append.
-     * @return A CompletableFuture that, when completed, will indicate that the operation completed (successfully or not).
+     * Write Processor main loop. This method should not be invoked directly, nor is it thread safe.
      */
-    private CompletableFuture<LogAddress> tryAppend(ArrayView data) {
-        val result = new CompletableFuture<LogAddress>();
-        tryAppend(data, getWriteLedger(), result);
-        return result;
+    private void processWritesSync() {
+        // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
+        synchronized (this.writes) {
+            while (!this.writes.isEmpty() && this.writes.peekFirst().isDone()) {
+                this.writes.removeFirst();
+            }
+        }
+
+        List<Write> toExecute = getWritesToExecute();
+        processWrites(toExecute);
     }
 
     /**
-     * Attempts to write one append to BookKeeper. This method auto-retries if the current ledger has been rolled over.
+     * Executes the given writes to BookKeeper. This method is not thread safe and should only be invoked as part of
+     * the Write Processor.
      *
-     * @param data        An ArrayView representing the data to append.
-     * @param writeLedger The Ledger to write to.
-     * @param result      A Future to complete when the append succeeds or fails.
+     * @param toExecute An ordered List of Writes to execute.
      */
-    private void tryAppend(ArrayView data, WriteLedger writeLedger, CompletableFuture<LogAddress> result) {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "tryAppend", data.getLength(), writeLedger.ledger.getId());
-        AsyncCallback.AddCallback callback = (rc, handle, entryId, ctx) -> {
-            @SuppressWarnings("unchecked")
-            CompletableFuture<LogAddress> completionFuture = (CompletableFuture<LogAddress>) ctx;
+    private void processWrites(List<Write> toExecute) {
+        for (int i = 0; i < toExecute.size(); i++) {
+            Write w = toExecute.get(i);
             try {
-                assert handle.getId() == writeLedger.ledger.getId() : "LedgerHandle.Id mismatch. Expected " + writeLedger.ledger.getId() + ", actual " + handle.getId();
-                if (rc != 0) {
-                    if (rc == BKException.Code.LedgerClosedException) {
-                        // LedgerClosed can happen because we just rolled over the ledgers. The way to detect this is to
-                        // check if the ledger we were trying to write to is closed and whether we have a new ledger.
-                        // If that's the case, retry the write with the new ledger.
-                        WriteLedger currentLedger = getWriteLedger();
-                        if (!currentLedger.ledger.isClosed() && currentLedger.ledger.getId() != writeLedger.ledger.getId()) {
-                            tryAppend(data, currentLedger, result);
-                            return;
-                        }
-                    }
-
-                    handleWriteException(rc, completionFuture);
-                    return;
+                // Record the beginning of a new attempt.
+                int attemptCount = w.beginAttempt();
+                if (attemptCount > this.config.getMaxWriteAttempts()) {
+                    // Retried too many times.
+                    throw new RetriesExhaustedException(w.getFailureCause());
                 }
 
-                // Successful write. Complete the callback future and update metrics.
-                completionFuture.complete(new LedgerAddress(writeLedger.metadata, entryId));
+                // Invoke the BookKeeper write.
+                w.getLedger().asyncAddEntry(w.data.array(), w.data.arrayOffset(), w.data.getLength(), this::addCallback, w);
             } catch (Throwable ex) {
-                completionFuture.completeExceptionally(ex);
+                // Synchronous failure (or RetriesExhausted). Fail current write.
+                boolean isRetryable = isRetryable(ex);
+                w.fail(ex, isRetryable);
+
+                // And fail all remaining writes as well.
+                for (int j = i + 1; j < toExecute.size(); j++) {
+                    toExecute.get(j).fail(new DurableDataLogException("Previous write failed.", ex), isRetryable);
+                }
+
+                break;
+            }
+        }
+    }
+
+    /**
+     * Gets an ordered list of Writes to execute.
+     */
+    private List<Write> getWritesToExecute() {
+        List<Write> toExecute = new ArrayList<>();
+        synchronized (this.writes) {
+            if (this.writes.isEmpty()) {
+                return Collections.emptyList();
             }
 
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "tryAppend", traceId, data.getLength(), writeLedger.ledger.getId(), !completionFuture.isCompletedExceptionally());
-        };
+            // Collect all remaining appends, as long as they are not currently in-progress and have the same ledger id
+            // as the first item in the ledger.
+            long firstLedgerId = this.writes.peekFirst().getLedgerMetadata().getLedgerId();
+            boolean canSkip = true;
+            for (Write write : this.writes) {
+                if (write.getLedger().getId() != firstLedgerId) {
+                    // We cannot initiate writes in a new ledger until all writes in the previous ledger completed.
+                    break;
+                } else if (canSkip && (write.isInProgress() || write.isDone())) {
+                    // Skip over the writes at the beginning of the queue that are still in progress.
+                    continue;
+                } else if (write.isInProgress() && !canSkip) {
+                    // We stumbled across an in-progress write after a not-in-progress write. We can't retry now.
+                    // This is likely due to a bunch of writes failing (i.e. due to a LedgerClosedEx), but we overlapped
+                    // with their updating their status. Try again next time (when that write completes).
+                    return Collections.emptyList();
+                }
 
-        writeLedger.ledger.asyncAddEntry(data.array(), data.arrayOffset(), data.getLength(), callback, result);
+                canSkip = false;
+                toExecute.add(write);
+            }
+        }
+
+        return toExecute;
+    }
+
+    /**
+     * Callback for BookKeeper appends.
+     *
+     * @param rc      Response Code.
+     * @param handle  LedgerHandle.
+     * @param entryId Assigned EntryId.
+     * @param ctx     Write Context. In our case, the Write we were writing.
+     */
+    private void addCallback(int rc, LedgerHandle handle, long entryId, Object ctx) {
+        @SuppressWarnings("unchecked")
+        Write write = (Write) ctx;
+        try {
+            assert handle.getId() == write.getLedger().getId() : "Handle.Id mismatch: " + write.getLedger().getId() + " vs " + handle.getId();
+            if (rc == 0) {
+                // Successful write. If we get this, then by virtue of how the Writes are executed (always wait for writes
+                // in previous ledgers to complete before initiating, and BookKeeper guaranteeing that all writes in this
+                // ledger prior to this writes are done), it is safe to complete the callback future now.
+                write.complete(new LedgerAddress(write.getLedgerMetadata(), entryId));
+                return;
+            }
+
+            if (rc == BKException.Code.LedgerClosedException) {
+                // LedgerClosed can happen because we just rolled over the ledgers. The way to detect this is to
+                // check if the ledger we were trying to write to is closed and whether we have a new ledger.
+                // If that's the case, retry the write with the new ledger.
+                WriteLedger currentLedger = getWriteLedger();
+                if (!currentLedger.ledger.isClosed() && currentLedger.ledger.getId() != handle.getId()) {
+                    // Note that we do not set a failure for this - this is considered normal operations.
+                    write.setWriteLedger(currentLedger);
+                    write.endAttempt();
+                    return;
+                }
+            }
+
+            handleWriteException(rc, write);
+        } catch (Throwable ex) {
+            // Most likely a bug in our code. We still need to fail the write so we don't leave it hanging.
+            write.fail(ex, !isRetryable(ex));
+        } finally {
+            // Process all the appends in the queue after any change. This finalizes the completion, does retries (if needed)
+            // and triggers more appends.
+            this.writeProcessor.runAsync();
+        }
     }
 
     /**
      * Handles a general Write exception.
      */
-    @SneakyThrows(Throwable.class)
-    private <T> T handleWriteException(Throwable ex) {
+    private void handleWriteException(Throwable ex) {
         if (ex instanceof ObjectClosedException && !this.closed.get()) {
             log.warn("{}: Caught ObjectClosedException but not closed; closing now.", this.traceObjectId, ex);
             close();
-        } else if (isRetryable(ex)) {
-            log.warn("{}: Caught retryable exception.", this.traceObjectId, ex);
         }
-
-        // Rethrow the original exception so that the enclosing retry loop can handle it.
-        throw ex;
     }
 
     /**
@@ -317,9 +415,9 @@ class BookKeeperLog implements DurableDataLog {
      * exceptionally using it.
      *
      * @param responseCode   The BookKeeper response code to interpret.
-     * @param callbackFuture The Future to complete exceptionally.
+     * @param write          The Write that failed.
      */
-    private void handleWriteException(int responseCode, CompletableFuture<?> callbackFuture) {
+    private void handleWriteException(int responseCode, Write write) {
         assert responseCode != BKException.Code.OK : "cannot handle an exception when responseCode == " + BKException.Code.OK;
         Exception ex = BKException.create(responseCode);
         try {
@@ -340,7 +438,7 @@ class BookKeeperLog implements DurableDataLog {
                 ex = new DurableDataLogException("General exception while accessing BookKeeper.", ex);
             }
         } finally {
-            callbackFuture.completeExceptionally(ex);
+            write.fail(ex, !isRetryable(ex));
         }
     }
 
@@ -597,6 +695,137 @@ class BookKeeperLog implements DurableDataLog {
         @Override
         public String toString() {
             return String.format("%s, Length = %d, Closed = %s", this.metadata, this.ledger.getLength(), this.ledger.isClosed());
+        }
+    }
+
+    //endregion
+
+    //region Write
+
+    private static class Write {
+        final ArrayView data;
+        private final CompletableFuture<LogAddress> result;
+        private final AtomicInteger attemptCount;
+        private final AtomicReference<WriteLedger> writeLedger;
+        private final AtomicBoolean inProgress;
+        private final AtomicReference<Throwable> failureCause;
+
+        Write(ArrayView data, WriteLedger initialWriteLedger, CompletableFuture<LogAddress> result) {
+            this.data = Preconditions.checkNotNull(data, "data");
+            this.writeLedger = new AtomicReference<>(Preconditions.checkNotNull(initialWriteLedger, "initialWriteLedger"));
+            this.result = Preconditions.checkNotNull(result, "result");
+            this.attemptCount = new AtomicInteger();
+            this.failureCause = new AtomicReference<>();
+            this.inProgress = new AtomicBoolean();
+        }
+
+        /**
+         * Gets the LedgerHandle associated with this write.
+         */
+        LedgerHandle getLedger() {
+            return this.writeLedger.get().ledger;
+        }
+
+        /**
+         * Gets the LedgerMetadata for the Ledger associated with this write.
+         */
+        LedgerMetadata getLedgerMetadata() {
+            return this.writeLedger.get().metadata;
+        }
+
+        /**
+         * Sets the WriteLedger to be associated with this write.
+         *
+         * @param writeLedger The WriteLedger to associate.
+         */
+        void setWriteLedger(WriteLedger writeLedger) {
+            this.writeLedger.set(writeLedger);
+        }
+
+        /**
+         * Records the fact that a new attempt to execute this write is begun.
+         *
+         * @return The current attempt number.
+         */
+        int beginAttempt() {
+            Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Write already in progress. Cannot restart.");
+            return this.attemptCount.incrementAndGet();
+        }
+
+        /**
+         * Records the fact that an attempt to execute this write has ended.
+         */
+        void endAttempt() {
+            this.inProgress.set(false);
+        }
+
+        /**
+         * Gets a value indicating whether an attempt to execute this write is in progress.
+         *
+         * @return True or false.
+         */
+        boolean isInProgress() {
+            return this.inProgress.get();
+        }
+
+        /**
+         * Gets a value indicating whether this write is completed (successfully or not).
+         *
+         * @return True or false.
+         */
+        boolean isDone() {
+            return this.result.isDone();
+        }
+
+        /**
+         * Gets the failure cause, if any.
+         *
+         * @return The failure cause.
+         */
+        Throwable getFailureCause() {
+            return this.failureCause.get();
+        }
+
+        /**
+         * Indicates that this write completed successfully. This will set the final result on the externalCompletion future.
+         *
+         * @param result The result to set.
+         */
+        void complete(LogAddress result) {
+            endAttempt();
+            this.failureCause.set(null);
+            this.result.complete(result);
+        }
+
+        /**
+         * Indicates that this write failed.
+         *
+         * @param cause    The failure cause. If null, the previous failure cause is preserved.
+         * @param complete If true, the externalCompletion will be immediately be completed with the current failure cause.
+         *                 If false, no completion will be done.
+         */
+        void fail(Throwable cause, boolean complete) {
+            endAttempt();
+
+            if (cause != null) {
+                Throwable e = this.failureCause.get();
+                if (e != null && e != cause) {
+                    cause.addSuppressed(e);
+                }
+
+                this.failureCause.set(cause);
+            }
+
+            if (complete) {
+                this.result.completeExceptionally(this.failureCause.get());
+            }
+        }
+
+        @Override
+        public String toString() {
+            return String.format("LedgerId = %s, Length = %s, Attempts = %s, InProgress = %s, Done = %s, Failed %s",
+                    this.writeLedger.get().ledger.getId(), this.data.getLength(), this.attemptCount, this.inProgress,
+                    isDone(), this.failureCause.get() != null);
         }
     }
 

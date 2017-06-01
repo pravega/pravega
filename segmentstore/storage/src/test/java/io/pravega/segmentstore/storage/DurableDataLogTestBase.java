@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
@@ -18,9 +19,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -39,12 +43,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
     //region General DurableDataLog Tests
 
     /**
-     * Tests the ability to append to a DurableDataLog.
+     * Tests the ability to append to a DurableDataLog in sequence.
      *
      * @throws Exception If one got thrown.
      */
     @Test(timeout = TIMEOUT_MILLIS)
-    public void testAppend() throws Exception {
+    public void testAppendSequence() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(
@@ -65,6 +69,35 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                 }
 
                 prevAddress = address;
+            }
+        }
+    }
+
+    /**
+     * Tests the ability to append to a DurableDataLog using parallel writes.
+     *
+     * @throws Exception If one got thrown.
+     */
+    @Test(timeout = TIMEOUT_MILLIS)
+    public void testAppendParallel() throws Exception {
+        try (DurableDataLog log = createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+
+            // Only verify sequence number monotonicity. We'll verify reads in its own test.
+            List<CompletableFuture<LogAddress>> appendFutures = new ArrayList<>();
+            int writeCount = getWriteCount();
+            for (int i = 0; i < writeCount; i++) {
+                appendFutures.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
+            }
+
+            val results = FutureHelpers.allOfWithResults(appendFutures).get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            for (int i = 0; i < results.size(); i++) {
+                LogAddress address = results.get(i);
+                Assert.assertNotNull("No address returned from append() for index " + i, address);
+                if (i > 0) {
+                    AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.",
+                            results.get(i - 1).getSequence(), address.getSequence());
+                }
             }
         }
     }
