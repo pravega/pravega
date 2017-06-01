@@ -90,29 +90,28 @@ public class SortedDeque<E extends SortedIndex.IndexEntry> {
      * item exists in the Deque.
      *
      * @param upToIncluding The Item to remove up to and including. If this item does not exist, no change is made.
-     * @return The last removed item, which has a key equal to that of upToIncluding.
+     * @return True if any changes were made (and thus upToIncluding exists), false otherwise.
      */
-    public E removeFirst(E upToIncluding) {
+    public boolean removeFirst(E upToIncluding) {
         if ((this.head != this.tail) && upToIncluding.key() == this.elements[this.head].key()) {
             // Quick check: our desired item is the first one; don't bother doing a binary search.
-            return removeFirst();
+            removeFirst();
+            return true;
         }
 
         int itemIndex = binarySearch(upToIncluding.key());
         if (itemIndex < 0) {
             //Item does not exist, as such we cannot remove anything.
-            return null;
+            return false;
         }
 
         // Remove all items from the beginning, up to and including our sought item.
-        SortedIndex.IndexEntry result = null;
         while (itemIndex-- >= 0) {
-            result = this.elements[this.head];
             this.elements[this.head] = null;
             this.head = (this.head + 1) & this.lastSlotIndex;
         }
 
-        return (E) result;
+        return true;
     }
 
     /**
@@ -137,31 +136,30 @@ public class SortedDeque<E extends SortedIndex.IndexEntry> {
      * exists in the Deque.
      *
      * @param fromIncluding The Item to remove up to and including. If this item does not exist, no change is made.
-     * @return The last removed item, which has a key equal to that of fromIncluding.
+     * @return True if any changes were made (and thus fromIncluding exists), false otherwise.
      */
-    public E removeLast(E fromIncluding) {
+    public boolean removeLast(E fromIncluding) {
         if ((this.head != this.tail) && fromIncluding.key() == this.elements[(this.tail - 1) & this.lastSlotIndex].key()) {
             // Quick check: our desired item is the last one; don't bother doing a binary search.
-            return removeLast();
+            removeLast();
+            return true;
         }
 
         int itemIndex = binarySearch(fromIncluding.key());
         if (itemIndex < 0) {
             // Item does not exist, as such we cannot remove anything.
-            return null;
+            return false;
         }
 
         // Remove all items from the end, up to and including our sought item.
-        SortedIndex.IndexEntry result = null;
         int size = size();
         while (itemIndex++ < size) {
             int t = (this.tail - 1) & this.lastSlotIndex;
-            result = this.elements[t];
             this.elements[t] = null;
             this.tail = t;
         }
 
-        return (E) result;
+        return true;
     }
 
     /**

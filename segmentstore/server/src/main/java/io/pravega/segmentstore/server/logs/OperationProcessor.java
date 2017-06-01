@@ -430,6 +430,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
         void commit(DataFrameBuilder.CommitArgs commitArgs) {
+            assert commitArgs.key() >= 0 : "DataFrameBuilder.CommitArgs does not have a key set";
             log.debug("{}: CommitSuccess ({}).", this.traceObjectId, commitArgs);
 
             List<CompletableOperation> toComplete = new ArrayList<>();
@@ -449,9 +450,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     }
 
                     // Commit any changes to the metadata.
-                    final DataFrameBuilder.CommitArgs checkpoint = this.metadataTransactions.removeFirst(commitArgs);
-                    assert checkpoint != null && checkpoint == commitArgs : "No Metadata UpdateTransaction found for " + commitArgs;
-                    this.metadataUpdater.commit(checkpoint.key());
+                    boolean checkpointExists = this.metadataTransactions.removeFirst(commitArgs);
+                    assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
+                    this.metadataUpdater.commit(commitArgs.key());
 
                     // Acknowledge all pending entries, in the order in which they are in the queue (ascending seq no).
                     while (!this.pendingOperations.isEmpty()
@@ -559,9 +560,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             // Discard all updates to the metadata.
             long updateTransactionId = 0;
             if (commitArgs != null) {
-                DataFrameBuilder.CommitArgs checkpoint = this.metadataTransactions.removeLast(commitArgs);
-                if (checkpoint != null) {
-                    updateTransactionId = checkpoint.key();
+                boolean checkpointExists = this.metadataTransactions.removeLast(commitArgs);
+                if (checkpointExists) {
+                    updateTransactionId = commitArgs.key();
                 }
             }
 

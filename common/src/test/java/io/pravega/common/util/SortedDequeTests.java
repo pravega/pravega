@@ -130,10 +130,11 @@ public class SortedDequeTests {
                 // This exists; we won't test it here.
                 continue;
             }
-            val removedLast = d.removeFirst(new TestItem(i));
-            val removedFirst = d.removeLast(new TestItem(i));
-            Assert.assertNull("removeFirst() returned non-null for non-existent item.", removedFirst);
-            Assert.assertNull("removeLast() returned non-null for non-existent item.", removedLast);
+
+            boolean removedLast = d.removeFirst(new TestItem(i));
+            boolean removedFirst = d.removeLast(new TestItem(i));
+            Assert.assertFalse("Unexpected result from removeFirst() for non-existent item.", removedFirst);
+            Assert.assertFalse("Unexpected result from removeLast() for non-existent item.", removedLast);
         }
 
         // Verify nothing has actually been removed.
@@ -161,9 +162,8 @@ public class SortedDequeTests {
         int toRemove = ITEM_COUNT - 1;
         int expectedSize = d.size() - 1;
         while (!d.isEmpty()) {
-            val removed = d.removeLast(new TestItem(toRemove));
-            Assert.assertNotNull("Expected non-null result from removeLast() when removing " + toRemove, removed);
-            Assert.assertEquals("Unexpected removed item when removing " + toRemove, toRemove, removed.key());
+            boolean removed = d.removeLast(new TestItem(toRemove));
+            Assert.assertTrue("Unexpected result from removeLast() when removing " + toRemove, removed);
             Assert.assertEquals("Unexpected size when removing " + toRemove, expectedSize, d.size());
             toRemove = Math.max(0, toRemove - removeAtOnce);
             expectedSize = Math.max(0, expectedSize - removeAtOnce);
@@ -185,9 +185,8 @@ public class SortedDequeTests {
         int toRemove = 0;
         int expectedSize = d.size() - 1;
         while (!d.isEmpty()) {
-            val removed = d.removeFirst(new TestItem(toRemove));
-            Assert.assertNotNull("Expected non-null result from removeFirst() when removing " + toRemove, removed);
-            Assert.assertEquals("Unexpected removed item when removing " + toRemove, toRemove, removed.key());
+            boolean removed = d.removeFirst(new TestItem(toRemove));
+            Assert.assertTrue("Unexpected result from removeFirst() when removing " + toRemove, removed);
             Assert.assertEquals("Unexpected size when removing " + toRemove, expectedSize, d.size());
             toRemove = Math.min(ITEM_COUNT - 1, toRemove + removeAtOnce);
             expectedSize = Math.max(0, expectedSize - removeAtOnce);
@@ -235,9 +234,8 @@ public class SortedDequeTests {
                     removeKey = items.removeLast();
                 }
 
-                val last = d.removeLast(new TestItem(removeKey));
-                Assert.assertNotNull("Expecting non-null result when removing " + removeKey, last);
-                Assert.assertEquals("Unexpected last item removed.", removeKey, last.key());
+                boolean removed = d.removeLast(new TestItem(removeKey));
+                Assert.assertTrue("Expecting non-null result when removing " + removeKey, removed);
                 checkFirstLast(d, items);
             }
 
@@ -247,9 +245,8 @@ public class SortedDequeTests {
                     removeKey = items.removeFirst();
                 }
 
-                val first = d.removeFirst(new TestItem(removeKey));
-                Assert.assertNotNull("Expecting non-null result when removing " + removeKey, first);
-                Assert.assertEquals("Unexpected last item removed.", removeKey, first.key());
+                boolean removed = d.removeFirst(new TestItem(removeKey));
+                Assert.assertTrue("Unexpected result when removing " + removeKey, removed);
                 checkFirstLast(d, items);
             }
         }
