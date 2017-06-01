@@ -11,7 +11,10 @@ package io.pravega.segmentstore.storage.impl.ecs;
 
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
+import com.emc.object.s3.bean.DeleteObjects;
+import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
+import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.google.common.base.Strings;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -38,6 +41,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
@@ -47,23 +53,31 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 @Slf4j
 public class ECSStorageTest extends StorageTestBase {
     private ECSStorageConfig adapterConfig;
+    private S3JerseyClient client = null;
 
     @Before
     public void setUp() throws Exception {
         S3Config ecsConfig = null;
-        try {
 
-            this.adapterConfig = ECSStorageConfig
-                    .builder()
-                    .with(ECSStorageConfig.ECS_BUCKET, "kanpravegatest")
-                    .build();
-        } catch (Exception e) {
-            log.error("Wrong ECS URI {}. Can not continue.");
+        this.adapterConfig = ECSStorageConfig.builder().with(ECSStorageConfig.ECS_BUCKET, "kanpravegatest").build();
+        if (client == null) {
+            try {
+                createStorage();
+
+                List<ObjectKey> keys = client.listObjects("kanpravegatest").getObjects().stream().map((object) -> {
+                    return new ObjectKey(object.getKey());
+                }).collect(Collectors.toList());
+
+                client.deleteObjects(new DeleteObjectsRequest("kanpravegatest").withKeys(keys));
+            } catch (Exception e) {
+                log.error("Wrong ECS URI {}. Can not continue.");
+            }
         }
     }
 
     @After
     public void tearDown() {
+
     }
 
     //region Fencing tests
@@ -239,13 +253,14 @@ public class ECSStorageTest extends StorageTestBase {
     protected Storage createStorage() {
         S3Config ecsConfig = null;
         try {
-            ecsConfig = new S3Config(new URI("http://35.184.175.246:9020"));
+            ecsConfig = new S3Config(new URI("http://104.197.245.124:9020"));
         } catch (URISyntaxException e) {
             e.printStackTrace();
         }
-        ecsConfig.withIdentity("user1").withSecretKey("UJMVjZqej6Txo/sMYPAaW+bG85WTVYvdkvyR/bXB");
+        //ecsConfig.withIdentity("user1").withSecretKey("ZyZWPOUr/A6OZnYiyrvfdiR94EHlBx//jozOW6gn");
+        ecsConfig.withIdentity("user2").withSecretKey("tCia/hQCixJF8njn9R89RqbuwyeyavC3aXPAXojJ");
 
-        S3Client client = new S3JerseyClient(ecsConfig);
+        client = new S3JerseyClient(ecsConfig);
             return new ECSStorage(client, this.adapterConfig, executorService());
     }
 
