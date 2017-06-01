@@ -35,14 +35,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.Assert.assertEquals;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.TreeSet;
-import static org.junit.Assert.assertTrue;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
@@ -59,8 +55,13 @@ public class MultiReaderWriterTest extends AbstractScaleTests {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
     private static final int NUM_WRITERS = 20;
     private static final int NUM_READERS = 20;
-    private  Service controllerInstance = null;
-    private  Service segmentStoreInstance = null;
+    private static final long NUM_EVENTS = 20000;
+    private AtomicBoolean stopReadFlag;
+    private AtomicLong eventData;
+    private AtomicLong eventReadCount;
+    private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
+    private Service controllerInstance = null;
+    private Service segmentStoreInstance = null;
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
@@ -70,9 +71,8 @@ public class MultiReaderWriterTest extends AbstractScaleTests {
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
-
         List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("zookeeper service details: {}", zkUris);
+        log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
 
@@ -81,74 +81,74 @@ public class MultiReaderWriterTest extends AbstractScaleTests {
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
-
         List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("bookkeeper service details: {}", bkUris);
+        log.debug("Bookkeeper service details: {}", bkUris);
 
         //3. start 2 instances of pravega controller
         Service conService = new PravegaControllerService("controller", zkUri, 2, 0.1, 700.0);
         if (!conService.isRunning()) {
             conService.start(true);
         }
-
         List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service instance details: {}", conUris);
+        log.debug("Pravega Controller service  details: {}", conUris);
 
         //4.start 2 instances of pravega segmentstore
         Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0), 2, 0.1, 1000.0);
         if (!segService.isRunning()) {
             segService.start(true);
         }
-
         List<URI> segUris = segService.getServiceDetails();
-        log.debug("pravega segmentstore service instance2 details: {}", segUris);
-
+        log.debug("Pravega segmentstore service  details: {}", segUris);
     }
 
     @Before
     public void setup() {
+
+        //1. Start 1 instance of zookeeper
         Service zkService = new ZookeeperService("zookeeper");
-        Assert.assertTrue(zkService.isRunning());
+        if (!zkService.isRunning()) {
+            zkService.start(true);
+        }
         List<URI> zkUris = zkService.getServiceDetails();
-        log.info("zookeeper service details: {}", zkUris);
+        log.debug("Zookeeper service details: {}", zkUris);
+        //get the zk ip details and pass it to bk, host, controller
+        URI zkUri = zkUris.get(0);
 
         // Verify controller is running.
-        this.controllerInstance = new PravegaControllerService("controller", zkUris.get(0));
-        Assert.assertTrue(this.controllerInstance.isRunning());
-        List<URI> conURIs = this.controllerInstance.getServiceDetails();
+        controllerInstance = new PravegaControllerService("controller",  zkUri, 2, 0.1, 700.0);
+        Assert.assertTrue(controllerInstance.isRunning());
+        List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Verify segment stores is running.
-        this.segmentStoreInstance = new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conURIs.get(0));
-        Assert.assertTrue(this.segmentStoreInstance.isRunning());
-        Assert.assertEquals(1, this.segmentStoreInstance.getServiceDetails().size());
-        log.info("Pravega segment store instance details: {}", this.segmentStoreInstance.getServiceDetails());
+        segmentStoreInstance = new PravegaSegmentStoreService("segmentstore", zkUri, conURIs.get(0), 2, 0.1, 1000.0);
+        Assert.assertTrue(segmentStoreInstance.isRunning());
+        log.info("Pravega segment store instance details: {}", segmentStoreInstance.getServiceDetails());
     }
 
-    @Test
+    @Test(timeout = 600000)
     public void multiReaderWriterTest() throws InterruptedException, URISyntaxException, ExecutionException  {
 
         log.info("Test with 2 controller, SSS instances running and without a failover scenario");
         readWriteTest();
 
         //scale down SSS by 1 instance
-        this.segmentStoreInstance.scaleService(1, true);
+        segmentStoreInstance.scaleService(1, true);
         Thread.sleep(60000);
         log.info("Test with 1 SSS instance down");
         readWriteTest();
 
-        this.segmentStoreInstance.scaleService(2, true);
+        segmentStoreInstance.scaleService(2, true);
         Thread.sleep(60000);
-        this.controllerInstance.scaleService(1, true);
+        controllerInstance.scaleService(1, true);
         Thread.sleep(60000);
         log.info("Test with 1 controller instance down");
         readWriteTest();
 
-        this.segmentStoreInstance.scaleService(1, true);
+        segmentStoreInstance.scaleService(1, true);
         Thread.sleep(60000);
         log.info("Test with 1 controller  and 1 SSS instance down");
         readWriteTest();
-
     }
 
     private void readWriteTest() throws InterruptedException, ExecutionException {
@@ -157,7 +157,7 @@ public class MultiReaderWriterTest extends AbstractScaleTests {
         String readerGroupName = "testMultiReaderWriterReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
 
         //20  readers -> 20 stream segments ( to have max read parallelism)
-        ScalingPolicy scalingPolicy = ScalingPolicy.fixed(20);
+        ScalingPolicy scalingPolicy = ScalingPolicy.fixed(5);
         StreamConfiguration config = StreamConfiguration.builder().scope(scope)
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
@@ -171,22 +171,25 @@ public class MultiReaderWriterTest extends AbstractScaleTests {
         //create a stream
         Boolean createStreamStatus = controller.createStream(config).get();
         log.debug("Create stream status {}", createStreamStatus);
-        ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
+         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
 
-        final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
-        final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
-        final AtomicLong eventData = new AtomicLong(); //data used by each of the writers.
-        final AtomicLong eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
+         //stopWriteFlag = new AtomicBoolean(false);
+         stopReadFlag = new AtomicBoolean(false);
+         eventData = new AtomicLong(); //data used by each of the writers.
+         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
+        log.info("events read from pravega {}", eventsReadFromPravega);
+        log.info("data written {}", eventData.get());
+        log.info("data read {}", eventReadCount.get());
+        log.info(" stop read flag {}", stopReadFlag);
         ClientFactory clientFactory = getClientFactory(scope);
 
         //start writing events to the stream with 20 writers
-
         log.info("creating {} writers", NUM_WRITERS);
         List<CompletableFuture<Void>> writerList = new ArrayList<>();
         for (int i = 0; i < NUM_WRITERS; i++) {
-            CompletableFuture<Void> writer = startNewWriter(eventData, clientFactory, stopWriteFlag);
-            writerList.add(writer);
+            log.info("starting writer{}", i);
+            writerList.add(startNewWriter(eventData, clientFactory));
         }
 
         log.info("Creating Reader group : {}", readerGroupName);
@@ -199,47 +202,37 @@ public class MultiReaderWriterTest extends AbstractScaleTests {
         log.info("creating {} readers", NUM_READERS);
         List<CompletableFuture<Void>> readerList = new ArrayList<>();
         for (int i = 0; i < NUM_READERS; i++) {
-            CompletableFuture<Void> reader = startReader("reader"+i, clientFactory, readerGroupName,
-                    eventsReadFromPravega, eventData, eventReadCount, stopReadFlag);
-            readerList.add(reader);
+            log.info("starting reader{}", i);
+            readerList.add(startReader("reader"+i, clientFactory, readerGroupName,
+                    eventsReadFromPravega, eventData, eventReadCount, stopReadFlag));
         }
-
-        //stop writing
-        stopWriteFlag.set(true);
-
-        //wait for list of completable future
-        for (int i = 0; i < writerList.size(); i++) {
-            CompletableFuture.allOf(writerList.get(i));
+        while (NUM_EVENTS != eventsReadFromPravega.size()) {
+            Thread.sleep(5);
         }
-
-        //stop reading
         stopReadFlag.set(true);
 
-        //wait for list of completable future
-        for (int i = 0; i < readerList.size(); i++) {
-            CompletableFuture.allOf(readerList.get(i));
-        }
-        validateResults(eventData.get(), eventsReadFromPravega);
+        log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
+                    "Count: {}", eventData.get(), eventsReadFromPravega.size());
+        //stop reading when no. of reads= no. of writes
         log.debug("test {} succeed", "multiReaderWriterTest");
-    }
+        }
 
-    private CompletableFuture<Void> startNewWriter(final AtomicLong data, final ClientFactory clientFactory,
-                                                      final AtomicBoolean exitFlag) {
+    private CompletableFuture<Void> startNewWriter(final AtomicLong data, final ClientFactory clientFactory
+                                                      ) {
         return CompletableFuture.runAsync(() -> {
             @Cleanup
             EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
                     EventWriterConfig.builder().build());
-
-            while (!exitFlag.get()) {
-                try {
-                    long value = data.incrementAndGet();
-                   writer.writeEvent(String.valueOf(value), value);
+            try {
+                for (int i = 0; i < 1000; i++) {
+                       long value = data.incrementAndGet();
+                       log.debug("writing event {}", value);
+                       writer.writeEvent(String.valueOf(value), value);
+                }
                 } catch (Throwable e) {
                     log.warn("test exception writing events: {}", e);
-                    break;
                 }
-            }
         });
     }
 
@@ -257,6 +250,7 @@ public class MultiReaderWriterTest extends AbstractScaleTests {
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
                     final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
+                    log.debug("reading event {}", longEvent );
                     if (longEvent != null) {
                         //update if event read is not null.
                         readResult.add(longEvent);
@@ -268,14 +262,6 @@ public class MultiReaderWriterTest extends AbstractScaleTests {
                 }
             }
         });
-    }
-
-    private void validateResults(final long lastEventCount, final Collection<Long> readEvents) {
-        log.info("Last Event Count is {}", lastEventCount);
-        assertTrue("Overflow in the number of events published ", lastEventCount > 0);
-        // Number of event read should be equal to number of events published.
-        assertEquals(lastEventCount, readEvents.size());
-        assertEquals(lastEventCount, new TreeSet<>(readEvents).size()); //check unique events.
     }
 }
 
