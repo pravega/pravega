@@ -79,7 +79,6 @@ services:
     ports:
       - "12345:12345"
     command: segmentstore
-    privileged: true
     environment:
       WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183,hdfs:8020
       ENABLE_HDFS: "true"

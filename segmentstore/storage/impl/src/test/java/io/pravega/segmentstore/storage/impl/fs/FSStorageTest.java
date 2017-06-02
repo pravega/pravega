@@ -34,7 +34,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 /**
  * Unit tests for FSStorage.
  */
-public class NFSStorageTest extends StorageTestBase {
+public class FSStorageTest extends StorageTestBase {
     private File baseDir = null;
     private FSStorageConfig adapterConfig;
 
@@ -65,7 +65,6 @@ public class NFSStorageTest extends StorageTestBase {
      * ** We verify that Storage1 can execute only read-only operations.
      * ** We verify that Storage2 can execute all operations.
      */
-    @Ignore
     @Override
     public void testFencing() throws Exception {
         final long epoch1 = 1;
