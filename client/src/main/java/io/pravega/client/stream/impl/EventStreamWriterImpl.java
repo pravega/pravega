@@ -10,6 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -58,6 +61,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final EventWriterConfig config;
     @GuardedBy("lock")
     private final SegmentSelector selector;
+    @GuardedBy("lock")
+    private final Cache<Segment, CompletableFuture<Void>> refreshSegmentStatusMap = CacheBuilder.newBuilder()
+            .expireAfterWrite(10, TimeUnit.MINUTES) //evict entries older than this time.
+            .build();
     private final Consumer<Segment> segmentSealedCallBack;
 
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
@@ -136,11 +143,22 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * message find which new segment it should go to and send it there. This can happen recursively if segments turn
      * over very quickly.
      */
-    @GuardedBy("lock")
     private void handleLogSealed(Segment segment) {
         synchronized (lock) {
-            List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack);
-            resend(toResend);
+            CompletableFuture<Void> handleLogSealedFuture = refreshSegmentStatusMap.getIfPresent(segment);
+            if (handleLogSealedFuture != null) { // entry is present.
+                handleLogSealedFuture.join(); // wait until the the operation is complete if entry is already present.
+            } else {
+                CompletableFuture<Void> status = new CompletableFuture<>();
+                refreshSegmentStatusMap.put(segment, status); // add entry and handle logSealed.
+                try {
+                    List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment,
+                            segmentSealedCallBack);
+                    resend(toResend);
+                } finally {
+                    status.complete(null); // update the future to complete.
+                }
+            }
         }
     }
 
