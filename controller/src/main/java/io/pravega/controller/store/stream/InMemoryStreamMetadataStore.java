@@ -50,18 +50,21 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     @Synchronized
     Stream newStream(String scope, String name) {
-        Stream stream = streams.get(scopedStreamName(scope, name));
-        if (stream != null) {
-            return stream;
+        if (streams.containsKey(scopedStreamName(scope, name))) {
+            return streams.get(scopedStreamName(scope, name));
         } else {
-            return new InMemoryStream.NonExistentStream(scope, name);
+            return new InMemoryStream(scope, name);
         }
     }
 
     @Override
     @Synchronized
     Scope newScope(final String scopeName) {
-        return scopes.get(scopeName);
+        if (scopes.containsKey(scopeName)) {
+            return scopes.get(scopeName);
+        } else {
+            return new InMemoryScope(scopeName);
+        }
     }
 
     @Override
@@ -73,11 +76,13 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                    final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
-                InMemoryStream stream = new InMemoryStream(scopeName, streamName);
-                stream.create(configuration, timeStamp);
-                streams.put(scopedStreamName(scopeName, streamName), stream);
-                scopes.get(scopeName).addStreamToScope(streamName);
-                return CompletableFuture.completedFuture(true);
+                InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
+                return stream.create(configuration, timeStamp)
+                        .thenApply(x -> {
+                            streams.put(scopedStreamName(scopeName, streamName), stream);
+                            scopes.get(scopeName).addStreamToScope(streamName);
+                            return true;
+                        });
             } else {
                 return FutureHelpers.
                         failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Stream already exists."));

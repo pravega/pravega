@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.BackgroundCallback;
+import org.apache.curator.framework.api.CreateBuilder;
 import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.KeeperException;
@@ -240,17 +241,26 @@ public class ZKStoreHelper {
     }
 
     CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {
+        return createZNodeIfNotExist(path, data, true);
+    }
+
+    CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data, final boolean createParent) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
-            client.create().creatingParentsIfNeeded().inBackground(
-                    callback(x -> result.complete(null),
-                            e -> {
-                                if (e instanceof DataExistsException) {
-                                    result.complete(null);
-                                } else {
-                                    result.completeExceptionally(e);
-                                }
-                            }), executor).forPath(path, data);
+            CreateBuilder createBuilder = client.create();
+            BackgroundCallback callback = callback(x -> result.complete(null),
+                    e -> {
+                        if (e instanceof DataExistsException) {
+                            result.complete(null);
+                        } else {
+                            result.completeExceptionally(e);
+                        }
+                    });
+            if (createParent) {
+                createBuilder.creatingParentsIfNeeded().inBackground(callback, executor).forPath(path, data);
+            } else {
+                createBuilder.inBackground(callback, executor).forPath(path, data);
+            }
         } catch (Exception e) {
             result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
         }
@@ -259,18 +269,27 @@ public class ZKStoreHelper {
     }
 
     CompletableFuture<Void> createZNodeIfNotExist(final String path) {
+        return createZNodeIfNotExist(path, true);
+    }
+
+    CompletableFuture<Void> createZNodeIfNotExist(final String path, final boolean createParent) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
 
         try {
-            client.create().creatingParentsIfNeeded().inBackground(
-                    callback(x -> result.complete(null),
-                            e -> {
-                                if (e instanceof DataExistsException) {
-                                    result.complete(null);
-                                } else {
-                                    result.completeExceptionally(e);
-                                }
-                            }), executor).forPath(path);
+            CreateBuilder createBuilder = client.create();
+            BackgroundCallback callback = callback(x -> result.complete(null),
+                    e -> {
+                        if (e instanceof DataExistsException) {
+                            result.complete(null);
+                        } else {
+                            result.completeExceptionally(e);
+                        }
+                    });
+            if (createParent) {
+                createBuilder.creatingParentsIfNeeded().inBackground(callback, executor).forPath(path);
+            } else {
+                createBuilder.inBackground(callback, executor).forPath(path);
+            }
         } catch (Exception e) {
             result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
         }

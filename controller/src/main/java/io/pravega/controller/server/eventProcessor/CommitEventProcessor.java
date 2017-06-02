@@ -22,6 +22,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.Position;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.WriteFailedException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 public class CommitEventProcessor extends EventProcessor<CommitEvent> {
 
     private final StreamMetadataStore streamMetadataStore;
+    private final StreamMetadataTasks streamMetadataTasks;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
     private final ScheduledExecutorService executor;
@@ -51,12 +53,13 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
 
     @VisibleForTesting
     public CommitEventProcessor(final StreamMetadataStore streamMetadataStore,
-                                final HostControllerStore hostControllerStore,
+                                StreamMetadataTasks streamMetadataTasks, final HostControllerStore hostControllerStore,
                                 final ScheduledExecutorService executor,
                                 final SegmentHelper segmentHelper,
                                 final ConnectionFactory connectionFactory,
                                 final BlockingQueue<CommitEvent> queue) {
         this.streamMetadataStore = streamMetadataStore;
+        this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.executor = executor;
@@ -65,11 +68,12 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     }
 
     public CommitEventProcessor(final StreamMetadataStore streamMetadataStore,
-                                final HostControllerStore hostControllerStore,
+                                StreamMetadataTasks streamMetadataTasks, final HostControllerStore hostControllerStore,
                                 final ScheduledExecutorService executor,
                                 final SegmentHelper segmentHelper,
                                 final ConnectionFactory connectionFactory) {
         this.streamMetadataStore = streamMetadataStore;
+        this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.executor = executor;
@@ -94,7 +98,8 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
             // complete before transitioning the stream to new epoch.
             if (activeEpoch == epoch) {
                 // If the transaction's epoch is same as the stream's current epoch, commit it.
-                return completeCommit(scope, stream, epoch, segments, txnId, context);
+                return completeCommit(scope, stream, epoch, segments, txnId, context)
+                        .thenCompose(x -> FutureHelpers.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)));
             } else {
                 // Otherwise, postpone commit operation until the stream transitions to next epoch.
                 return postponeCommitEvent(event);

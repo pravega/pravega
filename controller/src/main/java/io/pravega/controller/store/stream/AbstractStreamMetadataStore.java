@@ -131,7 +131,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     CREATE_STREAM.reportSuccessValue(1);
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                                    configuration.getScalingPolicy().getMinNumSegments());
+                            configuration.getScalingPolicy().getMinNumSegments());
                     DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
                     DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
 
@@ -158,6 +158,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scope, name, context).updateState(state), executor);
     }
 
+    @Override
+    public CompletableFuture<State> getState(final String scope, final String name,
+                                             final OperationContext context,
+                                             final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getState(), executor);
+    }
 
     /**
      * Create a scope with given name.
@@ -298,14 +304,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<Segment>> startScale(final String scope, final String name,
-                                                       final List<Integer> sealedSegments,
-                                                       final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                       final long scaleTimestamp,
-                                                       final OperationContext context,
-                                                       final Executor executor) {
+    public CompletableFuture<StartScaleResponse> startScale(final String scope,
+                                                            final String name,
+                                                            final List<Integer> sealedSegments,
+                                                            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                            final long scaleTimestamp,
+                                                            final boolean runOnlyIfStarted,
+                                                            final OperationContext context,
+                                                            final Executor executor) {
         return withCompletion(getStream(scope, name, context)
-                .startScale(sealedSegments, newRanges, scaleTimestamp), executor);
+                .startScale(sealedSegments, newRanges, scaleTimestamp, runOnlyIfStarted), executor);
     }
 
     @Override
@@ -346,6 +354,31 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
 
         return future;
+    }
+
+    @Override
+    public CompletableFuture<DeleteEpochResponse> tryDeleteEpochIfScaling(final String scope,
+                                                                          final String name,
+                                                                          final int epoch,
+                                                                          final OperationContext context,
+                                                                          final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.scaleTryDeleteEpoch(epoch), executor)
+                .thenCompose(deleted -> {
+                    if (deleted) {
+                        return stream.latestScaleData()
+                                .thenCompose(pair -> {
+                                    List<Integer> segmentsSealed = pair.getLeft();
+                                    return FutureHelpers.allOfWithResults(pair.getRight().stream().map(stream::getSegment)
+                                            .collect(Collectors.toList()))
+                                            .thenApply(segmentsCreated ->
+                                                    new DeleteEpochResponse(true, segmentsSealed, segmentsCreated));
+                                });
+                    } else {
+                        return CompletableFuture.completedFuture(
+                                new DeleteEpochResponse(false, null, null));
+                    }
+                });
     }
 
     @Override
@@ -476,7 +509,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scope, stream, context).getActiveEpoch(), executor);
     }
 
-    private Stream getStream(String scope, final String name, OperationContext context) {
+    protected Stream getStream(String scope, final String name, OperationContext context) {
         Stream stream;
         if (context != null) {
             stream = context.getStream();
@@ -505,6 +538,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         future.whenCompleteAsync((r, e) -> {
             if (e != null) {
+                log.error("AbstractStreamMetadataStore exception: {}", e);
                 result.completeExceptionally(e);
             } else {
                 result.complete(r);

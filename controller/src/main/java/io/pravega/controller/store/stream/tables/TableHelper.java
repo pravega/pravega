@@ -11,11 +11,14 @@ package io.pravega.controller.store.stream.tables;
 
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.SegmentNotFoundException;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.ByteArrayOutputStream;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -52,45 +55,22 @@ public class TableHelper {
     }
 
     /**
-     * Helper method to determine segmentChunk information from segment number.
-     *
-     * @param segmentNumber segment number
-     * @return
-     */
-    public static int getSegmentChunkNumber(final int segmentNumber) {
-        return segmentNumber / SegmentRecord.SEGMENT_CHUNK_SIZE;
-    }
-
-    /**
      * Helper method to get next higher number than highest segment number.
-     *
-     * @param chunkNumber chunk number
-     * @param chunkData   chunk data
+     * @param segmentTable segment table.
      * @return
      */
-    public static int getNextSegmentNumber(final int chunkNumber, final byte[] chunkData) {
-        return chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE +
-                (chunkData.length / SegmentRecord.SEGMENT_RECORD_SIZE);
+    public static int getLastSegmentNumber(final byte[] segmentTable) {
+        return (segmentTable.length / SegmentRecord.SEGMENT_RECORD_SIZE) - 1;
     }
 
     /**
-     * This method reads the latest record from history table and returns the largest segment number from this row.
+     * This method reads segment table and returns total number of segments in the table.
      *
-     * @param historyTable history table.
+     * @param segmentTable history table.
      * @return total number of segments in the stream.
      */
-    public static int getSegmentCount(final byte[] historyTable) {
-        // TODO: issue #711
-        // Once stream seal is properly implemented to add an empty record to history table, this method needs
-        // to change to read penultimate row and operate on it, if the last row is empty.
-        final Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyTable, true);
-
-        if (record.isPresent()) {
-            Optional<Integer> integerOptional = record.get().getSegments().stream().max(Integer::compare);
-            return integerOptional.isPresent() ? integerOptional.get() : 0;
-        } else {
-            return 0;
-        }
+    public static int getSegmentCount(final byte[] segmentTable) {
+        return segmentTable.length / SegmentRecord.SEGMENT_RECORD_SIZE;
     }
 
     /**
@@ -258,7 +238,7 @@ public class TableHelper {
 
         Optional<HistoryRecord> historyRecordOpt = findSegmentCreatedEvent(startingOffset, segment, historyTable);
         if (!historyRecordOpt.isPresent()) {
-            // cant compute predecessors because the creation event is not present in history table yet. 
+            // cant compute predecessors because the creation event is not present in history table yet.
             return new ArrayList<>();
         }
 
@@ -324,10 +304,12 @@ public class TableHelper {
     public static byte[] addPartialRecordToHistoryTable(final byte[] historyTable,
                                                         final List<Integer> newActiveSegments) {
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
+        Optional<HistoryRecord> last = HistoryRecord.readLatestRecord(historyTable, false);
+        assert last.isPresent() && !(last.get().isPartial());
 
         try {
             historyStream.write(historyTable);
-            historyStream.write(new HistoryRecord(newActiveSegments, historyTable.length).toBytePartial());
+            historyStream.write(new HistoryRecord(last.get().getEpoch() + 1, newActiveSegments, historyTable.length).toBytePartial());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -346,15 +328,14 @@ public class TableHelper {
                                                              final HistoryRecord partialHistoryRecord,
                                                              final long timestamp) {
         Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyTable, false);
-        assert record.isPresent() && record.get().isPartial();
-
+        assert record.isPresent() && record.get().isPartial() && record.get().getEpoch() == partialHistoryRecord.getEpoch();
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
         try {
             historyStream.write(historyTable);
 
             historyStream.write(new HistoryRecord(partialHistoryRecord.getSegments(),
-                    timestamp, partialHistoryRecord.getOffset()).remainingByteArray());
+                    partialHistoryRecord.getEpoch(), timestamp, partialHistoryRecord.getOffset()).remainingByteArray());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -375,6 +356,7 @@ public class TableHelper {
         try {
             historyStream.write(new HistoryRecord(
                     newActiveSegments,
+                    0,
                     timestamp,
                     0)
                     .toByteArray());
@@ -429,6 +411,118 @@ public class TableHelper {
             throw new RuntimeException(e);
         }
         return indexStream.toByteArray();
+    }
+
+    /**
+     * Method to check if a scale operation is currently ongoing.
+     * @param historyTable history table
+     * @param segmentTable segment table
+     * @return true if a scale operation is ongoing, false otherwise
+     */
+    public static boolean isScaleOngoing(final byte[] historyTable, final byte[] segmentTable) {
+
+        HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+        return latestHistoryRecord.isPartial() || !latestHistoryRecord.getSegments().contains(getLastSegmentNumber(segmentTable));
+    }
+
+    /**
+     * Method to check if no scale operation is currently ongoing and scale operation can be performed with given input.
+     * @param segmentsToSeal segments to seal
+     * @param historyTable history table
+     * @return true if a scale operation can be performed, false otherwise
+     */
+    public static boolean canScaleFor(final List<Integer> segmentsToSeal, final byte[] historyTable) {
+        HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+        return latestHistoryRecord.getSegments().containsAll(segmentsToSeal);
+    }
+
+    /**
+     * Method that looks at the supplied input and compares it with partial state in metadata store to determine
+     * if the partial state corresponds to supplied input.
+     * @param segmentsToSeal segments to seal
+     * @param newRanges new ranges to create
+     * @param historyTable history table
+     * @param segmentTable segment table
+     * @return true if input matches partial state, false otherwise
+     */
+    public static boolean isRerunOf(final List<Integer> segmentsToSeal,
+                    final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                    final byte[] historyTable,
+                    final byte[] segmentTable) {
+        HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+
+        int n = newRanges.size();
+        List<SegmentRecord> lastN = SegmentRecord.readLastN(segmentTable, n);
+
+        boolean newSegmentsPredicate = newRanges.stream()
+                .allMatch(x -> lastN.stream().anyMatch(y -> y.getRoutingKeyStart() == x.getKey() && y.getRoutingKeyEnd() == x.getValue()));
+        boolean segmentToSealPredicate;
+        boolean exactMatchPredicate;
+
+        // CASE 1: only segment table is updated.. history table isnt...
+        if (!latestHistoryRecord.isPartial()) {
+            // it is implicit: history.latest.containsNone(lastN)
+            segmentToSealPredicate = latestHistoryRecord.getSegments().containsAll(segmentsToSeal);
+            assert !latestHistoryRecord.getSegments().isEmpty();
+            exactMatchPredicate = latestHistoryRecord.getSegments().stream()
+                    .max(Comparator.naturalOrder()).get() + n == getLastSegmentNumber(segmentTable);
+        } else { // CASE 2: segment table updated.. history table updated (partial record)..
+            // since latest is partial so previous has to exist
+            HistoryRecord previousHistoryRecord = HistoryRecord.fetchPrevious(latestHistoryRecord, historyTable).get();
+
+            segmentToSealPredicate = latestHistoryRecord.getSegments().containsAll(lastN.stream()
+                    .map(SegmentRecord::getSegmentNumber).collect(Collectors.toList())) &&
+                    previousHistoryRecord.getSegments().containsAll(segmentsToSeal);
+            exactMatchPredicate = previousHistoryRecord.getSegments().stream()
+                    .max(Comparator.naturalOrder()).get() + n == getLastSegmentNumber(segmentTable);
+        }
+
+        return newSegmentsPredicate && segmentToSealPredicate && exactMatchPredicate;
+    }
+
+    /**
+     * Return the active epoch.
+     * @param historyTableData history table
+     * @return active epoch
+     */
+    public static AbstractMap.SimpleEntry<Integer, List<Integer>> getActiveEpoch(byte[] historyTableData) {
+        HistoryRecord historyRecord = HistoryRecord.readLatestRecord(historyTableData, true).get();
+        return new AbstractMap.SimpleEntry<>(historyRecord.getEpoch(), historyRecord.getSegments());
+    }
+
+    /**
+     * Return the active epoch.
+     * @param historyTableData history table
+     * @return active epoch
+     */
+    public static AbstractMap.SimpleEntry<Integer, List<Integer>> getLatestEpoch(byte[] historyTableData) {
+        HistoryRecord historyRecord = HistoryRecord.readLatestRecord(historyTableData, false).get();
+        return new AbstractMap.SimpleEntry<>(historyRecord.getEpoch(), historyRecord.getSegments());
+    }
+
+    /**
+     * Method to compute segments created and deleted in latest scale event.
+     *
+     * @param historyTable history table
+     * @return pair of segments sealed and segments created in last scale event.
+     */
+    public static Pair<List<Integer>, List<Integer>> getLatestScaleData(final byte[] historyTable) {
+        final Optional<HistoryRecord> current = HistoryRecord.readLatestRecord(historyTable, false);
+        ImmutablePair<List<Integer>, List<Integer>> result;
+        if (current.isPresent()) {
+            final Optional<HistoryRecord> previous = HistoryRecord.fetchPrevious(current.get(), historyTable);
+            result = previous.map(historyRecord ->
+                    new ImmutablePair<>(diff(historyRecord.getSegments(), current.get().getSegments()),
+                        diff(current.get().getSegments(), historyRecord.getSegments())))
+                    .orElseGet(() -> new ImmutablePair<>(Collections.emptyList(), current.get().getSegments()));
+        } else {
+            result = new ImmutablePair<>(Collections.emptyList(), Collections.emptyList());
+        }
+        return result;
+    }
+
+    private static List<Integer> diff(List<Integer> list1, List<Integer> list2) {
+        return list1.stream().filter(z -> !list2.contains(z)).collect(Collectors.toList());
     }
 
     private static Optional<HistoryRecord> findRecordInHistoryTable(final int startingOffset,

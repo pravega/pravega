@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.client.stream.StreamConfiguration;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -136,14 +137,24 @@ interface Stream {
      *
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
+     * @param runOnlyIfStarted run only if scale is started
      * @return sequence of newly created segments
      */
-    CompletableFuture<List<Segment>> startScale(final List<Integer> sealedSegments,
-                                                final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                final long scaleTimestamp);
+    CompletableFuture<StartScaleResponse> startScale(final List<Integer> sealedSegments,
+                                                     final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                     final long scaleTimestamp,
+                                                     final boolean runOnlyIfStarted);
 
     /**
      * Called after new segment creation is complete.
+     *
+     * @param epoch epoch
+     * @return future
+     */
+    CompletableFuture<Boolean> scaleTryDeleteEpoch(final int epoch);
+
+    /**
+     * Called after new segment creation is complete and previous epoch is successfully deleted.
      *
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments created
@@ -165,6 +176,12 @@ interface Stream {
     CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
                                                    final List<Integer> newSegments,
                                                    final long scaleTimestamp);
+
+    /**
+     * Returns the latest sets of segments created and removed by doing a diff of last two epochs.
+     * @return returns a pair of list of segments sealed and list of segments created in latest(including ongoing) scale event.
+     */
+    CompletableFuture<Pair<List<Integer>, List<Integer>>> latestScaleData();
 
     /**
      * Sets cold marker which is valid till the specified time stamp.

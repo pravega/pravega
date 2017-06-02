@@ -23,7 +23,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.ScaleEvent;
+import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -55,8 +55,8 @@ public class AutoScaleProcessor {
     private final AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final Cache<String, Pair<Long, Long>> cache;
-    private final Serializer<ScaleEvent> serializer;
-    private final AtomicReference<EventStreamWriter<ScaleEvent>> writer;
+    private final Serializer<AutoScaleEvent> serializer;
+    private final AtomicReference<EventStreamWriter<AutoScaleEvent>> writer;
     private final EventWriterConfig writerConfig;
     private final AutoScalerConfig configuration;
     private final Executor executor;
@@ -88,7 +88,7 @@ public class AutoScaleProcessor {
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(EventStreamWriter<ScaleEvent> writer, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
+    AutoScaleProcessor(EventStreamWriter<AutoScaleEvent> writer, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
         this(configuration, executor, maintenanceExecutor);
         this.writer.set(writer);
         this.initialized.set(true);
@@ -112,7 +112,10 @@ public class AutoScaleProcessor {
         // We are introducing a delay to avoid exceptions in the log in case creation of writer is attempted before
         // creation of requeststream.
         maintenanceExecutor.schedule(() -> Retry.indefinitelyWithExpBackoff(100, 10, 10000,
-                e -> log.error("error while creating writer for requeststream {}", e))
+                e -> {
+                    log.warn("error while creating writer for requeststream");
+                    log.debug("error while creating writer for requeststream {}", e);
+                })
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
                         clientFactory.compareAndSet(null, ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri()));
@@ -126,7 +129,7 @@ public class AutoScaleProcessor {
                     // caches do not perform clean up if there is no activity. This is because they do not maintain their
                     // own background thread.
                     maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
-                    log.debug("bootstrapping auto-scale reporter done");
+                    log.info("bootstrapping auto-scale reporter done");
                     createWriter.complete(null);
                     return createWriter;
                 }, maintenanceExecutor), 10, TimeUnit.SECONDS);
@@ -144,10 +147,10 @@ public class AutoScaleProcessor {
             long timestamp = System.currentTimeMillis();
 
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.debug("sending request for scale up for {}", streamSegmentName);
+                log.info("sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                ScaleEvent event = new ScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleEvent.UP, timestamp, numOfSplits, false);
+                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), AutoScaleEvent.UP, timestamp, numOfSplits, false);
                 // Mute scale for timestamp for both scale up and down
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
             }
@@ -165,11 +168,11 @@ public class AutoScaleProcessor {
 
             long timestamp = System.currentTimeMillis();
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.debug("sending request for scale down for {}", streamSegmentName);
+                log.info("sending request for scale down for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                ScaleEvent event = new ScaleEvent(segment.getScope(), segment.getStreamName(),
-                        segment.getSegmentNumber(), ScaleEvent.DOWN, timestamp, 0, silent);
+                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
+                        segment.getSegmentNumber(), AutoScaleEvent.DOWN, timestamp, 0, silent);
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName,
                         new ImmutablePair<>(0L, timestamp)));
                 // mute only scale downs
@@ -177,7 +180,7 @@ public class AutoScaleProcessor {
         }
     }
 
-    private CompletableFuture<Void> writeRequest(ScaleEvent event) {
+    private CompletableFuture<Void> writeRequest(AutoScaleEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             CompletableFuture.runAsync(() -> {

@@ -7,17 +7,15 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream.tables;
+package io.pravega.controller.store.stream;
 
-/**
- * This is used to represent the state of the Stream.
- */
-public enum State {
-    UNKNOWN,
-    CREATING,
-    ACTIVE,
-    UPDATING,
-    SCALING,
-    SEALING,
-    SEALED
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class DeleteEpochResponse {
+    private final boolean deleted;
+    private final List<Integer> segmentsSealed;
+    private final List<Segment> segmentsCreated;
 }
