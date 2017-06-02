@@ -29,7 +29,7 @@ configure_controller() {
 configure_nfs_s3_hdfs() {
     add_system_property "tier2.enableNfs" "${ENABLE_NFS}"
 
-    echo "Trying to check whether NFS mounting is required"
+    echo "Checking whether NFS mounting is required"
     if [ "${ENABLE_NFS}" = "true" ] && [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
         while [ -z ${NFS_SERVER} ]
         do

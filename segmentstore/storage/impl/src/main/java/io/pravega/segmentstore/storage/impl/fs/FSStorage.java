@@ -51,12 +51,11 @@ import java.util.concurrent.ExecutorService;
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 
 /**
- * Storage adapter for file system based Tier2.
+ * Storage adapter for file system based Tier 2.
  *
- * Each segment is represented as a single file on the underlying storage. As the writes at an offset for a POSIX
- * file is idempotent, there is no need for locking when a container fails over to another host.
- * As Pravega does not modify data in Tier2 once written even a contention in writing will cause same data to be
- * written at the same offset till the time the original host gives up ownership.
+ * Each segment is represented as a single file on the underlying storage. As the data in Tier 2 is not modified
+ * once written, any attempt to re-write data with the same file offset does not cause any form of inconsistency
+ * as the bytes are the same and they are in the same position.
  */
 
 @Slf4j
@@ -71,6 +70,12 @@ public class FSStorage implements Storage {
 
     //region constructor
 
+    /**
+     * Creates a new instance of the FSStorage class.
+     *
+     * @param config   The configuration to use.
+     * @param executor The executor to use for running async operations.
+     */
     public FSStorage(FSStorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");

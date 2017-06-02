@@ -17,7 +17,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Configuration for the Tier2.
+ * Configuration for the Tier 2.
  */
 @Slf4j
 public class Tier2Config {
