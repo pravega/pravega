@@ -42,7 +42,7 @@ class InMemoryStream implements Stream {
 
     /**
      * Stores all segments in the stream, ordered by number, which implies that
-     * these segments are also ordered in the increaing order of their start times.
+     * these segments are also ordered in the increasing order of their start times.
      * Segment number is the index of that segment in this list.
      */
     private final List<InMemorySegment> segments = new ArrayList<>();
@@ -330,6 +330,7 @@ class InMemoryStream implements Stream {
      * GetActiveSegments runs in O(n), where n is the total number of segments.
      * It can be improved to O(k + logn), where k is the number of active segments at specified timestamp,
      * using augmented interval tree or segment index..
+     *
      * TODO: maintain a augmented interval tree or segment tree index
      */
     @Override
@@ -399,7 +400,7 @@ class InMemoryStream implements Stream {
 
             for (int i = 0; i < keyRanges.size(); i++) {
                 if (segment.overlaps(keyRanges.get(i).getKey(), keyRanges.get(i).getValue())) {
-                    successors.add(start + i);
+                    successors.add(newSegments.get(i));
                     predecessors.get(i).add(sealed);
                 }
             }

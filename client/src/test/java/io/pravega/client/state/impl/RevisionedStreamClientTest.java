@@ -45,12 +45,12 @@ public class RevisionedStreamClientTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
         
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
-        Revision initialRevision = client.fetchRevision();
+        Revision initialRevision = client.fetchLatestRevision();
         client.writeUnconditionally("a");
         client.writeUnconditionally("b");
         client.writeUnconditionally("c");
@@ -83,21 +83,21 @@ public class RevisionedStreamClientTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
         
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
         client.writeUnconditionally("a");
-        Revision revision = client.fetchRevision();
+        Revision revision = client.fetchLatestRevision();
         Revision newRevision = client.writeConditionally(revision, "b");
         assertNotNull(newRevision);
         assertTrue(newRevision.compareTo(revision) > 0);
-        assertEquals(newRevision, client.fetchRevision());
+        assertEquals(newRevision, client.fetchLatestRevision());
         
         Revision failed = client.writeConditionally(revision, "fail");
         assertNull(failed);
-        assertEquals(newRevision, client.fetchRevision());
+        assertEquals(newRevision, client.fetchLatestRevision());
         
         Iterator<Entry<Revision, String>> iter = client.readFrom(revision);
         assertTrue(iter.hasNext());
@@ -106,4 +106,39 @@ public class RevisionedStreamClientTest {
         assertEquals("b", entry.getValue());
         assertFalse(iter.hasNext());
     }
+    
+    @Test
+    public void testMark() {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
+        
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
+        
+        client.writeUnconditionally("a");
+        Revision ra = client.fetchLatestRevision();
+        client.writeUnconditionally("b");
+        Revision rb = client.fetchLatestRevision();
+        client.writeUnconditionally("c");
+        Revision rc = client.fetchLatestRevision();
+        assertTrue(client.compareAndSetMark(null, ra));
+        assertEquals(ra, client.getMark());
+        assertTrue(client.compareAndSetMark(ra, rb));
+        assertEquals(rb, client.getMark());
+        assertFalse(client.compareAndSetMark(ra, rc));
+        assertEquals(rb, client.getMark());
+        assertTrue(client.compareAndSetMark(rb, rc));
+        assertEquals(rc, client.getMark());
+        assertTrue(client.compareAndSetMark(rc, ra));
+        assertEquals(ra, client.getMark());
+        assertTrue(client.compareAndSetMark(ra, null));
+        assertEquals(null, client.getMark());
+    }
+    
 }
