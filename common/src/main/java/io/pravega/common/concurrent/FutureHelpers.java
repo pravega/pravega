@@ -137,7 +137,7 @@ public final class FutureHelpers {
      * @throws E2 If exception E2 occurs.
      * @throws E3 If exception E3 occurs.
      */
-    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception> ResultT getThowingException(Future<ResultT> future) throws E1, E2, E3 {
+    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception> ResultT getThrowingException(Future<ResultT> future) throws E1, E2, E3 {
         Preconditions.checkNotNull(future);
         try {
             return future.get();
