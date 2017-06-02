@@ -327,11 +327,6 @@ public class ReaderGroupStateManager {
         return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
     }
     
-    boolean areCheckpointsDisabled() {
-        ReaderGroupState state = sync.getState();
-        return state.getConfig().isDisableCheckpoints();
-    }
-    
     String getCheckpoint() throws ReinitializationRequiredException {
         ReaderGroupState state = sync.getState();
         if (!state.isReaderOnline(readerId)) {

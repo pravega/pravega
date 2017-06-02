@@ -23,11 +23,11 @@ public class ReaderGroupConfig implements Serializable {
    @Getter
    private final long groupRefreshTimeMillis;
    @Getter
-   private final boolean disableCheckpoints;   
+   private final boolean automaticCheckpoints;   
 
    public static final class ReaderGroupConfigBuilder {
        long groupRefreshTimeMillis = 3000;
-       boolean disableCheckpoints = false;
+       boolean automaticCheckpoints = true;
 
        /**
          * Returns a config builder that started at  a given time.

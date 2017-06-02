@@ -118,9 +118,6 @@ public class ReaderGroupImpl implements ReaderGroup {
     @SneakyThrows(CheckpointFailedException.class)
     private Checkpoint completeCheckpoint(String checkpointName, StateSynchronizer<ReaderGroupState> synchronizer) {
         ReaderGroupState state = synchronizer.getState();
-        if (state.getConfig().isDisableCheckpoints()) {
-            throw new IllegalArgumentException("Checkpoints are disabled on this reader group.");
-        }
         Map<Segment, Long> map = state.getPositionsForCompletedCheckpoint(checkpointName);
         synchronizer.updateStateUnconditionally(new ClearCheckpoints(checkpointName));
         if (map == null) {
