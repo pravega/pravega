@@ -40,7 +40,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.Builder;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -53,7 +52,9 @@ import lombok.val;
 class OperationProcessor extends AbstractThreadPoolService implements AutoCloseable {
     //region Members
 
-    private final Config config;
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
+    private static final int MAX_READ_AT_ONCE = 1000;
+
     @GuardedBy("stateLock")
     private final OperationMetadataUpdater metadataUpdater;
     private final DurableDataLog durableDataLog;
@@ -70,7 +71,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     /**
      * Creates a new instance of the OperationProcessor class.
      *
-     * @param config           OperationProcessor Configuration.
      * @param metadata         The ContainerMetadata for the Container to process operations for.
      * @param stateUpdater     A MemoryStateUpdater that is used to update in-memory structures upon successful Operation committal.
      * @param durableDataLog   The DataFrameLog to write DataFrames to.
@@ -78,10 +78,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * @param executor         An Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
-    OperationProcessor(Config config, UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater,
-                       DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
+    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
         super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
-        this.config = Preconditions.checkNotNull(config, "config");
         this.metadataUpdater = new OperationMetadataUpdater(metadata);
         this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.operationQueue = new BlockingDrainingQueue<>();
@@ -96,7 +94,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @Override
     protected Duration getShutdownTimeout() {
-        return this.config.shutdownTimeout;
+        return SHUTDOWN_TIMEOUT;
     }
 
     @Override
@@ -104,7 +102,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         return FutureHelpers.loop(
                 this::isRunning,
                 () -> this.operationQueue
-                        .take(this.config.maxReadAtOnce)
+                        .take(MAX_READ_AT_ONCE)
                         .thenAcceptAsync(this::processOperations, this.executor),
                 this.executor);
     }
@@ -178,7 +176,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 // Builder is not created or in a failed state.
                 if (recover) {
                     // If instructed to recover, recreate a new one.
-                    val args = new DataFrameBuilder.Args(this.config.maxConcurrentWrites, this.state::checkpoint, this.state::commit, this.state::fail, this.executor);
+                    val args = new DataFrameBuilder.Args(this.state::checkpoint, this.state::commit, this.state::fail, this.executor);
                     this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
                 } else {
                     this.dataFrameBuilder = null;
@@ -227,7 +225,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 // Check if there are more operations to process. If so, it's more efficient to process them now (no thread
                 // context switching, better DataFrame occupancy optimization) rather than by going back to run().
                 if (operations.isEmpty()) {
-                    operations = this.operationQueue.poll(this.config.maxReadAtOnce);
+                    operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
                     if (operations.isEmpty()) {
                         log.debug("{}: processOperations (Flush).", this.traceObjectId);
                         synchronized (this.stateLock) {
@@ -611,20 +609,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 toComplete.forEach(CompletableOperation::complete);
             }
         }
-    }
-
-    //endregion
-
-    //region Config
-
-    @Builder
-    static class Config {
-        @Builder.Default
-        private int maxConcurrentWrites = 1;
-        @Builder.Default
-        private int maxReadAtOnce = 1000;
-        @Builder.Default
-        private Duration shutdownTimeout = Duration.ofSeconds(10);
     }
 
     //endregion

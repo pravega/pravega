@@ -110,12 +110,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.inMemoryOperationLog = createInMemoryLog();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
-        OperationProcessor.Config opConfig = OperationProcessor.Config
-                .builder()
-                .maxConcurrentWrites(this.config.getMaxConcurrentWrites())
-                .build();
-        this.operationProcessor = new OperationProcessor(opConfig, this.metadata, this.memoryStateUpdater, this.durableDataLog,
-                checkpointPolicy, executor);
+        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();

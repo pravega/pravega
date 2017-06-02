@@ -24,7 +24,6 @@ public class DurableLogConfig {
     public static final Property<Integer> CHECKPOINT_MIN_COMMIT_COUNT = Property.named("checkpointMinCommitCount", 300);
     public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = Property.named("checkpointCommitCountThreshold", 300);
     public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = Property.named("checkpointTotalCommitLengthThreshold", 256 * 1024 * 1024L);
-    public static final Property<Integer> MAX_CONCURRENT_WRITES = Property.named("maxConcurrentWrites", 1);
     private static final String COMPONENT_CODE = "durablelog";
 
     //endregion
@@ -49,12 +48,6 @@ public class DurableLogConfig {
     @Getter
     private final long checkpointTotalCommitLengthThreshold;
 
-    /**
-     * The maximum number of concurrent writes to DurableDataLog.
-     */
-    @Getter
-    private final int maxConcurrentWrites;
-
     //endregion
 
     //region Constructor
@@ -74,7 +67,6 @@ public class DurableLogConfig {
         }
 
         this.checkpointTotalCommitLengthThreshold = properties.getLong(CHECKPOINT_TOTAL_COMMIT_LENGTH);
-        this.maxConcurrentWrites = properties.getInt(MAX_CONCURRENT_WRITES);
     }
 
     /**

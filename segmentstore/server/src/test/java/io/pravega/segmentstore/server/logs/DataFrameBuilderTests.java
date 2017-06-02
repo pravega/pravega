@@ -13,7 +13,6 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
@@ -51,7 +50,6 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
     private static final int LARGE_RECORD_MIN_SIZE = 1024;
     private static final int LARGE_RECORD_MAX_SIZE = 10240;
     private static final int FRAME_SIZE = 512;
-    private static final int DEFAULT_WRITE_CAPACITY = 1;
     private static final int APPEND_DELAY_MILLIS = 1;
     private static final int RECORD_COUNT = 200;
 
@@ -66,7 +64,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testAppendNoFailureNoDelay() throws Exception {
-        testAppendNoFailure(1, 0);
+        testAppendNoFailure(0);
     }
 
     /**
@@ -75,7 +73,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testAppendNoFailureWithDelay() throws Exception {
-        testAppendNoFailure(10, APPEND_DELAY_MILLIS);
+        testAppendNoFailure(APPEND_DELAY_MILLIS);
     }
 
     /**
@@ -97,13 +95,14 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         }
         HashSet<Integer> failedIndices = new HashSet<>();
 
+        val order = new HashMap<DataFrameBuilder.CommitArgs, Integer>();
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
             List<DataFrameBuilder.CommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
+            val args = new DataFrameBuilder.Args(DataFrameTestHelpers.appendOrder(order), commitFrames::add, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (int i = 0; i < records.size(); i++) {
                     try {
@@ -112,13 +111,11 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                         failedIndices.add(i);
                     }
                 }
-
-                b.close(true);
             }
             // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
-            await(() -> commitFrames.size() >= frames.size(), 20);
+            await(() -> commitFrames.size() >= order.size(), 20);
 
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
 
             // Check the correctness of the commit callback.
@@ -164,7 +161,10 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
 
         // Keep a reference to the builder (once created) so we can inspect its failure cause).
         val builderRef = new AtomicReference<DataFrameBuilder>();
+        val attemptCount = new AtomicInteger();
         BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) -> {
+            attemptCount.decrementAndGet();
+
             // Check that we actually did want an exception to happen.
             Throwable expectedError = ExceptionHelpers.getRealException(asyncInjector.getLastCycleException());
             Assert.assertNotNull("An error happened but none was expected: " + ex, expectedError);
@@ -181,7 +181,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             failCount.incrementAndGet();
         };
 
-        val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitCallback, errorCallback, executorService());
+        val args = new DataFrameBuilder.Args(ca -> attemptCount.incrementAndGet(), commitCallback, errorCallback, executorService());
         try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
             builderRef.set(b);
             try {
@@ -189,8 +189,9 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                     b.append(r);
                 }
 
-                b.close(true);
+                b.close();
             } catch (ObjectClosedException ex) {
+                attemptCount.decrementAndGet();
                 await(() -> b.failureCause() != null, 20);
 
                 // If DataFrameBuilder is closed, then we must have had an exception thrown via the callback before.
@@ -199,14 +200,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             }
         }
 
-        // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-        List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
-
-        // Check the correctness of the commit callback.
-        AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, frames.size());
-        await(() -> successCommits.size() >= frames.size(), 20);
-
-        Assert.assertEquals("Unexpected number of frames generated.", successCommits.size(), frames.size());
+        await(() -> successCommits.size() >= attemptCount.get(), 20);
 
         // Read all committed items.
         val reader = new DataFrameReader<TestLogItem>(dataLog, new TestLogItemFactory(), CONTAINER_ID);
@@ -218,14 +212,17 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
 
         val expectedItems = records.stream().filter(r -> r.getSequenceNumber() <= lastCommitIndex.get()).collect(Collectors.toList());
         AssertExtensions.assertListEquals("Items read back do not match expected values.", expectedItems, readItems, TestLogItem::equals);
+
+        // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
+        List<DataFrame> frames = dataLog.getAllEntries(ri -> new DataFrame(ri.getPayload(), ri.getLength()));
+
+        // Check the correctness of the commit callback.
+        AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, frames.size());
+        Assert.assertEquals("Unexpected number of frames generated.", successCommits.size(), frames.size());
     }
 
     private void checkFailureCause(DataFrameBuilder builder, Predicate<Throwable> exceptionTester) {
         Throwable causingException = builder.failureCause();
-        if (causingException instanceof OrderedItemProcessor.ProcessingException) {
-            causingException = causingException.getCause();
-        }
-
         Assert.assertTrue("Unexpected failure cause for DataFrameBuilder: " + builder.failureCause(),
                 exceptionTester.test(causingException));
     }
@@ -256,7 +253,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             List<DataFrameBuilder.CommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DEFAULT_WRITE_CAPACITY, DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
+            val args = new DataFrameBuilder.Args(DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
 
             @Cleanup
             DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args);
@@ -283,7 +280,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void testAppendNoFailure(int writeCapacity, int delayMillis) throws Exception {
+    private void testAppendNoFailure(int delayMillis) throws Exception {
         // Happy case: append a bunch of data, and make sure the frames that get output contain it.
         ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
         records.addAll(DataFrameTestHelpers.generateLogItems(RECORD_COUNT / 2, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
@@ -295,20 +292,19 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             List<DataFrameBuilder.CommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(writeCapacity, DataFrameTestHelpers.appendOrder(order), commitFrames::add, errorCallback, executorService());
+            val args = new DataFrameBuilder.Args(DataFrameTestHelpers.appendOrder(order), commitFrames::add, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (TestLogItem item : records) {
                     b.append(item);
                 }
 
-                b.close(true);
+                b.close();
             }
 
             // Wait for all the frames commit callbacks to be invoked. Even though the DataFrameBuilder waits (upon close)
             // for the OrderedItemProcessor to finish, there are other callbacks chained that need to be completed (such
             // as the one collecting frames in the list above).
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
-            await(() -> commitFrames.size() >= frames.size(), delayMillis);
+            await(() -> commitFrames.size() >= order.size(), delayMillis);
 
             // It is quite likely that acks will arrive out of order. The DataFrameBuilder has no responsibility for
             // rearrangement; that should be done by its user.
@@ -332,6 +328,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             }
 
             //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
             DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
         }
     }

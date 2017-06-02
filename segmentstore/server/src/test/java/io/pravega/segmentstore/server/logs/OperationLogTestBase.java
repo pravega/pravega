@@ -13,7 +13,6 @@ import com.google.common.collect.Iterators;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
-import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -310,7 +309,6 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     boolean isExpectedExceptionForNonDataCorruption(Throwable ex) {
         return ex instanceof IOException
                 || ex instanceof DurableDataLogException
-                || ex instanceof OrderedItemProcessor.ProcessingException
                 || ex instanceof ObjectClosedException;
     }
 
@@ -318,7 +316,6 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         return ex instanceof DataCorruptionException
                 || ex instanceof IllegalContainerStateException
                 || ex instanceof ObjectClosedException
-                || ex instanceof OrderedItemProcessor.ProcessingException
                 || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException));
     }
 

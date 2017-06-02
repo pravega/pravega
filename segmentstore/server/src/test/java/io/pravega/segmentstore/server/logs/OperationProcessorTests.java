@@ -66,9 +66,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
-    private static final OperationProcessor.Config DEFAULT_CONFIG = OperationProcessor.Config.builder()
-                                                                                             .maxConcurrentWrites(1)
-                                                                                             .build();
 
     /**
      * Tests the ability of the OperationProcessor to process Operations in a failure-free environment.
@@ -95,7 +92,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
@@ -145,7 +142,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
@@ -231,7 +228,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
@@ -288,7 +285,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
@@ -335,7 +332,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
@@ -391,7 +388,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, stateUpdater,
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
@@ -479,7 +476,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(DEFAULT_CONFIG, context.metadata, context.stateUpdater,
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 

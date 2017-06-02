@@ -322,6 +322,7 @@ class BookKeeperLog implements DurableDataLog {
      */
     private List<Write> getWritesToExecute() {
         long accumulatedSize = getWriteLedger().ledger.getLength();
+        int activeWriteCount = 0;
         synchronized (this.writes) {
             // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
             while (!this.writes.isEmpty() && this.writes.peekFirst().isDone()) {
@@ -339,16 +340,18 @@ class BookKeeperLog implements DurableDataLog {
 
             List<Write> result = new ArrayList<>();
             for (Write write : this.writes) {
-                if (accumulatedSize >= this.config.getBkLedgerMaxSize()) {
-                    // Don't bother writing too much to this ledger. Otherwise the writes are likely to be rejected with
-                    // LedgerClosedException and (for very busy systems combined with low rollover limits) these writes
-                    // will easily exceed their retry quota.
+                if (accumulatedSize >= this.config.getBkLedgerMaxSize()
+                        || activeWriteCount >= this.config.getMaxConcurrentWrites()) {
+                    // Either reached the throttling limit or ledger max size limit.
+                    // If we try to send too many writes to this ledger, the writes are likely to be rejected with
+                    // LedgerClosedException and simply be retried again.
                     break;
                 }
 
                 // Account for this write's size, even if it's complete or in progress.
                 accumulatedSize += write.data.getLength();
                 if (write.isInProgress()) {
+                    activeWriteCount++;
                     if (!canSkip) {
                         // We stumbled across an in-progress write after a not-in-progress write. We can't retry now.
                         // This is likely due to a bunch of writes failing (i.e. due to a LedgerClosedEx), but we overlapped
@@ -361,6 +364,7 @@ class BookKeeperLog implements DurableDataLog {
                 } else if (!write.isDone()) {
                     canSkip = false;
                     result.add(write);
+                    activeWriteCount++;
                 }
             }
 

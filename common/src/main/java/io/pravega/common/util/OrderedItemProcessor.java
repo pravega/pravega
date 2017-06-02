@@ -85,12 +85,8 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     //region AutoCloseable Implementation
 
     @Override
-    public void close() {
-        close(false);
-    }
-
     @SneakyThrows(Exception.class)
-    public void close(boolean waitForPendingOperations) {
+    public void close() {
         ReusableLatch waitSignal = null;
         synchronized (this.stateLock) {
             if (this.closed) {
@@ -98,7 +94,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
             }
 
             this.closed = true;
-            if (waitForPendingOperations && (this.activeCount != 0 || !this.pendingItems.isEmpty())) {
+            if (this.activeCount != 0 || !this.pendingItems.isEmpty()) {
                 // Setup a latch that will be released when the last item completes.
                 this.emptyNotifier = new ReusableLatch(false);
                 waitSignal = this.emptyNotifier;

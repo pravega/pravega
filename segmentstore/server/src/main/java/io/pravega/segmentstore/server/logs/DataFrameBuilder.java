@@ -13,21 +13,17 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.common.util.SortedIndex;
 import io.pravega.segmentstore.server.LogItem;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +40,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region Members
 
     private final DataFrameOutputStream outputStream;
-    private final OrderedItemProcessor<ArrayView, LogAddress> frameProcessor;
+    private final DurableDataLog targetLog;
     private final Args args;
     private final AtomicBoolean closed;
     private long lastSerializedSequenceNumber;
@@ -64,19 +60,15 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @throws NullPointerException If any of the arguments are null.
      */
     DataFrameBuilder(DurableDataLog targetLog, Args args) {
+        this.targetLog = Preconditions.checkNotNull(targetLog, "targetLog");
         this.args = Preconditions.checkNotNull(args, "args");
         Preconditions.checkNotNull(args.commitSuccess, "args.commitSuccess");
         Preconditions.checkNotNull(args.commitFailure, "args.commitFailure");
         this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), this::handleDataFrameComplete);
-        this.frameProcessor = new OrderedItemProcessor<>(args.maxWriteCapacity, createAppender(targetLog), args.executor);
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
         this.failureCause = new AtomicReference<>();
         this.closed = new AtomicBoolean();
-    }
-
-    private Function<ArrayView, CompletableFuture<LogAddress>> createAppender(DurableDataLog targetLog) {
-        return dataFrameContents -> targetLog.append(dataFrameContents, this.args.writeTimeout);
     }
 
     //endregion
@@ -85,10 +77,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
     @Override
     public void close() {
-        close(false);
-    }
-
-    public void close(boolean waitForPendingFrames) {
         if (this.closed.getAndSet(true)) {
             return;
         }
@@ -97,9 +85,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         if (!this.outputStream.isClosed()) {
             this.outputStream.flush();
         }
-
-        // Close the Frame Processor.
-        this.frameProcessor.close(waitForPendingFrames);
 
         // Close the underlying stream (which destroys whatever we have in flight).
         this.outputStream.close();
@@ -200,8 +185,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
         try {
             this.args.beforeCommit.accept(commitArgs);
-            this.frameProcessor
-                    .process(dataFrame.getData())
+            this.targetLog.append(dataFrame.getData(), this.args.writeTimeout)
                     .thenAcceptAsync(logAddress -> {
                         commitArgs.setLogAddress(logAddress);
                         this.args.commitSuccess.accept(commitArgs);
@@ -312,8 +296,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
     @RequiredArgsConstructor
     static class Args {
-        final int maxWriteCapacity;
-
         /**
          * A Callback that will be invoked synchronously upon a DataFrame's sealing, and right before it is about to be
          * submitted to the DurableDataLog processor. The invocation of this method does not imply that the DataFrame
