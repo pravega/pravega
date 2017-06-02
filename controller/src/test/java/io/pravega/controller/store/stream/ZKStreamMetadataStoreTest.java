@@ -91,28 +91,29 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        List<ScaleIndicent> scaleIncidents = store.getScaleIncidents(scope, stream, null, executor).get();
+        List<ScaleMetadata> scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 1);
         assertTrue(scaleIncidents.get(0).getSegments().size() == 3);
         // scale
         scale(scope, stream, scaleIncidents.get(0).getSegments());
-        scaleIncidents = store.getScaleIncidents(scope, stream, null, executor).get();
+        scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 2);
         assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
         assertTrue(scaleIncidents.get(1).getSegments().size() == 3);
 
+        // scale again
         scale(scope, stream, scaleIncidents.get(0).getSegments());
-        scaleIncidents = store.getScaleIncidents(scope, stream, null, executor).get();
+        scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 3);
         assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
         assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
 
+        // scale again
         scale(scope, stream, scaleIncidents.get(0).getSegments());
-        scaleIncidents = store.getScaleIncidents(scope, stream, null, executor).get();
+        scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 4);
         assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
         assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
-        // scale again
     }
 
     private void scale(String scope, String stream, List<Segment> segments) {

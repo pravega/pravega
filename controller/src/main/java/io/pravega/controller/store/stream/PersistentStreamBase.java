@@ -159,9 +159,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<List<ScaleIndicent>> getScaleIncidents() {
+    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata() {
         return verifyLegalState(getHistoryTable()
-                .thenApply(x -> TableHelper.getScaleIncidents(x.getData()))
+                .thenApply(x -> TableHelper.getScaleMetadata(x.getData()))
                 .thenCompose(listOfScaleRecords ->
                         FutureHelpers.allOfWithResults(listOfScaleRecords.stream().map(record -> {
                             long scaleTs = record.getLeft();
@@ -169,7 +169,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                     record.getRight().stream().map(this::getSegment)
                                     .collect(Collectors.toList()));
 
-                            return list.thenApply(segments -> new ScaleIndicent(scaleTs, segments));
+                            return list.thenApply(segments -> new ScaleMetadata(scaleTs, segments));
                         }).collect(Collectors.toList()))));
     }
 

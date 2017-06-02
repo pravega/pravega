@@ -120,7 +120,7 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<List<ScaleIndicent>> getScaleIncidents() {
+        public CompletableFuture<List<ScaleMetadata>> getScaleMetadata() {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -309,7 +309,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<List<ScaleIndicent>> getScaleIncidents() {
+    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata() {
         throw new NotImplementedException();
     }
 

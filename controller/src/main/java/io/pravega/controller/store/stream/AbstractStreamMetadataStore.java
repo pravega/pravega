@@ -461,9 +461,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<ScaleIndicent>> getScaleIncidents(final String scope, final String name,
-                                                                    final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getScaleIncidents(), executor);
+    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name,
+                                                                   final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getScaleMetadata(), executor);
     }
 
     private Stream getStream(String scope, final String name, OperationContext context) {

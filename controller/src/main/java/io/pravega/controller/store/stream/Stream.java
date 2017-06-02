@@ -107,7 +107,7 @@ interface Stream {
      */
     CompletableFuture<List<Integer>> getSuccessors(final int number);
 
-    CompletableFuture<List<ScaleIndicent>> getScaleIncidents();
+    CompletableFuture<List<ScaleMetadata>> getScaleMetadata();
 
     /**
      * @param number segment number.

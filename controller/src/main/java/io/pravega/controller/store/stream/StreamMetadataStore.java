@@ -440,6 +440,6 @@ public interface StreamMetadataStore {
      * @param context  operation context
      * @return currently active segments
      */
-    CompletableFuture<List<ScaleIndicent>> getScaleIncidents(final String scope, final String name, final OperationContext context, final Executor executor);
+    CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name, final OperationContext context, final Executor executor);
 
 }

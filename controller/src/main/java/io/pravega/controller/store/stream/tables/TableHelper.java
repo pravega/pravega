@@ -130,7 +130,7 @@ public class TableHelper {
         return record.map(HistoryRecord::getSegments).orElse(new ArrayList<>());
     }
 
-    public static List<Pair<Long, List<Integer>>> getScaleIncidents(byte[] historyTable) {
+    public static List<Pair<Long, List<Integer>>> getScaleMetadata(byte[] historyTable) {
         return HistoryRecord.readAllRecords(historyTable);
     }
 

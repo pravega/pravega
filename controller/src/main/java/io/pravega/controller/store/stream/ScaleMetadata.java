@@ -14,7 +14,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class ScaleIndicent {
+public class ScaleMetadata {
     private final long timestamp;
     private final List<Segment> segments;
 }

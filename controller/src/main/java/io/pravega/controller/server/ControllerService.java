@@ -13,6 +13,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.shared.NameUtils;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.Segment;
@@ -193,6 +194,15 @@ public class ControllerService {
                                          new ArrayList<>(ModelHelper.encode(newKeyRanges)),
                                          scaleTimestamp,
                                          null);
+    }
+
+    public CompletableFuture<List<ScaleMetadata>> getScaleRecords(final String scope,
+                                                                  final String stream) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        return streamStore.getScaleMetadata(scope, stream,
+                null,
+                executor);
     }
 
     public CompletableFuture<NodeUri> getURI(final SegmentId segment) {
