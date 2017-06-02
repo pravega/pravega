@@ -24,6 +24,9 @@ public class TestUtils {
     // Linux uses ports from range 32768 - 61000.
     private static final int BASE_PORT = 32768;
     private static final int MAX_PORT_COUNT = 28233;
+
+    // We use a random start position here to avoid ports conflicts when this method is executed from multiple processes
+    // in parallel. This is needed since the processes will contend for the same port sequence.
     private static final AtomicInteger NEXT_PORT = new AtomicInteger(new Random().nextInt(MAX_PORT_COUNT));
 
     /**
