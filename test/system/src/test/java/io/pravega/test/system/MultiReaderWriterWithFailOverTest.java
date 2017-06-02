@@ -88,7 +88,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         log.debug("Bookkeeper service details: {}", bkUris);
 
         //3. start 2 instances of pravega controller
-        Service conService = new PravegaControllerService("multicontrollerwithfailover", zkUri);
+        Service conService = new PravegaControllerService("controller", zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -97,7 +97,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         log.debug("Pravega Controller service  details: {}", conUris);
 
         //4.start 2 instances of pravega segmentstore
-        Service segService = new PravegaSegmentStoreService("multisegmentstorewithfailover", zkUri, conUris.get(0));
+        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -120,13 +120,13 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         URI zkUri = zkUris.get(0);
 
         // Verify controller is running.
-        controllerInstance = new PravegaControllerService("multicontrollerwithfailover", zkUri);
+        controllerInstance = new PravegaControllerService("controller", zkUri);
         Assert.assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Verify segment store is running.
-        segmentStoreInstance = new PravegaSegmentStoreService("multisegmentstorewithfailover", zkUri, conURIs.get(0));
+        segmentStoreInstance = new PravegaSegmentStoreService("segmentstore", zkUri, conURIs.get(0));
         Assert.assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega segment store instance details: {}", segmentStoreInstance.getServiceDetails());
     }
@@ -186,10 +186,6 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         stopReadFlag = new AtomicBoolean(false);
         eventData = new AtomicLong(); //data used by each of the writers.
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
-        log.info("events read from pravega {}", eventsReadFromPravega);
-        log.info("data written {}", eventData.get());
-        log.info("data read {}", eventReadCount.get());
-        log.info(" stop read flag {}", stopReadFlag);
         //get ClientFactory instance
         ClientFactory clientFactory = getClientFactory(scope);
         //start writing events to the stream with 20 writers
@@ -228,6 +224,11 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         assertEquals(NUM_EVENTS, new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
         //stop reading when no. of reads= no. of writes
         log.debug("test {} succeed", "multiReaderWriterTest");
+        //deleting stream
+        controller.deleteStream(scope, STREAM_NAME);
+        //deleting scope
+        controller.deleteScope(scope);
+
     }
 
     private CompletableFuture<Void> startNewWriter(final AtomicLong data, final ClientFactory clientFactory) {
@@ -240,11 +241,13 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
                     long value = data.incrementAndGet();
                     log.debug("writing event {}", value);
                     writer.writeEvent(String.valueOf(value), value);
+                    writer.flush();
                 } catch (Throwable e) {
                     log.warn("test exception writing events: {}", e);
                     break;
                 }
             }
+            writer.close();
 
         });
     }
@@ -257,6 +260,10 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
+            log.info("exit flag before reading {}", exitFlag.get());
+            log.info("readcount before reading {}", readCount.get());
+            log.info("write count before reading {}", writeCount.get());
+
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
@@ -272,6 +279,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
                     break;
                 }
             }
+            reader.close();
         });
     }
 }
