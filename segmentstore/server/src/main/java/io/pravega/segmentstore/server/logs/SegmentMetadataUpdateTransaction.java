@@ -543,9 +543,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     //region Operations
 
     /**
-     * Updates the base metadata directly with the given state of the segment in storage. Note that, as opposed from
-     * the rest of the methods in this class, this does not first update the transaction and then apply it to the
-     * base segment, instead it modifies it directly.
+     * Updates the transaction with the given state of the segment in storage.
      *
      * This method is only meant to be used during recovery mode when we need to restore the state of a segment.
      * During normal operations, these values are set asynchronously by the Writer.

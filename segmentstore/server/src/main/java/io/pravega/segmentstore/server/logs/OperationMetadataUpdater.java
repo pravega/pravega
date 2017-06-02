@@ -285,7 +285,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 previous = this.transactions.peekLast();
             }
 
-            ContainerMetadataUpdateTransaction txn = new ContainerMetadataUpdateTransaction(previous, this.nextTransactionId);
+            ContainerMetadataUpdateTransaction txn = new ContainerMetadataUpdateTransaction(previous, this.metadata, this.nextTransactionId);
             this.nextTransactionId++;
             this.transactions.addLast(txn);
         }

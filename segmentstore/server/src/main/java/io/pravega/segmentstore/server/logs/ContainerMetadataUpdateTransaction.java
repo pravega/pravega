@@ -62,6 +62,10 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     // region Members
 
     private static final byte CURRENT_SERIALIZATION_VERSION = 0;
+    /**
+     * Pointer to the real (live) ContainerMetadata. Used when needing access to live information (such as Storage Info).
+     */
+    private final ContainerMetadata realMetadata;
     private final HashMap<Long, SegmentMetadataUpdateTransaction> segmentUpdates;
     private final HashMap<Long, UpdateableSegmentMetadata> newSegments;
     private final HashMap<String, Long> newSegmentNames;
@@ -73,6 +77,10 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     @Getter
     private int maximumActiveSegmentCount;
     private int baseActiveSegmentCount;
+    /**
+     * The base ContainerMetadata on top of which this UpdateTransaction is based. This isn't necessarily the same as
+     * realMetadata (above) and this should be used when relying on information that is updated via transactions.
+     */
     private ContainerMetadata baseMetadata;
     private long newSequenceNumber;
     @Getter
@@ -92,8 +100,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
      * @param baseMetadata The base Container Metadata.
      * @param transactionId Id of the ContainerMetadataUpdateTransaction.
      */
-    ContainerMetadataUpdateTransaction(ContainerMetadata baseMetadata, long transactionId) {
+    ContainerMetadataUpdateTransaction(ContainerMetadata baseMetadata, ContainerMetadata realMetadata, long transactionId) {
         this.baseMetadata = Preconditions.checkNotNull(baseMetadata, "baseMetadata");
+        this.realMetadata = Preconditions.checkNotNull(realMetadata, "realMetadata");
         this.transactionId = transactionId;
         this.containerId = this.baseMetadata.getContainerId();
         this.recoveryMode = this.baseMetadata.isRecoveryMode();
@@ -741,11 +750,10 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         // 1. Version.
         stream.writeByte(CURRENT_SERIALIZATION_VERSION);
 
-        // 2. Segment Metadata (there is no point in adding the new ones as those ones have not yet had
-        // a chance to be updated in Storage)
-        Collection<Long> segmentIds = this.baseMetadata.getAllStreamSegmentIds();
+        // 2. Segment Metadata. We want to snapshot the actual metadata, and not this transaction. Hence we use realMetadata here.
+        Collection<Long> segmentIds = this.realMetadata.getAllStreamSegmentIds();
         stream.writeInt(segmentIds.size());
-        segmentIds.forEach(segmentId -> serializeStorageSegmentMetadata(this.baseMetadata.getStreamSegmentMetadata(segmentId), stream));
+        segmentIds.forEach(segmentId -> serializeStorageSegmentMetadata(this.realMetadata.getStreamSegmentMetadata(segmentId), stream));
 
         zipStream.finish();
         operation.setContents(byteStream.getData());

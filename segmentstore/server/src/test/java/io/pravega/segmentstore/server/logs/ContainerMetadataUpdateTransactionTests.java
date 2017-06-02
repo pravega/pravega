@@ -1224,7 +1224,7 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     private ContainerMetadataUpdateTransaction createUpdateTransaction(UpdateableContainerMetadata metadata) {
-        return new ContainerMetadataUpdateTransaction(metadata, 0);
+        return new ContainerMetadataUpdateTransaction(metadata, metadata, 0);
     }
 
     private StreamSegmentAppendOperation createAppendNoOffset() {

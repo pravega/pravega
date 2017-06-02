@@ -134,6 +134,9 @@ class BookKeeperLog implements DurableDataLog {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
+            this.rolloverProcessor.close();
+            this.writeProcessor.close();
+
             // Close active ledger.
             WriteLedger writeLedger;
             synchronized (this.lock) {

@@ -10,6 +10,7 @@
 package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import java.util.concurrent.Executor;
 import javax.annotation.concurrent.GuardedBy;
 
@@ -17,15 +18,17 @@ import javax.annotation.concurrent.GuardedBy;
  * An Executor extension that runs the same task asynchronously, but never concurrently. If multiple requests are made
  * during an existing execution of the task, it will be invoked exactly once after the current execution completes.
  */
-public class SequentialAsyncProcessor {
+public class SequentialAsyncProcessor implements AutoCloseable {
     //region Members
 
     private final Runnable runnable;
     private final Executor executor;
     @GuardedBy("this")
-    private boolean writeProcessorWorking;
+    private boolean running;
     @GuardedBy("this")
-    private boolean writeProcessorRunAgain;
+    private boolean runAgain;
+    @GuardedBy("this")
+    private boolean closed;
 
     //endregion
 
@@ -52,12 +55,13 @@ public class SequentialAsyncProcessor {
     public void runAsync() {
         // Determine if a task is running. If so, record the fact we want to have it run again, otherwise reserve our spot.
         synchronized (this) {
-            if (this.writeProcessorWorking) {
-                this.writeProcessorRunAgain = true;
+            Exceptions.checkNotClosed(this.closed, this);
+            if (this.running) {
+                this.runAgain = true;
                 return;
             }
 
-            this.writeProcessorWorking = true;
+            this.running = true;
         }
 
         // Execute the task.
@@ -69,13 +73,18 @@ public class SequentialAsyncProcessor {
                 } finally {
                     // Determine if we need to run the task again. Otherwise release our spot.
                     synchronized (this) {
-                        canContinue = this.writeProcessorRunAgain;
-                        this.writeProcessorRunAgain = false;
-                        this.writeProcessorWorking = canContinue;
+                        canContinue = this.runAgain && !this.closed;
+                        this.runAgain = false;
+                        this.running = canContinue;
                     }
                 }
             }
         });
+    }
+
+    @Override
+    public synchronized void close() {
+        this.closed = true;
     }
 
     //endregion
