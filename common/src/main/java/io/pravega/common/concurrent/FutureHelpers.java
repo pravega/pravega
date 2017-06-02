@@ -44,7 +44,7 @@ import lombok.val;
 public final class FutureHelpers {
 
     /**
-     * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
+     * Waits for the provided future to be complete, and returns true if it was successful, false otherwise.
      *
      * @param f   The future to wait for.
      * @param <T> The Type of the future's result.
