@@ -122,7 +122,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     }
 
     @VisibleForTesting
-    protected SequencedItemList<Operation> createInMemoryLog(){
+    protected SequencedItemList<Operation> createInMemoryLog() {
         return new SequencedItemList<>();
     }
 
