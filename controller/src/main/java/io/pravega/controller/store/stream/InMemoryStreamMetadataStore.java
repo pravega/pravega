@@ -131,21 +131,6 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
-                                                          final String streamName,
-                                                          final StreamConfiguration configuration,
-                                                          final OperationContext context,
-                                                          final Executor executor) {
-        if (scopes.containsKey(scopeName)) {
-            return streams.get(scopedStreamName(scopeName, streamName)).updateConfiguration(configuration);
-        } else {
-            return FutureHelpers.
-                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
-        }
-    }
-
-    @Override
-    @Synchronized
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (!scopes.containsKey(scopeName)) {
             InMemoryScope scope = new InMemoryScope(scopeName);
