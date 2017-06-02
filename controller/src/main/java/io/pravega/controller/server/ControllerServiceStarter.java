@@ -162,8 +162,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             connectionFactory = new ConnectionFactoryImpl(false);
             SegmentHelper segmentHelper = new SegmentHelper();
+
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                     segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
+
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     hostStore, taskMetadataStore, segmentHelper, taskExecutor, host.getHostId(), connectionFactory);
             timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
@@ -211,7 +213,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
-                controllerEventProcessors.bootstrap(streamTransactionMetadataTasks)
+                controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventProcExecutor);
             }
 

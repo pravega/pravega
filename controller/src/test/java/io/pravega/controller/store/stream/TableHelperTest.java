@@ -9,11 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
-import static org.junit.Assert.assertEquals;
+import com.google.common.collect.Lists;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.SegmentRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -22,6 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class TableHelperTest {
     @Test
@@ -60,6 +63,11 @@ public class TableHelperTest {
         historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
         activeSegments = TableHelper.getActiveSegments(historyTable);
         assertEquals(activeSegments, startSegments);
+
+        long epoch = TableHelper.getActiveEpoch(historyTable);
+        assertEquals(0, epoch);
+        epoch = TableHelper.getLatestEpoch(historyTable);
+        assertEquals(1, epoch);
 
         HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 2);
@@ -509,6 +517,43 @@ public class TableHelperTest {
         assertEquals(successors, new ArrayList<>());
     }
 
+    @Test
+    public void scaleTest() {
+        long timestamp = System.currentTimeMillis();
+        final List<Integer> startSegments = Lists.newArrayList(0, 1, 2, 3, 4);
+        byte[] segmentTable = createSegmentTable(5, timestamp);
+
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
+
+        // start new scale
+        List<Integer> newSegments = Lists.newArrayList(5, 6, 7, 8, 9);
+        final double keyRangeChunk = 1.0 / 5;
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, 5)
+                .boxed()
+                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
+                .collect(Collectors.toList());
+
+        segmentTable = updateSegmentTable(segmentTable, newRanges, timestamp + 1);
+        assertTrue(TableHelper.isScaleOngoing(historyTable, segmentTable));
+        assertTrue(TableHelper.isRerunOf(startSegments, newRanges, historyTable, segmentTable));
+
+        final double keyRangeChunkInvalid = 1.0 / 5;
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRangesInvalid = IntStream.range(0, 2)
+                .boxed()
+                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunkInvalid, (x + 1) * keyRangeChunkInvalid))
+                .collect(Collectors.toList());
+        assertFalse(TableHelper.isRerunOf(Lists.newArrayList(5, 6), newRangesInvalid, historyTable, segmentTable));
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+        assertTrue(TableHelper.isScaleOngoing(historyTable, segmentTable));
+        assertTrue(TableHelper.isRerunOf(startSegments, newRanges, historyTable, segmentTable));
+
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 2);
+
+        assertFalse(TableHelper.isScaleOngoing(historyTable, segmentTable));
+    }
+
     private byte[] createSegmentTable(int numSegments, long eventTime) {
         final double keyRangeChunk = 1.0 / numSegments;
 
@@ -528,7 +573,14 @@ public class TableHelperTest {
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
 
+        return updateSegmentTable(segmentTable, newRanges, eventTime);
+    }
+
+    private byte[] updateSegmentTable(byte[] segmentTable, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long eventTime) {
+        final int startingSegNum = segmentTable.length / SegmentRecord.SEGMENT_RECORD_SIZE;
+
         return TableHelper.updateSegmentTable(startingSegNum, segmentTable, newRanges, eventTime);
     }
+
 }
 

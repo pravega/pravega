@@ -55,7 +55,6 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
 
         store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
-        store.setState("Scope", stream1, State.CREATING, null, executor).get();
 
         List<StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 2, streamInScope.size());
