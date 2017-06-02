@@ -15,6 +15,7 @@ import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -412,13 +413,14 @@ public class DurableLogTests extends OperationLogTestBase {
     public void testAddWithDataCorruptionFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
-        int failAfterCommit = 5; // Fail after X DataFrame commits
+        int failAtOperationIndex = 123;
 
         // Setup a DurableLog and start it.
         @Cleanup
         ContainerSetup setup = new ContainerSetup(executorService());
-        @Cleanup
-        DurableLog durableLog = setup.createDurableLog();
+        DurableLogConfig config = setup.durableLogConfig == null ? ContainerSetup.defaultDurableLogConfig() : setup.durableLogConfig;
+        CorruptedDurableLog.failAtIndex = failAtOperationIndex;
+        val durableLog = new CorruptedDurableLog(config, setup);
         durableLog.startAsync().awaitRunning();
 
         Assert.assertNotNull("Internal error: could not grab a pointer to the created TestDurableDataLog.", setup.dataLog.get());
@@ -428,10 +430,6 @@ public class DurableLogTests extends OperationLogTestBase {
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
 
         List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
-        ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
-                count -> count >= failAfterCommit,
-                () -> new DataCorruptionException("intentional"));
-        setup.dataLog.get().setAppendErrorInjectors(null, aSyncErrorInjector);
 
         // Process all generated operations.
         List<OperationWithCompletion> completionFutures = processOperations(operations, durableLog);
@@ -455,6 +453,10 @@ public class DurableLogTests extends OperationLogTestBase {
         boolean encounteredFirstFailure = false;
         for (int i = 0; i < completionFutures.size(); i++) {
             OperationWithCompletion oc = completionFutures.get(i);
+            if (!oc.operation.canSerialize()) {
+                // Non-serializable operations (i.e., ProbeOperations always complete normally).
+                continue;
+            }
 
             // Once an operation failed (in our scenario), no other operation can succeed.
             if (encounteredFirstFailure) {
@@ -1401,4 +1403,22 @@ public class DurableLogTests extends OperationLogTestBase {
     }
 
     //endregion
+
+    // CorruptedDurableLog
+
+    private static class CorruptedDurableLog extends DurableLog {
+        private static int failAtIndex;
+
+        CorruptedDurableLog(DurableLogConfig config, ContainerSetup setup) {
+            super(config, setup.metadata, setup.dataLogFactory, setup.readIndex, setup.executorService);
+        }
+
+        @Override
+        protected SequencedItemList<Operation> createInMemoryLog() {
+            return new CorruptedMemoryOperationLog(failAtIndex);
+        }
+    }
+
+    //endregion
+
 }

@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Runnables;
@@ -106,7 +107,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.metadata = metadata;
         this.executor = executor;
         this.operationFactory = new OperationFactory();
-        this.inMemoryOperationLog = new SequencedItemList<>();
+        this.inMemoryOperationLog = createInMemoryLog();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
         OperationProcessor.Config opConfig = OperationProcessor.Config
@@ -118,6 +119,11 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
+    }
+
+    @VisibleForTesting
+    protected SequencedItemList<Operation> createInMemoryLog(){
+        return new SequencedItemList<>();
     }
 
     //endregion
