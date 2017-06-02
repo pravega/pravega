@@ -147,7 +147,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
-            writeData = populate(log, getWriteCount());
+            writeData = populate(log, getTruncateWriteCount());
             addresses = new ArrayList<>(writeData.keySet());
         }
 
@@ -299,6 +299,13 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      */
     protected abstract int getWriteCount();
 
+    /**
+     * Gets a value indicating how many writes to perform in a truncate test..
+     */
+    protected int getTruncateWriteCount() {
+        return getWriteCount() / 4;
+    }
+
     //endregion
 
     //region Helpers
@@ -312,10 +319,17 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
     protected TreeMap<LogAddress, byte[]> populate(DurableDataLog log, int writeCount) {
         TreeMap<LogAddress, byte[]> writtenData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
+        val data = new ArrayList<byte[]>();
+        val futures = new ArrayList<CompletableFuture<LogAddress>>();
         for (int i = 0; i < writeCount; i++) {
             byte[] writeData = getWriteData();
-            LogAddress address = log.append(new ByteArraySegment(writeData), TIMEOUT).join();
-            writtenData.put(address, writeData);
+            futures.add(log.append(new ByteArraySegment(writeData), TIMEOUT));
+            data.add(writeData);
+        }
+
+        val addresses = FutureHelpers.allOfWithResults(futures).join();
+        for (int i = 0; i < data.size(); i++) {
+            writtenData.put(addresses.get(i), data.get(i));
         }
 
         return writtenData;

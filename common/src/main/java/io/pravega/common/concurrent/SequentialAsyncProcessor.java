@@ -14,8 +14,8 @@ import java.util.concurrent.Executor;
 import javax.annotation.concurrent.GuardedBy;
 
 /**
- * An Executor extension that runs the same asynchronously, but never concurrently. If multiple requests are made during
- * an existing execution of the task, it will be invoked exactly once after the current execution completes.
+ * An Executor extension that runs the same task asynchronously, but never concurrently. If multiple requests are made
+ * during an existing execution of the task, it will be invoked exactly once after the current execution completes.
  */
 public class SequentialAsyncProcessor {
     //region Members

@@ -48,7 +48,6 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @GuardedBy("entries")
     private long offset;
     @GuardedBy("entries")
-    private long lastAppendSequence;
     private long epoch;
     private boolean closed;
     private boolean initialized;
@@ -65,7 +64,6 @@ class InMemoryDurableDataLog implements DurableDataLog {
         this.appendDelayProvider = appendDelayProvider;
         this.executorService = executorService;
         this.offset = Long.MIN_VALUE;
-        this.lastAppendSequence = Long.MIN_VALUE;
         this.epoch = Long.MIN_VALUE;
         this.clientId = UUID.randomUUID().toString();
     }
@@ -99,10 +97,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
             Entry last = this.entries.getLast();
             if (last == null) {
                 this.offset = 0;
-                this.lastAppendSequence = -1;
             } else {
                 this.offset = last.sequenceNumber + last.data.length;
-                this.lastAppendSequence = last.sequenceNumber;
             }
         }
 
@@ -169,7 +165,6 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
                 // Only update internals after a successful add.
                 this.offset += entry.data.length;
-                this.lastAppendSequence = entry.sequenceNumber;
             }
             return CompletableFuture.completedFuture(new InMemoryLogAddress(entry.sequenceNumber));
         } catch (Throwable ex) {
