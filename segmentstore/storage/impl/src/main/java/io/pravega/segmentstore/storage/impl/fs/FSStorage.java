@@ -29,7 +29,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
-import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
@@ -94,7 +93,7 @@ public class FSStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
-        return CompletableFuture.supplyAsync( ()-> syncOpenRead(streamSegmentName),
+        return CompletableFuture.supplyAsync( () -> syncOpenRead(streamSegmentName),
                 executor);
     }
 
@@ -154,13 +153,13 @@ public class FSStorage implements Storage {
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration
             timeout) {
-            return CompletableFuture.supplyAsync(() ->syncConcat(targetHandle, offset, sourceSegment, timeout),
+            return CompletableFuture.supplyAsync(() -> syncConcat(targetHandle, offset, sourceSegment, timeout),
                     executor);
     }
 
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-            return CompletableFuture.supplyAsync(() ->syncDelete(handle, timeout), executor);
+            return CompletableFuture.supplyAsync(() -> syncDelete(handle, timeout), executor);
     }
 
     //endregion
@@ -194,7 +193,7 @@ public class FSStorage implements Storage {
         Path path = Paths.get(config.getNfsRoot(), handle.getSegmentName());
 
         if (!Files.exists(path)) {
-            throw new CompletionException((new StreamSegmentNotExistsException(handle.getSegmentName(), null)));
+            throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
         }
 
         try {
@@ -297,13 +296,11 @@ public class FSStorage implements Storage {
                 }
                 return null;
             }
-        } catch (Exception exc) {
+        } catch (IOException exc) {
             log.info("Write to segment {} at offset {} failed with exception {} ", handle.getSegmentName(), offset,
                     exc.getMessage());
             if (exc instanceof AccessDeniedException) {
                 throw new CompletionException(new IllegalStateException(handle.getSegmentName()));
-            } else if (exc instanceof NonWritableChannelException) {
-                throw new CompletionException(new IllegalArgumentException(exc));
             } else if (exc instanceof ClosedChannelException) {
                 throw new CompletionException(new StreamSegmentSealedException(handle.getSegmentName(), exc));
             } else {
