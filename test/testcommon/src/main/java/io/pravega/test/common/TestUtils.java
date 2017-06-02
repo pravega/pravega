@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -22,8 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TestUtils {
     // Linux uses ports from range 32768 - 61000.
     private static final int BASE_PORT = 32768;
-    private static final int MAX_PORT_COUNT = 28232;
-    private static final AtomicInteger NEXT_PORT = new AtomicInteger(1);
+    private static final int MAX_PORT_COUNT = 28233;
+    private static final AtomicInteger NEXT_PORT = new AtomicInteger(new Random().nextInt(MAX_PORT_COUNT));
 
     /**
      * A helper method to get a random free port.
