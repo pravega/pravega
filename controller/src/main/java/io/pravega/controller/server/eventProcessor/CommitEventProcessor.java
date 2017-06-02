@@ -15,7 +15,6 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
-import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
@@ -119,6 +118,11 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     }
 
     private CompletableFuture<Void> postponeCommitEvent(CommitEvent event) {
+        return Retry.indefinitelyWithExpBackoff("Error writing event back into CommitStream")
+                .runAsync(() -> writeEvent(event), executor);
+    }
+
+    private CompletableFuture<Void> writeEvent(CommitEvent event) {
         UUID txnId = event.getTxid();
         log.debug("Transaction {}, pushing back CommitEvent to commitStream", txnId);
         AckFuture future = this.getSelfWriter().write(event);
@@ -150,20 +154,10 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream,
-                                                                       final int segmentNumber, final UUID txId) {
-        final long retryInitialDelay = 100;
-        final int retryMultiplier = 10;
-        final int retryMaxAttempts = 100;
-        final long retryMaxDelay = 100000;
-
-        return Retry.withExpBackoff(retryInitialDelay, retryMultiplier, retryMaxAttempts, retryMaxDelay)
-                .retryWhen(RetryableException::isRetryable)
-                .throwingOn(RuntimeException.class)
-                .runAsync(() -> segmentHelper.commitTransaction(scope,
-                        stream,
-                        segmentNumber,
-                        txId,
-                        this.hostControllerStore,
-                        this.connectionFactory), executor);
+                                                                       final int segment, final UUID txId) {
+        String failureMessage = String.format("Transaction = %s, error sending commit notification for segment %d",
+                txId, segment);
+        return Retry.indefinitelyWithExpBackoff(failureMessage).runAsync(() -> segmentHelper.commitTransaction(scope,
+                stream, segment, txId, this.hostControllerStore, this.connectionFactory), executor);
     }
 }
