@@ -419,7 +419,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         ContainerSetup setup = new ContainerSetup(executorService());
         DurableLogConfig config = setup.durableLogConfig == null ? ContainerSetup.defaultDurableLogConfig() : setup.durableLogConfig;
-        CorruptedDurableLog.failAtIndex = failAtOperationIndex;
+        CorruptedDurableLog.FAIL_AT_INDEX.set(failAtOperationIndex);
         val durableLog = new CorruptedDurableLog(config, setup);
         durableLog.startAsync().awaitRunning();
 
@@ -1407,7 +1407,7 @@ public class DurableLogTests extends OperationLogTestBase {
     // CorruptedDurableLog
 
     private static class CorruptedDurableLog extends DurableLog {
-        private static int failAtIndex;
+        private static final AtomicInteger FAIL_AT_INDEX = new AtomicInteger();
 
         CorruptedDurableLog(DurableLogConfig config, ContainerSetup setup) {
             super(config, setup.metadata, setup.dataLogFactory, setup.readIndex, setup.executorService);
@@ -1415,7 +1415,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         @Override
         protected SequencedItemList<Operation> createInMemoryLog() {
-            return new CorruptedMemoryOperationLog(failAtIndex);
+            return new CorruptedMemoryOperationLog(FAIL_AT_INDEX.get());
         }
     }
 
