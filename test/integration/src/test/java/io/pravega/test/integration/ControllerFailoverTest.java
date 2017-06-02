@@ -22,7 +22,6 @@ import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -41,21 +40,13 @@ public class ControllerFailoverTest {
     private PravegaConnectionListener server;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         // 1. Start ZK
-        try {
-            zkTestServer = new TestingServerStarter().start();
-        } catch (Exception e) {
-            Assert.fail("Failed starting ZK test server");
-        }
+        zkTestServer = new TestingServerStarter().start();
 
         // 2. Start Pravega SSS
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        try {
-            serviceBuilder.initialize();
-        } catch (Exception e) {
-            Assert.fail("Failed starting Pravega host");
-        }
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
@@ -72,7 +63,7 @@ public class ControllerFailoverTest {
     }
 
     @Test(timeout = 120000)
-    public void testSessionExpiryToleranceMinimalServices() {
+    public void testSessionExpiryToleranceMinimalServices() throws Exception {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
@@ -82,7 +73,7 @@ public class ControllerFailoverTest {
     }
 
     @Test(timeout = 120000)
-    public void testSessionExpiryToleranceAllServices() {
+    public void testSessionExpiryToleranceAllServices() throws Exception {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
@@ -91,38 +82,17 @@ public class ControllerFailoverTest {
         testSessionExpiryTolerance(controllerWrapper, controllerPort);
     }
 
-    private void testSessionExpiryTolerance(final ControllerWrapper controllerWrapper, final int controllerPort) {
+    private void testSessionExpiryTolerance(final ControllerWrapper controllerWrapper, final int controllerPort) throws Exception {
 
-        try {
-            controllerWrapper.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Received interrupt while awaiting start of controllerWrapper", e);
-            Assert.fail("Failed starting controllerWrapper");
-            return;
-        }
+        controllerWrapper.awaitRunning();
 
         // Simulate ZK session timeout
-        try {
-            controllerWrapper.forceClientSessionExpiry();
-        } catch (Exception e) {
-            log.error("Error while simulating client session expiry", e);
-            Assert.fail();
-        }
+        controllerWrapper.forceClientSessionExpiry();
 
         // Now, that session has expired, lets do some operations.
-        try {
-            controllerWrapper.awaitPaused();
-        } catch (IllegalStateException e) {
-            log.error("Error waiting for starter termination", e);
-            Assert.fail();
-        }
+        controllerWrapper.awaitPaused();
 
-        try {
-            controllerWrapper.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Error waiting for starter ready", e);
-            Assert.fail();
-        }
+        controllerWrapper.awaitRunning();
 
         URI controllerURI = URI.create("tcp://localhost:" + controllerPort);
         StreamManager streamManager = StreamManager.create(controllerURI);
@@ -144,36 +114,19 @@ public class ControllerFailoverTest {
 
         streamManager.deleteScope(SCOPE);
 
-        try {
-            controllerWrapper.close();
-        } catch (Exception e) {
-            log.error("Error closing controllerWrapper", e);
-            Assert.fail();
-        }
+        controllerWrapper.close();
 
         controllerWrapper.awaitTerminated();
     }
 
     @Test(timeout = 30000)
-    public void testStop() {
+    public void testStop() throws Exception {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
-
-        try {
-            controllerWrapper.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Received interrupt while awaiting start of controllerWrapper", e);
-            Assert.fail("Failed starting controllerWrapper");
-            return;
-        }
-
-        try {
-            controllerWrapper.close();
-        } catch (Exception e) {
-            Assert.fail("Failed stopping controllerWrapper");
-        }
+        controllerWrapper.awaitRunning();
+        controllerWrapper.close();
     }
 }

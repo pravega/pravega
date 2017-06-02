@@ -18,6 +18,9 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
@@ -48,6 +51,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private final Controller controller;
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
+    private final SegmentMetadataClientFactory metaFactory;
     private final ConnectionFactory connectionFactory;
 
     /**
@@ -64,6 +68,7 @@ public class ClientFactoryImpl implements ClientFactory {
         this.connectionFactory = new ConnectionFactoryImpl(false);
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+        this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
     }
 
     /**
@@ -76,21 +81,24 @@ public class ClientFactoryImpl implements ClientFactory {
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, connectionFactory, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
-                new SegmentOutputStreamFactoryImpl(controller, connectionFactory));
+             new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
+             new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
     }
 
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
-            SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory) {
+            SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory, SegmentMetadataClientFactory metaFactory) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);
         Preconditions.checkNotNull(outFactory);
+        Preconditions.checkNotNull(metaFactory);
         this.scope = scope;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
         this.inFactory = inFactory;
         this.outFactory = outFactory;
+        this.metaFactory = metaFactory;
     }
 
     @Override
@@ -115,7 +123,7 @@ public class ClientFactoryImpl implements ClientFactory {
                 new JavaSerializer<>(),
                 synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
-        stateManager.initializeReader();
+        stateManager.initializeReader(config.getInitialAllocationDelay());
         return new EventStreamReaderImpl<T>(inFactory, s, stateManager, new Orderer(), milliTime, config);
     }
     
@@ -125,7 +133,8 @@ public class ClientFactoryImpl implements ClientFactory {
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
         SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment);
-        return new RevisionedStreamClientImpl<>(segment, in, out, serializer);
+        SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment);
+        return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer);
     }
 
     @Override

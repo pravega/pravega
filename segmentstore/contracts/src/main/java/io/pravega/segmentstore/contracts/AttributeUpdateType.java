@@ -45,8 +45,11 @@ public enum AttributeUpdateType {
     Accumulate((byte) 3),
 
     /**
-     * Any updates will replace the current attribute value, but only if the existing value matches an expected value
-     * (or if there is no value defined currently). This is essentially Compare-And-Set.
+     * Any updates will replace the current attribute value, but only if the existing value matches
+     * an expected value. If the value is different the update will fail. This can be used to
+     * perform compare and set operations. The value {@link SegmentMetadata#NULL_ATTRIBUTE_VALUE} is
+     * used to indicate a non value. IE: to remove the attribute or if the value is expected not to
+     * exist.
      */
     ReplaceIfEquals((byte) 4);
 

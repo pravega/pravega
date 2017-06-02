@@ -145,16 +145,16 @@ class MetadataCleaner extends AbstractThreadPoolService {
         val cleanupTasks = cleanupCandidates
                 .stream()
                 .filter(sm -> !sm.isDeleted() || !sm.isMerged())
-                .map(sm -> this.stateStore.put(sm.getName(), new SegmentState(sm), this.config.getSegmentMetadataExpiration()))
+                .map(sm -> this.stateStore.put(sm.getName(), new SegmentState(sm.getId(), sm), this.config.getSegmentMetadataExpiration()))
                 .collect(Collectors.toList());
 
         return FutureHelpers
                 .allOf(cleanupTasks)
-                .thenRun(() -> {
+                .thenRunAsync(() -> {
                     Collection<SegmentMetadata> evictedSegments = this.metadata.cleanup(cleanupCandidates, lastSeqNo);
                     this.cleanupCallback.accept(evictedSegments);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size());
-                });
+                }, this.executor);
     }
 
     private CompletableFuture<Void> delay() {
