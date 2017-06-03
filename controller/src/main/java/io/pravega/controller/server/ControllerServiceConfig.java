@@ -44,9 +44,9 @@ public interface ControllerServiceConfig {
     HostMonitorConfig getHostMonitorConfig();
 
     /**
-     * Fetches whether the controller cluster listener is enabled, and its configuration if enabled.
+     * Fetches whether the controller cluster listener is enabled.
      *
-     * @return Whether the controller cluster listener is enabled, and its configuration if enabled.
+     * @return Whether the controller cluster listener is enabled.
      */
     boolean isControllerClusterListenerEnabled();
 
