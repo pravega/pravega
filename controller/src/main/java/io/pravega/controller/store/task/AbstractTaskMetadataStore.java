@@ -132,6 +132,7 @@ public abstract class AbstractTaskMetadataStore implements TaskMetadataStore {
 
     protected TaggedResource getTaggedResource(final String node) {
         String[] splits = node.split(TAG_SEPARATOR);
+        Preconditions.checkArgument(splits.length == 2, "Invalid TaggedResource node");
         return new TaggedResource(splits[1], getResource(splits[0]));
     }
 }

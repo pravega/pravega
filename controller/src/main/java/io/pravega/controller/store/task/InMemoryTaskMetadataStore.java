@@ -27,7 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 @Slf4j
 class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
 
-    @GuardedBy("itself")
+    @GuardedBy("lockTable")
     private final Map<Resource, LockData> lockTable;
 
     InMemoryTaskMetadataStore(ScheduledExecutorService executor) {
@@ -101,7 +101,7 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
+    public CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
                                                          final String owner,
                                                          final String tag) {
         synchronized (lockTable) {

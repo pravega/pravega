@@ -80,7 +80,7 @@ public class InMemoryHostIndex implements HostIndex {
     }
 
     @Override
-    public synchronized CompletableFuture<Void> removeHost(final String hostId) {
+    public CompletableFuture<Void> removeHost(final String hostId) {
         Preconditions.checkNotNull(hostId);
         hostTable.remove(hostId);
         return CompletableFuture.completedFuture(null);

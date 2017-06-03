@@ -119,7 +119,7 @@ public class ZKHostIndex implements HostIndex {
                 client.create().withMode(createMode).inBackground(callback, executor).forPath(path, data);
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException());
+            result.completeExceptionally(new StoreException.UnknownException(e));
         }
         return result;
     }
@@ -138,7 +138,7 @@ public class ZKHostIndex implements HostIndex {
                 }
             }, executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException());
+            result.completeExceptionally(new StoreException.UnknownException(e));
         }
         return result;
     }
@@ -155,7 +155,7 @@ public class ZKHostIndex implements HostIndex {
                 }
             }, executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException());
+            result.completeExceptionally(new StoreException.UnknownException(e));
         }
         return result;
     }
@@ -173,7 +173,7 @@ public class ZKHostIndex implements HostIndex {
                 }
             }, executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException());
+            result.completeExceptionally(new StoreException.UnknownException(e));
         }
         return result;
     }
