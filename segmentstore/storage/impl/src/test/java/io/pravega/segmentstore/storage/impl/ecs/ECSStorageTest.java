@@ -9,41 +9,26 @@
  */
 package io.pravega.segmentstore.storage.impl.ecs;
 
-import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
-import com.emc.object.s3.bean.DeleteObjects;
 import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
-import com.google.common.base.Strings;
-import io.pravega.common.io.FileHelpers;
-import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.StorageTestBase;
-import io.pravega.segmentstore.storage.impl.nfs.NFSSegmentHandle;
-import io.pravega.segmentstore.storage.impl.nfs.NFSStorage;
-import io.pravega.segmentstore.storage.impl.nfs.NFSStorageConfig;
 import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
@@ -59,7 +44,11 @@ public class ECSStorageTest extends StorageTestBase {
     public void setUp() throws Exception {
         S3Config ecsConfig = null;
 
-        this.adapterConfig = ECSStorageConfig.builder().with(ECSStorageConfig.ECS_BUCKET, "kanpravegatest").build();
+        this.adapterConfig = ECSStorageConfig.builder()
+                .with(ECSStorageConfig.ECS_BUCKET, "kanpravegatest")
+                .with(ECSStorageConfig.ECS_ACCESS_KEY_ID, "user1")
+                .with(ECSStorageConfig.ECS_SECRET_KEY, "Kph6HD4lFlexKyYp9FYMpg38iXSxTxlizbWm1fUN")
+                .build();
         if (client == null) {
             try {
                 createStorage();
@@ -253,12 +242,12 @@ public class ECSStorageTest extends StorageTestBase {
     protected Storage createStorage() {
         S3Config ecsConfig = null;
         try {
-            ecsConfig = new S3Config(new URI("http://104.197.245.124:9020"));
+            ecsConfig = new S3Config(new URI("http://172.16.39.136:9020"));
         } catch (URISyntaxException e) {
             e.printStackTrace();
         }
         //ecsConfig.withIdentity("user1").withSecretKey("ZyZWPOUr/A6OZnYiyrvfdiR94EHlBx//jozOW6gn");
-        ecsConfig.withIdentity("user2").withSecretKey("tCia/hQCixJF8njn9R89RqbuwyeyavC3aXPAXojJ");
+        ecsConfig.withIdentity(adapterConfig.getEcsAccessKey()).withSecretKey(adapterConfig.getEcsSecretKey());
 
         client = new S3JerseyClient(ecsConfig);
             return new ECSStorage(client, this.adapterConfig, executorService());
@@ -268,9 +257,9 @@ public class ECSStorageTest extends StorageTestBase {
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
         FileChannel channel = null;
         if (readOnly) {
-            return NFSSegmentHandle.getReadHandle(segmentName);
+            return ECSSegmentHandle.getReadHandle(segmentName);
         } else {
-            return NFSSegmentHandle.getWriteHandle(segmentName);
+            return ECSSegmentHandle.getWriteHandle(segmentName);
         }
     }
 

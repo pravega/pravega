@@ -23,11 +23,7 @@ import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.jersey.S3JerseyClient;
-import com.emc.object.s3.request.CompleteMultipartUploadRequest;
-import com.emc.object.s3.request.CopyPartRequest;
-import com.emc.object.s3.request.ListObjectsRequest;
-import com.emc.object.s3.request.PutObjectRequest;
-import com.emc.object.s3.request.SetObjectAclRequest;
+import com.emc.object.s3.request.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -40,6 +36,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
 import org.jets3t.service.acl.GroupGrantee;
 
 import java.io.IOException;
@@ -53,6 +50,7 @@ import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -177,7 +175,7 @@ public class ECSStorage implements Storage {
 
             boolean canWrite = false;
             canWrite = acls.getGrants().stream().filter((grant) -> {
-                        return grant.getPermission().compareTo(Permission.WRITE) > 0;
+                        return grant.getPermission().compareTo(Permission.WRITE) >= 0;
             }).count() > 0;
 
             if (!canWrite) {
@@ -296,10 +294,16 @@ public class ECSStorage implements Storage {
 
     private void syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration
             timeout, CompletableFuture<Integer> retVal) {
+        log.info("Creating a inputstream at offset {} for stream {}", offset, handle.getSegmentName());
 
-        try {
-            InputStream reader = client.readObjectStream(config.getEcsBucket(),
-                    config.getEcsRoot() + handle.getSegmentName(), Range.fromOffsetLength(offset, length));
+        if ( offset < 0 || bufferOffset < 0 || length < 0 ) {
+            retVal.completeExceptionally( new ArrayIndexOutOfBoundsException());
+            return;
+        }
+
+        try ( InputStream reader = client.readObjectStream(config.getEcsBucket(),
+                config.getEcsRoot() + handle.getSegmentName(), Range.fromOffset(offset))) {
+
 
             if (reader == null) {
                 log.info("Object does not exist {} in bucket {} ", config.getEcsRoot() + handle.getSegmentName(),
@@ -323,7 +327,16 @@ public class ECSStorage implements Storage {
             retVal.complete(originalLength);
         } catch (Exception e) {
             if (e instanceof S3Exception) {
-                retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName()));
+                if ( ((S3Exception) e).getErrorCode().equals("InvalidRange")) {
+                    retVal.completeExceptionally(new ArrayIndexOutOfBoundsException());
+                    return;
+                } else if ( ((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
+                    retVal.completeExceptionally(new StreamSegmentNotExistsException(handle.getSegmentName()));
+                    return;
+                }
+            }
+            if ( e instanceof IndexOutOfBoundsException) {
+                retVal.completeExceptionally(new ArrayIndexOutOfBoundsException());
                 return;
             }
             retVal.completeExceptionally(e);
@@ -334,21 +347,31 @@ public class ECSStorage implements Storage {
 
     private void syncGetStreamSegmentInfo(String streamSegmentName, Duration timeout,
                                           CompletableFuture<SegmentProperties> retVal) {
-        S3ObjectMetadata result = client.getObjectMetadata(config.getEcsBucket(),
-                config.getEcsRoot() + streamSegmentName);
+        try {
+            S3ObjectMetadata result = client.getObjectMetadata(config.getEcsBucket(),
+                    config.getEcsRoot() + streamSegmentName);
 
-        //client.
-        AccessControlList acls = client.getObjectAcl(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
+            //client.
+            AccessControlList acls = client.getObjectAcl(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
 
-        boolean canWrite = false;
-        canWrite = acls.getGrants().stream().filter((grant) -> {
-            return  grant.getPermission().compareTo(Permission.WRITE) > 0;
-        }).count() > 0;
+            boolean canWrite = false;
+            canWrite = acls.getGrants().stream().filter((grant) -> {
+                return grant.getPermission().compareTo(Permission.WRITE) >= 0;
+            }).count() > 0;
 
-        StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName,
-                result.getContentLength(), !canWrite, false,
-                new ImmutableDate(result.getLastModified().toInstant().toEpochMilli()));
+            StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName,
+                    result.getContentLength(), !canWrite, false,
+                    new ImmutableDate(result.getLastModified().toInstant().toEpochMilli()));
             retVal.complete(information);
+        }catch (Exception e) {
+            if (e instanceof S3Exception) {
+                if (((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
+                    retVal.completeExceptionally(new StreamSegmentNotExistsException(streamSegmentName));
+                    return;
+                }
+            }
+            retVal.completeExceptionally(e);
+        }
     }
 
     private void syncExists(String streamSegmentName, Duration timeout, CompletableFuture<Boolean> retFuture) {
@@ -379,7 +402,17 @@ public class ECSStorage implements Storage {
                     config.getEcsRoot() + streamSegmentName,
                      (Object) null);
 
-            request.setCannedAcl(CannedAcl.BucketOwnerFullControl);
+           // request.setCannedAcl(CannedAcl.BucketOwnerFullControl);
+
+
+            AccessControlList acl =  new AccessControlList();
+            acl.addGrants(new Grant[]{
+                    new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey())
+                            , Permission.FULL_CONTROL)
+            });
+
+            request.setAcl(acl);
+
             client.putObject(request);
 
             log.info("Created Segment {}", streamSegmentName);
@@ -441,7 +474,7 @@ public class ECSStorage implements Storage {
             acl.getGrants().clear();
             acl.addGrants(new Grant[]{
                     new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey())
-                    ,Permission.READ_ACP )
+                    ,Permission.READ )
             });
 
          client.setObjectAcl(new SetObjectAclRequest( config.getEcsBucket(),
@@ -470,6 +503,15 @@ public class ECSStorage implements Storage {
             String targetPath = config.getEcsRoot() + targetHandle.getSegmentName();
 
             String uploadId = client.initiateMultipartUpload(config.getEcsBucket(), targetPath);
+
+            // check whether the source is sealed
+            SegmentProperties si = getStreamSegmentInfo(sourceSegment, Duration.ZERO).get();
+
+            if ( !si.isSealed()) {
+                retVal.completeExceptionally(new IllegalStateException());
+                return;
+            }
+
 
             //Upload the first part
             CopyPartRequest copyRequest = new CopyPartRequest(config.getEcsBucket(),
@@ -502,7 +544,7 @@ public class ECSStorage implements Storage {
             client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getEcsBucket(),
                     targetPath, uploadId).withParts(partEtags));
 
-            SegmentProperties si = getStreamSegmentInfo(targetHandle.getSegmentName(), Duration.ZERO).get();
+            si = getStreamSegmentInfo(targetHandle.getSegmentName(), Duration.ZERO).get();
             log.info("Properties after concat completion : length is {} ",si.getLength());
 
             client.deleteObject(config.getEcsBucket(), config.getEcsRoot() + sourceSegment);
