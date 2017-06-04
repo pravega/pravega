@@ -41,6 +41,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -55,7 +57,7 @@ import java.net.URISyntaxException;
 @RunWith(SystemTestRunner.class)
 public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
 
-    private static final String STREAM_NAME = "testMultiReaderWriterStream";
+    private static final String STREAM_NAME = "testMultiReaderWriterStream" +  new Random().nextInt(Integer.MAX_VALUE);
     private static final int NUM_WRITERS = 20;
     private static final int NUM_READERS = 20;
     private static final long NUM_EVENTS = 20000;
@@ -197,6 +199,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         }
         //create a reader group
         log.info("Creating Reader group : {}", readerGroupName);
+
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri);
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
@@ -204,36 +207,53 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         //create 20 readers
         log.info("creating {} readers", NUM_READERS);
         List<CompletableFuture<Void>> readerList = new ArrayList<>();
+        String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
         //start reading events
         for (int i = 0; i < NUM_READERS; i++) {
             log.info("starting reader{}", i);
-            readerList.add(startReader("reader" + i, clientFactory, readerGroupName,
+            readerList.add(startReader(readerName + i, clientFactory, readerGroupName,
                     eventsReadFromPravega, eventData, eventReadCount, stopReadFlag));
         }
         //wait for writers completion
         for (int i = 0; i < writerList.size(); i++) {
+            log.info("get on writer list {} ", writerList.get(i).get());
             CompletableFuture.allOf(writerList.get(i));
         }
         while (NUM_EVENTS != eventsReadFromPravega.size()) {
             Thread.sleep(5);
         }
+
         stopReadFlag.set(true);
+
+        //wait for readers completion
+        for (int i = 0; i < readerList.size(); i++) {
+            log.info("get on readerlist {} ", readerList.get(i).get());
+            CompletableFuture.allOf(readerList.get(i));
+        }
+
         log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
                 "Count: {}", eventData.get(), eventsReadFromPravega.size());
         assertEquals(NUM_EVENTS, eventsReadFromPravega.size());
         assertEquals(NUM_EVENTS, new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
         //stop reading when no. of reads= no. of writes
         log.debug("test {} succeed", "multiReaderWriterTest");
-        //deleting stream
-        controller.deleteStream(scope, STREAM_NAME);
-        //deleting scope
-        controller.deleteScope(scope);
 
+        Thread.sleep(50);
+        //seal a stream
+        CompletableFuture<Boolean> sealsStreamStatus = controller.sealStream(scope, STREAM_NAME);
+        assertTrue(sealsStreamStatus.get());
+
+        //deleting stream
+        CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
+        assertTrue(deleteStreamStatus.get());
+        //deleting scope
+        CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
+        assertTrue(deleteScopeStatus.get());
     }
 
     private CompletableFuture<Void> startNewWriter(final AtomicLong data, final ClientFactory clientFactory) {
         return CompletableFuture.runAsync(() -> {
-            EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
+            final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
                     EventWriterConfig.builder().build());
             for (int i = 0; i < 1000; i++) {
@@ -256,7 +276,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
             readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
                                                 AtomicLong readCount, final AtomicBoolean exitFlag) {
         return CompletableFuture.runAsync(() -> {
-            final EventStreamReader<Long> reader = clientFactory.createReader(id,
+             final EventStreamReader<Long> reader = clientFactory.createReader(id,
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
