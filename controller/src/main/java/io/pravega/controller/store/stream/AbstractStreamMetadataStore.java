@@ -25,6 +25,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -409,11 +410,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Pair<TxnStatus, Integer>> sealTransaction(final String scopeName, final String streamName,
-                                                        final UUID txId, final boolean commit,
-                                                        final Optional<Integer> version,
-                                                        final OperationContext context,
-                                                        final Executor executor) {
+    public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final String scopeName,
+                                                                              final String streamName,
+                                                                              final UUID txId,
+                                                                              final boolean commit,
+                                                                              final Optional<Integer> version,
+                                                                              final OperationContext context,
+                                                                              final Executor executor) {
         return withCompletion(getStream(scopeName, streamName, context)
                 .sealTransaction(txId, commit, version), executor);
     }
@@ -466,9 +469,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(final String scope, final String stream,
-                                                                          final OperationContext context,
-                                                                          final Executor executor) {
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch(final String scope,
+                                                                                 final String stream,
+                                                                                 final OperationContext context,
+                                                                                 final Executor executor) {
         return withCompletion(getStream(scope, stream, context).getActiveEpoch(), executor);
     }
 

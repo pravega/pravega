@@ -239,9 +239,9 @@ public class StreamTransactionMetadataTasks extends TaskBase {
         Optional<Integer> versionOpt = Optional.ofNullable(version);
         return streamMetadataStore.sealTransaction(scope, stream, txnId, false, versionOpt, ctx, executor)
                 .thenComposeAsync(pair -> {
-                    TxnStatus status = pair.getLeft();
+                    TxnStatus status = pair.getKey();
                     if (status == TxnStatus.ABORTING) {
-                        int epoch = pair.getRight();
+                        int epoch = pair.getValue();
                         String key = txnId.toString();
                         AbortEvent event = new AbortEvent(scope, stream, epoch, txnId);
                         return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter,
@@ -257,9 +257,9 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                                        final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txnId, true, Optional.empty(), context, executor)
                 .thenComposeAsync(pair -> {
-                    TxnStatus status = pair.getLeft();
+                    TxnStatus status = pair.getKey();
                     if (status == TxnStatus.COMMITTING) {
-                        int epoch = pair.getRight();
+                        int epoch = pair.getValue();
                         String key = scope + stream;
                         CommitEvent event = new CommitEvent(scope, stream, epoch, txnId);
                         return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter,

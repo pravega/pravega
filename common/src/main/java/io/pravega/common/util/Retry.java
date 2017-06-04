@@ -56,7 +56,7 @@ import lombok.extern.slf4j.Slf4j;
 public final class Retry {
 
     private final static long DEFAULT_RETRY_INIT_DELAY = 100;
-    private final static int DEFAULT_RETRY_MULTIPLIER = 10;
+    private final static int DEFAULT_RETRY_MULTIPLIER = 2;
     private final static long DEFAULT_RETRY_MAX_DELAY = Duration.ofSeconds(5).toMillis();
 
     private Retry() {

@@ -12,9 +12,9 @@ package io.pravega.controller.store.stream;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.client.stream.StreamConfiguration;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -195,7 +195,7 @@ interface Stream {
     /**
      * Method to start new transaction creation
      *
-     * @return
+     * @return Details of created transaction.
      */
     CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
                                                                   final long lease,
@@ -221,39 +221,44 @@ interface Stream {
     CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId);
 
     /**
-     * Seal given transaction
+     * Seal a given transaction.
      *
-     * @param txId
-     * @return
+     * @param txId    transaction identifier.
+     * @param commit  whether to commit or abort the specified transaction.
+     * @param version optional expected version of transaction data node to validate before updating it.
+     * @return        a pair containing transaction status and its epoch.
      */
-    CompletableFuture<Pair<TxnStatus, Integer>> sealTransaction(final UUID txId, final boolean commit,
-                                                                final Optional<Integer> version);
+    CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                                   final boolean commit,
+                                                                                   final Optional<Integer> version);
 
     /**
      * Returns transaction's status
      *
-     * @param txId
-     * @return
+     * @param txId transaction identifier.
+     * @return     transaction status.
      */
     CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId);
 
     /**
-     * Commits a transaction
-     * If already committed, return TxnStatus.Committed
-     * If aborted, throw OperationOnTxNotAllowedException
+     * Commits a transaction.
+     * If already committed, return TxnStatus.Committed.
+     * If aborting/aborted, return a failed future with OperationOnTxNotAllowedException.
      *
-     * @param txId
-     * @return
+     * @param epoch transaction epoch.
+     * @param txId  transaction identifier.
+     * @return      transaction status.
      */
     CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId) throws OperationOnTxNotAllowedException;
 
     /**
-     * Commits a transaction
-     * If already aborted, return TxnStatus.Aborted
-     * If committed, throw OperationOnTxNotAllowedException
+     * Aborts a transaction.
+     * If already aborted, return TxnStatus.Aborted.
+     * If committing/committed, return a failed future with OperationOnTxNotAllowedException.
      *
-     * @param txId
-     * @return
+     * @param epoch transaction epoch.
+     * @param txId  transaction identifier.
+     * @return      transaction status.
      */
     CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId) throws OperationOnTxNotAllowedException;
 
@@ -268,16 +273,16 @@ interface Stream {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns();
 
     /**
-     * Returns the latest epoch of the specified stream.
-     * @return latest epoch of the specified stream.
+     * Returns the latest stream epoch.
+     * @return latest stream epoch.
      */
-    CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch();
+    CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch();
 
     /**
-     * Returns the currently active epoch of the specified stream.
-     * @return currently active epoch of the specified stream.
+     * Returns the currently active stream epoch.
+     * @return currently active stream epoch.
      */
-    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch();
+    CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

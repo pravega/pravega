@@ -16,7 +16,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import org.apache.commons.lang.NotImplementedException;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -190,9 +189,9 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<Pair<TxnStatus, Integer>> sealTransaction(final UUID txId,
-                                                            final boolean commit,
-                                                            final Optional<Integer> version) {
+        public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                                  final boolean commit,
+                                                                                  final Optional<Integer> version) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -224,12 +223,12 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch() {
+        public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
             throw new NotImplementedException();
         }
 
         @Override
-        public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch() {
+        public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
             throw new NotImplementedException();
         }
 
@@ -462,7 +461,9 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Pair<TxnStatus, Integer>> sealTransaction(UUID txId, boolean commit, Optional<Integer> version) {
+    public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                              final boolean commit,
+                                                                              final Optional<Integer> version) {
         throw new NotImplementedException();
     }
 
@@ -492,12 +493,12 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch() {
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch() {
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
         throw new NotImplementedException();
     }
 

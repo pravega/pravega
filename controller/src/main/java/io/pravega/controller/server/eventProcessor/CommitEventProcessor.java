@@ -87,11 +87,16 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
         streamMetadataStore.getActiveEpoch(scope, stream, context, executor).thenComposeAsync(pair -> {
-            List<Integer> segments = pair.getRight();
-            int activeEpoch = pair.getLeft();
+            List<Integer> segments = pair.getValue();
+            int activeEpoch = pair.getKey();
+            // Note, transaction's epoch either equals stream's current epoch or is one more than it,
+            // because stream scale operation ensures that all transactions in current epoch are
+            // complete before transitioning the stream to new epoch.
             if (activeEpoch == epoch) {
+                // If the transaction's epoch is same as the stream's current epoch, commit it.
                 return completeCommit(scope, stream, epoch, segments, txnId, context);
             } else {
+                // Otherwise, postpone commit operation until the stream transitions to next epoch.
                 return postponeCommitEvent(event);
             }
         }).whenCompleteAsync((result, error) -> {

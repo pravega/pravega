@@ -22,7 +22,6 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.client.stream.StreamConfiguration;
 import org.apache.commons.lang.SerializationUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.AbstractMap;
@@ -268,7 +267,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
-        CompletableFuture<Integer> epochFuture = getActiveEpoch().thenApply(Pair::getKey);
+        CompletableFuture<Integer> epochFuture = getActiveEpoch().thenApply(AbstractMap.SimpleEntry::getKey);
         return epochFuture.thenCompose(epoch -> store.getChildren(getEpochPath(epoch)))
                 .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(
                         Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epochFuture.join(), txId)))
@@ -307,7 +306,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
             final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
             final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
                     scaleGracePeriod, TxnStatus.OPEN).toByteArray();
-            // TODO: replace the previous create version with `createZNodeIfParentExists` method, once scale operation
+            // TODO: replace the previous create version with createZNodeIfParentExists, #1358.
             return store.createZNodeIfNotExist(activePath, txnRecord)
                     .thenApply(x -> cache.invalidateCache(activePath))
                     .thenApply(y -> pair.getKey());

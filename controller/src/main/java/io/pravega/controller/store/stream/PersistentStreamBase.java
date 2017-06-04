@@ -26,10 +26,10 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -420,49 +420,55 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Pair<TxnStatus, Integer>> sealTransaction(final UUID txId, final boolean commit,
-                                                        final Optional<Integer> version) {
-        CompletableFuture<Pair<TxnStatus, Integer>> future = verifyLegalState(getTransactionEpoch(txId)
+    public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                              final boolean commit,
+                                                                              final Optional<Integer> version) {
+        CompletableFuture<SimpleEntry<TxnStatus, Integer>> future = verifyLegalState(getTransactionEpoch(txId)
                 .thenCompose(epoch -> sealActiveTxn(epoch, txId, commit, version)))
-                .exceptionally(ex -> new ImmutablePair<>(handleDataNotFoundException(ex), null));
-        return future.thenCompose(pair -> pair.getLeft() == TxnStatus.UNKNOWN ?
-                validateCompletedTxn(txId, commit, "seal").thenApply(status -> new ImmutablePair<>(status, null)) :
+                .exceptionally(ex -> new SimpleEntry<>(handleDataNotFoundException(ex), null));
+        return future.thenCompose(pair -> pair.getKey() == TxnStatus.UNKNOWN ?
+                validateCompletedTxn(txId, commit, "seal").thenApply(status -> new SimpleEntry<>(status, null)) :
                 CompletableFuture.completedFuture(pair));
     }
 
-    public CompletableFuture<Pair<TxnStatus, Integer>> sealActiveTxn(final int epoch, final UUID txId,
-                                                                     final boolean commit,
-                                                                     final Optional<Integer> version) {
+    /**
+     * Seal a transaction in OPEN/COMMITTING/ABORTING state. This method does CAS on the transaction data node if
+     * the transaction is in OPEN state, optionally checking version of transaction data node, if required.
+     *
+     * @param epoch   transaction epoch.
+     * @param txId    transaction identifier.
+     * @param commit  boolean indicating whether to commit or abort the transaction.
+     * @param version optional expected version of transaction node to validate before updating it.
+     * @return        a pair containing transaction status and its epoch.
+     */
+    private CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealActiveTxn(final int epoch,
+                                                                             final UUID txId,
+                                                                             final boolean commit,
+                                                                             final Optional<Integer> version) {
         return getActiveTx(epoch, txId).thenCompose(data -> {
             ActiveTxnRecord txnRecord = ActiveTxnRecord.parse(data.getData());
             int dataVersion = version.isPresent() ? version.get() : data.getVersion();
             TxnStatus status = txnRecord.getTxnStatus();
-            if (commit) {
-                switch (status) {
-                    case OPEN:
-                        return sealActiveTx(epoch, txId, true, txnRecord, dataVersion).thenApply(y -> new ImmutablePair<>(TxnStatus.COMMITTING, epoch));
-                    case COMMITTING:
-                    case COMMITTED:
-                        return CompletableFuture.completedFuture(new ImmutablePair<>(status, epoch));
-                    case ABORTING:
-                    case ABORTED:
+            switch (status) {
+                case OPEN:
+                    return sealActiveTx(epoch, txId, commit, txnRecord, dataVersion).thenApply(y ->
+                            new SimpleEntry<>(commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING, epoch));
+                case COMMITTING:
+                case COMMITTED:
+                    if (commit) {
+                        return CompletableFuture.completedFuture(new SimpleEntry<>(status, epoch));
+                    } else {
                         throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
-                    default:
-                        throw new TransactionNotFoundException(txId.toString());
-                }
-            } else {
-                switch (status) {
-                    case OPEN:
-                        return sealActiveTx(epoch, txId, false, txnRecord, dataVersion).thenApply(y -> new ImmutablePair<>(TxnStatus.ABORTING, epoch));
-                    case ABORTING:
-                    case ABORTED:
-                        return CompletableFuture.completedFuture(new ImmutablePair<>(status, epoch));
-                    case COMMITTING:
-                    case COMMITTED:
+                    }
+                case ABORTING:
+                case ABORTED:
+                    if (commit) {
                         throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
-                    default:
-                        throw new TransactionNotFoundException(txId.toString());
-                }
+                    } else {
+                        return CompletableFuture.completedFuture(new SimpleEntry<>(status, epoch));
+                    }
+                default:
+                    throw new TransactionNotFoundException(txId.toString());
             }
         });
     }
@@ -562,15 +568,15 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch() {
-        // TODO: this implementation needs to change once we do epoch change in history table
-        return getActiveSegments().thenApply(list -> new ImmutablePair<>(0, list));
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
+        // TODO: this implementation needs to change once we do epoch change in history table, #1358
+        return getActiveSegments().thenApply(list -> new SimpleEntry<>(0, list));
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch() {
-        // TODO: this implementation needs to change once we do epoch change in history table
-        return getActiveSegments().thenApply(list -> new ImmutablePair<>(0, list));
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
+        // TODO: this implementation needs to change once we do epoch change in history table, #1358
+        return getActiveSegments().thenApply(list -> new SimpleEntry<>(0, list));
     }
 
     @Override

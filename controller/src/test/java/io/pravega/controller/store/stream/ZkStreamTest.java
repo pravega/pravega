@@ -491,7 +491,7 @@ public class ZkStreamTest {
 
         // Test to ensure that sealTransaction is idempotent.
         Assert.assertEquals(TxnStatus.COMMITTING, store.sealTransaction(SCOPE, streamName, tx.getId(), true,
-                Optional.empty(), context, executor).join().getLeft());
+                Optional.empty(), context, executor).join().getKey());
 
         // Test to ensure that COMMITTING transaction cannot be aborted.
         testAbortFailure(store, SCOPE, streamName, tx.getEpoch(), tx.getId(), context, operationNotAllowedPredicate);
@@ -505,7 +505,7 @@ public class ZkStreamTest {
 
         // Test to ensure that sealTransaction is idempotent.
         Assert.assertEquals(TxnStatus.ABORTING, store.sealTransaction(SCOPE, streamName, tx2.getId(), false,
-                Optional.empty(), context, executor).join().getLeft());
+                Optional.empty(), context, executor).join().getKey());
 
         // Test to ensure that ABORTING transaction cannot be committed.
         testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);
@@ -521,7 +521,7 @@ public class ZkStreamTest {
 
         // Test to ensure that sealTransaction, to commit it, on committed transaction does not throw an error.
         Assert.assertEquals(TxnStatus.COMMITTED, store.sealTransaction(SCOPE, streamName, tx.getId(), true,
-                Optional.empty(), context, executor).join().getLeft());
+                Optional.empty(), context, executor).join().getKey());
 
         // Test to ensure that commitTransaction is idempotent.
         Assert.assertEquals(TxnStatus.COMMITTED,
@@ -532,7 +532,7 @@ public class ZkStreamTest {
 
         // Test to ensure that sealTransaction, to abort it, on aborted transaction does not throw an error.
         Assert.assertEquals(TxnStatus.ABORTED, store.sealTransaction(SCOPE, streamName, tx2.getId(), false,
-                Optional.empty(), context, executor).join().getLeft());
+                Optional.empty(), context, executor).join().getKey());
 
         // Test to ensure that abortTransaction is idempotent.
         Assert.assertEquals(TxnStatus.ABORTED,
