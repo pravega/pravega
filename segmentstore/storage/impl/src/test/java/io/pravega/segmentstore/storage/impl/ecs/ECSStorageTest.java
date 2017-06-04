@@ -36,6 +36,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
  * Unit tests for ECSStorage.
  */
 @Slf4j
+@Ignore
 public class ECSStorageTest extends StorageTestBase {
     private ECSStorageConfig adapterConfig;
     private S3JerseyClient client = null;

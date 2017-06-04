@@ -22,7 +22,6 @@ import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.jersey.S3JerseyClient;
-import com.emc.object.s3.request.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -90,7 +89,7 @@ public class ECSStorage implements Storage {
     //region Storage implementation
     @Override
     public void initialize(long containerEpoch) {
-        if( client == null ) {
+        if ( client == null ) {
             S3Config ecsConfig = null;
             try {
                 ecsConfig = new S3Config(new URI(config.getEcsUrl()));
@@ -226,7 +225,7 @@ public class ECSStorage implements Storage {
         GetObjectResult<InputStream> result = null;
         try {
             result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
-        }catch (S3Exception e) {
+        } catch (S3Exception e) {
             log.info("Exception {} while getting segment {}", e, streamSegmentName);
         }
 
