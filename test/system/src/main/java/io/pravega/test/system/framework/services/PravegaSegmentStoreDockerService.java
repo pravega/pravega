@@ -14,8 +14,15 @@ import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.mount.Mount;
-import com.spotify.docker.client.messages.mount.VolumeOptions;
-import com.spotify.docker.client.messages.swarm.*;
+import com.spotify.docker.client.messages.swarm.ContainerSpec;
+import com.spotify.docker.client.messages.swarm.EndpointSpec;
+import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
+import com.spotify.docker.client.messages.swarm.PortConfig;
+import com.spotify.docker.client.messages.swarm.ResourceRequirements;
+import com.spotify.docker.client.messages.swarm.Resources;
+import com.spotify.docker.client.messages.swarm.ServiceMode;
+import com.spotify.docker.client.messages.swarm.ServiceSpec;
+import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.util.ArrayList;
@@ -24,9 +31,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import static io.pravega.test.system.framework.services.MarathonBasedService.IMAGE_PATH;
-import static io.pravega.test.system.framework.services.MarathonBasedService.PRAVEGA_VERSION;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -35,17 +39,12 @@ import static org.junit.Assert.assertThat;
 public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
     private static final int SEGMENTSTORE_PORT = 12345;
-    //private final URI zkUri;
-    //private final URI conUri;
-    //private String serviceId;
     private int instances = 1;
     private double cpu = 0.1 * Math.pow(10.0, 9.0);
     private long mem = 1000 * 1024 * 1024L;
 
     public PravegaSegmentStoreDockerService(final String serviceName ) {
         super(serviceName);
-        /*this.zkUri = zkUri;
-        this.conUri = conUri;*/
     }
 
     @Override
@@ -53,7 +52,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         try {
             com.spotify.docker.client.messages.swarm.Service.Criteria criteria = com.spotify.docker.client.messages.swarm.Service.Criteria.builder().serviceName(this.serviceName).build();
             List<com.spotify.docker.client.messages.swarm.Service> serviceList = docker.listServices(criteria);
-            for(int i=0;i< serviceList.size();i++) {
+            for (int i = 0; i < serviceList.size(); i++) {
                 String serviceId = serviceList.get(i).id();
                 docker.removeService(serviceId);
             }
@@ -70,7 +69,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     public void start(final boolean wait) {
         try {
             ServiceCreateResponse serviceCreateResponse = docker.createService(setServiceSpec());
-            if(wait) {
+            if (wait) {
                 waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
@@ -120,31 +119,29 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
     public static void main(String[] args) {
         ZookeeperDockerService zookeeperDockerService = new ZookeeperDockerService("zookeeper");
-        if(!zookeeperDockerService.isRunning()) {
+        if (!zookeeperDockerService.isRunning()) {
             zookeeperDockerService.start(true);
         }
         List<URI> zkUris = zookeeperDockerService.getServiceDetails();
         BookkeeperDockerService bookkeeperDockerService = new BookkeeperDockerService("bookkeeper");
         log.debug("zk uri details {}", zkUris.get(0).toString());
-        if(!bookkeeperDockerService.isRunning()) {
+        if (!bookkeeperDockerService.isRunning()) {
             bookkeeperDockerService.start(true);
         }
 
         HdfsDockerService hdfsDockerService = new HdfsDockerService("hdfs");
-        if(!hdfsDockerService.isRunning()) {
+        if (!hdfsDockerService.isRunning()) {
             hdfsDockerService.start(true);
         }
 
         PravegaControllerDockerService pravegaControllerDockerService = new PravegaControllerDockerService("controller");
-        if(!pravegaControllerDockerService.isRunning())
-        {
+        if (!pravegaControllerDockerService.isRunning()) {
             pravegaControllerDockerService.start(true);
         }
         List<URI> uriList = pravegaControllerDockerService.getServiceDetails();
         PravegaSegmentStoreDockerService pravegaSegmentStoreDockerService = new PravegaSegmentStoreDockerService("segmentstore");
-        if(!pravegaSegmentStoreDockerService.isRunning()) {
+        if (!pravegaSegmentStoreDockerService.isRunning()) {
             pravegaSegmentStoreDockerService.start(true);
         }
-
     }
 }

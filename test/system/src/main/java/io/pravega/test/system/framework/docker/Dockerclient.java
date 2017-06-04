@@ -7,13 +7,15 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.system.framework.services;
+package io.pravega.test.system.framework.docker;
 
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.NetworkConfig;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class Dockerclient {
 
        public static DockerClient getClient() {

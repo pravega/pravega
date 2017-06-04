@@ -12,15 +12,18 @@ package io.pravega.test.system.framework.services;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
-import com.spotify.docker.client.messages.mount.BindOptions;
 import com.spotify.docker.client.messages.mount.Mount;
-import com.spotify.docker.client.messages.mount.VolumeOptions;
-
-import static io.pravega.test.system.framework.services.MarathonBasedService.IMAGE_PATH;
-import static io.pravega.test.system.framework.services.MarathonBasedService.PRAVEGA_VERSION;
-
-import com.spotify.docker.client.messages.swarm.*;
+import com.spotify.docker.client.messages.swarm.ContainerSpec;
+import com.spotify.docker.client.messages.swarm.EndpointSpec;
+import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
+import com.spotify.docker.client.messages.swarm.PortConfig;
+import com.spotify.docker.client.messages.swarm.ResourceRequirements;
+import com.spotify.docker.client.messages.swarm.Resources;
+import com.spotify.docker.client.messages.swarm.RestartPolicy;
 import com.spotify.docker.client.messages.swarm.Service;
+import com.spotify.docker.client.messages.swarm.ServiceMode;
+import com.spotify.docker.client.messages.swarm.ServiceSpec;
+import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.util.ArrayList;
@@ -29,7 +32,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -38,15 +40,12 @@ import static org.junit.Assert.assertThat;
 public class BookkeeperDockerService extends DockerBasedService {
 
     private static final int BK_PORT = 3181;
-    //private final URI zkUri;
-    //private String serviceId;
     private int instances = 3;
     private double cpu = 0.1 * Math.pow(10.0, 9.0);
     private long mem = 1024 * 1024 * 1024L;
 
     public BookkeeperDockerService(String serviceName) {
         super(serviceName);
-        //this.zkUri = zkUri;
     }
 
     @Override
@@ -54,7 +53,7 @@ public class BookkeeperDockerService extends DockerBasedService {
         try {
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
             List<com.spotify.docker.client.messages.swarm.Service> serviceList = docker.listServices(criteria);
-            for(int i=0;i< serviceList.size();i++) {
+            for (int i = 0; i < serviceList.size(); i++) {
                 String serviceId = serviceList.get(i).id();
                 docker.removeService(serviceId);
             }
@@ -105,8 +104,8 @@ public class BookkeeperDockerService extends DockerBasedService {
                 .builder().restartPolicy(RestartPolicy.builder().maxAttempts(0).condition("none").build())
                 .containerSpec(ContainerSpec.builder()
                         .image("asdrepo.isus.emc.com:8103" + "/nautilus/bookkeeper:0.1.0-1415.b5f03f5")
-                        .command("/bin/sh","-c",
-                        "/opt/bk_all/entrypoint.sh")
+                        .command("/bin/sh", "-c",
+                         "/opt/bk_all/entrypoint.sh")
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount1, mount2, mount3, mount4))
                         .env(stringList).build())
@@ -123,15 +122,16 @@ public class BookkeeperDockerService extends DockerBasedService {
                         .build()).build();
         return spec;
     }
+
     public static void main(String[] args) {
         ZookeeperDockerService zookeeperDockerService = new ZookeeperDockerService("zookeeper");
-        if(!zookeeperDockerService.isRunning()) {
+        if (!zookeeperDockerService.isRunning()) {
             zookeeperDockerService.start(true);
         }
         List<URI> zkUris = zookeeperDockerService.getServiceDetails();
         BookkeeperDockerService bookkeeperDockerService = new BookkeeperDockerService("bookkeeper");
         log.debug("zk uri details {}", zkUris.get(0).toString());
-        if(!bookkeeperDockerService.isRunning()) {
+        if (!bookkeeperDockerService.isRunning()) {
             bookkeeperDockerService.start(true);
         }
     }

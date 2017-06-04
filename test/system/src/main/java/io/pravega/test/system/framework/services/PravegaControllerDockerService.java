@@ -13,14 +13,18 @@ import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.mount.Mount;
-import com.spotify.docker.client.messages.mount.VolumeOptions;
-import com.spotify.docker.client.messages.swarm.*;
-
-import static io.pravega.test.system.framework.services.MarathonBasedService.IMAGE_PATH;
-import static io.pravega.test.system.framework.services.MarathonBasedService.PRAVEGA_VERSION;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
+import com.spotify.docker.client.messages.swarm.ContainerSpec;
+import com.spotify.docker.client.messages.swarm.EndpointSpec;
+import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
+import com.spotify.docker.client.messages.swarm.PortConfig;
+import com.spotify.docker.client.messages.swarm.ResourceRequirements;
+import com.spotify.docker.client.messages.swarm.Resources;
+import com.spotify.docker.client.messages.swarm.ServiceMode;
+import com.spotify.docker.client.messages.swarm.ServiceSpec;
+import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.util.ArrayList;
@@ -34,15 +38,12 @@ import java.util.concurrent.TimeoutException;
 public class PravegaControllerDockerService extends  DockerBasedService {
 
     private static final int REST_PORT = 10080;
-    //private final URI zkUri;
-    //private String serviceId;
     private int instances = 1;
     private double cpu = 0.1 * Math.pow(10.0, 9.0);
     private long mem = 700 * 1024 * 1024L;
 
     public PravegaControllerDockerService(final String serviceName) {
         super(serviceName);
-        //this.zkUri = zkUri;
     }
 
     @Override
@@ -50,7 +51,7 @@ public class PravegaControllerDockerService extends  DockerBasedService {
         try {
             com.spotify.docker.client.messages.swarm.Service.Criteria criteria = com.spotify.docker.client.messages.swarm.Service.Criteria.builder().serviceName(this.serviceName).build();
             List<com.spotify.docker.client.messages.swarm.Service> serviceList = docker.listServices(criteria);
-            for(int i=0;i< serviceList.size();i++) {
+            for (int i = 0; i < serviceList.size(); i++) {
                 String serviceId = serviceList.get(i).id();
                 docker.removeService(serviceId);
             }
@@ -112,20 +113,20 @@ public class PravegaControllerDockerService extends  DockerBasedService {
                         .build()).build();
         return spec;
     }
+
     public static void main(String[] args) {
         ZookeeperDockerService zookeeperDockerService = new ZookeeperDockerService("zookeeper");
-        if(!zookeeperDockerService.isRunning()) {
+        if (!zookeeperDockerService.isRunning()) {
             zookeeperDockerService.start(true);
         }
         List<URI> zkUris = zookeeperDockerService.getServiceDetails();
         BookkeeperDockerService bookkeeperDockerService = new BookkeeperDockerService("bookkeeper");
         log.debug("zk uri details {}", zkUris.get(0).toString());
-        if(!bookkeeperDockerService.isRunning()) {
+        if (!bookkeeperDockerService.isRunning()) {
             bookkeeperDockerService.start(true);
         }
         PravegaControllerDockerService pravegaControllerDockerService = new PravegaControllerDockerService("controller");
-        if(!pravegaControllerDockerService.isRunning())
-        {
+        if (!pravegaControllerDockerService.isRunning()) {
             pravegaControllerDockerService.start(true);
         }
     }

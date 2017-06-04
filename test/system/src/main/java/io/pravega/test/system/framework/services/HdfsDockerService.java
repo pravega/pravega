@@ -13,16 +13,22 @@ import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.mount.Mount;
-import com.spotify.docker.client.messages.swarm.*;
+import com.spotify.docker.client.messages.swarm.ContainerSpec;
+import com.spotify.docker.client.messages.swarm.EndpointSpec;
+import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
+import com.spotify.docker.client.messages.swarm.PortConfig;
+import com.spotify.docker.client.messages.swarm.ResourceRequirements;
+import com.spotify.docker.client.messages.swarm.Resources;
+import com.spotify.docker.client.messages.swarm.ServiceMode;
+import com.spotify.docker.client.messages.swarm.ServiceSpec;
+import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -37,12 +43,13 @@ public class HdfsDockerService  extends DockerBasedService {
     public HdfsDockerService(final String serviceName) {
         super(serviceName);
     }
+
     @Override
     public void stop() {
         try {
             com.spotify.docker.client.messages.swarm.Service.Criteria criteria = com.spotify.docker.client.messages.swarm.Service.Criteria.builder().serviceName(this.serviceName).build();
             List<com.spotify.docker.client.messages.swarm.Service> serviceList = docker.listServices(criteria);
-            for(int i=0;i< serviceList.size();i++) {
+            for (int i = 0; i < serviceList.size(); i++) {
                 String serviceId = serviceList.get(i).id();
                 docker.removeService(serviceId);
             }
@@ -59,7 +66,7 @@ public class HdfsDockerService  extends DockerBasedService {
     public void start(final boolean wait) {
         try {
             ServiceCreateResponse serviceCreateResponse = docker.createService(setServiceSpec());
-            if(wait) {
+            if (wait) {
                 waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
@@ -101,5 +108,4 @@ public class HdfsDockerService  extends DockerBasedService {
                         .build()).build();
         return  spec;
     }
-
 }

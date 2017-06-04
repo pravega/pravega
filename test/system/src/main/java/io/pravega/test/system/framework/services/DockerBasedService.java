@@ -10,17 +10,13 @@
 package io.pravega.test.system.framework.services;
 
 import com.google.common.base.Preconditions;
-import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.Assert.assertThat;
-import com.spotify.docker.client.messages.Network;
-import com.spotify.docker.client.messages.*;
-import com.spotify.docker.client.messages.swarm.*;
 import com.spotify.docker.client.messages.swarm.Service;
+import com.spotify.docker.client.messages.swarm.ServiceMode;
+import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.test.system.framework.docker.Dockerclient;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.time.Duration;
@@ -64,11 +60,12 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
            //list the service with filter 'serviceName'
            Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
            List<Service> serviceList = docker.listServices(criteria);
-           for(int i=0;i< serviceList.size();i++) {
+           for (int i = 0; i < serviceList.size(); i++) {
                String serviceId = serviceList.get(i).id();
-               if(!serviceId.equals(null))
+               if (!serviceId.isEmpty()) {
                    value = true;
                    break;
+               }
            }
 
        } catch (DockerException | InterruptedException e) {
@@ -124,8 +121,8 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
     @Override
     public void stop() {
         try {
-            List<Network> networkList =  docker.listNetworks(DockerClient.ListNetworksParam.byNetworkName("network-name"));
-            for(int i = 0; i < networkList.size(); i++){
+            List<com.spotify.docker.client.messages.Network> networkList =  docker.listNetworks(DockerClient.ListNetworksParam.byNetworkName("network-name"));
+            for (int i = 0; i < networkList.size(); i++) {
              docker.removeNetwork(networkList.get(i).id());
             }
             docker.leaveSwarm(true);
