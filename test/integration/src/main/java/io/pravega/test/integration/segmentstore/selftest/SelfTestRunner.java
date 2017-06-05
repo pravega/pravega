@@ -69,6 +69,7 @@ public class SelfTestRunner {
                                                 ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS)
                                         .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 500))
                 .include(BookKeeperConfig.builder()
+                                         .with(BookKeeperConfig.MAX_CONCURRENT_WRITES, 4)
                                          .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
                                          .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + getTestConfig().getZkPort())
                                          .with(BookKeeperConfig.ZK_METADATA_PATH, "/selftest/segmentstore/containers")
@@ -80,17 +81,17 @@ public class SelfTestRunner {
     }
 
     private static TestConfig getTestConfig() {
-        final int producers = 1000;
+        final int producers = 10000;
         final boolean useClient = false;
 
         final int testThreadPoolAddition = useClient ? producers : 0;
         return TestConfig
                 .builder()
                 // Test params.
-                .with(TestConfig.OPERATION_COUNT, 1000)
+                .with(TestConfig.OPERATION_COUNT, 100000)
                 .with(TestConfig.SEGMENT_COUNT, 1)
-                .with(TestConfig.MIN_APPEND_SIZE, 1000000)
-                .with(TestConfig.MAX_APPEND_SIZE, 1000000)
+                .with(TestConfig.MIN_APPEND_SIZE, 10000)
+                .with(TestConfig.MAX_APPEND_SIZE, 10000)
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)

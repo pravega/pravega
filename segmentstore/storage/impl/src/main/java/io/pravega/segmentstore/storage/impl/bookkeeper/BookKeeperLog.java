@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.SequentialAsyncProcessor;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
@@ -25,22 +26,19 @@ import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
+import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.WriteFailureException;
+import io.pravega.segmentstore.storage.WriteTooLongException;
 import java.time.Duration;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -77,11 +75,6 @@ import org.apache.zookeeper.data.Stat;
 class BookKeeperLog implements DurableDataLog {
     //region Members
 
-    /**
-     * Maximum append length, as specified by BookKeeper (this is hardcoded inside BookKeeper's code).
-     */
-    private static final int MAX_APPEND_LENGTH = 1024 * 1024 - 1024;// TODO: this was -100. But in some cases BK rejects it.
-
     private final String logNodePath;
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
@@ -94,8 +87,7 @@ class BookKeeperLog implements DurableDataLog {
     private WriteLedger writeLedger;
     @GuardedBy("lock")
     private LogMetadata logMetadata;
-    @GuardedBy("writes")
-    private final Deque<Write> writes;
+    private final WriteQueue writes;
     private final SequentialAsyncProcessor writeProcessor;
     private final SequentialAsyncProcessor rolloverProcessor;
 
@@ -122,7 +114,7 @@ class BookKeeperLog implements DurableDataLog {
         this.closed = new AtomicBoolean();
         this.logNodePath = HierarchyUtils.getPath(logId, this.config.getZkHierarchyDepth());
         this.traceObjectId = String.format("Log[%d]", logId);
-        this.writes = new ArrayDeque<>();
+        this.writes = new WriteQueue(this.config.getMaxConcurrentWrites());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this.executorService);
     }
@@ -146,12 +138,7 @@ class BookKeeperLog implements DurableDataLog {
             }
 
             // Cancel pending writes.
-            List<Write> toCancel;
-            synchronized (this.writes) {
-                toCancel = new ArrayList<>(this.writes);
-                this.writes.clear();
-            }
-
+            List<Write> toCancel = this.writes.clear();
             toCancel.forEach(w -> w.fail(new ObjectClosedException(this), true));
 
             if (writeLedger != null) {
@@ -211,17 +198,27 @@ class BookKeeperLog implements DurableDataLog {
         }
     }
 
+    private final AtomicInteger appendCount = new AtomicInteger();
+
     @Override
     public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ensurePreconditions();
+        if (data.getLength() > getMaxAppendLength()) {
+            return FutureHelpers.failedFuture(new WriteTooLongException(data.getLength(), getMaxAppendLength()));
+        }
+
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append");
         Timer timer = new Timer();
 
+        int totalCount = this.appendCount.incrementAndGet();
+        if (totalCount % 100 == 0) {
+            System.out.println(String.format("BK: Write #%d, Stats = %s", totalCount, this.writes.getStatistics()));
+        }
+        //Exceptions.handleInterrupted(()->Thread.sleep(10));
+
         // Queue up the write.
         CompletableFuture<LogAddress> result = new CompletableFuture<>();
-        synchronized (this.writes) {
-            this.writes.addLast(new Write(data, getWriteLedger(), result));
-        }
+        this.writes.add(new Write(data, getWriteLedger(), result));
 
         // Trigger Write Processor.
         this.writeProcessor.runAsync();
@@ -255,13 +252,18 @@ class BookKeeperLog implements DurableDataLog {
 
     @Override
     public int getMaxAppendLength() {
-        return MAX_APPEND_LENGTH;
+        return BookKeeperConfig.MAX_APPEND_LENGTH;
     }
 
     @Override
     public long getEpoch() {
         ensurePreconditions();
         return getLogMetadata().getEpoch();
+    }
+
+    @Override
+    public QueueStats getQueueStatistics() {
+        return this.writes.getStatistics();
     }
 
     //endregion
@@ -321,55 +323,16 @@ class BookKeeperLog implements DurableDataLog {
      * Gets an ordered list of Writes to execute.
      */
     private List<Write> getWritesToExecute() {
-        long accumulatedSize = getWriteLedger().ledger.getLength();
-        int activeWriteCount = 0;
-        synchronized (this.writes) {
-            // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
-            while (!this.writes.isEmpty() && this.writes.peekFirst().isDone()) {
-                this.writes.removeFirst();
-            }
-
-            if (this.writes.isEmpty()) {
-                return Collections.emptyList();
-            }
-
-            // Collect all remaining writes, as long as they are not currently in-progress and have the same ledger id
-            // as the first item in the ledger.
-            long firstLedgerId = this.writes.peekFirst().getLedgerMetadata().getLedgerId();
-            boolean canSkip = true;
-
-            List<Write> result = new ArrayList<>();
-            for (Write write : this.writes) {
-                if (accumulatedSize >= this.config.getBkLedgerMaxSize()
-                        || activeWriteCount >= this.config.getMaxConcurrentWrites()) {
-                    // Either reached the throttling limit or ledger max size limit.
-                    // If we try to send too many writes to this ledger, the writes are likely to be rejected with
-                    // LedgerClosedException and simply be retried again.
-                    break;
-                }
-
-                // Account for this write's size, even if it's complete or in progress.
-                accumulatedSize += write.data.getLength();
-                if (write.isInProgress()) {
-                    activeWriteCount++;
-                    if (!canSkip) {
-                        // We stumbled across an in-progress write after a not-in-progress write. We can't retry now.
-                        // This is likely due to a bunch of writes failing (i.e. due to a LedgerClosedEx), but we overlapped
-                        // with their updating their status. Try again next time (when that write completes).
-                        return Collections.emptyList();
-                    }
-                } else if (write.getLedger().getId() != firstLedgerId) {
-                    // We cannot initiate writes in a new ledger until all writes in the previous ledger completed.
-                    break;
-                } else if (!write.isDone()) {
-                    canSkip = false;
-                    result.add(write);
-                    activeWriteCount++;
-                }
-            }
-
-            return result;
+        // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
+        if (!this.writes.removeFinishedWrites()) {
+            return Collections.emptyList();
         }
+
+        // Calculate how much estimated space is there in the current ledger.
+        final long maxTotalSize = this.config.getBkLedgerMaxSize() - getWriteLedger().ledger.getLength();
+
+        // Get the writes to execute from the queue.
+        return this.writes.getWritesToExecute(maxTotalSize, this.config.getMaxConcurrentWrites());
     }
 
     /**
@@ -702,157 +665,6 @@ class BookKeeperLog implements DurableDataLog {
         synchronized (this.lock) {
             Preconditions.checkState(this.writeLedger != null, "BookKeeperLog is not initialized.");
             assert this.logMetadata != null : "writeLedger != null but logMetadata == null";
-        }
-    }
-
-    //endregion
-
-    //region WriteLedger
-
-    @RequiredArgsConstructor
-    private static class WriteLedger {
-        final LedgerHandle ledger;
-        final LedgerMetadata metadata;
-
-        @Override
-        public String toString() {
-            return String.format("%s, Length = %d, Closed = %s", this.metadata, this.ledger.getLength(), this.ledger.isClosed());
-        }
-    }
-
-    //endregion
-
-    //region Write
-
-    private static class Write {
-        final ArrayView data;
-        private final CompletableFuture<LogAddress> result;
-        private final AtomicInteger attemptCount;
-        private final AtomicReference<WriteLedger> writeLedger;
-        private final AtomicBoolean inProgress;
-        private final AtomicReference<Throwable> failureCause;
-
-        Write(ArrayView data, WriteLedger initialWriteLedger, CompletableFuture<LogAddress> result) {
-            this.data = Preconditions.checkNotNull(data, "data");
-            this.writeLedger = new AtomicReference<>(Preconditions.checkNotNull(initialWriteLedger, "initialWriteLedger"));
-            this.result = Preconditions.checkNotNull(result, "result");
-            this.attemptCount = new AtomicInteger();
-            this.failureCause = new AtomicReference<>();
-            this.inProgress = new AtomicBoolean();
-        }
-
-        /**
-         * Gets the LedgerHandle associated with this write.
-         */
-        LedgerHandle getLedger() {
-            return this.writeLedger.get().ledger;
-        }
-
-        /**
-         * Gets the LedgerMetadata for the Ledger associated with this write.
-         */
-        LedgerMetadata getLedgerMetadata() {
-            return this.writeLedger.get().metadata;
-        }
-
-        /**
-         * Sets the WriteLedger to be associated with this write.
-         *
-         * @param writeLedger The WriteLedger to associate.
-         */
-        void setWriteLedger(WriteLedger writeLedger) {
-            this.writeLedger.set(writeLedger);
-        }
-
-        /**
-         * Records the fact that a new attempt to execute this write is begun.
-         *
-         * @return The current attempt number.
-         */
-        int beginAttempt() {
-            Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Write already in progress. Cannot restart.");
-            return this.attemptCount.incrementAndGet();
-        }
-
-        /**
-         * Records the fact that an attempt to execute this write has ended.
-         *
-         * @param rollback If true, it rolls back the attempt count.
-         */
-        void endAttempt(boolean rollback) {
-            if (rollback && this.attemptCount.decrementAndGet() < 0) {
-                this.attemptCount.set(0); // Make sure it doesn't become negative.
-            }
-
-            this.inProgress.set(false);
-        }
-
-        /**
-         * Gets a value indicating whether an attempt to execute this write is in progress.
-         *
-         * @return True or false.
-         */
-        boolean isInProgress() {
-            return this.inProgress.get();
-        }
-
-        /**
-         * Gets a value indicating whether this write is completed (successfully or not).
-         *
-         * @return True or false.
-         */
-        boolean isDone() {
-            return this.result.isDone();
-        }
-
-        /**
-         * Gets the failure cause, if any.
-         *
-         * @return The failure cause.
-         */
-        Throwable getFailureCause() {
-            return this.failureCause.get();
-        }
-
-        /**
-         * Indicates that this write completed successfully. This will set the final result on the externalCompletion future.
-         *
-         * @param result The result to set.
-         */
-        void complete(LogAddress result) {
-            this.failureCause.set(null);
-            this.result.complete(result);
-            endAttempt(false);
-        }
-
-        /**
-         * Indicates that this write failed.
-         *
-         * @param cause    The failure cause. If null, the previous failure cause is preserved.
-         * @param complete If true, the externalCompletion will be immediately be completed with the current failure cause.
-         *                 If false, no completion will be done.
-         */
-        void fail(Throwable cause, boolean complete) {
-            if (cause != null) {
-                Throwable e = this.failureCause.get();
-                if (e != null && e != cause) {
-                    cause.addSuppressed(e);
-                }
-
-                this.failureCause.set(cause);
-            }
-
-            endAttempt(false);
-            if (complete) {
-                this.result.completeExceptionally(this.failureCause.get());
-            }
-        }
-
-        @Override
-        public String toString() {
-            return String.format("LedgerId = %s, Length = %s, Attempts = %s, InProgress = %s, Done = %s, Failed %s",
-                    this.writeLedger.get().ledger.getId(), this.data.getLength(), this.attemptCount, this.inProgress,
-                    isDone(), this.failureCause.get() != null);
         }
     }
 

@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -25,6 +26,7 @@ import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.QueueStats;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -101,10 +103,27 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     protected CompletableFuture<Void> doRun() {
         return FutureHelpers.loop(
                 this::isRunning,
-                () -> this.operationQueue
-                        .take(MAX_READ_AT_ONCE)
+                () -> delayIfNecessary()
+                        .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
                         .thenAcceptAsync(this::processOperations, this.executor),
                 this.executor);
+    }
+
+    private CompletableFuture<Void> delayIfNecessary() {
+        QueueStats stats = this.durableDataLog.getQueueStatistics();
+        // TODO: make this look nice
+        double fillRateAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRate(), 0, 1);
+
+        double countRateAdj = (double)stats.getSize()/stats.getMaxParallelism();
+
+        int delayMillis = (int) (stats.getOldestItemTimeMillis() * fillRateAdj * countRateAdj);
+        //delayMillis=0;
+        if(delayMillis>=1000){
+            System.out.println(String.format("\t\t\tDelay = %s, CRA = %f", delayMillis, countRateAdj));
+            delayMillis=1000;
+        }
+        delayMillis=0;//TODO: revert after investigation.
+        return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }
 
     @Override

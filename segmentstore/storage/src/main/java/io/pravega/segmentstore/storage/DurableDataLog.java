@@ -99,6 +99,13 @@ public interface DurableDataLog extends AutoCloseable {
     long getEpoch();
 
     /**
+     * Gets a QueueStats with information about the current state of the queue.
+     *
+     * @return The result.
+     */
+    QueueStats getQueueStatistics();
+
+    /**
      * Closes this instance of a DurableDataLog and releases any resources it holds.
      */
     @Override

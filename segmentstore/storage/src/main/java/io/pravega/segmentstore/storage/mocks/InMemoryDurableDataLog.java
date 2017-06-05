@@ -20,6 +20,7 @@ import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
+import io.pravega.segmentstore.storage.QueueStats;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
@@ -117,6 +118,12 @@ class InMemoryDurableDataLog implements DurableDataLog {
     public long getEpoch() {
         ensurePreconditions();
         return this.epoch;
+    }
+
+    @Override
+    public QueueStats getQueueStatistics() {
+        // InMemory DurableDataLog has almost infinite bandwidth, so no need to complicate ourselves with this.
+        return QueueStats.DEFAULT;
     }
 
     @Override
