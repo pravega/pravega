@@ -19,6 +19,7 @@ import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
@@ -53,45 +54,56 @@ public class SelfTestRunner {
         return ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
-                                      .with(ServiceConfig.CONTAINER_COUNT, 2)
-                                      .with(ServiceConfig.THREAD_POOL_SIZE, 20))
+                                      .with(ServiceConfig.CONTAINER_COUNT, 1)
+                                      .with(ServiceConfig.THREAD_POOL_SIZE, 30))
                 .include(DurableLogConfig.builder()
                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                          .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(ReadIndexConfig.builder()
-                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
-                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
+                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 600 * 1000)
+                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 1024 * 1024 * 1024L)
                                         .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
                 .include(ContainerConfig.builder()
                                         .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,
                                                 ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS)
                                         .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 500))
+                .include(BookKeeperConfig.builder()
+                                         .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
+                                         .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + getTestConfig().getZkPort())
+                                         .with(BookKeeperConfig.ZK_METADATA_PATH, "/selftest/segmentstore/containers")
+                                         .with(BookKeeperConfig.BK_LEDGER_PATH, StreamSegmentStoreAdapter.BK_LEDGER_PATH)
+                                         .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                                         .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                                         .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1))
                 .build();
     }
 
     private static TestConfig getTestConfig() {
-        final int producers = 100;
+        final int producers = 1000;
         final boolean useClient = false;
 
         final int testThreadPoolAddition = useClient ? producers : 0;
         return TestConfig
                 .builder()
                 // Test params.
-                .with(TestConfig.OPERATION_COUNT, 2000000)
+                .with(TestConfig.OPERATION_COUNT, 1000)
                 .with(TestConfig.SEGMENT_COUNT, 1)
-                .with(TestConfig.MIN_APPEND_SIZE, 100)
-                .with(TestConfig.MAX_APPEND_SIZE, 100)
+                .with(TestConfig.MIN_APPEND_SIZE, 1000000)
+                .with(TestConfig.MAX_APPEND_SIZE, 1000000)
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
                 .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
 
                 // Test setup.
-                .with(TestConfig.THREAD_POOL_SIZE, 50 + testThreadPoolAddition)
-                .with(TestConfig.DATA_LOG_APPEND_DELAY, 0)
+                .with(TestConfig.THREAD_POOL_SIZE, 80 + testThreadPoolAddition)
                 .with(TestConfig.TIMEOUT_MILLIS, 3000)
                 .with(TestConfig.VERBOSE_LOGGING, false)
+
+                // Tier1
+                .with(TestConfig.USE_BOOKKEEPER, true)
+                .with(TestConfig.DATA_LOG_APPEND_DELAY, 0)
 
                 // Client-specific settings.
                 .with(TestConfig.CLIENT_AUTO_FLUSH, false)
