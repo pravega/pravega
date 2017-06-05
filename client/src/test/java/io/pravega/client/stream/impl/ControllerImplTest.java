@@ -161,6 +161,11 @@ public class ControllerImplTest {
                                                     .setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND)
                                                     .build());
                     responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("stream5")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                            .setStatus(UpdateStreamStatus.Status.UNRECOGNIZED)
+                            .build());
+                    responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -587,7 +592,7 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testAlterStream() throws Exception {
+    public void testUpdateStream() throws Exception {
         CompletableFuture<Boolean> updateStreamStatus;
         updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
                                                                   .streamName("stream1")
@@ -622,6 +627,13 @@ public class ControllerImplTest {
                                                                   .scope("scope1")
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
+        AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
+
+        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
+                .streamName("stream6")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
         AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
     }
 

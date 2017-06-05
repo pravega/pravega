@@ -180,7 +180,7 @@ public class ControllerServiceTest {
 
         updataMinSegmentes(controller, scope1, streamName1);
 
-        alterConfigOfNonExistantStream(controller);
+        updateConfigOfNonExistantStream(controller);
 
         //get currently active segments
 
@@ -251,7 +251,7 @@ public class ControllerServiceTest {
     }
 
 
-    private static void alterConfigOfNonExistantStream(Controller controller) {
+    private static void updateConfigOfNonExistantStream(Controller controller) {
         assertFalse(FutureHelpers.await(controller.updateStream(StreamConfiguration.builder()
                                                                .scope("scope")
                                                                .streamName("streamName")

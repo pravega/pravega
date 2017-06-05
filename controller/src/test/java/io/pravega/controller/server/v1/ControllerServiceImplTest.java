@@ -239,7 +239,7 @@ public abstract class ControllerServiceImplTest {
         UpdateStreamStatus updateStreamStatus = result2.get();
         Assert.assertEquals(updateStreamStatus.getStatus(), UpdateStreamStatus.Status.SUCCESS);
 
-        // Alter stream for non-existent stream.
+        // Update stream for non-existent stream.
         ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
         final StreamConfiguration configuration3 = StreamConfiguration.builder().scope(SCOPE1)
                 .streamName("unknownstream").scalingPolicy(ScalingPolicy.fixed(1)).build();
