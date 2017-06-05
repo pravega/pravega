@@ -14,7 +14,9 @@ site_description: 'Documentation to help you get familiar with Pravega'
 repo_url: 'https://github.com/pravega/pravega'
 edit_uri: 'tree/master/docs/'
 
-theme: 'readthedocs'
+theme: 'material'
+markdown_extensions:
+  - admonition
 
 pages:
   - Overview: 'index.md'
@@ -40,6 +42,7 @@ pages:
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
       - 'Pravega Roadmap': 'roadmap.md'
+      - 'Contributors': 'contributors.md'
       - 'Join the Community': 'join-community.md'
 extra:
     version: 0.1
