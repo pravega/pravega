@@ -37,7 +37,7 @@ import static org.junit.Assert.assertThat;
 @Slf4j
 public class DockerRemoteSequential implements TestExecutor {
 
-    private static final DockerClient CLIENT = DefaultDockerClient.builder().uri("http://localhost:2375").build();
+    private static final DockerClient CLIENT = DefaultDockerClient.builder().uri(System.getProperty("masterIP")).build();
     private static final String IMAGE = "java:8";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
@@ -68,7 +68,7 @@ public class DockerRemoteSequential implements TestExecutor {
         boolean value = false;
         try {
             //list the service with filter 'serviceName'
-            List<Container> containers = CLIENT.listContainers(DockerClient.ListContainersParam.allContainers());
+            List<Container> containers = CLIENT.listContainers(DockerClient.ListContainersFilterParam.withStatusRunning());
             for (int i = 0; i < containers.size(); i++) {
                 ContainerInfo info = CLIENT.inspectContainer(containers.get(i).id());
                 if (info.name().equals(containerName)) {

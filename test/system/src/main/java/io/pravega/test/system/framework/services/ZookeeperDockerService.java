@@ -18,19 +18,16 @@ import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
 import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.ResourceRequirements;
 import com.spotify.docker.client.messages.swarm.Resources;
-import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
-
 
 @Slf4j
 public class ZookeeperDockerService extends DockerBasedService {
@@ -47,12 +44,7 @@ public class ZookeeperDockerService extends DockerBasedService {
      @Override
      public void stop() {
          try {
-             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-             List<Service> serviceList = docker.listServices(criteria);
-             for (int i = 0; i < serviceList.size(); i++) {
-                 String serviceId = serviceList.get(i).id();
-                 docker.removeService(serviceId);
-             }
+             docker.removeService(getID());
          } catch (DockerException | InterruptedException e) {
              log.error("unable to remove service {}", e);
          }
@@ -83,7 +75,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                 .healthcheck(ContainerConfig.Healthcheck.create(null,
                         1000000000L, 1000000000L, 3)).build())
                 .resources(ResourceRequirements.builder()
-                        .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
+                        .reservations(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())
                 .build();
         ServiceSpec spec =  ServiceSpec.builder().name(serviceName).networks(NetworkAttachmentConfig.builder().target("network-name").build()).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))

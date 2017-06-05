@@ -50,12 +50,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     @Override
     public void stop() {
         try {
-            com.spotify.docker.client.messages.swarm.Service.Criteria criteria = com.spotify.docker.client.messages.swarm.Service.Criteria.builder().serviceName(this.serviceName).build();
-            List<com.spotify.docker.client.messages.swarm.Service> serviceList = docker.listServices(criteria);
-            for (int i = 0; i < serviceList.size(); i++) {
-                String serviceId = serviceList.get(i).id();
-                docker.removeService(serviceId);
-            }
+                docker.removeService(getID());
         } catch (DockerException | InterruptedException e) {
             log.error("unable to remove service {}", e);
         }
@@ -105,7 +100,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                         .mounts(Arrays.asList(mount))
                         .env(stringList).args("segmentstore").build())
                 .resources(ResourceRequirements.builder()
-                        .limits(Resources.builder()
+                        .reservations(Resources.builder()
                                 .memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())
                 .build();

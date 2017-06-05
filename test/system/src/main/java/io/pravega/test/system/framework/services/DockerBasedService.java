@@ -12,7 +12,8 @@ package io.pravega.test.system.framework.services;
 import com.google.common.base.Preconditions;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
-import com.spotify.docker.client.messages.swarm.Service;
+import com.spotify.docker.client.messages.Network;
+import com.spotify.docker.client.messages.swarm.Service.Criteria;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import com.spotify.docker.client.messages.swarm.Service;
+
 
 @Slf4j
 public abstract class DockerBasedService  implements io.pravega.test.system.framework.services.Service {
@@ -42,7 +45,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
 
     @Override
     public String getID() {
-        Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
+        Criteria criteria = Criteria.builder().serviceName(this.serviceName).build();
         String serviceId = null;
         try {
             List<Service> serviceList = docker.listServices(criteria);
@@ -58,8 +61,8 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
        boolean value = false;
         try {
            //list the service with filter 'serviceName'
-           Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-           List<Service> serviceList = docker.listServices(criteria);
+           Criteria criteria = Criteria.builder().serviceName(this.serviceName).build();
+           List<com.spotify.docker.client.messages.swarm.Service> serviceList = docker.listServices(criteria);
            for (int i = 0; i < serviceList.size(); i++) {
                String serviceId = serviceList.get(i).id();
                if (!serviceId.isEmpty()) {
@@ -87,7 +90,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
 
     @Override
     public List<URI> getServiceDetails() {
-        Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
+        Criteria criteria = Criteria.builder().serviceName(this.serviceName).build();
         List<URI> uriList = new ArrayList<>();
         try {
             List<Service> serviceList = docker.listServices(criteria);
@@ -108,7 +111,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
     public void scaleService(final int instanceCount, final boolean wait) {
         try {
             Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
-            Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
+            Criteria criteria = Criteria.builder().serviceName(this.serviceName).build();
             String serviceId = docker.listServices(criteria).get(0).id();
             docker.updateService(serviceId, 1L, ServiceSpec.builder().mode(ServiceMode.withReplicas(instanceCount)).build());
             String updateState = docker.inspectService(serviceId).updateStatus().state();
@@ -121,7 +124,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
     @Override
     public void stop() {
         try {
-            List<com.spotify.docker.client.messages.Network> networkList =  docker.listNetworks(DockerClient.ListNetworksParam.byNetworkName("network-name"));
+            List<Network> networkList =  docker.listNetworks(DockerClient.ListNetworksParam.byNetworkName("network-name"));
             for (int i = 0; i < networkList.size(); i++) {
              docker.removeNetwork(networkList.get(i).id());
             }

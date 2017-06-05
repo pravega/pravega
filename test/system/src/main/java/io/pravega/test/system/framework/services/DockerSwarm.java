@@ -9,37 +9,31 @@
  */
 package io.pravega.test.system.framework.services;
 
-
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.NetworkConfig;
 import com.spotify.docker.client.messages.swarm.SwarmInit;
+import io.pravega.test.system.framework.docker.Dockerclient;
+import lombok.extern.slf4j.Slf4j;
 
-import static com.sun.org.apache.xerces.internal.util.PropertyState.is;
-import static org.hamcrest.core.IsNull.notNullValue;
-
+@Slf4j
 public class DockerSwarm {
 
-    public static DockerClient docker;
-
     public static void main(String[] args) {
-       docker = Dockerclient.getClient();
+
+        DockerClient dockerClient = Dockerclient.getClient();
+
        try {
-           docker.createNetwork(NetworkConfig.builder().driver("overlay").name("network-name").build());
+           dockerClient.createNetwork(NetworkConfig.builder().driver("overlay").name("network-name").build());
            final String nodeId;
-           nodeId = docker.initSwarm(SwarmInit.builder()
+           nodeId = dockerClient.initSwarm(SwarmInit.builder()
                    .advertiseAddr("127.0.0.1")
                    .listenAddr("0.0.0.0:2377")
                    .build()
            );
-           assertThat(nodeId, is(notNullValue()));
        } catch (DockerException | InterruptedException e) {
            log.error("unable to initilaize a swarm {}", e);
        }
 
-    }
-
-    public static DockerClient retrieveDockerClient() {
-        return docker;
     }
 }

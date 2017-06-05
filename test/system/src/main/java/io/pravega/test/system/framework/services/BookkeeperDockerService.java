@@ -20,7 +20,6 @@ import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.ResourceRequirements;
 import com.spotify.docker.client.messages.swarm.Resources;
 import com.spotify.docker.client.messages.swarm.RestartPolicy;
-import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
@@ -51,12 +50,7 @@ public class BookkeeperDockerService extends DockerBasedService {
     @Override
     public void stop() {
         try {
-            Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-            List<com.spotify.docker.client.messages.swarm.Service> serviceList = docker.listServices(criteria);
-            for (int i = 0; i < serviceList.size(); i++) {
-                String serviceId = serviceList.get(i).id();
-                docker.removeService(serviceId);
-            }
+            docker.removeService(getID());
         } catch (DockerException | InterruptedException e) {
             log.error("unable to remove service {}", e);
         }
@@ -110,7 +104,7 @@ public class BookkeeperDockerService extends DockerBasedService {
                         .mounts(Arrays.asList(mount1, mount2, mount3, mount4))
                         .env(stringList).build())
                 .resources(ResourceRequirements.builder()
-                        .limits(Resources.builder()
+                        .reservations(Resources.builder()
                                 .memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())
                 .build();
