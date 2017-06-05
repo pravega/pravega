@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -145,12 +146,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      */
     private void handleLogSealed(Segment segment) {
         synchronized (lock) {
-            CompletableFuture<Void> handleLogSealedFuture = refreshSegmentStatusMap.getIfPresent(segment);
+            CompletableFuture<Void> handleLogSealedFuture = getRefreshSegmentStatusMap().getIfPresent(segment);
             if (handleLogSealedFuture != null) { // entry is present.
                 handleLogSealedFuture.join(); // wait until the the operation is complete if entry is already present.
             } else {
                 CompletableFuture<Void> status = new CompletableFuture<>();
-                refreshSegmentStatusMap.put(segment, status); // add entry and handle logSealed.
+                getRefreshSegmentStatusMap().put(segment, status); // add entry and handle logSealed.
                 try {
                     List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment,
                             segmentSealedCallBack);
@@ -160,6 +161,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 }
             }
         }
+    }
+
+    @VisibleForTesting
+    @GuardedBy("lock")
+    Cache<Segment, CompletableFuture<Void>> getRefreshSegmentStatusMap() {
+        return refreshSegmentStatusMap;
     }
 
     @GuardedBy("lock")

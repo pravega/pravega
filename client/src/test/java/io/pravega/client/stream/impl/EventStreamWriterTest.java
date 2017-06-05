@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -202,6 +204,62 @@ public class EventStreamWriterTest {
         assertEquals(2, outputStream2.getUnackedEvents().size());
         assertEquals("Foo", serializer.deserialize(outputStream2.getUnackedEvents().get(0).getData()));
         assertEquals("Bar", serializer.deserialize(outputStream2.getUnackedEvents().get(1).getData()));
+    }
+
+    @Test
+    public void testEndOfSegmentBackgroundRefresh() {
+        String scope = "scope";
+        String streamName = "stream";
+        String routingKey = "RoutingKey";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        Segment segment2 = new Segment(scope, streamName, 1);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        FakeSegmentOutputStream outputStream1 = new FakeSegmentOutputStream(segment1);
+        FakeSegmentOutputStream outputStream2 = new FakeSegmentOutputStream(segment2);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any())).thenReturn(outputStream1);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any())).thenReturn(outputStream2);
+
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+                .thenReturn(getSegmentsFuture(segment1))
+                .thenReturn(getSegmentsFuture(segment2));
+        @Cleanup
+        EventStreamWriterImpl<String> writer = Mockito.spy(new EventStreamWriterImpl<>(stream,
+                controller,
+                streamFactory,
+                serializer,
+                config));
+
+        writer.writeEvent(routingKey, "Foo");
+        outputStream1.sealed = true;
+
+        //Simulate a background thread update which handles SegmentSealed, here the segments are not refreshed.
+        CompletableFuture<Void> cf = CompletableFuture.completedFuture(null);
+        Cache<Segment, CompletableFuture<Void>> mockCache = CacheBuilder.newBuilder().build();
+        mockCache.put(segment1, cf);
+
+        //return a MockCache only for the first time, then call the real method.
+        Mockito.doReturn(mockCache).doCallRealMethod().when(writer).getRefreshSegmentStatusMap();
+
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment2));
+        Mockito.when(controller.getSuccessors(segment1)).thenReturn(getReplacement(segment1, segment2));
+        writer.writeEvent(routingKey, "Bar");
+        Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
+
+        assertEquals(2, outputStream1.getUnackedEvents().size());
+        assertEquals("Foo", serializer.deserialize(outputStream1.getUnackedEvents().get(0).getData()));
+        assertEquals("Bar", serializer.deserialize(outputStream1.getUnackedEvents().get(1).getData()));
+
+        writer.writeEvent(routingKey, "TestData");
+        //This time the actual handleLogSealed is invoked and the resend method resends data to outputStream2.
+        assertEquals(3, outputStream2.getUnackedEvents().size());
+        assertEquals("Foo", serializer.deserialize(outputStream1.getUnackedEvents().get(0).getData()));
+        assertEquals("Bar", serializer.deserialize(outputStream1.getUnackedEvents().get(1).getData()));
+        assertEquals("TestData", serializer.deserialize(outputStream1.getUnackedEvents().get(2).getData()));
+
     }
 
     @Test
