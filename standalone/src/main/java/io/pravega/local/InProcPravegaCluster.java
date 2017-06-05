@@ -14,6 +14,8 @@ import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
+import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -65,6 +67,9 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private String controllerURI = null;
 
+    /*REST server related variables*/
+    private int restServerPort;
+
     /*SegmentStore related variables*/
     private boolean isInProcSegmentStore;
     private int segmentStoreCount = 0;
@@ -91,13 +96,14 @@ public class InProcPravegaCluster implements AutoCloseable {
     private ControllerServiceMain[] controllerServers;
 
     private String zkUrl;
-    private boolean startRestServer = false;
+    private boolean startRestServer = true;
 
     @Builder
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
                                 boolean isInProcHDFS,
                                 boolean isInProcController, int controllerCount, String controllerURI,
-                                boolean isInProcSegmentStore, int segmentStoreCount, int containerCount, boolean startRestServer) {
+                                boolean isInProcSegmentStore, int segmentStoreCount, int containerCount,
+                                boolean startRestServer, int restServerPort) {
 
         //Check for valid combinations of flags
         //For ZK
@@ -128,6 +134,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.segmentStoreCount = segmentStoreCount;
         this.containerCount = containerCount;
         this.startRestServer = startRestServer;
+        this.restServerPort = restServerPort;
     }
 
     @Synchronized
@@ -302,19 +309,20 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .build();
 
+        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
+                .host("localhost")
+                .port(this.restServerPort)
+                .build();
+
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .eventProcThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
-                .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
-                .controllerClusterListenerConfig(Optional.empty())
+                .controllerClusterListenerEnabled(false)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
-                .restServerConfig(Optional.empty())
+                .restServerConfig(Optional.of(restServerConfig))
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);

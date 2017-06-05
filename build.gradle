@@ -403,6 +403,11 @@ project('standalone') {
         testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
     }
 
+    configurations {
+        runtime.exclude group: "com.sun.jersey", module: "jersey-core"
+        runtime.exclude group: "com.sun.jersey", module: "jersey-server"
+    }
+
     task startStandalone(type: JavaExec) {
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
