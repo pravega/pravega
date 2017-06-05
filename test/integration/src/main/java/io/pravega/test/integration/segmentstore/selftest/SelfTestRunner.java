@@ -89,9 +89,12 @@ public class SelfTestRunner {
 
                 // Test setup.
                 .with(TestConfig.THREAD_POOL_SIZE, 50 + testThreadPoolAddition)
-                .with(TestConfig.DATA_LOG_APPEND_DELAY, 0)
                 .with(TestConfig.TIMEOUT_MILLIS, 3000)
                 .with(TestConfig.VERBOSE_LOGGING, false)
+
+                // Tier1
+                .with(TestConfig.USE_BOOKKEEPER, true)
+                .with(TestConfig.DATA_LOG_APPEND_DELAY, 0)
 
                 // Client-specific settings.
                 .with(TestConfig.CLIENT_AUTO_FLUSH, false)
