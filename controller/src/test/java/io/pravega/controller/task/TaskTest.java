@@ -307,7 +307,7 @@ public class TaskTest {
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
         // Alter stream test.
-        completePartialTask(mockStreamTasks.alterStream(SCOPE, stream, configuration1, null), deadHost, sweeper);
+        completePartialTask(mockStreamTasks.updateStream(SCOPE, stream, configuration1, null), deadHost, sweeper);
 
         // Scale test.
         completePartialTask(mockStreamTasks.scale(SCOPE, stream, sealSegments, newRanges,

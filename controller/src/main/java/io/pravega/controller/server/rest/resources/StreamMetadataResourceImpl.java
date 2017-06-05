@@ -347,7 +347,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         StreamConfiguration streamConfiguration = ModelHelper.getUpdateStreamConfig(
                 updateStreamRequest, scopeName, streamName);
-        controllerService.alterStream(streamConfiguration).thenApply(streamStatus -> {
+        controllerService.updateStream(streamConfiguration).thenApply(streamStatus -> {
             if (streamStatus.getStatus() == UpdateStreamStatus.Status.SUCCESS) {
                 log.info("Successfully updated stream config for: {}/{}", scopeName, streamName);
                 return Response.status(Status.OK)

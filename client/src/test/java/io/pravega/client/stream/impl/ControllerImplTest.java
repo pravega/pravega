@@ -139,7 +139,7 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void alterStream(StreamConfig request,
+            public void updateStream(StreamConfig request,
                     StreamObserver<UpdateStreamStatus> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(UpdateStreamStatus.newBuilder()
@@ -589,35 +589,35 @@ public class ControllerImplTest {
     @Test
     public void testAlterStream() throws Exception {
         CompletableFuture<Boolean> updateStreamStatus;
-        updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
+        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
                                                                   .streamName("stream1")
                                                                   .scope("scope1")
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         assertTrue(updateStreamStatus.get());
 
-        updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
+        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
                                                                   .streamName("stream2")
                                                                   .scope("scope1")
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
 
-        updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
+        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
                                                                   .streamName("stream3")
                                                                   .scope("scope1")
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
 
-        updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
+        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
                                                                   .streamName("stream4")
                                                                   .scope("scope1")
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
 
-        updateStreamStatus = controllerClient.alterStream(StreamConfiguration.builder()
+        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
                                                                   .streamName("stream5")
                                                                   .scope("scope1")
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))

@@ -53,7 +53,7 @@ public interface StreamManager extends AutoCloseable {
      * @param config     The new configuration.
      * @return True if stream configuration is updated
      */
-    boolean alterStream(String scopeName, String streamName, StreamConfiguration config);
+    boolean updateStream(String scopeName, String streamName, StreamConfiguration config);
 
     /**
      * Seal an existing stream.
