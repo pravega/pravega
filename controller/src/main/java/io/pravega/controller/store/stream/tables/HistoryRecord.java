@@ -22,7 +22,7 @@ import java.util.Optional;
  * HistoryRecords are of variable length, so we will maintain markers for
  * start of row and end of row. We need it in both directions because we need to traverse
  * in both directions on the history table
- * Row : [length][epoch][List-of-active-segment-numbers], [length-so-far], scaleTime][length]
+ * Row : [length][epoch][List-of-active-segment-numbers], [length-so-far], [scaleTime][length]
  */
 public class HistoryRecord {
 

@@ -10,11 +10,9 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.Retry;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -34,21 +32,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import static io.pravega.controller.server.eventProcessor.EventProcessorHelper.withRetries;
+
 /**
  * Request handler for scale requests in scale-request-stream.
  */
 @Slf4j
 public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
 
-    private static final long RETRY_INITIAL_DELAY = 100;
-    private static final int RETRY_MULTIPLIER = 2;
-    private static final int RETRY_MAX_ATTEMPTS = 10;
-    private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
-
     private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
-    private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-            .retryWhen(RetryableException::isRetryable)
-            .throwingOn(RuntimeException.class);
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
@@ -79,7 +71,7 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
 
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
-        return RETRY.runAsync(() -> {
+        return withRetries(() -> {
             final CompletableFuture<ScalingPolicy> policyFuture = streamMetadataStore
                     .getConfiguration(request.getScope(), request.getStream(), context, executor)
                     .thenApply(StreamConfiguration::getScalingPolicy);
