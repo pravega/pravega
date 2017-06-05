@@ -48,8 +48,8 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 class StreamSegmentStoreAdapter implements StoreAdapter {
     //region Members
 
+    static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     private static final String LOG_ID = "SegmentStoreAdapter";
-    private static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     protected final Executor testExecutor;
     private final TestConfig config;
     private final AtomicBoolean closed;
@@ -110,15 +110,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
                     .build();
             this.zkClient.start();
             return builder.withDataLogFactory(setup -> {
-                BookKeeperConfig bkConfig = BookKeeperConfig
-                        .builder()
-                        .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + this.config.getZkPort())
-                        .with(BookKeeperConfig.ZK_METADATA_PATH, "/selftest/segmentstore/containers")
-                        .with(BookKeeperConfig.BK_LEDGER_PATH, BK_LEDGER_PATH)
-                        .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
-                        .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
-                        .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
-                        .build();
+                BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);
                 return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor());
             });
         } else {
