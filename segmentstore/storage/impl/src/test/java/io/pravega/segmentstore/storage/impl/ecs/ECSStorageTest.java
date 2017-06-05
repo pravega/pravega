@@ -21,11 +21,14 @@ import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.channels.FileChannel;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -244,14 +247,17 @@ public class ECSStorageTest extends StorageTestBase {
         S3Config ecsConfig = null;
         try {
             ecsConfig = new S3Config(new URI("http://172.16.39.136:9020"));
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
+        if ( adapterConfig == null ) {
+                setUp();
         }
-        //ecsConfig.withIdentity("user1").withSecretKey("ZyZWPOUr/A6OZnYiyrvfdiR94EHlBx//jozOW6gn");
         ecsConfig.withIdentity(adapterConfig.getEcsAccessKey()).withSecretKey(adapterConfig.getEcsSecretKey());
 
         client = new S3JerseyClient(ecsConfig);
             return new ECSStorage(client, this.adapterConfig, executorService());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     @Override

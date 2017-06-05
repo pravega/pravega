@@ -22,6 +22,10 @@ import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.jersey.S3JerseyClient;
+import com.emc.object.s3.request.CompleteMultipartUploadRequest;
+import com.emc.object.s3.request.CopyPartRequest;
+import com.emc.object.s3.request.PutObjectRequest;
+import com.emc.object.s3.request.SetObjectAclRequest;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -44,6 +48,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -220,7 +225,7 @@ public class ECSStorage implements Storage {
     //region private sync implementation
 
     private SegmentHandle syncOpenRead(String streamSegmentName) {
-        log.info("Opening {} for read.", streamSegmentName);
+        log.trace("Opening {} for read.", streamSegmentName);
 
         GetObjectResult<InputStream> result = null;
         try {
@@ -230,18 +235,18 @@ public class ECSStorage implements Storage {
         }
 
         if ( result == null ) {
-            log.info("Did not find segment {} ",streamSegmentName);
+            log.info("Did not find segment {} ", streamSegmentName);
             throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
         }
 
         ECSSegmentHandle retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
-        log.info("Created read handle for segment {} ",streamSegmentName);
+        log.trace("Created read handle for segment {} ", streamSegmentName);
         return retHandle;
     }
 
 
-    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration
-            timeout) {
+    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length,
+                         Duration timeout) {
         log.info("Creating a inputstream at offset {} for stream {}", offset, handle.getSegmentName());
 
         if ( offset < 0 || bufferOffset < 0 || length < 0 ) {
@@ -250,7 +255,6 @@ public class ECSStorage implements Storage {
 
         try ( InputStream reader = client.readObjectStream(config.getEcsBucket(),
                 config.getEcsRoot() + handle.getSegmentName(), Range.fromOffset(offset))) {
-
 
             if (reader == null) {
                 log.info("Object does not exist {} in bucket {} ", config.getEcsRoot() + handle.getSegmentName(),
@@ -305,8 +309,8 @@ public class ECSStorage implements Storage {
                     result.getContentLength(), !canWrite, false,
                     new ImmutableDate(result.getLastModified().toInstant().toEpochMilli()));
             return information;
-        }catch (Exception e) {
-            if (e instanceof S3Exception) {
+        } catch (Exception e) {
+            if ( e instanceof S3Exception) {
                 if (((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
                     throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
                 }
@@ -331,7 +335,7 @@ public class ECSStorage implements Storage {
         log.info("Creating Segment {}", streamSegmentName);
         try {
             if ( client.listObjects(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName)
-                    .getObjects().size()!=0) {
+                    .getObjects().size() != 0) {
                 throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
             }
 
@@ -344,8 +348,8 @@ public class ECSStorage implements Storage {
 
             AccessControlList acl =  new AccessControlList();
             acl.addGrants(new Grant[]{
-                    new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey())
-                            , Permission.FULL_CONTROL)
+                    new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey()),
+                            Permission.FULL_CONTROL)
             });
 
             request.setAcl(acl);
@@ -353,7 +357,7 @@ public class ECSStorage implements Storage {
             client.putObject(request);
 
             log.info("Created Segment {}", streamSegmentName);
-            return (this.getStreamSegmentInfo(streamSegmentName, timeout).get());
+            return this.getStreamSegmentInfo(streamSegmentName, timeout).get();
         } catch (Exception e) {
             log.info("Exception {} while creating a segment {}", e, streamSegmentName);
             if (e instanceof FileAlreadyExistsException) {
@@ -367,7 +371,7 @@ public class ECSStorage implements Storage {
     private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
         log.trace("Writing {} to segment {} at offset {}", length, handle.getSegmentName(), offset);
 
-        if( handle.isReadOnly()) {
+        if ( handle.isReadOnly()) {
             throw new CompletionException(new IllegalArgumentException(handle.getSegmentName()));
         }
 
@@ -404,9 +408,9 @@ public class ECSStorage implements Storage {
             AccessControlList acl = client.getObjectAcl(config.getEcsBucket(),
                     config.getEcsRoot() + handle.getSegmentName());
             acl.getGrants().clear();
-            acl.addGrants(new Grant[]{
-                    new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey())
-                    ,Permission.READ )
+            acl.addGrants(new Grant[] {
+                    new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey()),
+                            Permission.READ)
             });
 
          client.setObjectAcl(new SetObjectAclRequest( config.getEcsBucket(),
@@ -417,7 +421,7 @@ public class ECSStorage implements Storage {
             return null;
         } catch (Exception e) {
             log.info("Seal failed with {} for segment {}", e, handle.getSegmentName());
-            if(e instanceof S3Exception) {
+            if ( e instanceof S3Exception) {
                 throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName()));
             }
             throw new CompletionException(e);
@@ -440,7 +444,6 @@ public class ECSStorage implements Storage {
             if ( !si.isSealed()) {
                 throw new CompletionException(new IllegalStateException());
             }
-
 
             //Upload the first part
             CopyPartRequest copyRequest = new CopyPartRequest(config.getEcsBucket(),
@@ -468,22 +471,23 @@ public class ECSStorage implements Storage {
             copyResult = client.copyPart(copyRequest);
             partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
 
-
             //Close the upload
             client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getEcsBucket(),
                     targetPath, uploadId).withParts(partEtags));
 
             si = getStreamSegmentInfo(targetHandle.getSegmentName(), Duration.ZERO).get();
-            log.info("Properties after concat completion : length is {} ",si.getLength());
+            log.trace("Properties after concat completion : length is {} ", si.getLength());
 
             client.deleteObject(config.getEcsBucket(), config.getEcsRoot() + sourceSegment);
 
             return null;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.info("Concat of {} on {} failed with {}", sourceSegment, targetHandle.getSegmentName(), e);
-            if( e instanceof S3Exception) {
+            if ( e instanceof S3Exception) {
                 throw new CompletionException(new StreamSegmentNotExistsException(e.getMessage()));
             }
+            throw new CompletionException(e);
+        } catch (InterruptedException | ExecutionException e) {
             throw new CompletionException(e);
         }
     }
