@@ -11,11 +11,9 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.Position;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
-import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -23,12 +21,10 @@ import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
@@ -36,8 +32,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static io.pravega.controller.server.eventProcessor.EventProcessorHelper.indefiniteRetries;
+import static io.pravega.controller.server.eventProcessor.EventProcessorHelper.withRetries;
+import static io.pravega.controller.server.eventProcessor.EventProcessorHelper.writeBack;
 
 /**
  * This event processor allows concurrent event processing.
@@ -47,24 +46,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ConcurrentEventProcessor<R extends ControllerEvent, H extends RequestHandler<R>>
         extends EventProcessor<R> {
-    private static final long RETRY_INITIAL_DELAY = 100;
-    private static final int RETRY_MULTIPLIER = 2;
-    private static final int RETRY_MAX_ATTEMPTS = 5;
-    private static final long RETRY_MAX_DELAY = Duration.ofSeconds(2).toMillis();
-    private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry
-            .withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-            .retryWhen(RetryableException::isRetryable)
-            .throwingOn(RuntimeException.class);
-    private static final Retry.RetryUnconditionally UNCONDITIONALLY = Retry
-        .indefinitelyWithExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_DELAY,
-            e -> {
-                if (log.isDebugEnabled()) {
-                    log.debug("error while writing event back into stream {}", e);
-                } else {
-                    log.warn("error while writing event back into stream");
-                }
-            });
-
     private static final int MAX_CONCURRENT = 10000;
     private static final PositionCounter MAX = new PositionCounter(null, Long.MAX_VALUE);
 
@@ -156,39 +137,22 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         if (RetryableException.isRetryable(cause)) {
             log.info("ConcurrentEventProcessor Processing failed, putting the event back");
 
-            future = indefiniteRetries(() -> writeBack(request), executor);
+            EventProcessor.Writer<R> writer;
+            if (internalWriter != null) {
+                writer = internalWriter;
+            } else if (getSelfWriter() != null) {
+                writer = getSelfWriter();
+            } else {
+                writer = null;
+            }
+
+            future = indefiniteRetries(() -> writeBack(request, writer), executor);
         } else {
             log.error("ConcurrentEventProcessor Processing failed, exiting {}", e);
             future = CompletableFuture.completedFuture(null);
         }
 
         return future;
-    }
-
-    private CompletableFuture<Void> writeBack(R request) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-
-        Writer<R> writer;
-        if (internalWriter != null) {
-            writer = internalWriter;
-        } else if (getSelfWriter() != null) {
-            writer = getSelfWriter();
-        } else {
-            result.complete(null);
-            return result;
-        }
-
-        AckFuture future = writer.write(request);
-        future.addListener(() -> {
-            try {
-                future.get();
-                result.complete(null);
-            } catch (Exception e) {
-                result.completeExceptionally(e);
-            }
-        }, Executors.newSingleThreadExecutor());
-
-        return result;
     }
 
     @Override
@@ -236,14 +200,6 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         } catch (Exception e) {
             log.warn("error while trying to store checkpoint in the store {}", e);
         }
-    }
-
-    private <U> CompletableFuture<U> withRetries(Supplier<CompletableFuture<U>> futureSupplier, ScheduledExecutorService executor) {
-        return RETRY.runAsync(futureSupplier, executor);
-    }
-
-    private <U> CompletableFuture<U> indefiniteRetries(Supplier<CompletableFuture<U>> futureSupplier, ScheduledExecutorService executor) {
-        return UNCONDITIONALLY.runAsync(futureSupplier, executor);
     }
 
     @AllArgsConstructor
