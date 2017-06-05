@@ -154,7 +154,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
                 // to indicate that we are closed by throwing ObjectClosedException.
                 throw new ObjectClosedException(this, ex);
             } else if (ex instanceof ObjectClosedException) {
-                // OrderedItemProcessor has closed (most likely due to a DataFrame commit failure. We need to close as well.
+                // TargetLog has closed. We need to close too.
                 close();
             } else {
                 // Discard any information that we have about this record (pretty much revert back to where startNewEntry()
