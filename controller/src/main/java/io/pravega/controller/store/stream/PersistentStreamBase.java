@@ -569,13 +569,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
-        // TODO: this implementation needs to change once we do epoch change in history table, #1358
+        // TODO: this implementation needs to change once we do epoch change in history table, Issue #1392.
         return getActiveSegments().thenApply(list -> new SimpleEntry<>(0, list));
     }
 
     @Override
     public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
-        // TODO: this implementation needs to change once we do epoch change in history table, #1358
+        // TODO: this implementation needs to change once we do epoch change in history table, Issue #1392.
         return getActiveSegments().thenApply(list -> new SimpleEntry<>(0, list));
     }
 

@@ -306,7 +306,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
             final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
             final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
                     scaleGracePeriod, TxnStatus.OPEN).toByteArray();
-            // TODO: replace the previous create version with createZNodeIfParentExists, #1358.
+            // TODO: replace the previous create version with createZNodeIfParentExists, Issue #1392.
             return store.createZNodeIfNotExist(activePath, txnRecord)
                     .thenApply(x -> cache.invalidateCache(activePath))
                     .thenApply(y -> pair.getKey());
