@@ -237,7 +237,6 @@ public class FSStorage implements Storage {
         return exists;
     }
 
-
     private SegmentProperties syncCreate(String streamSegmentName, Duration timeout) {
         log.info("Creating Segment {}", streamSegmentName);
         try {
@@ -304,7 +303,6 @@ public class FSStorage implements Storage {
                 throw new CompletionException(ioe);
             }
         }
-
     }
 
     private boolean isWritableFile(Path path) throws IOException {
@@ -312,7 +310,6 @@ public class FSStorage implements Storage {
             attrs = Files.readAttributes(path,
                     PosixFileAttributes.class);
             return attrs.permissions().contains(OWNER_WRITE);
-
     }
 
     private Void syncSeal(SegmentHandle handle, Duration timeout) {
