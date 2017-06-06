@@ -32,6 +32,7 @@ public class HDFSStorageConfig {
     //endregion
 
     //region Members
+
     /**
      * HDFS host URL. This is generally in host:port format
      */

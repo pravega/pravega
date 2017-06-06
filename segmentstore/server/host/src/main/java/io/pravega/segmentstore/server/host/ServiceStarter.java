@@ -213,7 +213,7 @@ public final class ServiceStarter {
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()
-                                                                 .bookKeeper(true).tier2(true).rocksDb(true)
+                    .bookKeeper(true).tier2(true).rocksDb(true)
                     .zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);

@@ -26,7 +26,7 @@ configure_controller() {
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
-configure_nfs_s3_hdfs() {
+configure_tier2() {
     add_system_property "tier2.enableNfs" "${ENABLE_NFS}"
 
     echo "Checking whether NFS mounting is required"
@@ -79,7 +79,7 @@ controller)
     exec /opt/pravega/bin/pravega-controller
     ;;
 segmentstore)
-    configure_nfs_s3_hdfs
+    configure_tier2
     configure_segmentstore
     exec /opt/pravega/bin/pravega-segmentstore
     ;;

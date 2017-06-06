@@ -60,11 +60,12 @@ public class FSStorageTest extends StorageTestBase {
      * * We create the Segment on Storage1:
      * ** We verify that Storage1 can execute all operations.
      * ** We verify that Storage2 can execute only read-only operations.
-     * * We open the Segment on Storage2:
+     * ** We open the Segment on Storage2:
      * ** We verify that Storage1 can execute only read-only operations.
      * ** We verify that Storage2 can execute all operations.
      */
     @Override
+    @Test
     public void testFencing() throws Exception {
         final long epoch1 = 1;
         final long epoch2 = 2;
@@ -174,6 +175,7 @@ public class FSStorageTest extends StorageTestBase {
      *
      * @throws Exception if an unexpected error occurred.
      */
+    @Override
     @Test
     public void testWrite() throws Exception {
         String segmentName = "foo_write";
