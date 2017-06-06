@@ -101,29 +101,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @Override
     protected CompletableFuture<Void> doRun() {
-        return FutureHelpers.loop(
-                this::isRunning,
-                () -> delayIfNecessary()
-                        .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
-                        .thenAcceptAsync(this::processOperations, this.executor),
-                this.executor);
-    }
-
-    private CompletableFuture<Void> delayIfNecessary() {
-        QueueStats stats = this.durableDataLog.getQueueStatistics();
-
-        // The higher the average fill rate, the more efficient use we make of the available capacity. As such, for high
-        // fill rates we don't want to wait too long.
-        double fillRateAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRate(), 0, 1);
-
-        // If the queue is below (or very close to) the max degree of parallelism, do our best to fill it up. Otherwise
-        // the Fill Rate and the ExpectedProcessingTime will account for queue size as well.
-        double countRateAdj = stats.getSize() < stats.getMaxParallelism() ? 0.1 : 1;
-
-        // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
-        int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRateAdj * countRateAdj);
-        delayMillis = Math.min(delayMillis, 1000);
-        return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
+        return FutureHelpers
+                .loop(this::isRunning,
+                        () -> delayIfNecessary()
+                                .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
+                                .thenAcceptAsync(this::processOperations, this.executor),
+                        this.executor)
+                .exceptionally(this::iterationErrorHandler);
     }
 
     @Override
@@ -144,17 +128,27 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     protected void errorHandler(Throwable ex) {
         ex = ExceptionHelpers.getRealException(ex);
         closeQueue(ex);
-        // CancellationException: we are already stopping, so no need to do anything else.
-        // ObjectClosedException (if we are not running): we must have closed one of the components (queue) and some other
-        // async task stumbled across it - this is also expected.
-        // For all other cases: record the failure and then stop the OperationProcessor.
-        boolean isTerminalState = state() == State.STOPPING || state() == State.TERMINATED || state() == State.FAILED;
-        boolean expectedException = (ex instanceof ObjectClosedException && isTerminalState)
-                || (ex instanceof CancellationException);
-        if (!expectedException) {
+        if (!(ex instanceof CancellationException)) {
+            // CancellationException means we are already stopping, so no need to do anything else. For all other cases,
+            // record the failure and then stop the OperationProcessor.
             super.errorHandler(ex);
             stopAsync();
         }
+    }
+
+    @SneakyThrows
+    private Void iterationErrorHandler(Throwable ex) {
+        ex = ExceptionHelpers.getRealException(ex);
+        // If we get an ObjectClosedException while we are shutting down, then it's safe to ignore it. It was most likely
+        // caused by the queue being shut down, but the main processing loop has just started another iteration and they
+        // crossed paths.
+        State s = state();
+        boolean isExpected = ex instanceof ObjectClosedException && (s == State.STOPPING || s == State.TERMINATED || s == State.FAILED);
+        if (!isExpected) {
+            throw ex;
+        }
+
+        return null;
     }
 
     //endregion
@@ -193,6 +187,23 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     //endregion
 
     //region Queue Processing
+
+    private CompletableFuture<Void> delayIfNecessary() {
+        QueueStats stats = this.durableDataLog.getQueueStatistics();
+
+        // The higher the average fill rate, the more efficient use we make of the available capacity. As such, for high
+        // fill rates we don't want to wait too long.
+        double fillRateAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRate(), 0, 1);
+
+        // If the queue is below (or very close to) the max degree of parallelism, do our best to fill it up. Otherwise
+        // the Fill Rate and the ExpectedProcessingTime will account for queue size as well.
+        double countRateAdj = stats.getSize() < stats.getMaxParallelism() ? 0.1 : 1;
+
+        // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
+        int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRateAdj * countRateAdj);
+        delayMillis = Math.min(delayMillis, 1000);
+        return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
+    }
 
     private DataFrameBuilder<Operation> getDataFrameBuilder(boolean recover) {
         synchronized (this.stateLock) {
