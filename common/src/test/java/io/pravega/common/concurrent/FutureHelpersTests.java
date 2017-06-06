@@ -11,7 +11,6 @@ package io.pravega.common.concurrent;
 
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,7 +26,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,7 +33,7 @@ import org.junit.Test;
 /**
  * Unit tests for the FutureHelpers class.
  */
-public class FutureHelpersTests extends ThreadPooledTestSuite {
+public class FutureHelpersTests {
     /**
      * Tests the failedFuture() method.
      */
@@ -283,7 +281,7 @@ public class FutureHelpersTests extends ThreadPooledTestSuite {
     public void testCompleteAfter() {
         // Async exceptions (before call to completeAfter).
         val toFail1 = new CompletableFuture<Integer>();
-        FutureHelpers.completeAfter(() -> FutureHelpers.failedFuture(new IntentionalException()), toFail1, executorService());
+        FutureHelpers.completeAfter(() -> FutureHelpers.failedFuture(new IntentionalException()), toFail1);
         Assert.assertTrue("Async exceptions were not propagated properly (before).", toFail1.isCompletedExceptionally());
         AssertExtensions.assertThrows(
                 "Unexpected async exception got propagated (before).",
@@ -293,7 +291,7 @@ public class FutureHelpersTests extends ThreadPooledTestSuite {
         // Async exceptions (after call to completeAfter).
         val sourceToFail2 = new CompletableFuture<Integer>();
         val toFail2 = new CompletableFuture<Integer>();
-        FutureHelpers.completeAfter(() -> sourceToFail2, toFail2, executorService());
+        FutureHelpers.completeAfter(() -> sourceToFail2, toFail2);
         sourceToFail2.completeExceptionally(new IntentionalException());
         Assert.assertTrue("Async exceptions were not propagated properly (after).", toFail2.isCompletedExceptionally());
         AssertExtensions.assertThrows(
@@ -307,7 +305,7 @@ public class FutureHelpersTests extends ThreadPooledTestSuite {
                 "Sync exception did not get rethrown.",
                 () -> FutureHelpers.completeAfter(() -> {
                     throw new IntentionalException();
-                }, toFail3, executorService()),
+                }, toFail3),
                 ex -> ex instanceof IntentionalException);
         Assert.assertTrue("Sync exceptions were not propagated properly.", toFail3.isCompletedExceptionally());
         AssertExtensions.assertThrows(
@@ -317,14 +315,14 @@ public class FutureHelpersTests extends ThreadPooledTestSuite {
 
         // Normal completion (before call to completeAfter).
         val toComplete1 = new CompletableFuture<Integer>();
-        FutureHelpers.completeAfter(() -> CompletableFuture.completedFuture(1), toComplete1, executorService());
+        FutureHelpers.completeAfter(() -> CompletableFuture.completedFuture(1), toComplete1);
         Assert.assertTrue("Normal completion did not happen (before).", FutureHelpers.isSuccessful(toComplete1));
         Assert.assertEquals("Unexpected value from normal completion (before).", 1, (int) toComplete1.join());
 
         // Normal completion (after call to completeAfter).
         val sourceToComplete2 = new CompletableFuture<Integer>();
         val toComplete2 = new CompletableFuture<Integer>();
-        FutureHelpers.completeAfter(() -> sourceToComplete2, toComplete2, executorService());
+        FutureHelpers.completeAfter(() -> sourceToComplete2, toComplete2);
         sourceToComplete2.complete(2);
         Assert.assertTrue("Normal completion did not happen (after).", FutureHelpers.isSuccessful(toComplete2));
         Assert.assertEquals("Unexpected value from normal completion (after).", 2, (int) toComplete2.join());

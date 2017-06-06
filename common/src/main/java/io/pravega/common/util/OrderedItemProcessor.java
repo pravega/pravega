@@ -207,7 +207,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
                     }
                 }
 
-                FutureHelpers.completeAfter(() -> processInternal(toProcess.data), toProcess.result, this.executor);
+                FutureHelpers.completeAfter(() -> processInternal(toProcess.data), toProcess.result);
             }
         }
     }

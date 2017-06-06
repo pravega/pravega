@@ -130,7 +130,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
             }
         }
 
-        FutureHelpers.completeAfter(this::runOnceInternal, result, this.executor);
+        FutureHelpers.completeAfter(this::runOnceInternal, result);
         return result;
     }
 

@@ -81,22 +81,16 @@ public final class FutureHelpers {
      * @param futureSupplier A Supplier returning a Future to listen to.
      * @param toComplete     A CompletableFuture that has not yet been completed, which will be completed with the result
      *                       of the Future from futureSupplier.
-     * @param executor Executor for the async callbacks.
      * @param <T>            Return type of Future.
      */
-    public static <T> void completeAfter(Supplier<CompletableFuture<T>> futureSupplier, CompletableFuture<T> toComplete, Executor executor) {
+    public static <T> void completeAfter(Supplier<CompletableFuture<T>> futureSupplier, CompletableFuture<T> toComplete) {
         Preconditions.checkArgument(!toComplete.isDone(), "toComplete is already completed.");
         try {
             CompletableFuture<T> f = futureSupplier.get();
 
             // Async termination.
-            f.whenCompleteAsync((r, ex) -> {
-                if (ex != null) {
-                    toComplete.completeExceptionally(ex);
-                } else {
-                    toComplete.complete(r);
-                }
-            }, executor);
+            f.thenAccept(toComplete::complete);
+            FutureHelpers.exceptionListener(f, toComplete::completeExceptionally);
         } catch (Throwable ex) {
             // Synchronous termination.
             toComplete.completeExceptionally(ex);
