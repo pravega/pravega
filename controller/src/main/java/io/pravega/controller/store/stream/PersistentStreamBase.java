@@ -22,12 +22,14 @@ import io.pravega.controller.store.stream.tables.SegmentRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.client.stream.StreamConfiguration;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -321,19 +323,21 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> createTransaction(final long lease, final long maxExecutionTime,
+    public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
+                                                                         final long lease,
+                                                                         final long maxExecutionTime,
                                                                          final long scaleGracePeriod) {
-        final UUID txId = UUID.randomUUID();
         final long current = System.currentTimeMillis();
-        return verifyLegalState(createNewTransaction(txId, current, current + lease, current + maxExecutionTime, scaleGracePeriod)
-                .thenApply(x ->
-                        new VersionedTransactionData(txId, 0, TxnStatus.OPEN, current,
-                                current + maxExecutionTime, scaleGracePeriod)));
+        final long leaseTimestamp = current + lease;
+        final long maxExecTimestamp = current + maxExecutionTime;
+        return verifyLegalState(createNewTransaction(txnId, current, leaseTimestamp, maxExecTimestamp, scaleGracePeriod)
+                .thenApply(epoch -> new VersionedTransactionData(epoch, txnId, 0, TxnStatus.OPEN, current,
+                        current + maxExecutionTime, scaleGracePeriod)));
     }
 
     @Override
     public CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease) {
-        return getActiveTx(txId)
+        return getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId)
                 .thenCompose(data -> {
                     ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
                     if (activeTxnRecord.getTxnStatus() == TxnStatus.OPEN) {
@@ -342,54 +346,71 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 System.currentTimeMillis() + lease, activeTxnRecord.getMaxExecutionExpiryTime(),
                                 activeTxnRecord.getScaleGracePeriod(), activeTxnRecord.getTxnStatus());
 
-                        return updateActiveTx(txId, newData.toByteArray())
+                        return updateActiveTx(epoch, txId, newData.toByteArray())
                                 .thenApply(x ->
-                                        new VersionedTransactionData(txId, data.getVersion() + 1,
+                                        new VersionedTransactionData(epoch, txId, data.getVersion() + 1,
                                                 TxnStatus.OPEN, activeTxnRecord.getTxCreationTimestamp(),
                                                 activeTxnRecord.getMaxExecutionExpiryTime(),
                                                 activeTxnRecord.getScaleGracePeriod()));
                     } else {
                         return FutureHelpers.failedFuture(new IllegalStateException(txId.toString()));
                     }
-                });
+                }));
     }
 
     @Override
     public CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId) {
-        return getActiveTx(txId)
+        return getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId)
                 .thenApply(data -> {
                     ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
-                    return new VersionedTransactionData(txId, data.getVersion(),
+                    return new VersionedTransactionData(epoch, txId, data.getVersion(),
                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
                             activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getScaleGracePeriod());
-                });
+                }));
     }
 
     @Override
     public CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId) {
+        CompletableFuture<Integer> epochFuture = getTransactionEpoch(txId).handle((epoch, ex) -> {
+            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+                return null;
+            } else if (ex != null) {
+                throw new CompletionException(ex);
+            }
+            return epoch;
+        });
 
-        final CompletableFuture<TxnStatus> activeTx = getActiveTx(txId)
-                .handle((ok, ex) -> {
-                    if (ok == null ||
-                            (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException)) {
-                        return TxnStatus.UNKNOWN;
-                    } else if (ex != null) {
-                        throw new CompletionException(ex);
-                    }
-                    return ActiveTxnRecord.parse(ok.getData()).getTxnStatus();
-                });
-
-        return verifyLegalState(activeTx.thenCompose(x -> {
-            return parseStatus(txId, x);
+        return verifyLegalState(epochFuture.thenCompose(x -> {
+            if (x == null) {
+                return getCompletedTxnStatus(txId);
+            } else {
+                return checkTransactionStatus(x, txId);
+            }
         }));
     }
 
-    private CompletionStage<TxnStatus> parseStatus(final UUID txId, TxnStatus x) {
-        if (!x.equals(TxnStatus.UNKNOWN)) {
-            return CompletableFuture.completedFuture(x);
-        }
+    private CompletableFuture<TxnStatus> checkTransactionStatus(final int epoch, final UUID txId) {
+        final CompletableFuture<TxnStatus> activeTx = getActiveTx(epoch, txId).handle((ok, ex) -> {
+            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+                return TxnStatus.UNKNOWN;
+            } else if (ex != null) {
+                throw new CompletionException(ex);
+            }
+            return ActiveTxnRecord.parse(ok.getData()).getTxnStatus();
+        });
+        val result = activeTx.thenCompose(x -> {
+            if (x.equals(TxnStatus.UNKNOWN)) {
+                return getCompletedTxnStatus(txId);
+            } else {
+                return CompletableFuture.completedFuture(x);
+            }
+        });
+        return verifyLegalState(result);
+    }
+
+    private CompletableFuture<TxnStatus> getCompletedTxnStatus(UUID txId) {
         return getCompletedTx(txId).handle((ok, ex) -> {
-            if (ok == null || (ex != null && ex instanceof DataNotFoundException)) {
+            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
                 return TxnStatus.UNKNOWN;
             } else if (ex != null) {
                 throw new CompletionException(ex);
@@ -399,46 +420,62 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit,
-                                                        final Optional<Integer> version) {
-        val result = checkTransactionStatus(txId)
-                .thenCompose(x -> {
+    public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                              final boolean commit,
+                                                                              final Optional<Integer> version) {
+        CompletableFuture<SimpleEntry<TxnStatus, Integer>> future = verifyLegalState(getTransactionEpoch(txId)
+                .thenCompose(epoch -> sealActiveTxn(epoch, txId, commit, version)))
+                .exceptionally(ex -> new SimpleEntry<>(handleDataNotFoundException(ex), null));
+        return future.thenCompose(pair -> pair.getKey() == TxnStatus.UNKNOWN ?
+                validateCompletedTxn(txId, commit, "seal").thenApply(status -> new SimpleEntry<>(status, null)) :
+                CompletableFuture.completedFuture(pair));
+    }
+
+    /**
+     * Seal a transaction in OPEN/COMMITTING/ABORTING state. This method does CAS on the transaction data node if
+     * the transaction is in OPEN state, optionally checking version of transaction data node, if required.
+     *
+     * @param epoch   transaction epoch.
+     * @param txId    transaction identifier.
+     * @param commit  boolean indicating whether to commit or abort the transaction.
+     * @param version optional expected version of transaction node to validate before updating it.
+     * @return        a pair containing transaction status and its epoch.
+     */
+    private CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealActiveTxn(final int epoch,
+                                                                             final UUID txId,
+                                                                             final boolean commit,
+                                                                             final Optional<Integer> version) {
+        return getActiveTx(epoch, txId).thenCompose(data -> {
+            ActiveTxnRecord txnRecord = ActiveTxnRecord.parse(data.getData());
+            int dataVersion = version.isPresent() ? version.get() : data.getVersion();
+            TxnStatus status = txnRecord.getTxnStatus();
+            switch (status) {
+                case OPEN:
+                    return sealActiveTx(epoch, txId, commit, txnRecord, dataVersion).thenApply(y ->
+                            new SimpleEntry<>(commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING, epoch));
+                case COMMITTING:
+                case COMMITTED:
                     if (commit) {
-                        switch (x) {
-                            case OPEN:
-                                return sealActiveTx(txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
-                            case COMMITTING:
-                            case COMMITTED:
-                                return CompletableFuture.completedFuture(x);
-                            case ABORTING:
-                            case ABORTED:
-                                throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
-                            default:
-                                throw new TransactionNotFoundException(txId.toString());
-                        }
+                        return CompletableFuture.completedFuture(new SimpleEntry<>(status, epoch));
                     } else {
-                        switch (x) {
-                            case OPEN:
-                                return sealActiveTx(txId, false, version).thenApply(y -> TxnStatus.ABORTING);
-                            case ABORTING:
-                            case ABORTED:
-                                return CompletableFuture.completedFuture(x);
-                            case COMMITTING:
-                            case COMMITTED:
-                                throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
-                            default:
-                                throw new TransactionNotFoundException(txId.toString());
-                        }
+                        throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
                     }
-                });
-        return verifyLegalState(result);
+                case ABORTING:
+                case ABORTED:
+                    if (commit) {
+                        throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                    } else {
+                        return CompletableFuture.completedFuture(new SimpleEntry<>(status, epoch));
+                    }
+                default:
+                    throw new TransactionNotFoundException(txId.toString());
+            }
+        });
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(final UUID txId) {
-
-        return verifyLegalState(checkTransactionStatus(txId)
-                .thenApply(x -> {
+    public CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId) {
+        CompletableFuture<TxnStatus> future = verifyLegalState(checkTransactionStatus(epoch, txId).thenApply(x -> {
                     switch (x) {
                         // Only sealed transactions can be committed
                         case COMMITTED:
@@ -460,14 +497,18 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         return CompletableFuture.completedFuture(null); // already committed, do nothing
                     }
                 })
-                .thenCompose(x -> removeActiveTxEntry(txId))
-                .thenApply(x -> TxnStatus.COMMITTED));
+                .thenCompose(x -> removeActiveTxEntry(epoch, txId))
+                .thenApply(x -> TxnStatus.COMMITTED))
+                .exceptionally(this::handleDataNotFoundException);
+
+        return future.thenCompose(status -> status == TxnStatus.UNKNOWN ?
+                validateCompletedTxn(txId, true, "commit") :
+                CompletableFuture.completedFuture(status));
     }
 
     @Override
-    public CompletableFuture<TxnStatus> abortTransaction(final UUID txId) {
-        return verifyLegalState(checkTransactionStatus(txId)
-                .thenApply(x -> {
+    public CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId) {
+        CompletableFuture<TxnStatus> future = verifyLegalState(checkTransactionStatus(txId).thenApply(x -> {
                     switch (x) {
                         case ABORTING:
                         case ABORTED:
@@ -475,7 +516,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         case OPEN:
                         case COMMITTING:
                         case COMMITTED:
-                            throw new OperationOnTxNotAllowedException(txId.toString(), "aborted");
+                            throw new OperationOnTxNotAllowedException(txId.toString(), "abort");
                         case UNKNOWN:
                         default:
                             throw new TransactionNotFoundException(txId.toString());
@@ -485,11 +526,37 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     if (x.equals(TxnStatus.ABORTING)) {
                         return createCompletedTxEntry(txId, TxnStatus.ABORTED, System.currentTimeMillis());
                     } else {
-                        return CompletableFuture.completedFuture(null); // already committed, do nothing
+                        return CompletableFuture.completedFuture(null); // already aborted, do nothing
                     }
                 })
-                .thenCompose(y -> removeActiveTxEntry(txId))
-                .thenApply(y -> TxnStatus.ABORTED));
+                .thenCompose(y -> removeActiveTxEntry(epoch, txId))
+                .thenApply(y -> TxnStatus.ABORTED))
+                .exceptionally(this::handleDataNotFoundException);
+
+        return future.thenCompose(status -> status == TxnStatus.UNKNOWN ?
+                validateCompletedTxn(txId, false, "abort") :
+                CompletableFuture.completedFuture(status));
+    }
+
+    @SneakyThrows
+    private TxnStatus handleDataNotFoundException(Throwable ex) {
+        if (ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+            return TxnStatus.UNKNOWN;
+        } else {
+            throw ex;
+        }
+    }
+
+    private CompletableFuture<TxnStatus> validateCompletedTxn(UUID txId, boolean commit, String operation) {
+        return getCompletedTxnStatus(txId).thenApply(status -> {
+            if ((commit && status == TxnStatus.COMMITTED) || (!commit && status == TxnStatus.ABORTED)) {
+                return status;
+            } else if (status == TxnStatus.UNKNOWN) {
+                throw new TransactionNotFoundException(txId.toString());
+            } else {
+                throw new OperationOnTxNotAllowedException(txId.toString(), operation);
+            }
+        });
     }
 
     @Override
@@ -498,6 +565,18 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(x -> x.entrySet().stream()
                         .collect(Collectors.toMap(k -> UUID.fromString(k.getKey()),
                                 v -> ActiveTxnRecord.parse(v.getValue().getData())))));
+    }
+
+    @Override
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
+        // TODO: this implementation needs to change once we do epoch change in history table, Issue #1392.
+        return getActiveSegments().thenApply(list -> new SimpleEntry<>(0, list));
+    }
+
+    @Override
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
+        // TODO: this implementation needs to change once we do epoch change in history table, Issue #1392.
+        return getActiveSegments().thenApply(list -> new SimpleEntry<>(0, list));
     }
 
     @Override
@@ -747,21 +826,27 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> createSegmentFile(final Create create);
 
-    abstract CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp,
-                                                          final long leaseExpiryTime,
-                                                          final long maxExecutionExpiryTime,
-                                                          final long scaleGracePeriod);
+    abstract CompletableFuture<Integer> createNewTransaction(final UUID txId,
+                                                             final long timestamp,
+                                                             final long leaseExpiryTime,
+                                                             final long maxExecutionExpiryTime,
+                                                             final long scaleGracePeriod);
 
-    abstract CompletableFuture<Data<Integer>> getActiveTx(final UUID txId) throws DataNotFoundException;
+    abstract CompletableFuture<Integer> getTransactionEpoch(UUID txId);
 
-    abstract CompletableFuture<Void> updateActiveTx(final UUID txId, final byte[] data) throws DataNotFoundException;
+    abstract CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId) throws DataNotFoundException;
 
-    abstract CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit,
-                                                  final Optional<Integer> version) throws DataNotFoundException;
+    abstract CompletableFuture<Void> updateActiveTx(final int epoch,
+                                                    final UUID txId, final byte[] data) throws DataNotFoundException;
+
+    abstract CompletableFuture<Void> sealActiveTx(final int epoch,
+                                                  final UUID txId, final boolean commit,
+                                                  final ActiveTxnRecord txnRecord,
+                                                  final int version) throws DataNotFoundException;
 
     abstract CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) throws DataNotFoundException;
 
-    abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
+    abstract CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp);
 

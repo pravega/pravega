@@ -20,7 +20,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private final InProcPravegaCluster inProcPravegaCluster;
 
     @Builder
-    private LocalPravegaEmulator(int zkPort, int controllerPort, int segmentStorePort) {
+    private LocalPravegaEmulator(int zkPort, int controllerPort, int segmentStorePort, int restServerPort) {
         inProcPravegaCluster = InProcPravegaCluster
                 .builder()
                 .isInProcZK(true)
@@ -32,6 +32,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .isInProcSegmentStore(true)
                 .segmentStoreCount(1)
                 .containerCount(4)
+                .startRestServer(true)
+                .restServerPort(restServerPort)
                 .build();
         inProcPravegaCluster.setControllerPorts(new int[] {controllerPort});
         inProcPravegaCluster.setSegmentStorePorts(new int[] {segmentStorePort});
@@ -50,6 +52,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .controllerPort(conf.getControllerPort())
                     .segmentStorePort(conf.getSegmentStorePort())
                     .zkPort(conf.getZkPort())
+                    .restServerPort(conf.getRestServerPort())
                     .build();
 
             Runtime.getRuntime().addShutdownHook(new Thread() {

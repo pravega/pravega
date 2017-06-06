@@ -9,18 +9,27 @@
  */
 package io.pravega.controller.server.v1;
 
-import io.pravega.shared.NameUtils;
-import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.shared.NameUtils;
+import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -36,10 +45,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -219,6 +229,26 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void alterStreamTests() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1)
+                .scalingPolicy(ScalingPolicy.fixed(3)).build();
+        ResultObserver<UpdateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.alterStream(ModelHelper.decode(configuration2), result2);
+        UpdateStreamStatus updateStreamStatus = result2.get();
+        Assert.assertEquals(updateStreamStatus.getStatus(), UpdateStreamStatus.Status.SUCCESS);
+
+        // Alter stream for non-existent stream.
+        ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().scope(SCOPE1)
+                .streamName("unknownstream").scalingPolicy(ScalingPolicy.fixed(1)).build();
+        this.controllerService.alterStream(ModelHelper.decode(configuration3), result3);
+        updateStreamStatus = result3.get();
+        Assert.assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.getStatus());
+    }
+
+    @Test
     public void deleteStreamTests() {
         CreateScopeStatus createScopeStatus;
         CreateStreamStatus createStreamStatus;
@@ -315,6 +345,103 @@ public abstract class ControllerServiceImplTest {
         updateStreamStatus = result5.get();
         assertEquals("Seal non-existent stream",
                 UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.getStatus());
+    }
+
+    @Test
+    public void getCurrentSegmentsTest() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        ResultObserver<SegmentRanges> result2 = new ResultObserver<>();
+        this.controllerService.getCurrentSegments(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result2);
+        final SegmentRanges segmentRanges = result2.get();
+        Assert.assertEquals(2, segmentRanges.getSegmentRangesCount());
+    }
+
+    @Test
+    public void getSegmentsTest() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        ResultObserver<SegmentsAtTime> result2 = new ResultObserver<>();
+        this.controllerService.getSegments(GetSegmentsRequest.newBuilder()
+                        .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                        .setTimestamp(0L)
+                        .build(),
+                result2);
+        final SegmentsAtTime segmentRanges = result2.get();
+        Assert.assertEquals(2, segmentRanges.getSegmentsCount());
+    }
+
+    @Test
+    public void getSegmentsImmediatlyFollowingTest() {
+        scaleTest();
+        ResultObserver<SuccessorResponse> result = new ResultObserver<>();
+        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), result);
+        final SuccessorResponse successorResponse = result.get();
+        Assert.assertEquals(2, successorResponse.getSegmentsCount());
+
+        ResultObserver<SuccessorResponse> result2 = new ResultObserver<>();
+        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
+                result2);
+        final SuccessorResponse successorResponse2 = result2.get();
+        Assert.assertEquals(0, successorResponse2.getSegmentsCount());
+    }
+
+    @Test
+    public void scaleTest() {
+        long createTime = System.currentTimeMillis();
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        // Scale segment 1 which has key range from 0.5 to 1.0 at time: createTime + 20.
+        Map<Double, Double> keyRanges = new HashMap<>(2);
+        keyRanges.put(0.5, 0.75);
+        keyRanges.put(0.75, 1.0);
+
+        final ScaleRequest scaleRequest = ScaleRequest.newBuilder()
+                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                .setScaleTimestamp(createTime + 20)
+                .addSealedSegments(1)
+                .addNewKeyRanges(ScaleRequest.KeyRangeEntry.newBuilder().setStart(0.5).setEnd(0.75).build())
+                .addNewKeyRanges(ScaleRequest.KeyRangeEntry.newBuilder().setStart(0.75).setEnd(1.0).build())
+                .build();
+        ResultObserver<ScaleResponse> result2 = new ResultObserver<>();
+        this.controllerService.scale(scaleRequest, result2);
+        final ScaleResponse scaleResponse = result2.get();
+        Assert.assertEquals(ScaleResponse.ScaleStreamStatus.SUCCESS, scaleResponse.getStatus());
+        Assert.assertEquals(2, scaleResponse.getSegmentsCount());
+
+        ResultObserver<SegmentRanges> result3 = new ResultObserver<>();
+        this.controllerService.getCurrentSegments(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result3);
+        final SegmentRanges segmentRanges = result3.get();
+        Assert.assertEquals(3, segmentRanges.getSegmentRangesCount());
+        Assert.assertEquals(0, segmentRanges.getSegmentRanges(0).getSegmentId().getSegmentNumber());
+        Assert.assertEquals(2, segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentNumber());
+        Assert.assertEquals(3, segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentNumber());
+    }
+
+    @Test
+    public void getURITest() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        ResultObserver<NodeUri> result1 = new ResultObserver<>();
+        this.controllerService.getURI(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0), result1);
+        NodeUri nodeUri = result1.get();
+        Assert.assertEquals("localhost", nodeUri.getEndpoint());
+        Assert.assertEquals(12345, nodeUri.getPort());
+    }
+
+    @Test
+    public void isSegmentValidTest() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        ResultObserver<SegmentValidityResponse> result1 = new ResultObserver<>();
+        this.controllerService.isSegmentValid(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0), result1);
+        final SegmentValidityResponse isValid = result1.get();
+        Assert.assertEquals(true, isValid.getResponse());
+
+        ResultObserver<SegmentValidityResponse> result2 = new ResultObserver<>();
+        this.controllerService.isSegmentValid(ModelHelper.createSegmentId(SCOPE1, STREAM1, 3), result2);
+        final SegmentValidityResponse isValid2 = result2.get();
+        Assert.assertEquals(false, isValid2.getResponse());
     }
 
     @Test
