@@ -353,7 +353,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return store.checkExists(activePath)
                 .thenCompose(x -> {
                     if (x) {
-                        return store.deletePath(activePath, true)
+                        return store.deletePath(activePath, false)
                                 .whenComplete((r, e) -> cache.invalidateCache(activePath));
                     } else {
                         return CompletableFuture.completedFuture(null);
