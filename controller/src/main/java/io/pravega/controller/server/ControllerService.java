@@ -283,6 +283,7 @@ public class ControllerService {
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction commit failed", ex);
+                        // TODO: return appropriate failures to user.
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
                         timeoutService.removeTxn(scope, stream, txId);
@@ -300,6 +301,7 @@ public class ControllerService {
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction abort failed", ex);
+                        // TODO: return appropriate failures to user.
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
                         timeoutService.removeTxn(scope, stream, txId);

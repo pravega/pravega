@@ -252,6 +252,10 @@ public class SegmentOutputStreamTest {
     }
 
     
+    /**
+     * Verifies that if a exception is encountered while flushing data inside of close, the
+     * connection is reestablished and the data is retransmitted before close returns.
+     */
     @Test
     public void testFailOnClose() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
@@ -266,7 +270,8 @@ public class SegmentOutputStreamTest {
         inOrder.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
-
+        
+        //Prep mock: the mockito doAnswers setup below are triggered during the close inside of the testBlocking() call.
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
         Append append = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null);
         Mockito.doAnswer(new Answer<Void>() {
@@ -283,9 +288,11 @@ public class SegmentOutputStreamTest {
                 callback.complete(null);
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());        
+        }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any()); 
+        //Queue up event.
         output.write(new PendingEvent(null, data, acked, null));
         inOrder.verify(connection).send(append);
+        //Verify behavior
         Async.testBlocking(() -> {
             output.close();
         }, () -> {            

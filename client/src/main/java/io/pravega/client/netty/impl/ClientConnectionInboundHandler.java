@@ -66,6 +66,10 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         }
     }
 
+    /**
+     * Disconnected.
+     * @see io.netty.channel.ChannelInboundHandler#channelInactive(io.netty.channel.ChannelHandlerContext)
+     */
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         ScheduledFuture<?> future = keepAliveFuture.get();
