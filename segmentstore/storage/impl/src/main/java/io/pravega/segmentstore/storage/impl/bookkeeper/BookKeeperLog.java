@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -198,8 +197,6 @@ class BookKeeperLog implements DurableDataLog {
         }
     }
 
-    private final AtomicInteger appendCount = new AtomicInteger();
-
     @Override
     public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ensurePreconditions();
@@ -209,12 +206,6 @@ class BookKeeperLog implements DurableDataLog {
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append");
         Timer timer = new Timer();
-
-        int totalCount = this.appendCount.incrementAndGet();
-        if (totalCount % 100 == 0) {
-            System.out.println(String.format("BK: Write #%d, Stats = %s", totalCount, this.writes.getStatistics()));
-        }
-        //Exceptions.handleInterrupted(()->Thread.sleep(10));
 
         // Queue up the write.
         CompletableFuture<LogAddress> result = new CompletableFuture<>();

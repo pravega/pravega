@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.LocalBookKeeper;
+import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.server.NIOServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
@@ -29,11 +31,17 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final AtomicReference<ZooKeeperServer> server = new AtomicReference<>();
     private final int zkPort;
+    private File tmpDir;
 
     @Override
     public void close() throws Exception {
         if (this.server.get() != null) {
             this.server.get().shutdown();
+        }
+
+        if(this.tmpDir != null) {
+            log.info("Cleaning up " + this.tmpDir);
+            FileUtils.deleteDirectory(this.tmpDir);
         }
     }
 
@@ -43,10 +51,10 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
      * @throws Exception If an exception occurred.
      */
     public void start() throws Exception {
-        val tmpDir = IOUtils.createTempDir("zookeeper", "inproc");
-        tmpDir.deleteOnExit();
+        this.tmpDir = IOUtils.createTempDir("zookeeper", "inproc");
+        this.tmpDir.deleteOnExit();
 
-        val s = new ZooKeeperServer(tmpDir, tmpDir, ZooKeeperServer.DEFAULT_TICK_TIME);
+        val s = new ZooKeeperServer(this.tmpDir, this.tmpDir, ZooKeeperServer.DEFAULT_TICK_TIME);
         this.server.set(s);
         val serverFactory = new NIOServerCnxnFactory();
 

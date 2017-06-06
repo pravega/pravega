@@ -22,10 +22,14 @@ public class SortedDeque<E extends SortedIndex.IndexEntry> {
     //region Members
 
     private static final int MIN_INITIAL_CAPACITY = 8;
-    private transient SortedIndex.IndexEntry[] elements;
-    private transient int lastSlotIndex;
-    private transient int head;
-    private transient int tail;
+    private SortedIndex.IndexEntry[] elements;
+    /**
+     * Pre-calculated value of the index of the last position in elements. Essentially 'this.elements.length-1', but since
+     * this is used a lot, storing it in a separate value makes sense from a performance point of view.
+     */
+    private int lastSlotIndex;
+    private int head;
+    private int tail;
 
     //endregion
 
@@ -46,6 +50,8 @@ public class SortedDeque<E extends SortedIndex.IndexEntry> {
     public SortedDeque(int initialCapacity) {
         this.elements = new SortedIndex.IndexEntry[Math.max(MIN_INITIAL_CAPACITY, initialCapacity)];
         this.lastSlotIndex = this.elements.length - 1;
+        this.head = 0;
+        this.tail = 0;
     }
 
     //endregion
@@ -92,7 +98,7 @@ public class SortedDeque<E extends SortedIndex.IndexEntry> {
      * @param upToIncluding The Item to remove up to and including. If this item does not exist, no change is made.
      * @return True if any changes were made (and thus upToIncluding exists), false otherwise.
      */
-    public boolean removeFirst(E upToIncluding) {
+    public boolean removeLessThanOrEqual(E upToIncluding) {
         if ((this.head != this.tail) && upToIncluding.key() == this.elements[this.head].key()) {
             // Quick check: our desired item is the first one; don't bother doing a binary search.
             removeFirst();
@@ -138,7 +144,7 @@ public class SortedDeque<E extends SortedIndex.IndexEntry> {
      * @param fromIncluding The Item to remove up to and including. If this item does not exist, no change is made.
      * @return True if any changes were made (and thus fromIncluding exists), false otherwise.
      */
-    public boolean removeLast(E fromIncluding) {
+    public boolean removeGreaterThanOrEqual(E fromIncluding) {
         if ((this.head != this.tail) && fromIncluding.key() == this.elements[(this.tail - 1) & this.lastSlotIndex].key()) {
             // Quick check: our desired item is the last one; don't bother doing a binary search.
             removeLast();

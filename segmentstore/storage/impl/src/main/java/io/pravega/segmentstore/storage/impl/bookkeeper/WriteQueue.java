@@ -35,6 +35,8 @@ class WriteQueue {
     private final Deque<Write> writes;
     @GuardedBy("this")
     private long totalLength;
+    @GuardedBy("this")
+    private int lastDurationMillis;
 
     //endregion
 
@@ -61,17 +63,12 @@ class WriteQueue {
      */
     synchronized QueueStats getStatistics() {
         int size = this.writes.size();
-        double fillRate;
-        long oldestTimeMillis;
-        if (size == 0) {
-            fillRate = 0;
-            oldestTimeMillis = 0;
-        } else {
-            fillRate = Math.min(1, this.totalLength / size / (double) BookKeeperConfig.MAX_APPEND_LENGTH);
-            oldestTimeMillis = (this.timeSupplier.get() - this.writes.peekFirst().getTimestamp()) / AbstractTimer.NANOS_TO_MILLIS;
+        double fillRate = 0;
+        if (size > 0) {
+            fillRate = Math.min(1, (double) this.totalLength / size / BookKeeperConfig.MAX_APPEND_LENGTH);
         }
 
-        return new QueueStats(this.maxParallelism, size, fillRate, (int) oldestTimeMillis);
+        return new QueueStats(this.maxParallelism, size, fillRate, this.lastDurationMillis);
     }
 
     /**
@@ -159,9 +156,18 @@ class WriteQueue {
      * @return True if there are items left in the queue, false otherwise.
      */
     synchronized boolean removeFinishedWrites() {
+        long currentTime = this.timeSupplier.get();
+        int totalElapsed = 0;
+        int removedCount = 0;
         while (!this.writes.isEmpty() && this.writes.peekFirst().isDone()) {
             Write w = this.writes.removeFirst();
-            this.totalLength = Math.max(0, w.data.getLength());
+            this.totalLength = Math.max(0, this.totalLength - w.data.getLength());
+            removedCount++;
+            totalElapsed += (int) ((currentTime - w.getTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
+        }
+
+        if (removedCount > 0) {
+            this.lastDurationMillis = totalElapsed / removedCount;
         }
 
         return !this.writes.isEmpty();

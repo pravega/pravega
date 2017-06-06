@@ -35,12 +35,12 @@ public class QueueStats {
     private final double averageItemFillRate;
 
     /**
-     * The number of milliseconds elapsed since the oldest item presently in the queue has been added there.
+     * The expected processing time for an item, in milliseconds.
      */
-    private final int oldestItemTimeMillis;
+    private final int expectedProcessingTimeMillis;
 
     @Override
     public String toString() {
-        return String.format("Size = %d, Fill = %.2f, OldestMillis = %d", this.size, this.averageItemFillRate, this.oldestItemTimeMillis);
+        return String.format("Size = %d, Fill = %.2f, ProcTimeMillis = %d", this.size, this.averageItemFillRate, this.expectedProcessingTimeMillis);
     }
 }

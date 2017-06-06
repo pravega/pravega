@@ -81,17 +81,17 @@ public class SelfTestRunner {
     }
 
     private static TestConfig getTestConfig() {
-        final int producers = 10000;
+        final int producers = 1000;
         final boolean useClient = false;
 
         final int testThreadPoolAddition = useClient ? producers : 0;
         return TestConfig
                 .builder()
                 // Test params.
-                .with(TestConfig.OPERATION_COUNT, 100000)
+                .with(TestConfig.OPERATION_COUNT, 1000)
                 .with(TestConfig.SEGMENT_COUNT, 1)
-                .with(TestConfig.MIN_APPEND_SIZE, 10000)
-                .with(TestConfig.MAX_APPEND_SIZE, 10000)
+                .with(TestConfig.MIN_APPEND_SIZE, 1000000)
+                .with(TestConfig.MAX_APPEND_SIZE, 1000000)
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)

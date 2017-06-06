@@ -111,18 +111,18 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private CompletableFuture<Void> delayIfNecessary() {
         QueueStats stats = this.durableDataLog.getQueueStatistics();
-        // TODO: make this look nice
+
+        // The higher the average fill rate, the more efficient use we make of the available capacity. As such, for high
+        // fill rates we don't want to wait too long.
         double fillRateAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRate(), 0, 1);
 
-        double countRateAdj = (double)stats.getSize()/stats.getMaxParallelism();
+        // If the queue is below (or very close to) the max degree of parallelism, do our best to fill it up. Otherwise
+        // the Fill Rate and the ExpectedProcessingTime will account for queue size as well.
+        double countRateAdj = stats.getSize() < stats.getMaxParallelism() ? 0.1 : 1;
 
-        int delayMillis = (int) (stats.getOldestItemTimeMillis() * fillRateAdj * countRateAdj);
-        //delayMillis=0;
-        if(delayMillis>=1000){
-            System.out.println(String.format("\t\t\tDelay = %s, CRA = %f", delayMillis, countRateAdj));
-            delayMillis=1000;
-        }
-        delayMillis=0;//TODO: revert after investigation.
+        // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
+        int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRateAdj * countRateAdj);
+        delayMillis = Math.min(delayMillis, 1000);
         return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }
 
@@ -467,7 +467,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     }
 
                     // Commit any changes to the metadata.
-                    boolean checkpointExists = this.metadataTransactions.removeFirst(commitArgs);
+                    boolean checkpointExists = this.metadataTransactions.removeLessThanOrEqual(commitArgs);
                     assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
                     this.metadataUpdater.commit(commitArgs.key());
 
@@ -577,7 +577,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             // Discard all updates to the metadata.
             long updateTransactionId = 0;
             if (commitArgs != null) {
-                boolean checkpointExists = this.metadataTransactions.removeLast(commitArgs);
+                boolean checkpointExists = this.metadataTransactions.removeGreaterThanOrEqual(commitArgs);
                 if (checkpointExists) {
                     updateTransactionId = commitArgs.key();
                 }
