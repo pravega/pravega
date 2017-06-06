@@ -20,7 +20,6 @@ import java.util.Collection;
 import java.util.Deque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -118,9 +117,10 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
      * * If the max capacity is exceeded, the item will be queued up and it will be processed when capacity allows, after
      * all the items added before it have been processed.
      * * If an item before this one failed to process and this item is still in the queue (it has not yet been processed),
-     * the returned future will be cancelled with an IllegalStateException to prevent out-of-order executions.
+     * the returned future will be cancelled with a ProcessingException to prevent out-of-order executions.
      * * This method guarantees ordered execution as long as its invocations are serial. That is, it only guarantees that
-     * the item has begun processing or an order assigned if it returned successfully.
+     * the item has begun processing or an order assigned if the method returned successfully.
+     * * If an item failed to execute, this class will auto-close and will not be usable anymore.
      *
      * @param item The item to process.
      * @return A CompletableFuture that, when completed, will indicate that the item has been processed. This will contain
@@ -163,13 +163,13 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     @VisibleForTesting
     protected void executionComplete(Throwable exception) {
         Collection<QueueItem> toFail = null;
-        val failEx = new AtomicReference<Throwable>();
+        Throwable failEx = null;
         synchronized (this.stateLock) {
             // Release the spot occupied by this item's execution.
             this.activeCount--;
             if (exception != null && !this.closed) {
                 // Need to fail all future items and close to prevent new items from being processed.
-                failEx.set(new ProcessingException("A previous item failed to commit. Cannot process new items.", exception));
+                failEx = new ProcessingException("A previous item failed to commit. Cannot process new items.", exception);
                 toFail = new ArrayList<>(this.pendingItems);
                 this.pendingItems.clear();
                 this.closed = true;
@@ -183,7 +183,10 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
         }
 
         if (toFail != null) {
-            toFail.forEach(qi -> qi.result.completeExceptionally(failEx.get()));
+            for (QueueItem q : toFail) {
+                q.result.completeExceptionally(failEx);
+            }
+
             return;
         }
 

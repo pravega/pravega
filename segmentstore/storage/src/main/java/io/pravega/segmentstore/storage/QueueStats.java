@@ -16,7 +16,7 @@ import lombok.Data;
  */
 @Data
 public class QueueStats {
-    public static final QueueStats DEFAULT = new QueueStats(0,0,0,0);
+    public static final QueueStats DEFAULT = new QueueStats(0, 0, 0, 0);
     /**
      * Gets the maximum degree of the Queue Processing parallelism.
      */

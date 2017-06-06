@@ -144,9 +144,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     protected void errorHandler(Throwable ex) {
         ex = ExceptionHelpers.getRealException(ex);
         closeQueue(ex);
-        if (!(ex instanceof CancellationException)) {
-            // CancellationException means we are already stopping, so no need to do anything else. For all other cases,
-            // record the failure and then stop the OperationProcessor.
+        // CancellationException: we are already stopping, so no need to do anything else.
+        // ObjectClosedException (if we are not running): we must have closed one of the components (queue) and some other
+        // async task stumbled across it - this is also expected.
+        // For all other cases: record the failure and then stop the OperationProcessor.
+        boolean isTerminalState = state() == State.STOPPING || state() == State.TERMINATED || state() == State.FAILED;
+        boolean expectedException = (ex instanceof ObjectClosedException && isTerminalState)
+                || (ex instanceof CancellationException);
+        if (!expectedException) {
             super.errorHandler(ex);
             stopAsync();
         }
