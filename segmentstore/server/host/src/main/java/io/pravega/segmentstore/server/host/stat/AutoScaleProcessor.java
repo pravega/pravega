@@ -17,10 +17,14 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalListeners;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.ScaleEvent;
@@ -178,19 +182,37 @@ public class AutoScaleProcessor {
     }
 
     private CompletableFuture<Void> writeRequest(ScaleEvent event) {
+        if (writer.get() == null) {
+            log.warn("Event writer not set up yet. Ignoring the request");
+            return CompletableFuture.completedFuture(null);
+        }
+
         CompletableFuture<Void> result = new CompletableFuture<>();
+        CompletableFuture<Void> writeComplete = new CompletableFuture<>();
         try {
-            CompletableFuture.runAsync(() -> {
-                try {
-                    writer.get().writeEvent(event.getKey(), event).get();
-                    result.complete(null);
-                } catch (InterruptedException | ExecutionException e) {
-                    log.error("error sending request to requeststream {}", e);
+            AckFuture ackFuture = writer.get().writeEvent(event.getKey(), event);
+            ackFuture.addListener(() -> writeComplete.complete(null), executor);
+
+            writeComplete.thenAcceptAsync((Void v) -> {
+                FutureHelpers.getAndHandleExceptions(ackFuture, e -> {
+                    log.error("Sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
+                    result.completeExceptionally(ExceptionHelpers.getRealException(e));
+
+                    return new RuntimeException(e);
+                });
+            }).whenComplete((r, e) -> {
+                if (e != null) {
+                    log.error("Sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
                     result.completeExceptionally(e);
+                } else {
+                    log.info("Sending scale event succeeded {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
+
+                    result.complete(null);
                 }
-            }, executor);
-        } catch (RejectedExecutionException e) {
-            log.error("our executor queue is full. failed to post scale event for {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
+            });
+
+        } catch (Exception e) {
+            log.error("Exception while trying to write scale event {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
             result.completeExceptionally(e);
         }
 
@@ -247,5 +269,9 @@ public class AutoScaleProcessor {
         cache.put(streamSegmentName, lrImmutablePair);
     }
 
+    @VisibleForTesting
+    Pair<Long, Long> get(String streamSegmentName) {
+        return cache.getIfPresent(streamSegmentName);
+    }
 }
 
