@@ -457,7 +457,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         final long leaseTimestamp = current + lease;
         final long maxExecTimestamp = current + maxExecutionTime;
         return verifyLegalState(() -> createNewTransaction(txnId, current, leaseTimestamp, maxExecTimestamp, scaleGracePeriod)
-                .thenApply(epoch -> new VersionedTransactionData(epoch.intValue(), txnId, 0, TxnStatus.OPEN, current,
+                .thenApply(epoch -> new VersionedTransactionData(epoch, txnId, 0, TxnStatus.OPEN, current,
                         current + maxExecutionTime, scaleGracePeriod)));
     }
 
