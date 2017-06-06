@@ -41,7 +41,7 @@ public class BookKeeperConfig {
     /**
      * Maximum append length, as specified by BookKeeper (this is hardcoded inside BookKeeper's code).
      */
-    static final int MAX_APPEND_LENGTH = 1024 * 1024 - 1024;// TODO: this was -100. But in some cases BK rejects it.
+    static final int MAX_APPEND_LENGTH = 1024 * 1024 - 1024;
     private static final String COMPONENT_CODE = "bookkeeper";
 
     //endregion

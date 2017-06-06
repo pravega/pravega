@@ -39,7 +39,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             this.server.get().shutdown();
         }
 
-        if(this.tmpDir != null) {
+        if (this.tmpDir != null) {
             log.info("Cleaning up " + this.tmpDir);
             FileUtils.deleteDirectory(this.tmpDir);
         }
