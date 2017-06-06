@@ -20,6 +20,7 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 public class VersionedTransactionData {
+    private final int epoch;
     private final UUID id;
     private final int version;
     private final TxnStatus status;

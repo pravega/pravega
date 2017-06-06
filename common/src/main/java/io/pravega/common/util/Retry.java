@@ -13,6 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
+
+import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -53,6 +55,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class Retry {
 
+    private final static long DEFAULT_RETRY_INIT_DELAY = 100;
+    private final static int DEFAULT_RETRY_MULTIPLIER = 2;
+    private final static long DEFAULT_RETRY_MAX_DELAY = Duration.ofSeconds(5).toMillis();
+
     private Retry() {
     }
 
@@ -73,6 +79,20 @@ public final class Retry {
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
         Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
         RetryWithBackoff params = new RetryWithBackoff(initialMillis, multiplier, Integer.MAX_VALUE, maxDelay);
+        return new RetryUnconditionally(consumer, params);
+    }
+
+    public static RetryUnconditionally indefinitelyWithExpBackoff(String failureMessage) {
+        Exceptions.checkNotNullOrEmpty(failureMessage, "failureMessage");
+        RetryWithBackoff params = new RetryWithBackoff(DEFAULT_RETRY_INIT_DELAY, DEFAULT_RETRY_MULTIPLIER,
+                Integer.MAX_VALUE, DEFAULT_RETRY_MAX_DELAY);
+        Consumer<Throwable> consumer = e -> {
+            if (log.isDebugEnabled()) {
+                log.debug(failureMessage);
+            } else {
+                log.warn(failureMessage);
+            }
+        };
         return new RetryUnconditionally(consumer, params);
     }
 
