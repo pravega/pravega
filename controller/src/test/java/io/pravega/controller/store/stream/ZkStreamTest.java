@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.common.ExceptionHelpers;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.stream.tables.SegmentRecord;
 import io.pravega.controller.store.stream.tables.State;
@@ -40,6 +42,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -457,6 +460,8 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
         store.createScope(SCOPE).get();
+        final Predicate<Throwable> operationNotAllowedPredicate =
+                ex -> ExceptionHelpers.getRealException(ex) instanceof OperationOnTxNotAllowedException;
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
                 .scope(SCOPE)
@@ -469,11 +474,15 @@ public class ZkStreamTest {
 
         OperationContext context = store.createContext(ZkStreamTest.SCOPE, streamName);
 
-        VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, 10000, 600000, 30000,
+        UUID txnId1 = UUID.randomUUID();
+        VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000, 30000,
                 context, executor).get();
+        Assert.assertEquals(txnId1, tx.getId());
 
-        VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, 10000, 600000, 30000,
+        UUID txnId2 = UUID.randomUUID();
+        VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, txnId2, 10000, 600000, 30000,
                 context, executor).get();
+        Assert.assertEquals(txnId2, tx2.getId());
 
         store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.<Integer>empty(),
                 context, executor).get();
@@ -481,10 +490,13 @@ public class ZkStreamTest {
                 .get().equals(TxnStatus.COMMITTING);
 
         // Test to ensure that sealTransaction is idempotent.
-        Assert.assertEquals(TxnStatus.COMMITTING,
-                store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.empty(), context, executor).join());
+        Assert.assertEquals(TxnStatus.COMMITTING, store.sealTransaction(SCOPE, streamName, tx.getId(), true,
+                Optional.empty(), context, executor).join().getKey());
 
-        CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor);
+        // Test to ensure that COMMITTING transaction cannot be aborted.
+        testAbortFailure(store, SCOPE, streamName, tx.getEpoch(), tx.getId(), context, operationNotAllowedPredicate);
+
+        CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx.getEpoch(), tx.getId(), context, executor);
 
         store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.<Integer>empty(),
                 context, executor).get();
@@ -492,10 +504,13 @@ public class ZkStreamTest {
                 .get().equals(TxnStatus.ABORTING);
 
         // Test to ensure that sealTransaction is idempotent.
-        Assert.assertEquals(TxnStatus.ABORTING,
-                store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.empty(), context, executor).join());
+        Assert.assertEquals(TxnStatus.ABORTING, store.sealTransaction(SCOPE, streamName, tx2.getId(), false,
+                Optional.empty(), context, executor).join().getKey());
 
-        CompletableFuture<TxnStatus> f2 = store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor);
+        // Test to ensure that ABORTING transaction cannot be committed.
+        testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);
+
+        CompletableFuture<TxnStatus> f2 = store.abortTransaction(SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, executor);
 
         CompletableFuture.allOf(f1, f2).get();
 
@@ -505,22 +520,28 @@ public class ZkStreamTest {
                 .get().equals(TxnStatus.ABORTED);
 
         // Test to ensure that sealTransaction, to commit it, on committed transaction does not throw an error.
-        Assert.assertEquals(TxnStatus.COMMITTED,
-                store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.empty(), context, executor).join());
+        Assert.assertEquals(TxnStatus.COMMITTED, store.sealTransaction(SCOPE, streamName, tx.getId(), true,
+                Optional.empty(), context, executor).join().getKey());
 
         // Test to ensure that commitTransaction is idempotent.
         Assert.assertEquals(TxnStatus.COMMITTED,
-                store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor).join());
+                store.commitTransaction(SCOPE, streamName, tx.getEpoch(), tx.getId(), context, executor).join());
+
+        // Test to ensure that sealTransaction, to abort it, and abortTransaction on committed transaction throws error.
+        testAbortFailure(store, SCOPE, streamName, tx.getEpoch(), tx.getId(), context, operationNotAllowedPredicate);
 
         // Test to ensure that sealTransaction, to abort it, on aborted transaction does not throw an error.
-        Assert.assertEquals(TxnStatus.ABORTED,
-                store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.empty(), context, executor).join());
+        Assert.assertEquals(TxnStatus.ABORTED, store.sealTransaction(SCOPE, streamName, tx2.getId(), false,
+                Optional.empty(), context, executor).join().getKey());
 
-        // Test to ensure that commitTransaction is idempotent.
+        // Test to ensure that abortTransaction is idempotent.
         Assert.assertEquals(TxnStatus.ABORTED,
-                store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor).join());
+                store.abortTransaction(SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, executor).join());
 
-        assert store.commitTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
+        // Test to ensure that sealTransaction, to abort it, and abortTransaction on committed transaction throws error.
+        testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);
+
+        assert store.commitTransaction(ZkStreamTest.SCOPE, streamName, 0, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
@@ -529,7 +550,7 @@ public class ZkStreamTest {
                     }
                 }).get();
 
-        assert store.abortTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
+        assert store.abortTransaction(ZkStreamTest.SCOPE, streamName, 0, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
@@ -540,5 +561,29 @@ public class ZkStreamTest {
 
         assert store.transactionStatus(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), context, executor)
                 .get().equals(TxnStatus.UNKNOWN);
+    }
+
+    private void testCommitFailure(StreamMetadataStore store, String scope, String stream, int epoch, UUID txnId,
+                                   OperationContext context,
+                                   Predicate<Throwable> checker) {
+        AssertExtensions.assertThrows("Seal txn to commit it failure",
+                () -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), context, executor),
+                checker);
+
+        AssertExtensions.assertThrows("Commit txn failure",
+                () -> store.commitTransaction(scope, stream, epoch, txnId, context, executor),
+                checker);
+    }
+
+    private void testAbortFailure(StreamMetadataStore store, String scope, String stream, int epoch, UUID txnId,
+                                  OperationContext context,
+                                  Predicate<Throwable> checker) {
+        AssertExtensions.assertThrows("Seal txn to abort it failure",
+                () -> store.sealTransaction(scope, stream, txnId, false, Optional.empty(), context, executor),
+                checker);
+
+        AssertExtensions.assertThrows("Abort txn failure",
+                () -> store.abortTransaction(scope, stream, epoch, txnId, context, executor),
+                checker);
     }
 }

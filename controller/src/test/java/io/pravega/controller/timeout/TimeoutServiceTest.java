@@ -137,8 +137,8 @@ public class TimeoutServiceTest {
 
     @Test
     public void testTimeout() throws InterruptedException {
-
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
+        UUID txnId = UUID.randomUUID();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE, MAX_EXECUTION_TIME,
                 SCALE_GRACE_PERIOD, null, executor).join();
 
         long begin = System.currentTimeMillis();
@@ -177,7 +177,8 @@ public class TimeoutServiceTest {
 
     @Test
     public void testPingSuccess() throws InterruptedException {
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
+        UUID txnId = UUID.randomUUID();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE, MAX_EXECUTION_TIME,
                 SCALE_GRACE_PERIOD, null, executor).join();
 
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
@@ -235,7 +236,8 @@ public class TimeoutServiceTest {
 
     @Test
     public void testPingLeaseTooLarge() {
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
+        UUID txnId = UUID.randomUUID();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE, MAX_EXECUTION_TIME,
                 SCALE_GRACE_PERIOD, null, executor).join();
 
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
@@ -272,8 +274,8 @@ public class TimeoutServiceTest {
         pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, MAX_EXECUTION_TIME + 1).join();
         Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
 
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
-                SCALE_GRACE_PERIOD, null, executor).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, UUID.randomUUID(), LEASE,
+                MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, null, executor).join();
 
         txnId = ModelHelper.decode(txData.getId());
 
@@ -311,8 +313,8 @@ public class TimeoutServiceTest {
     @Test
     public void testPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
-                SCALE_GRACE_PERIOD, null, executor).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, UUID.randomUUID(), LEASE,
+                MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, null, executor).join();
 
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
@@ -376,8 +378,8 @@ public class TimeoutServiceTest {
     @Test
     public void testPingFailureDisconnected() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
-                SCALE_GRACE_PERIOD, null, executor).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, UUID.randomUUID(), LEASE,
+                MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, null, executor).join();
 
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
@@ -432,8 +434,8 @@ public class TimeoutServiceTest {
     @Test
     public void testTimeoutTaskFailureInvalidVersion() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
-                SCALE_GRACE_PERIOD, null, executor).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, UUID.randomUUID(), LEASE,
+                MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, null, executor).join();
 
         // Submit transaction to TimeoutService with incorrect tx version identifier.
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion() + 1, LEASE,
@@ -451,8 +453,8 @@ public class TimeoutServiceTest {
 
     @Test(timeout = 5000)
     public void testCloseUnknownTxn() {
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
-                SCALE_GRACE_PERIOD, null, executor).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, UUID.randomUUID(), LEASE,
+                MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, null, executor).join();
         TxnId txnId = convert(txData.getId());
 
         Controller.TxnState state = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
@@ -460,6 +462,41 @@ public class TimeoutServiceTest {
 
         Controller.TxnStatus.Status status = controllerService.abortTransaction(SCOPE, STREAM, txnId).join().getStatus();
         Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status);
+    }
+
+    @Test(timeout = 10000)
+    public void testUnknownTxnPingSuccess() throws InterruptedException {
+        UUID txnId = UUID.randomUUID();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE, MAX_EXECUTION_TIME,
+                SCALE_GRACE_PERIOD, null, executor).join();
+
+        TxnId tx = TxnId.newBuilder()
+                .setHighBits(txnId.getMostSignificantBits())
+                .setLowBits(txnId.getLeastSignificantBits())
+                .build();
+
+        controllerService.pingTransaction(SCOPE, STREAM, tx, LEASE);
+
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
+
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
+        Assert.assertEquals(TxnStatus.OPEN, status);
+
+        PingTxnStatus pingStatus = timeoutService.pingTxn(SCOPE, STREAM, txData.getId(), LEASE);
+        Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
+
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
+
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
+        Assert.assertEquals(TxnStatus.OPEN, status);
+
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.8 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNotNull(result);
+
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
+        Assert.assertEquals(TxnStatus.ABORTED, status);
     }
 
     private TxnId convert(UUID uuid) {

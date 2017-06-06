@@ -57,8 +57,8 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                                                                                       final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return streamMetadataStore.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod,
+        final UUID txnId = UUID.randomUUID();
+        return streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionTime, scaleGracePeriod,
                 context, executor)
                 .thenCompose(txData -> {
                     log.info("Created transaction {} with version {}", txData.getId(), txData.getVersion());
@@ -76,11 +76,11 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return this.streamMetadataStore.sealTransaction(scope, stream, txId, false, Optional.ofNullable(version), context, executor)
-                .thenApply(status -> {
+                .thenApply(pair -> {
                     log.info("Sealed:abort transaction {} with version {}", txId, version);
-                    return status;
+                    return pair;
                 })
-                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor));
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, x.getValue(), txId, context, executor));
     }
 
     @Override
@@ -106,11 +106,11 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.<Integer>empty(), context, executor)
-                .thenApply(status -> {
+                .thenApply(pair -> {
                     log.info("Sealed:commit transaction {} with version {}", txId, null);
-                    return status;
+                    return pair;
                 })
-                .thenCompose(ignore -> streamMetadataStore.commitTransaction(scope, stream, txId, context, executor));
+                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, x.getValue(), txId, context, executor));
     }
 }
 
