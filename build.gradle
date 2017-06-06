@@ -181,6 +181,9 @@ project('segmentstore:storage:impl') {
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
+        //For ECS
+        testCompile group: 'io.findify', name: 's3mock_2.12', version: '0.2.2'
+
         compile "com.emc.ecs:object-client:3.0.0"
         compile "com.sun.jersey:jersey-core:1.19"
 

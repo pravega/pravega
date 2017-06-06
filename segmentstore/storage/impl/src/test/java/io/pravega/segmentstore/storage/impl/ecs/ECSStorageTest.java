@@ -13,6 +13,7 @@ import com.emc.object.s3.S3Config;
 import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
+import io.findify.s3mock.S3Mock;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -39,14 +40,19 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
  * Unit tests for ECSStorage.
  */
 @Slf4j
-@Ignore
 public class ECSStorageTest extends StorageTestBase {
     private ECSStorageConfig adapterConfig;
     private S3JerseyClient client = null;
+    private S3Mock api = null;
 
     @Before
     public void setUp() throws Exception {
         S3Config ecsConfig = null;
+
+        api = new S3Mock.Builder().withPort(9020).withInMemoryBackend().
+                build();
+        api.start();
+
 
         this.adapterConfig = ECSStorageConfig.builder()
                 .with(ECSStorageConfig.ECS_BUCKET, "kanpravegatest")
@@ -70,7 +76,7 @@ public class ECSStorageTest extends StorageTestBase {
 
     @After
     public void tearDown() {
-
+        api.stop();
     }
 
     //region Fencing tests
@@ -246,13 +252,14 @@ public class ECSStorageTest extends StorageTestBase {
     protected Storage createStorage() {
         S3Config ecsConfig = null;
         try {
-            ecsConfig = new S3Config(new URI("http://172.16.39.136:9020"));
+            ecsConfig = new S3Config(new URI("http://localhost:9020"));
         if ( adapterConfig == null ) {
                 setUp();
         }
         ecsConfig.withIdentity(adapterConfig.getEcsAccessKey()).withSecretKey(adapterConfig.getEcsSecretKey());
 
         client = new S3JerseyClient(ecsConfig);
+        client.createBucket("kanpravegatest");
             return new ECSStorage(client, this.adapterConfig, executorService());
         } catch (Exception e) {
             e.printStackTrace();
