@@ -48,7 +48,8 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
 
     @VisibleForTesting
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
-                               StreamMetadataTasks streamMetadataTasks, final HostControllerStore hostControllerStore,
+                               final StreamMetadataTasks streamMetadataTasks,
+                               final HostControllerStore hostControllerStore,
                                final ScheduledExecutorService executor,
                                final SegmentHelper segmentHelper,
                                final ConnectionFactory connectionFactory,
@@ -63,7 +64,8 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     }
 
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
-                               StreamMetadataTasks streamMetadataTasks, final HostControllerStore hostControllerStore,
+                               final StreamMetadataTasks streamMetadataTasks,
+                               final HostControllerStore hostControllerStore,
                                final ScheduledExecutorService executor,
                                final SegmentHelper segmentHelper,
                                final ConnectionFactory connectionFactory) {

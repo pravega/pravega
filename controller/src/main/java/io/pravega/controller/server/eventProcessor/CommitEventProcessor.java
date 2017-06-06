@@ -53,7 +53,8 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
 
     @VisibleForTesting
     public CommitEventProcessor(final StreamMetadataStore streamMetadataStore,
-                                StreamMetadataTasks streamMetadataTasks, final HostControllerStore hostControllerStore,
+                                final StreamMetadataTasks streamMetadataTasks,
+                                final HostControllerStore hostControllerStore,
                                 final ScheduledExecutorService executor,
                                 final SegmentHelper segmentHelper,
                                 final ConnectionFactory connectionFactory,
@@ -68,7 +69,8 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     }
 
     public CommitEventProcessor(final StreamMetadataStore streamMetadataStore,
-                                StreamMetadataTasks streamMetadataTasks, final HostControllerStore hostControllerStore,
+                                final StreamMetadataTasks streamMetadataTasks,
+                                final HostControllerStore hostControllerStore,
                                 final ScheduledExecutorService executor,
                                 final SegmentHelper segmentHelper,
                                 final ConnectionFactory connectionFactory) {
