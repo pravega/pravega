@@ -87,6 +87,11 @@ public class FSStorage implements Storage {
     //endregion
 
     //region Storage implementation
+
+    /**
+     * Initialize is a no op here as we do not need a locking mechanism in case of file system write.
+     * @param containerEpoch The Container Epoch to initialize with (ignored here).
+     */
     @Override
     public void initialize(long containerEpoch) {
 
@@ -182,8 +187,7 @@ public class FSStorage implements Storage {
             throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
         }
 
-        FSSegmentHandle retHandle = FSSegmentHandle.getReadHandle(streamSegmentName);
-        return retHandle;
+        return FSSegmentHandle.getReadHandle(streamSegmentName);
     }
 
 
@@ -200,7 +204,7 @@ public class FSStorage implements Storage {
             if (Files.size(path) < offset) {
                 log.warn("Read called on segment {} at offset {}. The offset is beyond the current size of the file.",
                         handle.getSegmentName(), offset);
-                throw new CompletionException(new ArrayIndexOutOfBoundsException());
+                throw new CompletionException(new IllegalArgumentException());
             }
         } catch (IOException ioe) {
             throw new CompletionException(ioe);
