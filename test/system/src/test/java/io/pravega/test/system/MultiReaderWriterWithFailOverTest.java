@@ -144,15 +144,15 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         log.info("Test with 2 controller, SSS instances running and without a failover scenario");
         readWriteTest();
 
-        /*//scale down SSS by 1 instance
+        //scale down SSS by 1 instance
         segmentStoreInstance.scaleService(1, true);
         Thread.sleep(60000);
         log.info("Test with 1 SSS instance down");
         readWriteTest();
-*/
+
         //scale down controller by 1 instance + scale up SSS back to 2 instances
-        /*segmentStoreInstance.scaleService(2, true);
-        Thread.sleep(60000);*/
+        segmentStoreInstance.scaleService(2, true);
+        Thread.sleep(60000);
         controllerInstance.scaleService(1, true);
         Thread.sleep(60000);
         log.info("Test with 1 controller instance down");
