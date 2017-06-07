@@ -1,0 +1,38 @@
+<!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
+Instructions to generate Server REST API stubs
+
+## Delete previously generated directory
+```
+rm controller/src/main/java/io/pravega/controller/server/rest/generated
+```
+
+# Update Controller.yaml
+All REST API modifications should be done by updating the swagger/Controller.yaml specification file.
+This can be done manually or by using the online editor at http://editor.swagger.io.
+
+# Download Swagger codegen
+Download swagger-codegen-cli from maven - http://repo1.maven.org/maven2/io/swagger/swagger-codegen-cli/2.2.1/swagger-codegen-cli-2.2.1.jar
+
+# Generate the API stubs using Swagger Codegen 
+```
+java -jar swagger-codegen-cli.jar generate -i Controller.yaml -l jaxrs -c server.config.json -o <pravega root>/controller/
+```
+
+## Remove extra files created by codegen
+All files that get generated outside of the controller/src/main/java/io/pravega/controller/server/rest/generated folder should be deleted and not committed to git.
+
+## Update ApiV1.java
+The JAXRS API stubs decorated with swagger annotations are generated in .../server/rest/generated/api/ScopesApi.java class.
+Copy these API descriptions into interfaces in .../server/rest/v1/ApiV1.java. Also ensure that the APIs in ApiV1.java are modified to use only jersey async interfaces.
+
+## Update generated/model/RetentionConfig.java
+Swagger codegen truncates common enum prefixes. So until https://github.com/swagger-api/swagger-codegen/issues/4261 is fixed we need to perform the following manual step.
+In file RetentionConfig.java replace DAYS to LIMITED_DAYS and SIZE_MB to LIMITED_SIZE_MB.

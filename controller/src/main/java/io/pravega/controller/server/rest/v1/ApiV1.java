@@ -40,7 +40,7 @@ import javax.ws.rs.core.SecurityContext;
  *
  * ##############################IMPORTANT NOTE###################################
  * Do not make any API changes here directly, you need to update swagger/Controller.yaml and generate
- * the server stubs as documented in swagger/README before updating this file.
+ * the server stubs as documented in swagger/README.md.md before updating this file.
  *
  */
 public final class ApiV1 {
