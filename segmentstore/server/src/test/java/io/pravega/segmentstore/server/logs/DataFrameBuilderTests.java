@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.test.common.AssertExtensions;
@@ -253,7 +254,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             List<DataFrameBuilder.CommitArgs> commitFrames = Collections.synchronizedList(new ArrayList<>());
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
+            val args = new DataFrameBuilder.Args(Callbacks::doNothing, commitFrames::add, errorCallback, executorService());
 
             @Cleanup
             DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args);

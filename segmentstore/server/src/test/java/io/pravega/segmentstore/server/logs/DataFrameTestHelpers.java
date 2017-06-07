@@ -152,13 +152,6 @@ class DataFrameTestHelpers {
         return item -> map.put(item, map.size());
     }
 
-    /**
-     * Empty consumer. Does nothing.
-     */
-    static <T> void doNothing(T ignored) {
-        // This method intentionally left blank.
-    }
-
     //region ReadState
 
     private static class ReadState {

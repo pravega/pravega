@@ -68,6 +68,7 @@ import org.apache.zookeeper.data.Stat;
  * * The Log Reader is designed to work well immediately after recovery. Due to BookKeeper behavior, reading while writing
  * may not immediately provide access to the last written entry, even if it was acknowledged by BookKeeper.
  * * See the LogReader class for more details.
+ * TODO: improved error handling (https://github.com/pravega/pravega/issues/1414).
  */
 @Slf4j
 @ThreadSafe
@@ -319,7 +320,7 @@ class BookKeeperLog implements DurableDataLog {
             return Collections.emptyList();
         }
 
-        // Calculate how much estimated space is there in the current ledger.
+        // Calculate how much estimated space there is in the current ledger.
         final long maxTotalSize = this.config.getBkLedgerMaxSize() - getWriteLedger().ledger.getLength();
 
         // Get the writes to execute from the queue.
@@ -354,7 +355,7 @@ class BookKeeperLog implements DurableDataLog {
                 WriteLedger currentLedger = getWriteLedger();
                 if (!currentLedger.ledger.isClosed() && currentLedger.ledger.getId() != handle.getId()) {
                     // Note that we do not set a failure for this - this is considered normal operations (so we also
-                    // roll back the attempt count).
+                    // reset the attempt count).
                     write.setWriteLedger(currentLedger);
                     write.endAttempt(true);
                     return;

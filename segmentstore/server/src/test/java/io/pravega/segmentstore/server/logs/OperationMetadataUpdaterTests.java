@@ -79,7 +79,6 @@ public class OperationMetadataUpdaterTests {
 
             sealSegment(segmentId, updater, referenceMetadata);
             val logAddress = new TestLogAddress(metadata.getOperationSequenceNumber());
-            updater.recordTruncationMarker(logAddress.getSequence(), logAddress);
             Assert.assertNull("OperationSequenceNumber did not change.", truncationMarkers.put(logAddress.getSequence(), logAddress));
         }
 
@@ -87,10 +86,6 @@ public class OperationMetadataUpdaterTests {
         ContainerMetadataUpdateTransactionTests.assertMetadataSame("Before commit", blankMetadata, metadata);
         updater.commitAll();
         ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit", referenceMetadata, metadata);
-        for (val e : truncationMarkers.entrySet()) {
-            val tm = metadata.getClosestTruncationMarker(e.getKey());
-            Assert.assertEquals("After commit: Truncation marker not recorded properly.", e.getValue().getSequence(), tm.getSequence());
-        }
     }
 
     /**

@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.function.Callbacks;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -259,7 +260,7 @@ public final class FutureHelpers {
      * this future.
      */
     public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
-        return future.thenAccept(FutureHelpers::doNothing);
+        return future.thenAccept(Callbacks::doNothing);
     }
 
     /**
@@ -286,10 +287,6 @@ public final class FutureHelpers {
             throw exceptionConstructor.get();
         }
         return null;
-    }
-
-    private static <T> void doNothing(T ignored) {
-        // This method intentionally left blank.
     }
 
     //endregion

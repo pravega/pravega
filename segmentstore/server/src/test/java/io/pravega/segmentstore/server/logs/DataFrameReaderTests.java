@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.function.Callbacks;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.segmentstore.server.TestDurableDataLog;
@@ -64,7 +65,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
 
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DataFrameTestHelpers::doNothing, DataFrameTestHelpers::doNothing, errorCallback, executorService());
+            val args = new DataFrameBuilder.Args(Callbacks::doNothing, Callbacks::doNothing, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (int i = 0; i < records.size(); i++) {
                     try {
@@ -96,7 +97,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
             ArrayList<DataFrameBuilder.CommitArgs> commitFrames = new ArrayList<>();
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DataFrameTestHelpers::doNothing, commitFrames::add, errorCallback, executorService());
+            val args = new DataFrameBuilder.Args(Callbacks::doNothing, commitFrames::add, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (TestLogItem r : records) {
                     b.append(r);
@@ -133,7 +134,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
 
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DataFrameTestHelpers::doNothing, DataFrameTestHelpers::doNothing, errorCallback, executorService());
+            val args = new DataFrameBuilder.Args(Callbacks::doNothing, Callbacks::doNothing, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (TestLogItem r : records) {
                     b.append(r);
@@ -167,7 +168,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
 
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
-            val args = new DataFrameBuilder.Args(DataFrameTestHelpers::doNothing, DataFrameTestHelpers::doNothing, errorCallback, executorService());
+            val args = new DataFrameBuilder.Args(Callbacks::doNothing, Callbacks::doNothing, errorCallback, executorService());
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
                 for (TestLogItem r : records) {
                     b.append(r);

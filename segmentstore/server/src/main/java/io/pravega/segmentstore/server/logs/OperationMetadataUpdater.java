@@ -20,7 +20,6 @@ import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.storage.LogAddress;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -186,18 +185,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
     long nextOperationSequenceNumber() {
         Preconditions.checkState(!isRecoveryMode(), "Cannot request new Operation Sequence Number in Recovery Mode.");
         return this.metadata.nextOperationSequenceNumber();
-    }
-
-    /**
-     * Records a Truncation Marker. As opposed from many other methods in this class, this one does not record this change
-     * in the transaction; instead it updates the base ContainerMetadata directly.
-     *
-     * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
-     * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and including).
-     */
-    void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
-        log.debug("{}: RecordTruncationMarker OperationSequenceNumber = {}, DataFrameAddress = {}.", this.traceObjectId, operationSequenceNumber, logAddress);
-        this.metadata.recordTruncationMarker(operationSequenceNumber, logAddress);
     }
 
     /**

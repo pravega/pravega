@@ -19,6 +19,7 @@ import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
 import java.io.InputStream;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -30,6 +31,7 @@ import static io.pravega.common.util.BitConverter.writeInt;
  * Helps serialize entries into fixed-size batches. Allows writing multiple records per frame, as well as splitting a record
  * across multiple frames.
  */
+@NotThreadSafe
 public class DataFrame {
     //region Members
 

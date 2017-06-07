@@ -390,7 +390,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Now continue with the recovery from here.
             while (readResult != null) {
-                recordTruncationMarker(readResult, metadataUpdater);
+                recordTruncationMarker(readResult);
                 recoverOperation(readResult.getItem(), metadataUpdater);
                 recoveredItemCount++;
 
@@ -424,7 +424,9 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.memoryStateUpdater.process(operation);
     }
 
-    private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) {
+    private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult) {
+        // Truncation Markers are stored directly in the ContainerMetadata. There is no need for an OperationMetadataUpdater
+        // to do this.
         // Determine and record Truncation Markers, but only if the current operation spans multiple DataFrames
         // or it's the last entry in a DataFrame.
         LogAddress lastFullAddress = readResult.getLastFullDataFrameAddress();
@@ -432,10 +434,10 @@ public class DurableLog extends AbstractService implements OperationLog {
         if (lastFullAddress != null && lastFullAddress.getSequence() != lastUsedAddress.getSequence()) {
             // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
             // that ends with a part of it.
-            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastFullAddress);
+            this.metadata.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastFullAddress);
         } else if (readResult.isLastFrameEntry()) {
             // The operation was the last one in the frame. This is a Truncation Marker.
-            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastUsedAddress);
+            this.metadata.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastUsedAddress);
         }
     }
 
