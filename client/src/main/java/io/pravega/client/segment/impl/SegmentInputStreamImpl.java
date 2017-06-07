@@ -9,17 +9,13 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.protocol.netty.InvalidMessageException;
-import io.pravega.common.util.CircularBuffer;
 import com.google.common.base.Preconditions;
-
-import java.nio.ByteBuffer;
-
-import javax.annotation.concurrent.GuardedBy;
-
+import io.pravega.common.util.CircularBuffer;
+import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+import java.nio.ByteBuffer;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -167,12 +163,6 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         if (!receivedEndOfSegment && outstandingRequest == null && buffer.capacityAvailable() > readLength) {
             outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
         }
-    }
-
-    @Override
-    public long fetchCurrentStreamLength() {
-        log.trace("Fetching current stream length");
-        return FutureHelpers.getAndHandleExceptions(asyncInput.getSegmentInfo(), RuntimeException::new).getSegmentLength();
     }
 
     @Override

@@ -94,6 +94,16 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     public void segmentRead(SegmentRead data) {
         throw new IllegalStateException("Unexpected operation: " + data);
     }
+    
+    @Override
+    public void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated) {
+        throw new IllegalStateException("Unexpected operation: " + segmentAttributeUpdated);
+    }
+    
+    @Override
+    public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
+        throw new IllegalStateException("Unexpected operation: " + segmentAttribute);
+    }
 
     @Override
     public void streamSegmentInfo(StreamSegmentInfo streamInfo) {

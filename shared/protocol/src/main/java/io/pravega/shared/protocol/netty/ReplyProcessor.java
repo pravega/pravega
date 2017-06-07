@@ -36,7 +36,11 @@ public interface ReplyProcessor {
     void conditionalCheckFailed(WireCommands.ConditionalCheckFailed dataNotAppended);
 
     void segmentRead(WireCommands.SegmentRead segmentRead);
-
+    
+    void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated);
+    
+    void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute);
+    
     void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo);
     
     void transactionInfo(WireCommands.TransactionInfo transactionInfo);

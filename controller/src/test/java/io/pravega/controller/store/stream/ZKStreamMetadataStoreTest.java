@@ -81,7 +81,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     }
 
     @Test
-    public void testScaleIncidents() throws Exception {
+    public void testScaleMetadata() throws Exception {
         String scope = "testScopeScale";
         String stream = "testStreamScale";
         ScalingPolicy policy = ScalingPolicy.fixed(3);

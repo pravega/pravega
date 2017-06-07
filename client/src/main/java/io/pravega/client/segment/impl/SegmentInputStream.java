@@ -39,13 +39,7 @@ public interface SegmentInputStream extends AutoCloseable {
      */
     public abstract long getOffset();
     
-    /**
-     * Returns the length of the current segment. i.e. calling setOffset with the result of this
-     * method followed by read would result in read blocking until more data is written.
-     *
-     * @return The length of the current segment.
-     */
-    public abstract long fetchCurrentStreamLength();
+
     
     /**
      * Reads bytes from the segment a single event. Buffering is performed internally to try to prevent
