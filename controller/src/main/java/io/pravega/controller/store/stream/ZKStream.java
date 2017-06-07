@@ -25,6 +25,7 @@ import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.AbstractMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
@@ -61,7 +62,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String segmentChunkPathTemplate;
     private final String historyPath;
     private final String indexPath;
-    private final String activeTxPath;
+    private final String activeTxRoot;
     private final String completedTxPath;
     private final String markerPath;
     private final String scopePath;
@@ -81,7 +82,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         segmentChunkPathTemplate = segmentPath + "/%s";
         historyPath = String.format(HISTORY_PATH, scopeName, streamName);
         indexPath = String.format(INDEX_PATH, scopeName, streamName);
-        activeTxPath = String.format(ZKStoreHelper.ACTIVE_TX_PATH, streamName);
+        activeTxRoot = String.format(ZKStoreHelper.STREAM_TX_ROOT, streamName);
         completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, streamName);
 
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
@@ -93,7 +94,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        return store.getChildren(activeTxPath).thenApply(list -> list == null ? 0 : list.size());
+        return store.getChildren(activeTxRoot).thenCompose(list ->
+                FutureHelpers.allOfWithResults(list.stream().map(epoch ->
+                        getNumberOfOngoingTransactions(Integer.parseInt(epoch))).collect(Collectors.toList())))
+                .thenApply(list -> list.stream().reduce(0, Integer::sum));
+    }
+
+    private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
+        return store.getChildren(getEpochPath(epoch)).thenApply(List::size);
     }
 
     @Override
@@ -259,54 +267,95 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
-        return store.getChildren(activeTxPath)
+        CompletableFuture<Integer> epochFuture = getActiveEpoch().thenApply(AbstractMap.SimpleEntry::getKey);
+        return epochFuture.thenCompose(epoch -> store.getChildren(getEpochPath(epoch)))
                 .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(
-                        Collectors.toMap(txId -> txId, txId -> cache.getCachedData(ZKPaths.makePath(activeTxPath, txId)))
+                        Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epochFuture.join(), txId)))
                 )));
     }
 
     @Override
-    CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp, final long leaseExpiryTime,
-                                                 final long maxExecutionExpiryTime,
-                                                 final long scaleGracePeriod) {
-        final String activePath = getActiveTxPath(txId.toString());
-        return store.createZNodeIfNotExist(activePath,
-                new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
-                        .toByteArray())
-                .thenApply(x -> cache.invalidateCache(activePath));
+    CompletableFuture<Integer> createNewTransaction(final UUID txId,
+                                                    final long timestamp,
+                                                    final long leaseExpiryTime,
+                                                    final long maxExecutionExpiryTime,
+                                                    final long scaleGracePeriod) {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        createNewTransactionNode(txId, timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod)
+                .whenComplete((value, ex) -> {
+                    if (ex != null) {
+                        if (ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+                            FutureHelpers.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
+                                    maxExecutionExpiryTime, scaleGracePeriod), future);
+                        } else {
+                            future.completeExceptionally(ex);
+                        }
+                    } else {
+                        future.complete(value);
+                    }
+                });
+        return future;
+    }
+
+    private CompletableFuture<Integer> createNewTransactionNode(final UUID txId,
+                                                                final long timestamp,
+                                                                final long leaseExpiryTime,
+                                                                final long maxExecutionExpiryTime,
+                                                                final long scaleGracePeriod) {
+        return getLatestEpoch().thenCompose(pair -> {
+            final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
+            final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
+                    scaleGracePeriod, TxnStatus.OPEN).toByteArray();
+            // TODO: replace the previous create version with createZNodeIfParentExists, Issue #1392.
+            return store.createZNodeIfNotExist(activePath, txnRecord)
+                    .thenApply(x -> cache.invalidateCache(activePath))
+                    .thenApply(y -> pair.getKey());
+        });
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getActiveTx(final UUID txId) {
-        final String activeTxPath = getActiveTxPath(txId.toString());
+    CompletableFuture<Integer> getTransactionEpoch(UUID txId) {
+        return store.getChildren(activeTxRoot).thenCompose(list -> {
+            Map<String, CompletableFuture<Boolean>> map = new HashMap<>();
+            for (String str : list) {
+                int epoch = Integer.parseInt(str);
+                String activeTxnPath = getActiveTxPath(epoch, txId.toString());
+                map.put(str, store.checkExists(activeTxnPath));
+            }
+            return FutureHelpers.allOfWithResults(map);
+        }).thenApply(map -> {
+            Optional<Map.Entry<String, Boolean>> opt = map.entrySet().stream().filter(Map.Entry::getValue).findFirst();
+            if (opt.isPresent()) {
+                return Integer.parseInt(opt.get().getKey());
+            } else {
+                throw new DataNotFoundException(txId.toString());
+            }
+        });
+    }
 
+    @Override
+    CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId) {
+        final String activeTxPath = getActiveTxPath(epoch, txId.toString());
         return store.getData(activeTxPath);
     }
 
     @Override
-    CompletableFuture<Void> updateActiveTx(final UUID txId, final byte[] data) {
-        final String activeTxPath = getActiveTxPath(txId.toString());
+    CompletableFuture<Void> updateActiveTx(final int epoch, final UUID txId, final byte[] data) {
+        final String activeTxPath = getActiveTxPath(epoch, txId.toString());
         return store.updateTxnData(activeTxPath, data);
     }
 
     @Override
-    CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit, final Optional<Integer> version) {
-        final String activePath = getActiveTxPath(txId.toString());
-
-        return getActiveTx(txId)
-                .thenCompose(x -> {
-                    if (version.isPresent() && version.get().intValue() != x.getVersion()) {
-                        throw new WriteConflictException(txId.toString());
-                    }
-                    ActiveTxnRecord previous = ActiveTxnRecord.parse(x.getData());
-                    ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
+    CompletableFuture<Void> sealActiveTx(final int epoch, final UUID txId, final boolean commit,
+                                         final ActiveTxnRecord previous, final int version) {
+        final String activePath = getActiveTxPath(epoch, txId.toString());
+        final ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
                             previous.getLeaseExpiryTime(),
                             previous.getMaxExecutionExpiryTime(),
                             previous.getScaleGracePeriod(),
                             commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
-                    return store.setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
-                })
-                .thenApply(x -> cache.invalidateCache(activePath));
+        final Data<Integer> data = new Data<>(updated.toByteArray(), version);
+        return store.setData(activePath, data).thenApply(x -> cache.invalidateCache(activePath));
     }
 
     @Override
@@ -315,8 +364,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> removeActiveTxEntry(final UUID txId) {
-        final String activePath = getActiveTxPath(txId.toString());
+    CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
+        final String activePath = getActiveTxPath(epoch, txId.toString());
+        // TODO: no need to check existence, just delete the path, if the path is already deleted, will get error
         return store.checkExists(activePath)
                 .thenCompose(x -> {
                     if (x) {
@@ -404,8 +454,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     // endregion
 
     // region private helpers
-    private String getActiveTxPath(final String txId) {
-        return ZKPaths.makePath(activeTxPath, txId);
+    private String getActiveTxPath(final int epoch, final String txId) {
+        return ZKPaths.makePath(ZKPaths.makePath(activeTxRoot, Integer.toString(epoch)), txId);
+    }
+
+    private String getEpochPath(final int epoch) {
+        return ZKPaths.makePath(activeTxRoot, Integer.toString(epoch));
     }
 
     private String getCompletedTxPath(final String txId) {
