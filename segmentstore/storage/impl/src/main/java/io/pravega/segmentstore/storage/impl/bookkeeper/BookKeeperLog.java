@@ -324,7 +324,7 @@ class BookKeeperLog implements DurableDataLog {
         final long maxTotalSize = this.config.getBkLedgerMaxSize() - getWriteLedger().ledger.getLength();
 
         // Get the writes to execute from the queue.
-        return this.writes.getWritesToExecute(maxTotalSize, this.config.getMaxConcurrentWrites());
+        return this.writes.getWritesToExecute(maxTotalSize);
     }
 
     /**

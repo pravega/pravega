@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.util.ArrayDeque;
@@ -28,8 +30,7 @@ import javax.annotation.concurrent.ThreadSafe;
 class WriteQueue {
     //region Members
 
-    private final Supplier<Long> timeSupplier = System::nanoTime;
-
+    private final Supplier<Long> timeSupplier;
     private final int maxParallelism;
     @GuardedBy("this")
     private final Deque<Write> writes;
@@ -48,6 +49,18 @@ class WriteQueue {
      * @param maxParallelism The maximum number of items that can be processed at once.
      */
     WriteQueue(int maxParallelism) {
+        this(maxParallelism, System::nanoTime);
+    }
+
+    /**
+     * Creates a new instance of the WriteQueue class.
+     *
+     * @param maxParallelism The maximum number of items that can be processed at once.
+     * @param timeSupplier   A Supplier that returns the current time, in nanoseconds.
+     */
+    @VisibleForTesting
+    WriteQueue(int maxParallelism, Supplier<Long> timeSupplier) {
+        this.timeSupplier = Preconditions.checkNotNull(timeSupplier, "timeSupplier");
         this.maxParallelism = maxParallelism;
         this.writes = new ArrayDeque<>();
     }
@@ -68,7 +81,15 @@ class WriteQueue {
             fillRate = Math.min(1, (double) this.totalLength / size / BookKeeperConfig.MAX_APPEND_LENGTH);
         }
 
-        return new QueueStats(this.maxParallelism, size, fillRate, this.lastDurationMillis);
+        int processingTime = this.lastDurationMillis;
+        if (processingTime == 0 && size > 0) {
+            // We get in here when this method is invoked prior to any operation being completed. Since lastDurationMillis
+            // is only set when an item is completed, in this special case we just estimate based on the amount of time
+            // the first item in the queue has been added.
+            processingTime = (int) ((this.timeSupplier.get() - this.writes.peekFirst().getTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
+        }
+
+        return new QueueStats(this.maxParallelism, size, fillRate, processingTime);
     }
 
     /**
@@ -104,10 +125,9 @@ class WriteQueue {
      *
      * @param maximumAccumulatedSize The maximum total accumulated size of the items to return. Once this value is exceeded,
      *                               no further writes are returned.
-     * @param maxActiveWriteCount    The maximum number of writes to return.
      * @return The result.
      */
-    synchronized List<Write> getWritesToExecute(long maximumAccumulatedSize, int maxActiveWriteCount) {
+    synchronized List<Write> getWritesToExecute(long maximumAccumulatedSize) {
         long accumulatedSize = 0;
         int activeWriteCount = 0;
 
@@ -118,8 +138,7 @@ class WriteQueue {
 
         List<Write> result = new ArrayList<>();
         for (Write write : this.writes) {
-            if (accumulatedSize >= maximumAccumulatedSize
-                    || activeWriteCount >= maxActiveWriteCount) {
+            if (accumulatedSize >= maximumAccumulatedSize || activeWriteCount >= this.maxParallelism) {
                 // Either reached the throttling limit or ledger max size limit.
                 // If we try to send too many writes to this ledger, the writes are likely to be rejected with
                 // LedgerClosedException and simply be retried again.
@@ -136,7 +155,7 @@ class WriteQueue {
                     // with their updating their status. Try again next time (when that write completes).
                     return Collections.emptyList();
                 }
-            } else if (write.getLedger().getId() != firstLedgerId) {
+            } else if (write.getLedgerMetadata().getLedgerId() != firstLedgerId) {
                 // We cannot initiate writes in a new ledger until all writes in the previous ledger completed.
                 break;
             } else if (!write.isDone()) {
@@ -157,17 +176,17 @@ class WriteQueue {
      */
     synchronized boolean removeFinishedWrites() {
         long currentTime = this.timeSupplier.get();
-        int totalElapsed = 0;
+        long totalElapsed = 0;
         int removedCount = 0;
         while (!this.writes.isEmpty() && this.writes.peekFirst().isDone()) {
             Write w = this.writes.removeFirst();
             this.totalLength = Math.max(0, this.totalLength - w.data.getLength());
             removedCount++;
-            totalElapsed += (int) ((currentTime - w.getTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
+            totalElapsed += currentTime - w.getTimestamp();
         }
 
         if (removedCount > 0) {
-            this.lastDurationMillis = totalElapsed / removedCount;
+            this.lastDurationMillis = (int) (totalElapsed / removedCount / AbstractTimer.NANOS_TO_MILLIS);
         }
 
         return !this.writes.isEmpty();

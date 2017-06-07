@@ -171,7 +171,7 @@ class Write {
     @Override
     public String toString() {
         return String.format("LedgerId = %s, Length = %s, Attempts = %s, InProgress = %s, Done = %s, Failed %s",
-                this.writeLedger.get().ledger.getId(), this.data.getLength(), this.attemptCount, this.inProgress,
+                this.writeLedger.get().metadata.getLedgerId(), this.data.getLength(), this.attemptCount, this.inProgress,
                 isDone(), this.failureCause.get() != null);
     }
 
