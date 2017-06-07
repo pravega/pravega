@@ -630,10 +630,10 @@ public class ControllerImplTest {
         AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
 
         updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                .streamName("stream6")
-                .scope("scope1")
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build());
+                                                                  .streamName("stream6")
+                                                                  .scope("scope1")
+                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                  .build());
         AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
     }
 
