@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.BitConverter;
@@ -21,7 +22,6 @@ import io.pravega.controller.store.stream.tables.IndexRecord;
 import io.pravega.controller.store.stream.tables.SegmentRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import io.pravega.client.stream.StreamConfiguration;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -158,6 +158,21 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Integer> getSegmentCount() {
         return verifyLegalState(getHistoryTable().thenApply(x -> TableHelper.getSegmentCount(x.getData())));
+    }
+
+    @Override
+    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata() {
+        return verifyLegalState(getHistoryTable()
+                .thenApply(x -> TableHelper.getScaleMetadata(x.getData()))
+                .thenCompose(listOfScaleRecords ->
+                        FutureHelpers.allOfWithResults(listOfScaleRecords.stream().map(record -> {
+                            long scaleTs = record.getLeft();
+                            CompletableFuture<List<Segment>> list = FutureHelpers.allOfWithResults(
+                                    record.getRight().stream().map(this::getSegment)
+                                    .collect(Collectors.toList()));
+
+                            return list.thenApply(segments -> new ScaleMetadata(scaleTs, segments));
+                        }).collect(Collectors.toList()))));
     }
 
     /**
