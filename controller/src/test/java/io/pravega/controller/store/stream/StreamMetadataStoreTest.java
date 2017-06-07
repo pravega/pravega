@@ -261,7 +261,6 @@ public abstract class StreamMetadataStoreTest {
 
         // Adding a txn again should not fail.
         addTxnToHost(host1, txn1, 0);
-
         addTxnToHost(host1, txn2, 5);
         Assert.assertEquals(1, store.listHostsOwningTxn().join().size());
 

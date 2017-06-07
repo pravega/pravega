@@ -139,9 +139,9 @@ public class StoreException extends RuntimeException {
     /**
      * Error type thrown when version mismatch occues in conditional update of a znode in ZK.
      */
-    public static class BadVersionExeption extends StoreException {
+    public static class BadVersionException extends StoreException {
 
-        public BadVersionExeption() {
+        public BadVersionException() {
             super(Type.BAD_VERSION);
         }
     }

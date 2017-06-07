@@ -24,6 +24,8 @@ import java.util.UUID;
 
 /**
  * Transaction resource consisting of scope name, stream name, and txn id.
+ * The host-transaction index tracks transaction resources a specific host is managing timeouts for.
+ * We maintain a list of transaction resources against a host in the host-transaction index.
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

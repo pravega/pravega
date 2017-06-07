@@ -92,10 +92,10 @@ public class TxnSweeper {
         return streamMetadataStore.getRandomTxnFromIndex(failedHost).thenComposeAsync(resourceOpt -> {
             if (resourceOpt.isPresent()) {
                 TxnResource resource = resourceOpt.get();
-                // Get the txn's status
-                // If it is aborting or committing send an abortEvent or commitEvent to respective streams
-                // Else if it is open try to abort it
-                // Else ignore it
+                // Get transaction's status
+                // If it is aborting or committing, then send an abortEvent or commitEvent to respective streams.
+                // Else, if it is open, then try to abort it.
+                // Else, ignore it.
                 return failOverTxn(failedHost, resource);
             } else {
                 // delete hostId from the index.

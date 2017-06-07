@@ -188,7 +188,7 @@ public class ZKHostIndex implements HostIndex {
         } else if (event.getResultCode() == KeeperException.Code.NODEEXISTS.intValue()) {
             ex = new StoreException.NodeExistsException();
         } else if (event.getResultCode() == KeeperException.Code.BADVERSION.intValue()) {
-            ex = new StoreException.BadVersionExeption();
+            ex = new StoreException.BadVersionException();
         } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
             ex = new StoreException.NodeNotFoundException();
         } else if (event.getResultCode() == KeeperException.Code.NOTEMPTY.intValue()) {
