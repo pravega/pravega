@@ -23,6 +23,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -47,14 +48,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ReadWriteTest {
 
     private static final String STREAM_NAME = "testMultiReaderWriterStream" + new Random().nextInt(Integer.MAX_VALUE);
-    private static final int NUM_WRITERS = 5;
-    private static final int NUM_READERS = 5;
-    private static final long NUM_EVENTS = 500;
+    private static final int NUM_WRITERS = 20;
+    private static final int NUM_READERS = 20;
+    private static final long TOTAL_NUM_EVENTS = 20000;
+    private static final int NUM_EVENTS_BY_WRITER = 1000;
     private AtomicBoolean stopReadFlag;
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
@@ -73,32 +76,27 @@ public class ReadWriteTest {
         final int servicePort = TestUtils.getAvailableListenPort();
         final int containerCount = 4;
 
-        try {
-            // 1. Start ZK
-            this.zkTestServer = new TestingServerStarter().start();
+        // 1. Start ZK
+        this.zkTestServer = new TestingServerStarter().start();
 
-            // 2. Start Pravega service.
-            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-            serviceBuilder.initialize();
-            StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        // 2. Start Pravega service.
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-            this.server = new PravegaConnectionListener(false, servicePort, store);
-            this.server.startListening();
+        this.server = new PravegaConnectionListener(false, servicePort, store);
+        this.server.startListening();
 
-            // 3. Start  controller service
-            this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                    controllerPort, serviceHost, servicePort, containerCount);
-            this.controllerWrapper.awaitRunning();
-            this.controller = controllerWrapper.getController();
-        } catch (Exception e) {
-            log.error("Error during setup", e);
-            throw e;
-        }
+        // 3. Start  controller service
+        this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
+                controllerPort, serviceHost, servicePort, containerCount);
+        this.controllerWrapper.awaitRunning();
+        this.controller = controllerWrapper.getController();
     }
 
     @After
-    public void tearDown() {
-        try {
+    public void tearDown() throws Exception {
+
             if (this.controllerWrapper != null) {
                 this.controllerWrapper.close();
                 this.controllerWrapper = null;
@@ -111,13 +109,10 @@ public class ReadWriteTest {
                 this.zkTestServer.close();
                 this.zkTestServer = null;
             }
-        } catch (Exception e) {
-            log.warn("Exception while tearing down", e);
-        }
     }
 
-    @Test(timeout = 600000)
-    public void multiReaderWriterWithFailOverTest() throws Exception {
+    @Test(timeout = 300000)
+    public void multiReaderWriterTest() throws Exception {
         for (i = 0; i < 2; i++) {
             readWriteTest(i);
         }
@@ -129,8 +124,8 @@ public class ReadWriteTest {
         log.info("invoking read write test {} time", i);
         String scope = "testMultiReaderWriterScope" + i;
         String readerGroupName = "testMultiReaderWriterReaderGroup" + i;
-        //5  readers -> 5 stream segments ( to have max read parallelism)
-        ScalingPolicy scalingPolicy = ScalingPolicy.fixed(5);
+        //20  readers -> 20 stream segments ( to have max read parallelism)
+        ScalingPolicy scalingPolicy = ScalingPolicy.fixed(20);
         StreamConfiguration config = StreamConfiguration.builder().scope(scope)
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
@@ -178,31 +173,47 @@ public class ReadWriteTest {
         log.info("online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
 
         //wait for writers completion
-        for (i = 0; i < writerList.size(); i++) {
-            log.info("get on writer list {} ", writerList.get(i).get());
-            CompletableFuture.allOf(writerList.get(i));
-        }
+        FutureHelpers.allOf(writerList);
 
         // wait for reads = writes
-        while (NUM_EVENTS != eventsReadFromPravega.size()) {
+        while (TOTAL_NUM_EVENTS != eventsReadFromPravega.size()) {
             Thread.sleep(5);
         }
 
         stopReadFlag.set(true);
 
         //wait for readers completion
-        for (i = 0; i < readerList.size(); i++) {
-            log.info("get on readerlist {} ", readerList.get(i).get());
-            CompletableFuture.allOf(readerList.get(i));
-        }
+        FutureHelpers.allOf(readerList);
 
         log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
                 "Count: {}", eventData.get(), eventsReadFromPravega.size());
-        assertEquals(NUM_EVENTS, eventsReadFromPravega.size());
-        assertEquals(NUM_EVENTS, new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
+        assertEquals(TOTAL_NUM_EVENTS, eventsReadFromPravega.size());
+        assertEquals(TOTAL_NUM_EVENTS, new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
         //stop reading when no. of reads= no. of writes
-        log.info("test {} succeed", "multiReaderWriterTest");
+        log.info("read write test succeed");
 
+        //seal all streams
+        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
+        log.info("sealing stream {}", STREAM_NAME);
+        assertTrue(sealStreamStatus.get());
+
+        CompletableFuture<Boolean> sealStreamStatus1 = controller.sealStream(scope, "_RG" + readerGroupName);
+        log.info("sealing stream {}", "_RG" + readerGroupName);
+        assertTrue(sealStreamStatus1.get());
+
+        //delete all streams
+        CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
+        log.info("deleting stream {}", STREAM_NAME);
+        assertTrue(deleteStreamStatus.get());
+
+        CompletableFuture<Boolean> deleteStreamStatus1 = controller.deleteStream(scope, "_RG" + readerGroupName);
+        log.info("deleting stream {}", "_RG" + readerGroupName);
+        assertTrue(deleteStreamStatus1.get());
+
+        //delete scope
+        CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
+        log.info("deleting scope {}", scope);
+        assertTrue(deleteScopeStatus.get());
     }
 
     private CompletableFuture<Void> startNewWriter(final AtomicLong data,
@@ -211,7 +222,7 @@ public class ReadWriteTest {
             final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
                     EventWriterConfig.builder().build());
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < NUM_EVENTS_BY_WRITER; i++) {
                 try {
                     long value = data.incrementAndGet();
                     log.info("writing event {}", value);
@@ -222,6 +233,7 @@ public class ReadWriteTest {
                     break;
                 }
             }
+            log.info("closing writer {}", writer);
             writer.close();
 
         });
@@ -254,9 +266,8 @@ public class ReadWriteTest {
                     break;
                 }
             }
+            log.info("closing reader {}", reader);
             reader.close();
         });
     }
-
-
 }

@@ -21,6 +21,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -143,15 +144,15 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         log.info("Test with 2 controller, SSS instances running and without a failover scenario");
         readWriteTest();
 
-        //scale down SSS by 1 instance
+        /*//scale down SSS by 1 instance
         segmentStoreInstance.scaleService(1, true);
         Thread.sleep(60000);
         log.info("Test with 1 SSS instance down");
         readWriteTest();
-
+*/
         //scale down controller by 1 instance + scale up SSS back to 2 instances
-        segmentStoreInstance.scaleService(2, true);
-        Thread.sleep(60000);
+        /*segmentStoreInstance.scaleService(2, true);
+        Thread.sleep(60000);*/
         controllerInstance.scaleService(1, true);
         Thread.sleep(60000);
         log.info("Test with 1 controller instance down");
@@ -215,13 +216,8 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
                     eventsReadFromPravega, eventData, eventReadCount, stopReadFlag));
         }
 
-        Thread.sleep(50);
-
         //wait for writers completion
-        for (int i = 0; i < writerList.size(); i++) {
-            log.info("get on writer list {} ", writerList.get(i).get());
-            CompletableFuture.allOf(writerList.get(i));
-        }
+        FutureHelpers.allOf(writerList);
 
         while (NUM_EVENTS != eventsReadFromPravega.size()) {
             Thread.sleep(5);
@@ -230,10 +226,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         stopReadFlag.set(true);
 
         //wait for readers completion
-        for (int i = 0; i < readerList.size(); i++) {
-            log.info("get on readerlist {} ", readerList.get(i).get());
-            CompletableFuture.allOf(readerList.get(i));
-        }
+        FutureHelpers.allOf(readerList);
 
         log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
                 "Count: {}", eventData.get(), eventsReadFromPravega.size());
@@ -242,13 +235,28 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         //stop reading when no. of reads= no. of writes
         log.debug("test {} succeed", "multiReaderWriterTest");
 
-        //seal a stream
-        CompletableFuture<Boolean> sealsStreamStatus = controller.sealStream(scope, STREAM_NAME);
-        assertTrue(sealsStreamStatus.get());
+        //seal all streams
+        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
+        log.info("sealing stream {}", STREAM_NAME);
+        assertTrue(sealStreamStatus.get());
 
-        //deleting stream
+        CompletableFuture<Boolean> sealStreamStatus1 = controller.sealStream(scope, "_RG"+ readerGroupName);
+        log.info("sealing stream {}", "_RG"+ readerGroupName);
+        assertTrue(sealStreamStatus1.get());
+
+        //delete all streams
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
+        log.info("deleting stream {}", STREAM_NAME);
         assertTrue(deleteStreamStatus.get());
+
+        CompletableFuture<Boolean> deleteStreamStatus1 = controller.deleteStream(scope, "_RG"+ readerGroupName);
+        log.info("deleting stream {}", "_RG"+ readerGroupName);
+        assertTrue(deleteStreamStatus1.get());
+
+        //delete scope
+        CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
+        log.info("deleting scope {}", scope);
+        assertTrue(deleteScopeStatus.get());
 
     }
 
@@ -269,6 +277,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
                     break;
                 }
             }
+            log.info("closing writer {}", writer);
             writer.close();
 
         });
@@ -301,6 +310,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
                     break;
                 }
             }
+            log.info("closing reader {}", reader);
             reader.close();
         });
     }
