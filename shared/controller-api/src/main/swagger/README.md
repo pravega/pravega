@@ -14,14 +14,14 @@ Instructions to generate Server REST API stubs
 rm controller/src/main/java/io/pravega/controller/server/rest/generated
 ```
 
-# Update Controller.yaml
+## Update Controller.yaml
 All REST API modifications should be done by updating the swagger/Controller.yaml specification file.
 This can be done manually or by using the online editor at http://editor.swagger.io.
 
-# Download Swagger codegen
+## Download Swagger codegen
 Download swagger-codegen-cli from maven - http://repo1.maven.org/maven2/io/swagger/swagger-codegen-cli/2.2.1/swagger-codegen-cli-2.2.1.jar
 
-# Generate the API stubs using Swagger Codegen 
+## Generate the API stubs using Swagger Codegen 
 ```
 java -jar swagger-codegen-cli.jar generate -i Controller.yaml -l jaxrs -c server.config.json -o <pravega root>/controller/
 ```
