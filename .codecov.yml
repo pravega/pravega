@@ -17,6 +17,6 @@ coverage:
         branches:
           - master
   ignore:
-    - "generated"
+    - "**/generated/**"
     - "standalone"
     - "test"

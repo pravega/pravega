@@ -20,6 +20,7 @@ import java.util.UUID;
 public class AbortEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
+    private final int epoch;
     private final UUID txid;
 
     @Override

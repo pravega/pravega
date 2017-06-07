@@ -9,11 +9,10 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
+import io.pravega.client.stream.AckFuture;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.client.stream.Position;
-
-import java.util.concurrent.Future;
 
 /**
  * Event processor interface.
@@ -27,7 +26,7 @@ public abstract class EventProcessor<T extends ControllerEvent> {
 
     @FunctionalInterface
     public interface Writer<T> {
-        Future<Void> write(T event);
+        AckFuture write(T event);
     }
 
     Checkpointer checkpointer;

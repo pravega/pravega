@@ -120,6 +120,11 @@ class InMemoryStream implements Stream {
         }
 
         @Override
+        public CompletableFuture<List<ScaleMetadata>> getScaleMetadata() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
         public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
@@ -170,7 +175,8 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<VersionedTransactionData> createTransaction(final long lease,
+        public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txId,
+                                                                             final long lease,
                                                                              final long maxExecutionTime,
                                                                              final long scaleGracePeriod) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
@@ -188,9 +194,9 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<TxnStatus> sealTransaction(final UUID txId,
-                                                            final boolean commit,
-                                                            final Optional<Integer> version) {
+        public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                                  final boolean commit,
+                                                                                  final Optional<Integer> version) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -200,12 +206,14 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<TxnStatus> commitTransaction(final UUID txId) throws OperationOnTxNotAllowedException {
+        public CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId)
+                throws OperationOnTxNotAllowedException {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
         @Override
-        public CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException {
+        public CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId)
+                throws OperationOnTxNotAllowedException {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -217,6 +225,16 @@ class InMemoryStream implements Stream {
         @Override
         public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
+            throw new NotImplementedException();
+        }
+
+        @Override
+        public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
+            throw new NotImplementedException();
         }
 
         @Override
@@ -301,6 +319,11 @@ class InMemoryStream implements Stream {
     @Override
     public CompletableFuture<List<Integer>> getSuccessors(int number) {
         return CompletableFuture.completedFuture(segments.get(number).getSuccessors());
+    }
+
+    @Override
+    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata() {
+        throw new NotImplementedException();
     }
 
     @Override
@@ -431,7 +454,8 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> createTransaction(final long lease, final long maxExecutionTime,
+    public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txId,
+                                                                         final long lease, final long maxExecutionTime,
                                                                          final long scaleGracePeriod) {
         throw new NotImplementedException();
     }
@@ -447,7 +471,9 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit, Optional<Integer> version) {
+    public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                              final boolean commit,
+                                                                              final Optional<Integer> version) {
         throw new NotImplementedException();
     }
 
@@ -457,12 +483,12 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> commitTransaction(int epoch, UUID txId) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<TxnStatus> abortTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> abortTransaction(int epoch, UUID txId) {
         throw new NotImplementedException();
     }
 
@@ -474,6 +500,16 @@ class InMemoryStream implements Stream {
     @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         return null;
+    }
+
+    @Override
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
+        throw new NotImplementedException();
     }
 
     @Override

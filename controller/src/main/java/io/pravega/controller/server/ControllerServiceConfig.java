@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.controller.fault.ControllerClusterListenerConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
@@ -24,39 +23,11 @@ import java.util.Optional;
  */
 public interface ControllerServiceConfig {
     /**
-     * Fetches the size of the thread pool used by controller service API handler.
+     * Fetches the size of the thread pool used by controller.
      *
-     * @return The size of the thread pool used by controller service API handler.
+     * @return The size of the thread pool used by controller.
      */
-    int getServiceThreadPoolSize();
-
-    /**
-     * Fetches the size of the thread pool used by controller's task processor.
-     *
-     * @return The size of the thread pool used by controller's task processor.
-     */
-    int getTaskThreadPoolSize();
-
-    /**
-     * Fetches the size of the thread pool used by controller's stream metadata store.
-     *
-     * @return The size of the thread pool used by controller's stream metadata store.
-     */
-    int getStoreThreadPoolSize();
-
-    /**
-     * Fetches the size of the thread pool used by controller's event processors.
-     *
-     * @return The size of the thread pool used by controller's event processors.
-     */
-    int getEventProcThreadPoolSize();
-
-    /**
-     * Fetches the size of the thread pool used by controller's request handlers.
-     *
-     * @return The size of the thread pool used by controller's request handlers.
-     */
-    int getRequestHandlerThreadPoolSize();
+    int getThreadPoolSize();
 
     /**
      * Fetches the configuration of the store client used for accessing stream metadata store.
@@ -73,11 +44,11 @@ public interface ControllerServiceConfig {
     HostMonitorConfig getHostMonitorConfig();
 
     /**
-     * Fetches whether the controller cluster listener is enabled, and its configuration if enabled.
+     * Fetches whether the controller cluster listener is enabled.
      *
-     * @return Whether the controller cluster listener is enabled, and its configuration if enabled.
+     * @return Whether the controller cluster listener is enabled.
      */
-    Optional<ControllerClusterListenerConfig> getControllerClusterListenerConfig();
+    boolean isControllerClusterListenerEnabled();
 
     /**
      * Fetches the configuration of service managing transaction timeouts.

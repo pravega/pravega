@@ -10,8 +10,6 @@
 package io.pravega.controller.server;
 
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.controller.fault.ControllerClusterListenerConfig;
-import io.pravega.controller.fault.impl.ControllerClusterListenerConfigImpl;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -29,7 +27,6 @@ import io.pravega.controller.util.Config;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Entry point of controller server.
@@ -59,14 +56,6 @@ public class Main {
                         Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT))
                 .build();
 
-        ControllerClusterListenerConfig controllerClusterListenerConfig = ControllerClusterListenerConfigImpl.builder()
-                .minThreads(1)
-                .maxThreads(10)
-                .idleTime(10)
-                .idleTimeUnit(TimeUnit.SECONDS)
-                .maxQueueSize(512)
-                .build();
-
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
                 .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
@@ -82,14 +71,10 @@ public class Main {
                 .build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .eventProcThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
-                .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
-                .controllerClusterListenerConfig(Optional.of(controllerClusterListenerConfig))
+                .controllerClusterListenerEnabled(true)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
