@@ -172,8 +172,8 @@ public class LocalControllerTest {
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
                         .setStatus(Controller.UpdateStreamStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.updateStream(StreamConfiguration.builder().build()).join()
-                , ex -> ex instanceof ControllerFailureException);
+                () -> this.testController.updateStream(StreamConfiguration.builder().build()).join(),
+                ex -> ex instanceof ControllerFailureException);
 
         when(this.mockControllerService.updateStream(any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
