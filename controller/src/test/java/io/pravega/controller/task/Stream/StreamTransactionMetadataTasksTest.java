@@ -69,6 +69,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -273,12 +274,12 @@ public class StreamTransactionMetadataTasksTest {
 
         // Change state of one txn to COMMITTING.
         TxnStatus txnStatus2 = streamStore.sealTransaction(SCOPE, STREAM, tx2.getId(), true, Optional.empty(),
-                null, executor).join();
+                null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.COMMITTING, txnStatus2);
 
         // Change state of another txn to ABORTING.
         TxnStatus txnStatus3 = streamStore.sealTransaction(SCOPE, STREAM, tx3.getId(), false, Optional.empty(),
-                null, executor).join();
+                null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.ABORTING, txnStatus3);
 
         // Create transaction tasks for sweeping txns from failedHost.

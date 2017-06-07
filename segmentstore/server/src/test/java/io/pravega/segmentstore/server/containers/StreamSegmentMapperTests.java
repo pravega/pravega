@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.AsyncMap;
@@ -36,7 +37,6 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import com.google.common.util.concurrent.Service;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -58,7 +58,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
@@ -159,6 +158,9 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     public void testGetOrAssignStreamSegmentId() {
         final int segmentCount = 10;
         final int transactionsPerSegment = 5;
+        final long noSegmentId = ContainerMetadata.NO_STREAM_SEGMENT_ID;
+        AtomicLong currentSegmentId = new AtomicLong(Integer.MAX_VALUE);
+        Supplier<Long> nextSegmentId = () -> currentSegmentId.decrementAndGet() % 2 == 0 ? noSegmentId : currentSegmentId.get();
 
         @Cleanup
         TestContext context = new TestContext();
@@ -167,14 +169,14 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         for (int i = 0; i < segmentCount; i++) {
             String segmentName = getName(i);
             storageSegments.add(segmentName);
-            setAttributes(segmentName, storageSegments.size() % ATTRIBUTE_COUNT, context);
+            setAttributes(segmentName, nextSegmentId.get(), storageSegments.size() % ATTRIBUTE_COUNT, context);
 
             for (int j = 0; j < transactionsPerSegment; j++) {
                 // There is a small chance of a name conflict here, but we don't care. As long as we get at least one
                 // Transaction per segment, we should be fine.
                 String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 storageSegments.add(transactionName);
-                setAttributes(transactionName, storageSegments.size() % ATTRIBUTE_COUNT, context);
+                setAttributes(transactionName, nextSegmentId.get(), storageSegments.size() % ATTRIBUTE_COUNT, context);
             }
         }
 
@@ -447,15 +449,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private void setAttributes(String segmentName, int count, TestContext context) {
+    private void setAttributes(String segmentName, long segmentId, int count, TestContext context) {
         if (count != 0) {
             val attributes = createAttributes(count)
                     .stream()
                     .collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
-            context.stateStore.put(
-                    segmentName,
-                    new SegmentState(new StreamSegmentInformation(segmentName, 0, false, false, attributes, new ImmutableDate())),
-                    TIMEOUT).join();
+            val segmentInfo = new StreamSegmentInformation(segmentName, 0, false, false, attributes, new ImmutableDate());
+            context.stateStore.put(segmentName, new SegmentState(segmentId, segmentInfo), TIMEOUT).join();
         }
     }
 
@@ -474,9 +474,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     private void setupOperationLog(TestContext context) {
         AtomicLong seqNo = new AtomicLong();
         context.operationLog.addHandler = op -> {
+            long currentSeqNo = seqNo.incrementAndGet();
             if (op instanceof StreamSegmentMapOperation) {
                 StreamSegmentMapOperation mapOp = (StreamSegmentMapOperation) op;
-                mapOp.setStreamSegmentId(seqNo.incrementAndGet());
+                if (mapOp.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+                    mapOp.setStreamSegmentId(currentSeqNo);
+                }
+
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId());
                 segmentMetadata.setStorageLength(0);
                 segmentMetadata.setDurableLogLength(mapOp.getLength());
@@ -487,7 +491,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 segmentMetadata.updateAttributes(mapOp.getAttributes());
             } else if (op instanceof TransactionMapOperation) {
                 TransactionMapOperation mapOp = (TransactionMapOperation) op;
-                mapOp.setStreamSegmentId(seqNo.incrementAndGet());
+                if (mapOp.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+                    mapOp.setStreamSegmentId(currentSeqNo);
+                }
+
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId(), mapOp.getParentStreamSegmentId());
                 segmentMetadata.setStorageLength(0);
                 segmentMetadata.setDurableLogLength(mapOp.getLength());
@@ -498,7 +505,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 segmentMetadata.updateAttributes(mapOp.getAttributes());
             }
 
-            return CompletableFuture.completedFuture(seqNo.incrementAndGet());
+            return CompletableFuture.completedFuture(currentSeqNo);
         };
     }
 

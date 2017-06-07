@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.stream.tables.State;
@@ -21,11 +22,15 @@ import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.AbstractMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -109,5 +114,53 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         AssertExtensions.assertThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
         AssertExtensions.assertThrows("Get random txn fails", store.getRandomTxnFromIndex(host), checker);
         AssertExtensions.assertThrows("List hosts fails", store.listHostsOwningTxn(), checker);
+    }
+
+    @Test
+    public void testScaleMetadata() throws Exception {
+        String scope = "testScopeScale";
+        String stream = "testStreamScale";
+        ScalingPolicy policy = ScalingPolicy.fixed(3);
+        StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        store.createScope(scope).get();
+        store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        List<ScaleMetadata> scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
+        assertTrue(scaleIncidents.size() == 1);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 3);
+        // scale
+        scale(scope, stream, scaleIncidents.get(0).getSegments());
+        scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
+        assertTrue(scaleIncidents.size() == 2);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(1).getSegments().size() == 3);
+
+        // scale again
+        scale(scope, stream, scaleIncidents.get(0).getSegments());
+        scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
+        assertTrue(scaleIncidents.size() == 3);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
+
+        // scale again
+        scale(scope, stream, scaleIncidents.get(0).getSegments());
+        scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
+        assertTrue(scaleIncidents.size() == 4);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
+    }
+
+    private void scale(String scope, String stream, List<Segment> segments) {
+
+        AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
+        AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.5, 1.0);
+        long scaleTimestamp = System.currentTimeMillis();
+        List<Integer> existingSegments = segments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        List<Segment> segmentsCreated = store.startScale(scope, stream, existingSegments, Arrays.asList(segment1, segment2),
+                scaleTimestamp, null, executor).join();
+        store.scaleNewSegmentsCreated(scope, stream, existingSegments, segmentsCreated, scaleTimestamp, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, existingSegments, segmentsCreated, scaleTimestamp, null, executor).join();
     }
 }

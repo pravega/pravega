@@ -15,7 +15,7 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executor;
 
 /**
  * ZK stream metadata store.
@@ -24,7 +24,7 @@ import java.util.concurrent.ScheduledExecutorService;
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private final ZKStoreHelper storeHelper;
 
-    ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
+    ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor));
         initialize();
         storeHelper = new ZKStoreHelper(client, executor);

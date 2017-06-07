@@ -114,7 +114,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                           final OperationContext context,
                                                           final Executor executor) {
         if (scopes.containsKey(scopeName)) {
-            return streams.get(scopedStreamName(scopeName, streamName)).updateConfiguration(configuration);
+            String scopeStreamName = scopedStreamName(scopeName, streamName);
+            if (!streams.containsKey(scopeStreamName)) {
+                return FutureHelpers.
+                        failedFuture(new DataNotFoundException("Stream not found: " + scopeStreamName));
+            }
+            return streams.get(scopeStreamName).updateConfiguration(configuration);
         } else {
             return FutureHelpers.
                     failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));

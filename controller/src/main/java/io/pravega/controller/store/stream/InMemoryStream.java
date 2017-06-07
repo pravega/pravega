@@ -42,7 +42,7 @@ class InMemoryStream implements Stream {
 
     /**
      * Stores all segments in the stream, ordered by number, which implies that
-     * these segments are also ordered in the increaing order of their start times.
+     * these segments are also ordered in the increasing order of their start times.
      * Segment number is the index of that segment in this list.
      */
     private final List<InMemorySegment> segments = new ArrayList<>();
@@ -120,6 +120,11 @@ class InMemoryStream implements Stream {
         }
 
         @Override
+        public CompletableFuture<List<ScaleMetadata>> getScaleMetadata() {
+            return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
         public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
@@ -189,9 +194,9 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<TxnStatus> sealTransaction(final UUID txId,
-                                                            final boolean commit,
-                                                            final Optional<Integer> version) {
+        public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                                  final boolean commit,
+                                                                                  final Optional<Integer> version) {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -201,12 +206,14 @@ class InMemoryStream implements Stream {
         }
 
         @Override
-        public CompletableFuture<TxnStatus> commitTransaction(final UUID txId) throws OperationOnTxNotAllowedException {
+        public CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId)
+                throws OperationOnTxNotAllowedException {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
         @Override
-        public CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException {
+        public CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId)
+                throws OperationOnTxNotAllowedException {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
         }
 
@@ -218,6 +225,16 @@ class InMemoryStream implements Stream {
         @Override
         public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
             return FutureHelpers.failedFuture(new DataNotFoundException(stream));
+        }
+
+        @Override
+        public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
+            throw new NotImplementedException();
+        }
+
+        @Override
+        public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
+            throw new NotImplementedException();
         }
 
         @Override
@@ -305,6 +322,11 @@ class InMemoryStream implements Stream {
     }
 
     @Override
+    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata() {
+        throw new NotImplementedException();
+    }
+
+    @Override
     public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
         Map<Integer, List<Integer>> result = new HashMap<>();
         for (Integer successor : segments.get(number).getSuccessors()) {
@@ -331,6 +353,7 @@ class InMemoryStream implements Stream {
      * GetActiveSegments runs in O(n), where n is the total number of segments.
      * It can be improved to O(k + logn), where k is the number of active segments at specified timestamp,
      * using augmented interval tree or segment index..
+     *
      * TODO: maintain a augmented interval tree or segment tree index
      */
     @Override
@@ -400,7 +423,7 @@ class InMemoryStream implements Stream {
 
             for (int i = 0; i < keyRanges.size(); i++) {
                 if (segment.overlaps(keyRanges.get(i).getKey(), keyRanges.get(i).getValue())) {
-                    successors.add(start + i);
+                    successors.add(newSegments.get(i));
                     predecessors.get(i).add(sealed);
                 }
             }
@@ -448,7 +471,9 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit, Optional<Integer> version) {
+    public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                              final boolean commit,
+                                                                              final Optional<Integer> version) {
         throw new NotImplementedException();
     }
 
@@ -458,12 +483,12 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> commitTransaction(int epoch, UUID txId) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<TxnStatus> abortTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> abortTransaction(int epoch, UUID txId) {
         throw new NotImplementedException();
     }
 
@@ -475,6 +500,16 @@ class InMemoryStream implements Stream {
     @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         return null;
+    }
+
+    @Override
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
+        throw new NotImplementedException();
     }
 
     @Override

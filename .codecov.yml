@@ -17,9 +17,6 @@ coverage:
         branches:
           - master
   ignore:
-    - "benchmark"
-    - "generated"
-    - "singlenode"
-    - "test/integration"
-    - "test/common"
-    - "test/system"
+    - "**/generated/**"
+    - "standalone"
+    - "test"

@@ -14,12 +14,14 @@ import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
+import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 
 /**
@@ -45,6 +47,16 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
         getNextRequestProcessor().readSegment(readSegment);
     }
 
+    @Override
+    public void updateSegmentAttribute(UpdateSegmentAttribute updateSegmentAttribute) {
+        getNextRequestProcessor().updateSegmentAttribute(updateSegmentAttribute);
+    }
+    
+    @Override
+    public void getSegmentAttribute(GetSegmentAttribute getSegmentAttribute) {
+        getNextRequestProcessor().getSegmentAttribute(getSegmentAttribute);
+    }
+    
     @Override
     public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamInfo) {
         getNextRequestProcessor().getStreamSegmentInfo(getStreamInfo);

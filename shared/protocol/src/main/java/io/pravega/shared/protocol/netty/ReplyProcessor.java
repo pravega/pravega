@@ -25,7 +25,9 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
-    void noSuchBatch(WireCommands.NoSuchTransaction noSuchBatch);
+    void noSuchTransaction(WireCommands.NoSuchTransaction noSuchTransaction);
+    
+    void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
 
     void appendSetup(WireCommands.AppendSetup appendSetup);
 
@@ -34,7 +36,11 @@ public interface ReplyProcessor {
     void conditionalCheckFailed(WireCommands.ConditionalCheckFailed dataNotAppended);
 
     void segmentRead(WireCommands.SegmentRead segmentRead);
-
+    
+    void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated);
+    
+    void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute);
+    
     void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo);
     
     void transactionInfo(WireCommands.TransactionInfo transactionInfo);

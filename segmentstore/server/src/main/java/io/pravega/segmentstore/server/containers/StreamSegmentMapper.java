@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
@@ -30,7 +31,6 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.Storage;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -184,7 +184,10 @@ public class StreamSegmentMapper {
 
     /**
      * Attempts to get an existing StreamSegmentId for the given case-sensitive StreamSegment Name.
-     * If no such mapping exists, atomically assigns a new one and stores it in the Metadata and DurableLog.
+     * * If the Segment is already mapped in the Metadata, the existing Id is returned.
+     * * Otherwise if the Segment had previously been assigned an id (and saved in the State Store), that Id will be
+     * reused.
+     * * Otherwise, it atomically assigns a new Id and stores it in the Metadata and DurableLog.
      * <p>
      * If multiple requests for assignment arrive for the same StreamSegment in parallel, the subsequent ones (after the
      * first one) will wait for the first one to complete and return the same result (this will not result in double-assignment).
@@ -237,7 +240,7 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process).
+     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process, if needed).
      *
      * @param transactionSegmentName The Name for the Transaction to assign Id for.
      * @param parentSegmentName      The Name of the Parent StreamSegment.
@@ -263,22 +266,23 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process).
+     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process, if needed).
      *
-     * @param transInfo             The SegmentProperties for the Transaction to assign id for.
+     * @param transInfo             The SegmentInfo for the Transaction to assign id for.
      * @param parentStreamSegmentId The ID of the Parent StreamSegment.
      * @param timeout               The timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the operation
      * failed, this will contain the exception that caused the failure.
      */
-    private CompletableFuture<Long> assignTransactionStreamSegmentId(SegmentProperties transInfo, long parentStreamSegmentId, Duration timeout) {
+    private CompletableFuture<Long> assignTransactionStreamSegmentId(SegmentInfo transInfo, long parentStreamSegmentId, Duration timeout) {
         assert transInfo != null : "transInfo is null";
         assert parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID : "parentStreamSegmentId is invalid.";
         return submitToOperationLogWithRetry(transInfo, parentStreamSegmentId, timeout);
     }
 
     /**
-     * Attempts to map a StreamSegment to an Id.
+     * Attempts to map a StreamSegment to an Id, by first trying to retrieve an existing id, and, should that not exist,
+     * assign a new one.
      *
      * @param streamSegmentName The name of the StreamSegment to map.
      * @param timeout           Timeout for the operation.
@@ -302,13 +306,13 @@ public class StreamSegmentMapper {
     private SegmentState getState(SegmentProperties source, Collection<AttributeUpdate> attributeUpdates) {
         if (attributeUpdates == null) {
             // Nothing to do.
-            return new SegmentState(source);
+            return new SegmentState(ContainerMetadata.NO_STREAM_SEGMENT_ID, source);
         }
 
         // Merge updates into the existing attributes.
         Map<UUID, Long> attributes = new HashMap<>(source.getAttributes());
         attributeUpdates.forEach(au -> attributes.put(au.getAttributeId(), au.getValue()));
-        return new SegmentState(new StreamSegmentInformation(source, attributes));
+        return new SegmentState(ContainerMetadata.NO_STREAM_SEGMENT_ID, new StreamSegmentInformation(source, attributes));
     }
 
     /**
@@ -320,13 +324,13 @@ public class StreamSegmentMapper {
      * @return A CompletableFuture that, when completed, will contain a new instance of the SegmentProperties with the
      * same information as source, but with attributes attached.
      */
-    private CompletableFuture<SegmentProperties> retrieveAttributes(SegmentProperties source, Duration timeout) {
+    private CompletableFuture<SegmentInfo> retrieveAttributes(SegmentProperties source, Duration timeout) {
         return this.stateStore
                 .get(source.getName(), timeout)
                 .thenApply(state -> {
                     if (state == null) {
                         // Nothing to change.
-                        return source;
+                        return new SegmentInfo(ContainerMetadata.NO_STREAM_SEGMENT_ID, source);
                     }
 
                     if (!source.getName().equals(state.getSegmentName())) {
@@ -336,7 +340,7 @@ public class StreamSegmentMapper {
                                         state.getSegmentName())));
                     }
 
-                    return new StreamSegmentInformation(source, state.getAttributes());
+                    return new SegmentInfo(state.getSegmentId(), new StreamSegmentInformation(source, state.getAttributes()));
                 });
     }
 
@@ -345,40 +349,43 @@ public class StreamSegmentMapper {
      * which case it forces a metadata cleanup before retrying. If the second attempt also fails, there will be no more retry
      * and the Exception from the second failure will be the one that this call fails with too.
      *
-     * @param streamSegmentInfo     The SegmentProperties for the StreamSegment to generate and persist.
+     * @param segmentInfo           The SegmentInfo for the StreamSegment to generate and persist.
      * @param parentStreamSegmentId If different from ContainerMetadata.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
      *                              will be mapped as a transaction. Otherwise, this will be registered as a standalone StreamSegment.
      * @param timeout               Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned. If the operation
-     * failed, then this Future will complete with that exception.
+     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned (or the
+     * one supplied via SegmentInfo, if any). If the operation failed, then this Future will complete with that exception.
      */
-    private CompletableFuture<Long> submitToOperationLogWithRetry(SegmentProperties streamSegmentInfo, long parentStreamSegmentId, Duration timeout) {
-        return retryWithCleanup(() -> submitToOperationLog(streamSegmentInfo, parentStreamSegmentId, timeout));
+    private CompletableFuture<Long> submitToOperationLogWithRetry(SegmentInfo segmentInfo, long parentStreamSegmentId, Duration timeout) {
+        return retryWithCleanup(() -> submitToOperationLog(segmentInfo, parentStreamSegmentId, timeout));
     }
 
     /**
      * Submits a StreamSegmentMapOperation or TransactionMapOperation to the OperationLog. Upon completion, this operation
-     * will have mapped the given Segment to a new internal Segment Id.
+     * will have mapped the given Segment to a new internal Segment Id if none was provided in the given SegmentInfo.
+     * If the given SegmentInfo already has a SegmentId set, then all efforts will be made to map that Segment with the
+     * requested Segment Id.
      *
-     * @param streamSegmentInfo     The SegmentProperties for the StreamSegment to generate and persist.
+     * @param segmentInfo           The SegmentInfo for the StreamSegment to generate and persist.
      * @param parentStreamSegmentId If different from ContainerMetadata.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
      *                              will be mapped as a transaction. Otherwise, this will be registered as a standalone StreamSegment.
      * @param timeout               Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned. If the operation
-     * failed, then this Future will complete with that exception.
+     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned (or the
+     * one supplied via SegmentInfo, if any). If the operation failed, then this Future will complete with that exception.
      */
-    private CompletableFuture<Long> submitToOperationLog(SegmentProperties streamSegmentInfo, long parentStreamSegmentId, Duration timeout) {
-        if (streamSegmentInfo.isDeleted()) {
+    private CompletableFuture<Long> submitToOperationLog(SegmentInfo segmentInfo, long parentStreamSegmentId, Duration timeout) {
+        SegmentProperties properties = segmentInfo.getProperties();
+        if (properties.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
-            failAssignment(streamSegmentInfo.getName(), new StreamSegmentNotExistsException("StreamSegment does not exist."));
-            return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentInfo.getName()));
+            failAssignment(properties.getName(), new StreamSegmentNotExistsException("StreamSegment does not exist."));
+            return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
         }
 
-        long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentInfo.getName(), true);
-        if (isValidStreamSegmentId(streamSegmentId)) {
+        long existingSegmentId = this.containerMetadata.getStreamSegmentId(properties.getName(), true);
+        if (isValidStreamSegmentId(existingSegmentId)) {
             // Looks like someone else beat us to it.
-            completeAssignment(streamSegmentInfo.getName(), streamSegmentId);
-            return CompletableFuture.completedFuture(streamSegmentId);
+            completeAssignment(properties.getName(), existingSegmentId);
+            return CompletableFuture.completedFuture(existingSegmentId);
         } else {
             CompletableFuture<Long> logAddResult;
             StreamSegmentMapping mapping;
@@ -386,19 +393,33 @@ public class StreamSegmentMapper {
                 // Transaction.
                 SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
                 assert parentMetadata != null : "parentMetadata is null";
-                TransactionMapOperation op = new TransactionMapOperation(parentStreamSegmentId, streamSegmentInfo);
-                mapping = op;
+                TransactionMapOperation op = new TransactionMapOperation(parentStreamSegmentId, properties);
+                mapping = applySegmentId(segmentInfo, op);
                 logAddResult = this.durableLog.add(op, timeout);
             } else {
                 // Standalone StreamSegment.
-                StreamSegmentMapOperation op = new StreamSegmentMapOperation(streamSegmentInfo);
-                mapping = op;
+                StreamSegmentMapOperation op = new StreamSegmentMapOperation(properties);
+                mapping = applySegmentId(segmentInfo, op);
                 logAddResult = this.durableLog.add(op, timeout);
             }
 
             return logAddResult
-                    .thenApply(seqNo -> completeAssignment(streamSegmentInfo.getName(), mapping.getStreamSegmentId()));
+                    .thenApply(seqNo -> completeAssignment(properties.getName(), mapping.getStreamSegmentId()));
         }
+    }
+
+    /**
+     * Copies the Segment Id from the given SegmentInfo to the given Mapping, if any is defined.
+     *
+     * @param segmentInfo The source SegmentInfo to get the StreamSegmentId.
+     * @param mapping     The StreamSegmentMapping to set the StreamSegmentId to.
+     */
+    private StreamSegmentMapping applySegmentId(SegmentInfo segmentInfo, StreamSegmentMapping mapping) {
+        if (segmentInfo.getSegmentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+            mapping.setStreamSegmentId(segmentInfo.getSegmentId());
+        }
+
+        return mapping;
     }
 
     /**
@@ -493,4 +514,10 @@ public class StreamSegmentMapper {
     }
 
     //endregion
+
+    @Data
+    private static class SegmentInfo {
+        private final long segmentId;
+        private final SegmentProperties properties;
+    }
 }

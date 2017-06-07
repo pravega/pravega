@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 /**
  * InMemory stream store configuration.
  */
-public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceImplTest {
+public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest {
 
     private TaskMetadataStore taskMetadataStore;
     private HostControllerStore hostStore;

@@ -109,14 +109,18 @@ public class TxnSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, processing transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return streamMetadataStore.transactionStatus(scope, stream, txnId, null, executor).thenComposeAsync(status -> {
-            switch (status) {
+        return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor).thenComposeAsync(txData -> {
+            int epoch = txData.getEpoch();
+            switch (txData.getStatus()) {
                 case OPEN:
-                    return failOverOpenTxn(failedHost, txn).handleAsync((v, e) -> new Result(txn, v, e), executor);
+                    return failOverOpenTxn(failedHost, txn)
+                            .handleAsync((v, e) -> new Result(txn, v, e), executor);
                 case ABORTING:
-                    return failOverAbortingTxn(failedHost, txn).handleAsync((v, e) -> new Result(txn, v, e), executor);
+                    return failOverAbortingTxn(failedHost, epoch, txn)
+                            .handleAsync((v, e) -> new Result(txn, v, e), executor);
                 case COMMITTING:
-                    return failOverCommittingTxn(failedHost, txn).handleAsync((v, e) -> new Result(txn, v, e), executor);
+                    return failOverCommittingTxn(failedHost, epoch, txn)
+                            .handleAsync((v, e) -> new Result(txn, v, e), executor);
                 default:
                     return CompletableFuture.completedFuture(new Result(txn, null, null));
             }
@@ -124,21 +128,21 @@ public class TxnSweeper {
                 log.debug("Host = {}, processing transaction {}/{}/{} complete", failedHost, scope, stream, txnId));
     }
 
-    private CompletableFuture<Void> failOverCommittingTxn(String failedHost, TxnResource txn) {
+    private CompletableFuture<Void> failOverCommittingTxn(String failedHost, int epoch, TxnResource txn) {
         String scope = txn.getScope();
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over committing transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return transactionMetadataTasks.writeCommitEvent(scope, stream, txnId, TxnStatus.COMMITTING)
+        return transactionMetadataTasks.writeCommitEvent(scope, stream, epoch, txnId, TxnStatus.COMMITTING)
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 
-    private CompletableFuture<Void> failOverAbortingTxn(String failedHost, TxnResource txn) {
+    private CompletableFuture<Void> failOverAbortingTxn(String failedHost, int epoch, TxnResource txn) {
         String scope = txn.getScope();
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over aborting transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return transactionMetadataTasks.writeAbortEvent(scope, stream, txnId, TxnStatus.ABORTING)
+        return transactionMetadataTasks.writeAbortEvent(scope, stream, epoch, txnId, TxnStatus.ABORTING)
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 
