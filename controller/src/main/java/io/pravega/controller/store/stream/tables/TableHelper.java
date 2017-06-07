@@ -110,6 +110,10 @@ public class TableHelper {
         return record.map(HistoryRecord::getSegments).orElse(new ArrayList<>());
     }
 
+    public static List<Pair<Long, List<Integer>>> getScaleMetadata(byte[] historyTable) {
+        return HistoryRecord.readAllRecords(historyTable);
+    }
+
     /**
      * Find segments from the candidate set that have overlapping key ranges with current segment.
      *

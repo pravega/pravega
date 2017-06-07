@@ -191,6 +191,21 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return verifyLegalState(() -> getSegmentTable().thenApply(x -> TableHelper.getSegmentCount(x.getData())));
     }
 
+    @Override
+    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata() {
+        return verifyLegalState(() -> getHistoryTable()
+                .thenApply(x -> TableHelper.getScaleMetadata(x.getData()))
+                .thenCompose(listOfScaleRecords ->
+                        FutureHelpers.allOfWithResults(listOfScaleRecords.stream().map(record -> {
+                            long scaleTs = record.getLeft();
+                            CompletableFuture<List<Segment>> list = FutureHelpers.allOfWithResults(
+                                    record.getRight().stream().map(this::getSegment)
+                                    .collect(Collectors.toList()));
+
+                            return list.thenApply(segments -> new ScaleMetadata(scaleTs, segments));
+                        }).collect(Collectors.toList()))));
+    }
+
     /**
      * Given segment number, find its successor candidates and then compute overlaps with its keyrange
      * to find successors.

@@ -12,8 +12,11 @@ package io.pravega.controller.store.stream.tables;
 import io.pravega.common.util.BitConverter;
 import com.google.common.base.Preconditions;
 import lombok.Getter;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
@@ -223,6 +226,16 @@ public class HistoryRecord {
     }
 
     private static int tailLengthOffset(int segmentCount) {
-        return  scaleTimeOffset(segmentCount) + Long.BYTES;
+        return scaleTimeOffset(segmentCount) + Long.BYTES;
+    }
+
+    public static List<Pair<Long, List<Integer>>> readAllRecords(byte[] historyTable) {
+        List<Pair<Long, List<Integer>>> result = new LinkedList<>();
+        Optional<HistoryRecord> record = readLatestRecord(historyTable, true);
+        while (record.isPresent()) {
+            result.add(new ImmutablePair<>(record.get().getScaleTime(), record.get().getSegments()));
+            record = fetchPrevious(record.get(), historyTable);
+        }
+        return result;
     }
 }
