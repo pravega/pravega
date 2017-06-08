@@ -212,7 +212,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 // Builder is not created or in a failed state.
                 if (recover) {
                     // If instructed to recover, recreate a new one.
-                    val args = new DataFrameBuilder.Args(this.state::checkpoint, this.state::commit, this.state::fail, this.executor);
+                    val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
                     this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
                 } else {
                     this.dataFrameBuilder = null;
@@ -271,7 +271,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     }
                 }
             } catch (Throwable ex) {
-                // Fail ALL the operations that haven't been checkpointed yet.
+                // Fail ALL the operations that haven't been acknowledged yet.
                 Throwable realCause = ExceptionHelpers.getRealException(ex);
                 this.state.fail(realCause, null);
 
@@ -449,13 +449,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         /**
-         * Creates a checkpoint keyed in with the given CommitArgs. This indicates that the DataFrame represented
-         * by the given args has been sealed and is about to be committed. This checkpoint will mark a point in the
-         * OperationMetadataUpdater that corresponds to the end of that DataFrame.
+         * Callback for when a DataFrame has been Sealed and is ready to be written to the DurableDataLog.
+         * Seals the current metadata UpdateTransaction and maps it to the given CommitArgs. This UpdateTransaction
+         * marks a point in the OperationMetadataUpdater that corresponds to the state of the Log at the end of the
+         * DataFrame represented by the given commitArgs.
          *
          * @param commitArgs The CommitArgs to create a checkpoint for.
          */
-        void checkpoint(DataFrameBuilder.CommitArgs commitArgs) {
+        void frameSealed(DataFrameBuilder.CommitArgs commitArgs) {
             synchronized (stateLock) {
                 commitArgs.setIndexKey(OperationProcessor.this.metadataUpdater.sealTransaction());
                 this.metadataTransactions.addLast(commitArgs);
@@ -463,7 +464,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         /**
-         * Commits all pending Metadata changes, assigns a TruncationMarker and acknowledges all the pending operations.
+         * Callback for when a DataFrame has been successfully written to the DurableDataLog.
+         * Commits all pending Metadata changes, assigns a TruncationMarker mapped to the given commitArgs and
+         * acknowledges the pending operations up to the given commitArgs.
+         *
+         * It is important to note that this call is inclusive of all calls with arguments prior to it. It will
+         * automatically complete all UpdateTransactions (and their corresponding operations) for all commitArgs that are
+         * still registered but have a key smaller than the one in the given argument.
          *
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
@@ -542,7 +549,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         /**
-         * Rolls back all pending Metadata changes and fails all pending operations.
+         * Callback for when a DataFrame has failed to be written to the DurableDataLog.
+         * Rolls back pending Metadata changes that are mapped to the given commitArgs (and after) and fails all pending
+         * operations that are affected.
+         *
+         * It is important to note that this call is inclusive of all calls with arguments after it. It will automatically
+         * complete all UpdateTransactions (and their corresponding operations) for all commitArgs that are registered but
+         * have a key larger than the one in the given argument.
          *
          * @param ex The cause of the failure. The operations will be failed with this as a cause.
          * @param commitArgs The Data Frame Commit Args that triggered this action.
