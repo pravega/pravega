@@ -21,7 +21,6 @@ import org.junit.Test;
  * Unit tests for the DataFrame class.
  */
 public class DataFrameTests {
-    private static final long DEFAULT_PREVIOUS_SEQUENCE = 12345;
     private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accessible from here.
 
     /**
@@ -36,7 +35,7 @@ public class DataFrameTests {
         List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
-        DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, maxFrameSize);
+        DataFrame df = new DataFrame(maxFrameSize);
         int recordsAppended = appendRecords(allRecords, df);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         df.seal();
@@ -58,7 +57,7 @@ public class DataFrameTests {
         List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
-        DataFrame writeFrame = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, maxFrameSize);
+        DataFrame writeFrame = new DataFrame(maxFrameSize);
         int recordsAppended = appendRecords(allRecords, writeFrame);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
@@ -77,7 +76,7 @@ public class DataFrameTests {
     @Test
     public void testStartEndDiscardEntry() {
         int dataFrameSize = 1000;
-        DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, dataFrameSize);
+        DataFrame df = new DataFrame(dataFrameSize);
         AssertExtensions.assertThrows(
                 "append(byte) worked even though no entry started.",
                 () -> df.append((byte) 1),
@@ -156,8 +155,7 @@ public class DataFrameTests {
     public void testFrameSequence() {
         long newSequence = 67890;
         int dataFrameSize = 1000;
-        DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, dataFrameSize);
-        Assert.assertEquals("Unexpected value for getPreviousSequence().", DEFAULT_PREVIOUS_SEQUENCE, df.getPreviousFrameSequence());
+        DataFrame df = new DataFrame(dataFrameSize);
 
         LogAddress a = new LogAddress(newSequence) {
         };

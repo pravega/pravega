@@ -14,42 +14,55 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.util.BlockingDrainingQueue;
-import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
-import io.pravega.segmentstore.server.Container;
+import io.pravega.common.util.SortedDeque;
+import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Predicate;
+import java.util.function.Consumer;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
  * at once, generates DataFrames from them and commits them to the DataFrameLog, one by one, in sequence.
  */
 @Slf4j
-class OperationProcessor extends AbstractThreadPoolService implements Container {
+class OperationProcessor extends AbstractThreadPoolService implements AutoCloseable {
     //region Members
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
 
+    @GuardedBy("stateLock")
     private final OperationMetadataUpdater metadataUpdater;
-    private final MemoryStateUpdater stateUpdater;
     private final DurableDataLog durableDataLog;
     private final BlockingDrainingQueue<CompletableOperation> operationQueue;
-    private final MetadataCheckpointPolicy checkpointPolicy;
+    private final Object stateLock = new Object();
+    private final QueueProcessingState state;
+    @GuardedBy("stateLock")
+    private DataFrameBuilder<Operation> dataFrameBuilder;
 
     //endregion
 
@@ -67,17 +80,12 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
      */
     OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
         super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
-
-        // No need to check metadata or executor != null as the super() call above takes care of that.
-        Preconditions.checkNotNull(stateUpdater, "stateUpdater");
-        Preconditions.checkNotNull(durableDataLog, "durableDataLog");
-        Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
-
         this.metadataUpdater = new OperationMetadataUpdater(metadata);
-        this.stateUpdater = stateUpdater;
-        this.durableDataLog = durableDataLog;
-        this.checkpointPolicy = checkpointPolicy;
+        this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.operationQueue = new BlockingDrainingQueue<>();
+        this.state = new QueueProcessingState(this.metadataUpdater, stateUpdater, checkpointPolicy, this::errorHandler,
+                this.stateLock, this.traceObjectId);
+        this.dataFrameBuilder = null;
     }
 
     //endregion
@@ -103,6 +111,13 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
     protected void doStop() {
         // We need to first stop the queue, which will prevent any new items from being processed.
         closeQueue(null);
+
+        // Then close the DataFrameBuilder, which will await any pending data frames to be flushed away.
+        val builder = getDataFrameBuilder(false);
+        if (builder != null) {
+            builder.close();
+        }
+
         super.doStop();
     }
 
@@ -116,15 +131,6 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
             super.errorHandler(ex);
             stopAsync();
         }
-    }
-
-    //endregion
-
-    //region Container Implementation
-
-    @Override
-    public int getId() {
-        return this.metadataUpdater.getContainerId();
     }
 
     //endregion
@@ -148,7 +154,11 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
             log.debug("{}: process {}.", this.traceObjectId, operation);
             try {
                 this.operationQueue.add(new CompletableOperation(operation, result));
-            } catch (ObjectClosedException e) {
+            } catch (Throwable e) {
+                if (ExceptionHelpers.mustRethrow(e)) {
+                    throw e;
+                }
+
                 result.completeExceptionally(e);
             }
         }
@@ -159,6 +169,23 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
     //endregion
 
     //region Queue Processing
+
+    private DataFrameBuilder<Operation> getDataFrameBuilder(boolean recover) {
+        synchronized (this.stateLock) {
+            if (this.dataFrameBuilder == null || this.dataFrameBuilder.failureCause() != null) {
+                // Builder is not created or in a failed state.
+                if (recover) {
+                    // If instructed to recover, recreate a new one.
+                    val args = new DataFrameBuilder.Args(this.state::checkpoint, this.state::commit, this.state::fail, this.executor);
+                    this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
+                } else {
+                    this.dataFrameBuilder = null;
+                }
+            }
+
+            return this.dataFrameBuilder;
+        }
+    }
 
     /**
      * Processes a set of pending operations (essentially a single iteration of the QueueProcessor).
@@ -173,62 +200,55 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
      * @param operations The initial set of operations to process (in order). Multiple operations may be processed eventually
      *                   depending on how the operationQueue changes while this is processing.
      */
+    @SneakyThrows
     private void processOperations(Queue<CompletableOperation> operations) {
         log.debug("{}: processOperations (OperationCount = {}).", this.traceObjectId, operations.size());
 
-        // Create a new State and Builder (we need this either initially or after recovery from an error).
-        final QueueProcessingState state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy, this.traceObjectId);
-        final DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail);
+        // Process the operations in the queue. This loop will ensure we do continuous processing in case new items
+        // arrived while we were busy handling the current items.
+        while (!operations.isEmpty()) {
+            try {
+                // Get the DataFrameBuilder, and recover it if necessary.
+                val builder = getDataFrameBuilder(true);
 
-        try {
-            // Process the operations in the queue. This loop will ensure we continue processing after a recoverable failure,
-            // as well as after we processed the entire collection, but found more items in need of processing.
-            while (!operations.isEmpty()) {
                 // Process the current set of operations.
-                processOperations(operations, state, dataFrameBuilder);
+                while (!operations.isEmpty()) {
+                    CompletableOperation o = operations.poll();
+                    if (processOperation(o, builder)) {
+                        // Add the operation as 'pending', only if we were able to successfully append it to a data frame.
+                        // We only commit data frames when we attempt to start a new record (if it's full) or if we try to
+                        // close it, so we will not miss out on it.
+                        this.state.addPending(o);
+                    }
+                }
 
                 // Check if there are more operations to process. If so, it's more efficient to process them now (no thread
                 // context switching, better DataFrame occupancy optimization) rather than by going back to run().
                 if (operations.isEmpty()) {
                     operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
-                    log.debug("{}: processOperations (Add OperationCount = {}).", this.traceObjectId, operations.size());
+                    if (operations.isEmpty()) {
+                        log.debug("{}: processOperations (Flush).", this.traceObjectId);
+                        synchronized (this.stateLock) {
+                            builder.flush();
+                        }
+                    } else {
+                        log.debug("{}: processOperations (Add OperationCount = {}).", this.traceObjectId, operations.size());
+                    }
+                }
+            } catch (Throwable ex) {
+                // Fail ALL the operations that haven't been checkpointed yet.
+                Throwable realCause = ExceptionHelpers.getRealException(ex);
+                this.state.fail(realCause, null);
+
+                if (isFatalException(realCause)) {
+                    // If we encountered a fatal exception, it means we detected something that we cannot possibly recover from.
+                    // We need to shutdown right away (this will be done by the main loop).
+
+                    // But first, fail any Operations that we did not have a chance to process yet.
+                    cancelIncompleteOperations(operations, realCause);
+                    throw realCause;
                 }
             }
-
-            // Close the DataFrameBuilder, which makes sure that the last set of operations are properly flushed and
-            // completed.
-            dataFrameBuilder.close();
-            if (state.hasPending()) {
-                // Usually we reach this state if the only operation we had as a ProbeOperation (i.e. non-serializable),
-                // which wouldn't have triggered a state.commit on its own.
-                completeNonSerializableOperations(state);
-            }
-        } catch (Throwable ex) {
-            handleIterationException(ex, state, operations);
-        }
-    }
-
-    /**
-     * Processes all the given operations, in order, using the given QueueProcessingState and DataFrameBuilder.
-     *
-     * @param operations       The operations to process.
-     * @param state            The QueueProcessingState to use.
-     * @param dataFrameBuilder The DataFrameBuilder to use for constructing DataFrames.
-     */
-    private void processOperations(Queue<CompletableOperation> operations, QueueProcessingState state, DataFrameBuilder<Operation> dataFrameBuilder) {
-        try {
-            while (!operations.isEmpty()) {
-                CompletableOperation o = operations.poll();
-                if (processOperation(o, dataFrameBuilder)) {
-                    // Add the operation as 'pending', only if we were able to successfully append it to a data frame.
-                    // We only commit data frames when we attempt to start a new record (if it's full) or if we try to
-                    // close it, so we will not miss out on it.
-                    state.addPending(o);
-                }
-            }
-        } catch (Throwable ex) {
-            handleIterationException(ex, state, operations);
-            dataFrameBuilder.reset();
         }
     }
 
@@ -236,12 +256,12 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
      * Processes a single operation.
      * Steps:
      * <ol>
-     * <li> Pre-processes operation (in MetadataUpdater)
-     * <li> Assigns Sequence Number
-     * <li> Appends to DataFrameBuilder
+     * <li> Pre-processes operation (in MetadataUpdater).
+     * <li> Assigns Sequence Number.
+     * <li> Appends to DataFrameBuilder.
      * <li> Accepts operation in MetadataUpdater.
      * </ol>
-     * Any exceptions along the way will result in the immediate failure of the operations. Exceptions do not bubble out
+     * Any exceptions along the way will result in the immediate failure of the operation. Exceptions do not bubble out
      * of this method. The only way to determine whether the operation completed normally or not is to inspect the result.
      *
      * @param operation        The operation to process.
@@ -258,17 +278,30 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         }
 
         try {
-            // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
-            this.metadataUpdater.preProcessOperation(entry);
+            synchronized (this.stateLock) {
+                // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
+                this.metadataUpdater.preProcessOperation(entry);
 
-            // Entry is ready to be serialized; assign a sequence number.
-            entry.setSequenceNumber(this.metadataUpdater.nextOperationSequenceNumber());
+                // Entry is ready to be serialized; assign a sequence number.
+                entry.setSequenceNumber(this.metadataUpdater.nextOperationSequenceNumber());
+                dataFrameBuilder.append(operation.getOperation());
+                this.metadataUpdater.acceptOperation(entry);
+            }
 
             log.trace("{}: DataFrameBuilder.Append {}.", this.traceObjectId, operation.getOperation());
-            dataFrameBuilder.append(operation.getOperation());
-            this.metadataUpdater.acceptOperation(entry);
+        } catch (ObjectClosedException ex) {
+            // DataFrameBuilder is in a closed/failed state. We cannot proceed with this operation, or any other one,
+            // so we need to re-throw the exception for it to be handled upstream.
+            Throwable rootCause = dataFrameBuilder.failureCause();
+            if (rootCause != null && rootCause != ex) {
+                ex.addSuppressed(rootCause);
+            }
+
+            this.state.failOperation(operation, ex);
+            throw ex;
         } catch (Exception ex) {
-            operation.fail(ex);
+            this.state.failOperation(operation, ex);
+
             Throwable cause = ExceptionHelpers.getRealException(ex);
             if (cause instanceof DataCorruptionException) {
                 // Besides failing the operation, DataCorruptionExceptions are pretty serious. We should shut down the
@@ -280,24 +313,6 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         }
 
         return true;
-    }
-
-    /**
-     * Completes all operations in the given state that are non-serializable (if any are left).
-     */
-    private void completeNonSerializableOperations(QueueProcessingState state) {
-        state.forEachPending(op -> {
-            boolean canComplete = !op.getOperation().canSerialize();
-            if (canComplete) {
-                op.complete();
-            }
-
-            return canComplete;
-        });
-
-        // We need to ensure that the only possible pending operations are those that are non-serializable; otherwise
-        // we have a problem.
-        assert !state.hasPending() : "QueueProcessingState still has pending items after closing the DataFrameBuilder.";
     }
 
     /**
@@ -327,7 +342,7 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         int cancelCount = 0;
         for (CompletableOperation o : operations) {
             if (!o.isDone()) {
-                o.fail(failException);
+                this.state.failOperation(o, failException);
                 cancelCount++;
             }
         }
@@ -335,26 +350,10 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         log.warn("{}: Cancelling {} operations with exception: {}.", this.traceObjectId, cancelCount, failException.toString());
     }
 
-    @SneakyThrows
-    private void handleIterationException(Throwable ex, QueueProcessingState state, Collection<CompletableOperation> operations) {
-        // Fail the current set of operations with the caught exception.
-        Throwable realCause = ExceptionHelpers.getRealException(ex);
-        state.fail(realCause);
-
-        if (isFatalException(realCause)) {
-            // If we encountered a fatal exception, it means we detected something that we cannot possibly recover from.
-            // We need to shutdown right away (this will be done by the main loop).
-
-            // But first, fail any Operations that we did not have a chance to process yet.
-            cancelIncompleteOperations(operations, realCause);
-            throw realCause;
-        }
-    }
-
     /**
      * Determines whether the given Throwable is a fatal exception from which we cannot recover.
      */
-    private boolean isFatalException(Throwable ex) {
+    private static boolean isFatalException(Throwable ex) {
         return ex instanceof DataCorruptionException
                 || ex instanceof DataLogWriterNotPrimaryException;
     }
@@ -366,24 +365,34 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
     /**
      * Temporary State for the QueueProcessor. Keeps track of pending Operations and allows committing or failing all of them.
      */
-    @Slf4j
+    @ThreadSafe
     private static class QueueProcessingState {
         private final String traceObjectId;
-        private final Queue<CompletableOperation> pendingOperations;
+        private final Object lock;
+        @GuardedBy("lock")
+        private final Deque<CompletableOperation> pendingOperations;
         private final OperationMetadataUpdater metadataUpdater;
         private final MemoryStateUpdater logUpdater;
         private final MetadataCheckpointPolicy checkpointPolicy;
+        private final Consumer<Throwable> fatalExceptionCallback;
+        @GuardedBy("lock")
+        private final SortedDeque<DataFrameBuilder.CommitArgs> metadataTransactions;
+        @GuardedBy("lock")
+        private long highestCommittedDataFrame;
+        @GuardedBy("lock")
+        private Throwable stopException;
 
-        QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryStateUpdater stateUpdater, MetadataCheckpointPolicy checkpointPolicy, String traceObjectId) {
-            assert metadataUpdater != null : "metadataUpdater is null";
-            assert stateUpdater != null : "stateUpdater is null";
-            assert checkpointPolicy != null : "checkpointPolicy is null";
-
+        QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryStateUpdater stateUpdater, MetadataCheckpointPolicy checkpointPolicy,
+                             Consumer<Throwable> fatalExceptionCallback, Object lock, String traceObjectId) {
+            this.metadataUpdater = Preconditions.checkNotNull(metadataUpdater, "metadataUpdater");
+            this.logUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
+            this.checkpointPolicy = Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
+            this.fatalExceptionCallback = Preconditions.checkNotNull(fatalExceptionCallback, "fatalExceptionCallback");
+            this.lock = Preconditions.checkNotNull(lock, "lock");
             this.traceObjectId = traceObjectId;
-            this.pendingOperations = new LinkedList<>();
-            this.metadataUpdater = metadataUpdater;
-            this.logUpdater = stateUpdater;
-            this.checkpointPolicy = checkpointPolicy;
+            this.pendingOperations = new ArrayDeque<>();
+            this.metadataTransactions = new SortedDeque<>();
+            this.highestCommittedDataFrame = -1;
         }
 
         /**
@@ -392,66 +401,213 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
          * @param operation The operation to append.
          */
         void addPending(CompletableOperation operation) {
-            this.pendingOperations.add(operation);
+            synchronized (this.lock) {
+                this.pendingOperations.add(operation);
+            }
+
+            autoCompleteIfNeeded();
         }
 
         /**
-         * Gets a value indicating whether there exist any pending operations in this state.
+         * Creates a checkpoint keyed in with the given CommitArgs. This indicates that the DataFrame represented
+         * by the given args has been sealed and is about to be committed. This checkpoint will mark a point in the
+         * OperationMetadataUpdater that corresponds to the end of that DataFrame.
+         *
+         * @param commitArgs The CommitArgs to create a checkpoint for.
          */
-        boolean hasPending() {
-            return !this.pendingOperations.isEmpty();
+        void checkpoint(DataFrameBuilder.CommitArgs commitArgs) {
+            synchronized (this.lock) {
+                commitArgs.setIndexKey(this.metadataUpdater.sealTransaction());
+                this.metadataTransactions.addLast(commitArgs);
+            }
         }
 
         /**
          * Commits all pending Metadata changes, assigns a TruncationMarker and acknowledges all the pending operations.
          *
          * @param commitArgs The Data Frame Commit Args that triggered this action.
-         * @throws DataCorruptionException When the operation has been committed, but failed to be accepted into the In-Memory log.
          */
-        void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws DataCorruptionException {
-            log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
+        void commit(DataFrameBuilder.CommitArgs commitArgs) {
+            assert commitArgs.key() >= 0 : "DataFrameBuilder.CommitArgs does not have a key set";
+            log.debug("{}: CommitSuccess ({}).", this.traceObjectId, commitArgs);
 
-            // Record the Truncation marker and then commit any changes to metadata.
-            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
-            this.metadataUpdater.commit();
+            List<CompletableOperation> toComplete = new ArrayList<>();
+            Map<CompletableOperation, Throwable> toFail = new HashMap<>();
+            try {
+                // Record the end of a frame in the DurableDataLog. No need for locking here, as the metadata has its own.
+                this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
+                final long lastOperationSequence = commitArgs.getLastFullySerializedSequenceNumber();
+                final long addressSequence = commitArgs.getLogAddress().getSequence();
 
-            // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.
-            while (this.pendingOperations.size() > 0 && this.pendingOperations.peek().getOperation().getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber()) {
-                CompletableOperation e = this.pendingOperations.poll();
-                try {
-                    this.logUpdater.process(e.getOperation());
-                } catch (Throwable ex) {
-                    log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
-                    e.fail(ex);
-                    throw ex;
+                synchronized (this.lock) {
+                    // Record the Truncation marker. The OperationMetadataUpdater will update the Metadata directly for this.
+                    if (addressSequence <= this.highestCommittedDataFrame) {
+                        // Ack came out of order (we already processed one with a higher SeqNo).
+                        log.debug("{}: CommitRejected ({}, HighestCommittedDataFrame = ).", this.traceObjectId, commitArgs, this.highestCommittedDataFrame);
+                        return;
+                    }
+
+                    // Commit any changes to the metadata.
+                    boolean checkpointExists = this.metadataTransactions.removeFirst(commitArgs);
+                    assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
+                    this.metadataUpdater.commit(commitArgs.key());
+
+                    // Acknowledge all pending entries, in the order in which they are in the queue (ascending seq no).
+                    while (!this.pendingOperations.isEmpty()
+                            && this.pendingOperations.peekFirst().getOperation().getSequenceNumber() <= lastOperationSequence) {
+                        CompletableOperation op = this.pendingOperations.pollFirst();
+                        try {
+                            this.logUpdater.process(op.getOperation());
+                        } catch (Throwable ex) {
+                            // MemoryStateUpdater.process() should only throw DataCorruptionExceptions, but just in case it
+                            // throws something else (i.e. NullPtr), we still need to handle it.
+                            // First, fail the operation, since it has already been taken off the pending list.
+                            log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, op.getOperation(), ex);
+                            toFail.put(op, ex);
+
+                            // Then fail the remaining operations (which also handles fatal errors) and bail out.
+                            collectFailureCandidates(ex, commitArgs, toFail);
+                            if (isFatalException(ex)) {
+                                this.stopException = ex;
+                                CallbackHelpers.invokeSafely(this.fatalExceptionCallback, ex, null);
+                            }
+
+                            return;
+                        }
+
+                        if (this.stopException != null) {
+                            // Even if the operation succeeded, we encountered a stop exception (fatal failure) and most likely
+                            // this operation will be corrupted in the DurableDataLog. Do not ack it as success. If the owning
+                            // Container does end up recovering successfully, it's up to the client to figure out the state
+                            // of the affected segments so it can resume operations.
+                            toFail.put(op, this.stopException);
+                        } else {
+                            toComplete.add(op);
+                        }
+                    }
+
+                    this.highestCommittedDataFrame = addressSequence;
                 }
 
-                e.complete();
+                this.logUpdater.flush();
+            } finally {
+                toComplete.forEach(CompletableOperation::complete);
+                toFail.forEach(this::failOperation);
+                autoCompleteIfNeeded();
+                if (toFail.size() == 0) {
+                    // Only record the commit if we had no failures.
+                    this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
+                }
             }
-
-            this.logUpdater.flush();
-            this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
         }
 
         /**
          * Rolls back all pending Metadata changes and fails all pending operations.
          *
          * @param ex The cause of the failure. The operations will be failed with this as a cause.
+         * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
-        void fail(Throwable ex) {
-            // Discard all updates to the metadata.
-            this.metadataUpdater.rollback();
+        void fail(Throwable ex, DataFrameBuilder.CommitArgs commitArgs) {
+            Map<CompletableOperation, Throwable> toFail = new HashMap<>();
+            try {
+                synchronized (this.lock) {
+                    collectFailureCandidates(ex, commitArgs, toFail);
+                }
+            } finally {
+                toFail.forEach(this::failOperation);
+                autoCompleteIfNeeded();
+            }
 
-            // Fail all pending entries.
-            if (!this.pendingOperations.isEmpty()) {
-                log.error("{}: CommitFailure ({} operations).", this.traceObjectId, this.pendingOperations.size(), ex);
-                this.pendingOperations.forEach(e -> e.fail(ex));
-                this.pendingOperations.clear();
+            if (isFatalException(ex)) {
+                synchronized (this.lock) {
+                    this.stopException = ex;
+                }
+
+                CallbackHelpers.invokeSafely(this.fatalExceptionCallback, ex, null);
             }
         }
 
-        void forEachPending(Predicate<CompletableOperation> inspector) {
-            this.pendingOperations.removeIf(inspector);
+        /**
+         * Fails the given Operation either with the given failure cause, or with the general stop exception.
+         *
+         * @param operation    The CompletableOperation to fail.
+         * @param failureCause The original failure cause. The operation will be failed with this exception, unless
+         *                     the general stopException is set, in which case that takes precedence.
+         */
+        void failOperation(CompletableOperation operation, Throwable failureCause) {
+            synchronized (this.lock) {
+                if (this.stopException != null) {
+                    failureCause = this.stopException;
+                }
+            }
+
+            operation.fail(failureCause);
+        }
+
+        /**
+         * Rolls back any metadata that is affected by a failure for the given commit args and collects all CompletableOperations
+         * off the pendingOperations queue that are affected. While the metadata is rolled back, the operations themselves
+         * are not failed (since this method executes while holding the lock).
+         *
+         * @param ex         The Exception that triggered the failure.
+         * @param commitArgs The CommitArgs that points to the DataFrame which failed to commit.
+         * @param target     A Map where the failure candidates will be collected. Key=Operation, Value=Failure Exception.
+         */
+        @GuardedBy("lock")
+        private void collectFailureCandidates(Throwable ex, DataFrameBuilder.CommitArgs commitArgs, Map<CompletableOperation, Throwable> target) {
+            // Discard all updates to the metadata.
+            long updateTransactionId = 0;
+            if (commitArgs != null) {
+                boolean checkpointExists = this.metadataTransactions.removeLast(commitArgs);
+                if (checkpointExists) {
+                    updateTransactionId = commitArgs.key();
+                }
+            }
+
+            if (updateTransactionId == 0) {
+                this.metadataTransactions.clear();
+            }
+
+            this.metadataUpdater.rollback(updateTransactionId);
+
+            // Fail all pending entries.
+            long seqNo = this.metadataTransactions.isEmpty() ?
+                    ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER :
+                    this.metadataTransactions.peekLast().getLastFullySerializedSequenceNumber();
+            while (!this.pendingOperations.isEmpty() && shouldFail(this.pendingOperations.peekLast(), seqNo)) {
+                target.put(this.pendingOperations.pollLast(), ex);
+            }
+        }
+
+        /**
+         * Determines whether to fail the CompletableOperation, given the SeqNo of the last known successfully committed
+         * operation.
+         */
+        private boolean shouldFail(CompletableOperation co, long lastKnownSuccessfulSeqNo) {
+            return !co.getOperation().canSerialize()
+                    || co.getOperation().getSequenceNumber() > lastKnownSuccessfulSeqNo;
+        }
+
+        /**
+         * Auto-completes any non-serialization operations at the beginning of the Pending Operations queue. Due to their
+         * nature, these operations are at risk of never being completed, and, if there are no more pending operations
+         * before that, they can be completed without further delay.
+         */
+        private void autoCompleteIfNeeded() {
+            Collection<CompletableOperation> toComplete = null;
+            synchronized (this.lock) {
+                while (!this.pendingOperations.isEmpty() && !this.pendingOperations.peekFirst().getOperation().canSerialize()) {
+                    if (toComplete == null) {
+                        toComplete = new ArrayList<>();
+                    }
+
+                    toComplete.add(this.pendingOperations.pollFirst());
+                }
+            }
+
+            if (toComplete != null) {
+                toComplete.forEach(CompletableOperation::complete);
+            }
         }
     }
 

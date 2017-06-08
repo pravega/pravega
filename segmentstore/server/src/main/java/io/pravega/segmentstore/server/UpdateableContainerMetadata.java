@@ -16,20 +16,6 @@ import java.util.Collection;
  */
 public interface UpdateableContainerMetadata extends ContainerMetadata, RecoverableMetadata, TruncationMarkerRepository {
     /**
-     * Gets a value indicating the maximum number of segments that can be registered in this metadata at any given time.
-     *
-     * @return The maximum number of segments.
-     */
-    int getMaximumActiveSegmentCount();
-
-    /**
-     * Gets a value indicating the current number of registered segments.
-     *
-     * @return The count.
-     */
-    int getActiveSegmentCount();
-
-    /**
      * Maps a new StreamSegment Name to the given Id.
      *
      * @param streamSegmentName The case-sensitive name of the StreamSegment to map.
@@ -49,11 +35,6 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
      * @throws IllegalArgumentException If the parentStreamSegmentId refers to an unknown StreamSegment.
      */
     UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId);
-
-    /**
-     * Gets a collection containing all StreamSegmentIds currently mapped.
-     */
-    Collection<Long> getAllStreamSegmentIds();
 
     /**
      * Marks the StreamSegment and all child StreamSegments as deleted.

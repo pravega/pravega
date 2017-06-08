@@ -13,7 +13,6 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.InvalidPropertyValueException;
 import io.pravega.common.util.Property;
-import io.pravega.common.util.Retry;
 import io.pravega.common.util.TypedProperties;
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -31,7 +30,8 @@ public class BookKeeperConfig {
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
     public static final Property<String> ZK_METADATA_PATH = Property.named("zkMetadataPath", "/segmentstore/containers");
     public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
-    public static final Property<Retry.RetryWithBackoff> RETRY_POLICY = Property.named("retryPolicy", Retry.withExpBackoff(100, 4, 5, 30000));
+    public static final Property<Integer> MAX_CONCURRENT_WRITES = Property.named("maxConcurrentWrites", 5);
+    public static final Property<Integer> MAX_WRITE_ATTEMPTS = Property.named("maxWriteAttempts", 5);
     public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
     public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 3);
     public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
@@ -76,10 +76,16 @@ public class BookKeeperConfig {
     private final int zkHierarchyDepth;
 
     /**
-     * The Retry Policy base to use for all BookKeeper parameters.
+     * Maximum number of concurrent writes.
      */
     @Getter
-    private final Retry.RetryWithBackoff retryPolicy;
+    private final int maxConcurrentWrites;
+
+    /**
+     * The maximum number of times to attempt a write.
+     */
+    @Getter
+    private final int maxWriteAttempts;
 
     /**
      * The path in ZooKeeper for the BookKeeper Ledger.
@@ -134,7 +140,8 @@ public class BookKeeperConfig {
                     ZK_HIERARCHY_DEPTH, this.zkHierarchyDepth));
         }
 
-        this.retryPolicy = properties.getRetryWithBackoff(RETRY_POLICY);
+        this.maxConcurrentWrites = properties.getInt(MAX_CONCURRENT_WRITES);
+        this.maxWriteAttempts = properties.getInt(MAX_WRITE_ATTEMPTS);
         this.bkLedgerPath = properties.get(BK_LEDGER_PATH);
         this.bkEnsembleSize = properties.getInt(BK_ENSEMBLE_SIZE);
         this.bkAckQuorumSize = properties.getInt(BK_ACK_QUORUM_SIZE);
@@ -151,7 +158,7 @@ public class BookKeeperConfig {
     /**
      * Gets a value representing the Password to use for the creation and access of each BK Ledger.
      */
-    public byte[] getBKPassword() {
+    byte[] getBKPassword() {
         return Arrays.copyOf(this.bkPassword, this.bkPassword.length);
     }
 

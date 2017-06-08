@@ -80,7 +80,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
                     TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor()).createStorageAdapter();
-                    innerStorage.initialize(0);
+                    innerStorage.initialize(1);
 
                     // ... and the Test executor for the verification storage (to invoke callbacks).
                     VerificationStorage.Factory factory = new VerificationStorage.Factory(innerStorage, testExecutor);
