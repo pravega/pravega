@@ -142,7 +142,7 @@ public class ReadWriteTest {
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
-        //start writing events to the stream with 5 writers
+        //start writing events to the stream
         log.info("creating {} writers", NUM_WRITERS);
         List<CompletableFuture<Void>> writerList = new ArrayList<>();
         for (i = 0; i < NUM_WRITERS; i++) {
@@ -152,14 +152,12 @@ public class ReadWriteTest {
 
         //create a reader group
         log.info("Creating Reader group : {}", readerGroupName);
-
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singleton(STREAM_NAME));
-
         log.info(" reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
         log.info(" reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
-        //create 5 readers
+        //create readers
         log.info("creating {} readers", NUM_READERS);
         List<CompletableFuture<Void>> readerList = new ArrayList<>();
         String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
@@ -169,7 +167,6 @@ public class ReadWriteTest {
             readerList.add(startReader(readerName + i, clientFactory, readerGroupName,
                     eventsReadFromPravega, eventData, eventReadCount, stopReadFlag));
         }
-
         log.info("online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
 
         //wait for writers completion
@@ -179,9 +176,8 @@ public class ReadWriteTest {
         while (TOTAL_NUM_EVENTS != eventsReadFromPravega.size()) {
             Thread.sleep(5);
         }
-
+        //stop reading when no. of reads= no. of writes
         stopReadFlag.set(true);
-
         //wait for readers completion
         FutureHelpers.allOf(readerList);
 
@@ -189,14 +185,13 @@ public class ReadWriteTest {
                 "Count: {}", eventData.get(), eventsReadFromPravega.size());
         assertEquals(TOTAL_NUM_EVENTS, eventsReadFromPravega.size());
         assertEquals(TOTAL_NUM_EVENTS, new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
-        //stop reading when no. of reads= no. of writes
+
         log.info("read write test succeed");
 
         //seal all streams
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
         log.info("sealing stream {}", STREAM_NAME);
         assertTrue(sealStreamStatus.get());
-
         CompletableFuture<Boolean> sealStreamStatus1 = controller.sealStream(scope, "_RG" + readerGroupName);
         log.info("sealing stream {}", "_RG" + readerGroupName);
         assertTrue(sealStreamStatus1.get());
@@ -205,7 +200,6 @@ public class ReadWriteTest {
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
         log.info("deleting stream {}", STREAM_NAME);
         assertTrue(deleteStreamStatus.get());
-
         CompletableFuture<Boolean> deleteStreamStatus1 = controller.deleteStream(scope, "_RG" + readerGroupName);
         log.info("deleting stream {}", "_RG" + readerGroupName);
         assertTrue(deleteStreamStatus1.get());

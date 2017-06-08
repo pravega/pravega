@@ -63,8 +63,12 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
     private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
-    private Service controllerInstance = null;
-    private Service segmentStoreInstance = null;
+    private Service controllerInstance1 = null;
+    private Service segmentStoreInstance1 = null;
+    private Service controllerInstance2 = null;
+    private Service segmentStoreInstance2 = null;
+    private Service controllerInstance3 = null;
+    private Service segmentStoreInstance3 = null;
     private ReaderGroupManager readerGroupManager;
 
     @Environment
@@ -89,22 +93,55 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         log.debug("Bookkeeper service details: {}", bkUris);
 
         //3. start 2 instances of pravega controller
-        Service conService = new PravegaControllerService("controller", zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
+        Service conService1 = new PravegaControllerService("controller1", zkUri);
+        if (!conService1.isRunning()) {
+            conService1.start(true);
         }
-        conService.scaleService(2, true);
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service  details: {}", conUris);
+
+        List<URI> conUris1 = conService1.getServiceDetails();
+        log.debug("Pravega Controller service instance1 details: {}", conUris1);
+
+        Service conService2 = new PravegaControllerService("controller2", zkUri);
+        if (!conService2.isRunning()) {
+            conService2.start(true);
+        }
+
+        List<URI> conUris2 = conService2.getServiceDetails();
+        log.debug("Pravega Controller service instance2 details: {}", conUris2);
+
+        Service conService3 = new PravegaControllerService("controller3", zkUri);
+        if (!conService3.isRunning()) {
+            conService3.start(true);
+        }
+
+        List<URI> conUris3 = conService3.getServiceDetails();
+        log.debug("Pravega Controller service instance3  details: {}", conUris3);
+
 
         //4.start 2 instances of pravega segmentstore
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
+        Service segService1 = new PravegaSegmentStoreService("segmentstore1", zkUri, conUris1.get(0));
+        if (!segService1.isRunning()) {
+            segService1.start(true);
         }
-        segService.scaleService(2, true);
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega segmentstore service  details: {}", segUris);
+
+        List<URI> segUris1 = segService1.getServiceDetails();
+        log.debug("Pravega segmentstore service1  details: {}", segUris1);
+
+        Service segService2 = new PravegaSegmentStoreService("segmentstore2", zkUri, conUris1.get(0));
+        if (!segService2.isRunning()) {
+            segService2.start(true);
+        }
+
+        List<URI> segUris2 = segService2.getServiceDetails();
+        log.debug("Pravega segmentstore service2  details: {}", segUris2);
+
+        Service segService3 = new PravegaSegmentStoreService("segmentstore3", zkUri, conUris1.get(0));
+        if (!segService3.isRunning()) {
+            segService3.start(true);
+        }
+
+        List<URI> segUris3 = segService3.getServiceDetails();
+        log.debug("Pravega segmentstore service3  details: {}", segUris3);
     }
 
     @Before
@@ -121,21 +158,41 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         URI zkUri = zkUris.get(0);
 
         // Verify controller is running.
-        controllerInstance = new PravegaControllerService("controller", zkUri);
-        assertTrue(controllerInstance.isRunning());
-        List<URI> conURIs = controllerInstance.getServiceDetails();
-        log.info("Pravega Controller service instance details: {}", conURIs);
+        controllerInstance1 = new PravegaControllerService("controller1", zkUri);
+        assertTrue(controllerInstance1.isRunning());
+        List<URI> conURIs1 = controllerInstance1.getServiceDetails();
+        log.info("Pravega Controller service instance1 details: {}", conURIs1);
+
+        controllerInstance2 = new PravegaControllerService("controller2", zkUri);
+        assertTrue(controllerInstance2.isRunning());
+        log.info("Pravega Controller service instance2 details: {}", controllerInstance2.getServiceDetails());
+
+        controllerInstance3 = new PravegaControllerService("controller3", zkUri);
+        assertTrue(controllerInstance3.isRunning());
+        log.info("Pravega Controller service instance3 details: {}", controllerInstance3.getServiceDetails());
 
         // Verify segment store is running.
-        segmentStoreInstance = new PravegaSegmentStoreService("segmentstore", zkUri, conURIs.get(0));
-        assertTrue(segmentStoreInstance.isRunning());
-        log.info("Pravega segment store instance details: {}", segmentStoreInstance.getServiceDetails());
+        segmentStoreInstance1 = new PravegaSegmentStoreService("segmentstore1", zkUri, conURIs1.get(0));
+        assertTrue(segmentStoreInstance1.isRunning());
+        log.info("Pravega segment store instance1 details: {}", segmentStoreInstance1.getServiceDetails());
+
+        segmentStoreInstance2 = new PravegaSegmentStoreService("segmentstore2", zkUri, conURIs1.get(0));
+        assertTrue(segmentStoreInstance2.isRunning());
+        log.info("Pravega segment store instance2 details: {}", segmentStoreInstance2.getServiceDetails());
+
+        segmentStoreInstance3 = new PravegaSegmentStoreService("segmentstore3", zkUri, conURIs1.get(0));
+        assertTrue(segmentStoreInstance2.isRunning());
+        log.info("Pravega segment store instance3 details: {}", segmentStoreInstance2.getServiceDetails());
     }
 
     @After
     public void tearDown() {
-        controllerInstance.stop();
-        segmentStoreInstance.stop();
+        controllerInstance1.stop();
+        segmentStoreInstance1.stop();
+        controllerInstance2.stop();
+        segmentStoreInstance2.stop();
+        controllerInstance3.stop();
+        segmentStoreInstance3.stop();
     }
 
     @Test(timeout = 600000)
@@ -145,24 +202,25 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         readWriteTest();
 
         //scale down SSS by 1 instance
-        segmentStoreInstance.scaleService(1, true);
+        segmentStoreInstance1.stop();
         Thread.sleep(60000);
         log.info("Test with 1 SSS instance down");
         readWriteTest();
 
         //scale down controller by 1 instance + scale up SSS back to 2 instances
-        segmentStoreInstance.scaleService(2, true);
-        Thread.sleep(60000);
-        controllerInstance.scaleService(1, true);
+        controllerInstance2.stop();
         Thread.sleep(60000);
         log.info("Test with 1 controller instance down");
         readWriteTest();
 
         //scale down 1 instance of both controller, SSS
-        segmentStoreInstance.scaleService(1, true);
-        Thread.sleep(60000);
-        log.info("Test with 1 controller  and 1 SSS instance down");
-        readWriteTest();
+         log.info("Test with 1 controller  and 1 SSS instance down");
+         segmentStoreInstance2.stop();
+         controllerInstance3.stop();
+         Thread.sleep(60000);
+         readWriteTest();
+
+        log.info("all tests are successful");
     }
 
     private void readWriteTest() throws InterruptedException, ExecutionException {
@@ -175,7 +233,9 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
         //get Controller Uri
-        URI controllerUri = getControllerURI();
+        Service conService = new PravegaControllerService("controller1", null);
+        List<URI> ctlURIs = conService.getServiceDetails();
+        URI controllerUri = ctlURIs.get(0);
         Controller controller = getController(controllerUri);
         //create a scope
         Boolean createScopeStatus = controller.createScope(scope).get();
@@ -188,7 +248,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         eventData = new AtomicLong(); //data used by each of the writers.
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
         //get ClientFactory instance
-        ClientFactory clientFactory = getClientFactory(scope);
+        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerUri);
         //start writing events to the stream with 20 writers
         log.info("creating {} writers", NUM_WRITERS);
         List<CompletableFuture<Void>> writerList = new ArrayList<>();
