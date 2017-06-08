@@ -19,7 +19,6 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.storage.impl.Tier2Config;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
@@ -162,13 +161,18 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                Tier2Config tier2Config = setup.getConfig(Tier2Config::builder);
-                if ( tier2Config.isEnableHdfs()) {
-                    HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                    return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
-                } else {
-                    FSStorageConfig fsConfig = setup.getConfig(FSStorageConfig::builder);
-                    return new FSStorageFactory(fsConfig, setup.getExecutor());
+                String storageChoice = this.serviceConfig.getStorageImplementation();
+                switch (storageChoice) {
+                    case "HDFS":
+                        HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
+                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+
+                    case "FS":
+                        FSStorageConfig fsConfig = setup.getConfig(FSStorageConfig::builder);
+                        return new FSStorageFactory(fsConfig, setup.getExecutor());
+
+                    default:
+                        throw new IllegalStateException("Undefined storage implementation");
                 }
             } catch (Exception ex) {
                 throw new CompletionException(ex);

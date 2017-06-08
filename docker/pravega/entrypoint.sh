@@ -27,10 +27,10 @@ configure_controller() {
 }
 
 configure_tier2() {
-    add_system_property "tier2.enableNfs" "${ENABLE_NFS}"
+    add_system_property "pravegaservice.storageImplementation" "${TIER2_STORAGE}"
 
     echo "Checking whether NFS mounting is required"
-    if [ "${ENABLE_NFS}" = "true" ] && [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
+    if [ "${TIER2_STORAGE}" = "FS" ] && [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
         while [ -z ${NFS_SERVER} ]
         do
             echo "NFS_SERVER not set. Looping till the container is restarted with NFS_SERVER set."
@@ -48,7 +48,6 @@ configure_tier2() {
         done
     fi
     add_system_property "nfs.nfsRoot" "${NFS_MOUNT}"
-    add_system_property "tier2.enableHdfs" "${ENABLE_HDFS}"
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
