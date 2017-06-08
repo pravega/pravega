@@ -12,7 +12,6 @@ package io.pravega.test.system.framework.services;
 import com.google.common.base.Preconditions;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
-import com.spotify.docker.client.messages.Network;
 import com.spotify.docker.client.messages.swarm.Service.Criteria;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
@@ -28,12 +27,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import com.spotify.docker.client.messages.swarm.Service;
 
-
 @Slf4j
 public abstract class DockerBasedService  implements io.pravega.test.system.framework.services.Service {
 
-    static final int ZKSERVICE_ZKPORT = 2181;
-    static final int CONTROLLER_PORT = 9092;
     final DockerClient docker;
     String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
@@ -124,14 +120,18 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
     @Override
     public void stop() {
         try {
-            List<Network> networkList =  docker.listNetworks(DockerClient.ListNetworksParam.byNetworkName("network-name"));
-            for (int i = 0; i < networkList.size(); i++) {
-             docker.removeNetwork(networkList.get(i).id());
-            }
             docker.leaveSwarm(true);
         } catch (DockerException | InterruptedException e) {
             log.error("unable to leave swarm");
         }
         docker.close();
+    }
+
+    long setNanoCpus(final double cpu) {
+        return (long)  (cpu * Math.pow(10.0, 9.0));
+    }
+
+    long setMemInBytes(final double mem) {
+        return (long) mem * 1024 * 1024;
     }
 }

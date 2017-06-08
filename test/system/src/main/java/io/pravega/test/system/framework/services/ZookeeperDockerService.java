@@ -32,10 +32,11 @@ import static org.junit.Assert.assertThat;
 @Slf4j
 public class ZookeeperDockerService extends DockerBasedService {
 
+     static final int ZKSERVICE_ZKPORT = 2181;
      private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
      private int instances = 1;
-     private double cpu = 1.0 * Math.pow(10.0, 9.0);
-     private long mem = 1024 * 1024 * 1024L;
+     private double cpu = 1.0;
+     private double mem = 1024;
 
      public ZookeeperDockerService(String serviceName) {
      super(serviceName);
@@ -75,7 +76,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                 .healthcheck(ContainerConfig.Healthcheck.create(null,
                         1000000000L, 1000000000L, 3)).build())
                 .resources(ResourceRequirements.builder()
-                        .reservations(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
+                        .reservations(Resources.builder().memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
         ServiceSpec spec =  ServiceSpec.builder().name(serviceName).networks(NetworkAttachmentConfig.builder().target("network-name").build()).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))

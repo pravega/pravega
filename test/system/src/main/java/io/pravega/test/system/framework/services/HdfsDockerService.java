@@ -37,8 +37,8 @@ import static org.junit.Assert.assertThat;
 public class HdfsDockerService  extends DockerBasedService {
 
     private int instances = 1;
-    private double cpu = 0.1 * Math.pow(10.0, 9.0);
-    private long mem = 2048 * 1024 * 1024L;
+    private double cpu = 0.1;
+    private double mem = 2048.0;
 
     public HdfsDockerService(final String serviceName) {
         super(serviceName);
@@ -80,7 +80,7 @@ public class HdfsDockerService  extends DockerBasedService {
                         .args("hdfs").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
-                                .memoryBytes(mem).nanoCpus((long) cpu).build())
+                                .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
         List<PortConfig> portConfigs = new ArrayList<>();

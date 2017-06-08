@@ -13,6 +13,7 @@ import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.mount.Mount;
+import static io.pravega.test.system.framework.services.ZookeeperDockerService.ZKSERVICE_ZKPORT;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -37,10 +38,11 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class PravegaControllerDockerService extends  DockerBasedService {
 
+    static final int CONTROLLER_PORT = 9092;
     private static final int REST_PORT = 10080;
     private int instances = 1;
-    private double cpu = 0.1 * Math.pow(10.0, 9.0);
-    private long mem = 700 * 1024 * 1024L;
+    private double cpu = 0.1;
+    private double mem = 700.0;
 
     public PravegaControllerDockerService(final String serviceName) {
         super(serviceName);
@@ -94,7 +96,7 @@ public class PravegaControllerDockerService extends  DockerBasedService {
                         .env(stringList).args("controller").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
-                                .memoryBytes(mem).nanoCpus((long) cpu).build())
+                                .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
         List<PortConfig> portConfigs = new ArrayList<>();

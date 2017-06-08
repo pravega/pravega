@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import static io.pravega.test.system.framework.services.PravegaControllerDockerService.CONTROLLER_PORT;
+import static io.pravega.test.system.framework.services.ZookeeperDockerService.ZKSERVICE_ZKPORT;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -40,8 +42,8 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
     private static final int SEGMENTSTORE_PORT = 12345;
     private int instances = 1;
-    private double cpu = 0.1 * Math.pow(10.0, 9.0);
-    private long mem = 1000 * 1024 * 1024L;
+    private double cpu = 0.1;
+    private double mem = 1000.0;
 
     public PravegaSegmentStoreDockerService(final String serviceName ) {
         super(serviceName);
@@ -101,7 +103,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                         .env(stringList).args("segmentstore").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
-                                .memoryBytes(mem).nanoCpus((long) cpu).build())
+                                .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
         ServiceSpec spec =  ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
