@@ -204,6 +204,9 @@ project('segmentstore:server:host') {
     mainClassName = "io.pravega.segmentstore.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
+                                 "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
+                                 "-XX:NumberOfGCLogFiles=1", "-XX:GCLogFileSize=64m",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=segmentstore",
                                  "-Dpravega.configurationFile=PRAVEGA_APP_HOME/conf/config.properties",
@@ -337,6 +340,9 @@ project('controller') {
     applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
+                                 "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
+                                 "-XX:NumberOfGCLogFiles=1", "-XX:GCLogFileSize=64m",
                                  "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
