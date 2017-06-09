@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,7 +39,9 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for DataFrameBuilder class.
@@ -53,6 +56,9 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
     private static final int FRAME_SIZE = 512;
     private static final int APPEND_DELAY_MILLIS = 1;
     private static final int RECORD_COUNT = 200;
+
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Override
     protected int getThreadPoolSize() {

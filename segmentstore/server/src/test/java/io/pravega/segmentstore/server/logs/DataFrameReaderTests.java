@@ -26,11 +26,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for DataFrameReader class.
@@ -43,6 +46,9 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
     private static final int LARGE_RECORD_MIN_SIZE = 1024;
     private static final int LARGE_RECORD_MAX_SIZE = 10240;
     private static final int FRAME_SIZE = 512;
+
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     /**
      * Tests the happy case: DataFrameReader can read from a DataLog when the are no exceptions.

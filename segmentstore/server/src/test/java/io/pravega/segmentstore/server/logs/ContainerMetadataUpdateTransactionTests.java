@@ -46,6 +46,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -53,7 +54,9 @@ import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the ContainerMetadataUpdateTransaction and SegmentMetadataUpdateTransaction classes.
@@ -72,6 +75,8 @@ public class ContainerMetadataUpdateTransactionTests {
     private static final AttributeUpdateType[] ATTRIBUTE_UPDATE_TYPES = new AttributeUpdateType[]{
             AttributeUpdateType.Replace, AttributeUpdateType.Accumulate};
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     private ManualTimer timeProvider;
 
     @Before

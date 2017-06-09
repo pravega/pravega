@@ -124,7 +124,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         }
     }
 
-    @Test
+    @Test(timeout = TIMEOUT_MILLIS)
     public void testCreateDefaultConfig() throws Exception {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()

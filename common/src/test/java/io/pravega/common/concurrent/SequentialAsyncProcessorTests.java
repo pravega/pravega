@@ -12,16 +12,22 @@ package io.pravega.common.concurrent;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the SequentialAsyncProcessor class.
  */
 public class SequentialAsyncProcessorTests extends ThreadPooledTestSuite {
     private static final int TIMEOUT_MILLIS = 10000;
+
+    @Rule
+    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     @Override
     protected int getThreadPoolSize() {

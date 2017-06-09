@@ -12,16 +12,22 @@ package io.pravega.common.util;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the SortedDeque class.
  */
 public class SortedDequeTests {
     private static final int ITEM_COUNT = 1000;
+
+    @Rule
+    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     /**
      * Tests the addLast(), size(), isEmpty(), peekFirst(), peekLast() methods.

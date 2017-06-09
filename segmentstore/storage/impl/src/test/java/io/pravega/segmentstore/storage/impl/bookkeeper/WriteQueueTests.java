@@ -16,10 +16,13 @@ import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the WriteQueue class.
@@ -27,6 +30,9 @@ import org.junit.Test;
 public class WriteQueueTests {
     private static final int MAX_PARALLELISM = 10;
     private static final int ITEM_COUNT = MAX_PARALLELISM * 10;
+
+    @Rule
+    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     /**
      * Tests the basic functionality of the add() method.

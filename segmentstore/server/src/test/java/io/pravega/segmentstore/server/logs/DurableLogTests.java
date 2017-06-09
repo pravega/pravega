@@ -77,7 +77,9 @@ import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for DurableLog class.
@@ -95,12 +97,15 @@ public class DurableLogTests extends OperationLogTestBase {
             .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
             .build();
 
+    @Rule
+    public Timeout globalTimeout = new Timeout(TEST_TIMEOUT_MILLIS, TimeUnit.SECONDS);
+
     //region Adding operations
 
     /**
      * Tests the ability of the DurableLog to process Operations in a failure-free environment.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testAddWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
         int transactionsPerStreamSegment = 2;
@@ -141,7 +146,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the operationProcessingBarrier() method.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testOperationProcessingBarrier() throws Exception {
         int streamSegmentCount = 1;
         int appendsPerStreamSegment = 20;
@@ -187,7 +192,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * * StreamSegmentSealedException
      * * General MetadataUpdateException.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testAddWithInvalidOperations() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 40;
@@ -260,7 +265,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to process Operations when Serialization errors happen.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testAddWithOperationSerializationFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
@@ -325,7 +330,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to process Operations when there are DataLog write failures.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testAddWithDataLogFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
@@ -370,7 +375,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to handle a DataLogWriterNotPrimaryException.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testAddWithDataLogWriterNotPrimaryException() throws Exception {
         int streamSegmentCount = 1;
         int appendsPerStreamSegment = 1;
@@ -409,7 +414,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the ability of the DurableLog to process Operations when a simulated DataCorruptionException
      * is generated.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testAddWithDataCorruptionFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
@@ -486,7 +491,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability to block reads if the read is at the tail and no more data is available (for now).
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testTailReads() throws Exception {
         final int operationCount = 10;
         final long segmentId = 1;
@@ -566,7 +571,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the ability to timeout tail reads. This does not actually test the functionality of tail reads - it just
      * tests that they will time out appropriately.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testTailReadsTimeout() {
         final long segmentId = 1;
         final String segmentName = Long.toString(segmentId);
@@ -598,7 +603,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to add MetadataCheckpointOperations triggered by the number of operations processed.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testMetadataCheckpointByCount() throws Exception {
         int checkpointEvery = 30;
         testMetadataCheckpoint(
@@ -609,7 +614,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the ability of the DurableLog to add MetadataCheckpointOperations triggered by the length of the operations processed.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testMetadataCheckpointByLength() throws Exception {
         int checkpointLengthThreshold = 257 * 1024;
         testMetadataCheckpoint(
@@ -681,7 +686,7 @@ public class DurableLogTests extends OperationLogTestBase {
     /**
      * Tests the DurableLog recovery process in a scenario when there are no failures during the process.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testRecoveryWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
         int transactionsPerStreamSegment = 2;
@@ -750,7 +755,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the DurableLog recovery process in a scenario when there are failures during the process
      * (these may or may not be DataCorruptionExceptions).
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testRecoveryFailures() throws Exception {
         int streamSegmentCount = 50;
         int appendsPerStreamSegment = 20;
@@ -865,7 +870,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * 3. The segment is reactivated (with a new metadata mapping) - possibly due to an append. No truncation since #2.
      * 4. Recovery.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testRecoveryWithMetadataCleanup() throws Exception {
         final long truncatedSeqNo = Integer.MAX_VALUE;
         // Setup a DurableLog and start it.

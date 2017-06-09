@@ -57,7 +57,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import lombok.Cleanup;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for OperationProcessor class.
@@ -67,10 +69,13 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
 
+    @Rule
+    public Timeout globalTimeout = new Timeout(TEST_TIMEOUT_MILLIS, TimeUnit.SECONDS);
+
     /**
      * Tests the ability of the OperationProcessor to process Operations in a failure-free environment.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
         int transactionsPerStreamSegment = 2;
@@ -117,7 +122,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * * StreamSegmentSealedException
      * * General MetadataUpdateException.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testWithInvalidOperations() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 40;
@@ -196,7 +201,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     /**
      * Tests the ability of the OperationProcessor to process Operations when Serialization errors happen.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testWithOperationSerializationFailures() throws Exception {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
@@ -314,7 +319,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     /**
      * Tests the ability of the OperationProcessor handle a DataLogWriterNotPrimaryException.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testWithDataLogNotPrimaryException() throws Exception {
         int streamSegmentCount = 1;
         int appendsPerStreamSegment = 1;
@@ -362,7 +367,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * Tests the ability of the OperationProcessor to process Operations when a simulated DataCorruptionException
      * is generated.
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testWithDataCorruptionFailures() throws Exception {
         // If a DataCorruptionException is thrown for a particular Operation, the OperationQueueProcessor should
@@ -463,7 +468,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * operation, so there is no commit to DurableDataLog - we need to verify the operation is properly completed in this
      * case).
      */
-    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testWithSingleProbeOperation() throws Exception {
         @Cleanup
         TestContext context = new TestContext();
