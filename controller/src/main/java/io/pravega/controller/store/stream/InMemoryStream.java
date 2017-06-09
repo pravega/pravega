@@ -145,7 +145,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 Preconditions.checkNotNull(x);
                 if (Objects.equals(x.getVersion(), newState.getVersion())) {
                     result.complete(null);
-                    return new Data<>(newState.getData(), newState.getVersion() + 1);
+                    return copy(new Data<>(newState.getData(), newState.getVersion() + 1));
                 } else {
                     result.completeExceptionally(new WriteConflictException("state"));
                     return x;
@@ -213,7 +213,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             segmentTable.getAndUpdate(x -> {
                 if (x.getVersion().equals(data.getVersion())) {
                     result.complete(null);
-                    return new Data<>(data.getData(), data.getVersion() + 1);
+                    return new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
                 } else {
                     result.completeExceptionally(new WriteConflictException("segmentTable"));
                     return x;
@@ -226,7 +226,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> createIndexTable(Data<Integer> data) {
         synchronized (indexTableLock) {
-            indexTable.set(new Data<>(data.getData(), 0));
+            indexTable.set(new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -246,7 +246,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             indexTable.getAndUpdate(x -> {
                 if (x.getVersion().equals(updated.getVersion())) {
                     result.complete(null);
-                    return new Data<>(updated.getData(), updated.getVersion() + 1);
+                    return new Data<>(Arrays.copyOf(updated.getData(), updated.getData().length), updated.getVersion() + 1);
                 } else {
                     result.completeExceptionally(new WriteConflictException("segmentTable"));
                     return x;
@@ -259,7 +259,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> createHistoryTable(Data<Integer> data) {
         synchronized (historyTableLock) {
-            historyTable.set(new Data<>(data.getData(), 0));
+            historyTable.set(new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -271,7 +271,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             historyTable.getAndUpdate(x -> {
                 if (x.getVersion().equals(updated.getVersion())) {
                     result.complete(null);
-                    return new Data<>(updated.getData(), updated.getVersion() + 1);
+                    return new Data<>(Arrays.copyOf(updated.getData(), updated.getData().length), updated.getVersion() + 1);
                 } else {
                     result.completeExceptionally(new WriteConflictException("segmentTable"));
                     return x;
@@ -358,7 +358,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
         }
 
-        return CompletableFuture.completedFuture(activeTxns.get(txId.toString()));
+        return CompletableFuture.completedFuture(copy(activeTxns.get(txId.toString())));
     }
 
     @Override
@@ -407,7 +407,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         if (!completedTxns.containsKey(txId.toString())) {
             return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
         }
-        return CompletableFuture.completedFuture(completedTxns.get(txId.toString()));
+        return CompletableFuture.completedFuture(copy(completedTxns.get(txId.toString())));
     }
 
     @Override
@@ -441,7 +441,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             markers.computeIfPresent(segmentNumber, (x, y) -> {
                 if (y.getVersion().equals(data.getVersion())) {
                     result.complete(null);
-                    return new Data<>(data.getData(), data.getVersion() + 1);
+                    return new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
                 } else {
                     result.completeExceptionally(new WriteConflictException(""));
                     return y;
@@ -472,7 +472,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
-        return CompletableFuture.completedFuture(Collections.unmodifiableMap(activeTxns));
+        Map<String, Data<Integer>> map = activeTxns.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, x -> copy(x.getValue())));
+        return CompletableFuture.completedFuture(Collections.unmodifiableMap(map));
     }
 
     @Override
