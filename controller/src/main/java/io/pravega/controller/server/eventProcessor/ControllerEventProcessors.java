@@ -59,7 +59,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
     public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
-    public static final Serializer<ControllerEvent> SCALE_EVENT_SERIALIZER = new JavaSerializer<>();
+    public static final Serializer<ControllerEvent> CONTROLLER_EVENT_SERIALIZER = new JavaSerializer<>();
 
     // Retry configuration
     private static final long DELAY = 100;
@@ -81,7 +81,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
-    private EventProcessorGroup<ControllerEvent> scaleEventProcessors;
+    private EventProcessorGroup<ControllerEvent> requestEventProcessors;
     private RequestHandlerMultiplexer requestHandler;
 
     public ControllerEventProcessors(final String host,
@@ -150,10 +150,10 @@ public class ControllerEventProcessors extends AbstractIdleService {
                 }
             }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
         }
-        if (scaleEventProcessors != null) {
+        if (requestEventProcessors != null) {
             futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
-                    scaleEventProcessors.notifyProcessFailure(process);
+                    requestEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
@@ -201,7 +201,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .scalingPolicy(config.getAbortStreamScalingPolicy())
                         .build();
 
-        StreamConfiguration scaleStreamConfig =
+        StreamConfiguration requestStreamConfig =
                 StreamConfiguration.builder()
                         .scope(config.getScopeName())
                         .streamName(Config.SCALE_STREAM_NAME)
@@ -212,7 +212,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                 .thenCompose(ignore ->
                         CompletableFuture.allOf(createStream(commitStreamConfig),
                                 createStream(abortStreamConfig),
-                                createStream(scaleStreamConfig)));
+                                createStream(requestStreamConfig)));
     }
 
     private CompletableFuture<Void> createScope(final String scopeName) {
@@ -248,8 +248,8 @@ public class ControllerEventProcessors extends AbstractIdleService {
         if (this.abortEventProcessors != null) {
             futures.add(handleOrphanedReaders(this.abortEventProcessors, processes));
         }
-        if (this.scaleEventProcessors != null) {
-            futures.add(handleOrphanedReaders(this.scaleEventProcessors, processes));
+        if (this.requestEventProcessors != null) {
+            futures.add(handleOrphanedReaders(this.requestEventProcessors, processes));
         }
         return FutureHelpers.allOf(futures);
     }
@@ -361,9 +361,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
         // endregion
 
-        // region Create scale event processor
+        // region Create request event processor
 
-        EventProcessorGroupConfig scaleReadersConfig =
+        EventProcessorGroupConfig requestReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
                         .streamName(config.getRequestStreamName())
                         .readerGroupName(config.getRequestReaderGroupName())
@@ -371,21 +371,21 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .checkpointConfig(config.getRequestStreamCheckpointConfig())
                         .build();
 
-        EventProcessorConfig<ControllerEvent> scaleConfig =
+        EventProcessorConfig<ControllerEvent> requestConfig =
                 EventProcessorConfig.builder()
-                        .config(scaleReadersConfig)
+                        .config(requestReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
-                        .serializer(SCALE_EVENT_SERIALIZER)
+                        .serializer(CONTROLLER_EVENT_SERIALIZER)
                         .supplier(() -> new ConcurrentEventProcessor<>(
                                 requestHandler,
                                 executor))
                         .build();
 
-        log.info("Creating scale event processors");
+        log.info("Creating request event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating scale event processor group", e))
+                e -> log.warn("Error creating request event processor group", e))
                 .run(() -> {
-                    scaleEventProcessors = system.createEventProcessorGroup(scaleConfig, checkpointStore);
+                    requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore);
                     return null;
                 });
 
@@ -395,8 +395,8 @@ public class ControllerEventProcessors extends AbstractIdleService {
         commitEventProcessors.awaitRunning();
         log.info("Awaiting start of abort event processors");
         abortEventProcessors.awaitRunning();
-        log.info("Awaiting start of scale event processors");
-        scaleEventProcessors.awaitRunning();
+        log.info("Awaiting start of request event processors");
+        requestEventProcessors.awaitRunning();
     }
 
     private void stopEventProcessors() {
@@ -408,9 +408,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
             log.info("Stopping abort event processors");
             abortEventProcessors.stopAsync();
         }
-        if (scaleEventProcessors != null) {
-            log.info("Stopping scale event processors");
-            scaleEventProcessors.stopAsync();
+        if (requestEventProcessors != null) {
+            log.info("Stopping request event processors");
+            requestEventProcessors.stopAsync();
         }
         if (commitEventProcessors != null) {
             log.info("Awaiting termination of commit event processors");
@@ -420,9 +420,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
             log.info("Awaiting termination of abort event processors");
             abortEventProcessors.awaitTerminated();
         }
-        if (scaleEventProcessors != null) {
-            log.info("Awaiting termination of scale event processors");
-            scaleEventProcessors.awaitTerminated();
+        if (requestEventProcessors != null) {
+            log.info("Awaiting termination of request event processors");
+            requestEventProcessors.awaitTerminated();
         }
     }
 }

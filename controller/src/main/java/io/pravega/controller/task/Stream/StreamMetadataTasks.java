@@ -240,7 +240,7 @@ public class StreamMetadataTasks extends TaskBase {
             }
 
             requestEventWriterRef.set(clientFactory.createEventWriter(requestStreamName,
-                    ControllerEventProcessors.SCALE_EVENT_SERIALIZER,
+                    ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
                     EventWriterConfig.builder().build()));
         }
 

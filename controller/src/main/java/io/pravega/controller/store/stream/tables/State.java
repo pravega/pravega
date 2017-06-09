@@ -9,6 +9,11 @@
  */
 package io.pravega.controller.store.stream.tables;
 
+import jersey.repackaged.com.google.common.collect.Sets;
+
+import java.util.Arrays;
+import java.util.Set;
+
 /**
  * This is used to represent the state of the Stream.
  */
@@ -19,5 +24,26 @@ public enum State {
     UPDATING,
     SCALING,
     SEALING,
-    SEALED
+    SEALED;
+
+    private enum StateTransitions {
+        UNKNOWN(State.UNKNOWN, State.CREATING),
+        CREATING(State.CREATING, State.ACTIVE),
+        ACTIVE(State.ACTIVE, State.SCALING, State.SEALING, State.SEALED, State.UPDATING),
+        SCALING(State.SCALING, State.ACTIVE),
+        UPDATING(State.UPDATING, State.ACTIVE),
+        SEALING(State.SCALING, State.SEALED),
+        SEALED(State.SEALED);
+
+        final Set<State> transitions;
+
+        StateTransitions(State... states) {
+            this.transitions = Sets.immutableEnumSet(Arrays.asList(states));
+        }
+    }
+
+    public static boolean isTransitionAllowed(State currentState, State newState) {
+        return StateTransitions.valueOf(currentState.name()).transitions.contains(newState);
+    }
+
 }

@@ -33,8 +33,6 @@ import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,20 +45,6 @@ import java.util.stream.IntStream;
 
 @Slf4j
 public abstract class PersistentStreamBase<T> implements Stream {
-
-    private static final Map<State, List<State>> STATE_TRANSITIONS;
-
-    static {
-        Map<State, List<State>> map = new HashMap<>();
-        map.put(State.UNKNOWN, Lists.newArrayList(State.UNKNOWN, State.CREATING));
-        map.put(State.CREATING, Lists.newArrayList(State.CREATING, State.ACTIVE));
-        map.put(State.ACTIVE, Lists.newArrayList(State.ACTIVE, State.SCALING, State.SEALING, State.SEALED, State.UPDATING));
-        map.put(State.SCALING, Lists.newArrayList(State.SCALING, State.ACTIVE));
-        map.put(State.UPDATING, Lists.newArrayList(State.UPDATING, State.ACTIVE));
-        map.put(State.SEALING, Lists.newArrayList(State.SEALING, State.SEALED));
-        map.put(State.SEALED, Lists.newArrayList(State.SEALED));
-        STATE_TRANSITIONS = Collections.unmodifiableMap(map);
-    }
 
     private final String scope;
     private final String name;
@@ -156,17 +140,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
     public CompletableFuture<Boolean> updateState(final State state) {
         return getStateData()
                 .thenCompose(currState -> {
-                    if (allowed((State) SerializationUtils.deserialize(currState.getData()), state)) {
+                    if (State.isTransitionAllowed((State) SerializationUtils.deserialize(currState.getData()), state)) {
                         return setStateData(new Data<>(SerializationUtils.serialize(state), currState.getVersion()))
                                 .thenApply(x -> true);
                     } else {
                         return FutureHelpers.failedFuture(new OperationNotAllowed(state.name()));
                     }
                 });
-    }
-
-    private boolean allowed(State currentState, State newState) {
-        return STATE_TRANSITIONS.containsKey(currentState) && STATE_TRANSITIONS.get(currentState).contains(newState);
     }
 
     @Override
