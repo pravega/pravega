@@ -35,7 +35,7 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
-    private static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation",
+    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation",
                                                         "HDFS");
 
     private static final String COMPONENT_CODE = "pravegaservice";
