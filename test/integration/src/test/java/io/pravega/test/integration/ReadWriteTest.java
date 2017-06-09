@@ -11,7 +11,9 @@ package io.pravega.test.integration;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -36,6 +38,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -46,6 +49,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -97,43 +101,37 @@ public class ReadWriteTest {
     @After
     public void tearDown() throws Exception {
 
-            if (this.controllerWrapper != null) {
-                this.controllerWrapper.close();
-                this.controllerWrapper = null;
-            }
-            if (this.server != null) {
-                this.server.close();
-                this.server = null;
-            }
-            if (this.zkTestServer != null) {
-                this.zkTestServer.close();
-                this.zkTestServer = null;
-            }
-    }
-
-    @Test(timeout = 300000)
-    public void multiReaderWriterTest() throws Exception {
-        for (i = 0; i < 2; i++) {
-            readWriteTest(i);
+        if (this.controllerWrapper != null) {
+            this.controllerWrapper.close();
+            this.controllerWrapper = null;
         }
-        log.info(" all tests are successful");
+        if (this.server != null) {
+            this.server.close();
+            this.server = null;
+        }
+        if (this.zkTestServer != null) {
+            this.zkTestServer.close();
+            this.zkTestServer = null;
+        }
     }
 
-    private void readWriteTest(int i) throws InterruptedException, ExecutionException {
+    @Test(timeout = 200000)
+    public void readWriteTest() throws InterruptedException, ExecutionException {
 
-        log.info("invoking read write test {} time", i);
-        String scope = "testMultiReaderWriterScope" + i;
-        String readerGroupName = "testMultiReaderWriterReaderGroup" + i;
+        String scope = "testMultiReaderWriterScope";
+        String readerGroupName = "testMultiReaderWriterReaderGroup";
         //20  readers -> 20 stream segments ( to have max read parallelism)
         ScalingPolicy scalingPolicy = ScalingPolicy.fixed(20);
         StreamConfiguration config = StreamConfiguration.builder().scope(scope)
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+        StreamManager streamManager = new StreamManagerImpl(controller);
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
 
         //create a scope
-        Boolean createScopeStatus = controller.createScope(scope).get();
+        Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
         //create a stream
-        Boolean createStreamStatus = controller.createStream(config).get();
+        Boolean createStreamStatus = streamManager.createStream(scope, STREAM_NAME, config);
         log.info("Create stream status {}", createStreamStatus);
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
@@ -141,7 +139,6 @@ public class ReadWriteTest {
         eventData = new AtomicLong(); //data used by each of the writers.
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
         //start writing events to the stream
         log.info("creating {} writers", NUM_WRITERS);
         List<CompletableFuture<Void>> writerList = new ArrayList<>();
@@ -157,6 +154,7 @@ public class ReadWriteTest {
                 Collections.singleton(STREAM_NAME));
         log.info(" reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
         log.info(" reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
+
         //create readers
         log.info("creating {} readers", NUM_READERS);
         List<CompletableFuture<Void>> readerList = new ArrayList<>();
@@ -164,14 +162,13 @@ public class ReadWriteTest {
         //start reading events
         for (i = 0; i < NUM_READERS; i++) {
             log.info("starting reader{}", i);
-            readerList.add(startReader(readerName + i, clientFactory, readerGroupName,
+            readerList.add(startNewReader(readerName + i, clientFactory, readerGroupName,
                     eventsReadFromPravega, eventData, eventReadCount, stopReadFlag));
         }
         log.info("online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
 
         //wait for writers completion
         FutureHelpers.allOf(writerList);
-
         // wait for reads = writes
         while (TOTAL_NUM_EVENTS != eventsReadFromPravega.size()) {
             Thread.sleep(5);
@@ -180,14 +177,10 @@ public class ReadWriteTest {
         stopReadFlag.set(true);
         //wait for readers completion
         FutureHelpers.allOf(readerList);
-
         log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
                 "Count: {}", eventData.get(), eventsReadFromPravega.size());
         assertEquals(TOTAL_NUM_EVENTS, eventsReadFromPravega.size());
         assertEquals(TOTAL_NUM_EVENTS, new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
-
-        log.info("read write test succeed");
-
         //seal all streams
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
         log.info("sealing stream {}", STREAM_NAME);
@@ -195,7 +188,6 @@ public class ReadWriteTest {
         CompletableFuture<Boolean> sealStreamStatus1 = controller.sealStream(scope, "_RG" + readerGroupName);
         log.info("sealing stream {}", "_RG" + readerGroupName);
         assertTrue(sealStreamStatus1.get());
-
         //delete all streams
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
         log.info("deleting stream {}", STREAM_NAME);
@@ -203,11 +195,11 @@ public class ReadWriteTest {
         CompletableFuture<Boolean> deleteStreamStatus1 = controller.deleteStream(scope, "_RG" + readerGroupName);
         log.info("deleting stream {}", "_RG" + readerGroupName);
         assertTrue(deleteStreamStatus1.get());
-
         //delete scope
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
         log.info("deleting scope {}", scope);
         assertTrue(deleteScopeStatus.get());
+        log.info("read write test succeeds");
     }
 
     private CompletableFuture<Void> startNewWriter(final AtomicLong data,
@@ -233,18 +225,14 @@ public class ReadWriteTest {
         });
     }
 
-    private CompletableFuture<Void> startReader(final String id, final ClientFactory clientFactory, final String
+    private CompletableFuture<Void> startNewReader(final String id, final ClientFactory clientFactory, final String
             readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
-                                                AtomicLong readCount, final AtomicBoolean exitFlag) {
+                                                   AtomicLong readCount, final AtomicBoolean exitFlag) {
         return CompletableFuture.runAsync(() -> {
             final EventStreamReader<Long> reader = clientFactory.createReader(id,
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
-            log.info("exit flag before reading {}", exitFlag.get());
-            log.info("readcount before reading {}", readCount.get());
-            log.info("write count before reading {}", writeCount.get());
-
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
