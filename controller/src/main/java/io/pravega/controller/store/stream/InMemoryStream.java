@@ -19,9 +19,9 @@ import io.pravega.controller.store.stream.tables.Create;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import net.jcip.annotations.GuardedBy;
 import org.apache.commons.lang.SerializationUtils;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
