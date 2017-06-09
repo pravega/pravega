@@ -15,8 +15,8 @@ public final class MetricsNames {
     public static final String SEGMENT_CREATE_LATENCY = "segment_create_latency_ms"; // Timer
     public static final String SEGMENT_READ_LATENCY = "segment_read_latency_ms";     // Timer
     public static final String SEGMENT_WRITE_LATENCY = "segment_write_latency_ms";   // Timer
-    public static final String SEGMENT_READ_BYTES = "segment_read_bytes";            // Dynamic Counter
-    public static final String SEGMENT_WRITE_BYTES = "segment_write_bytes";          // Dynamic Counter
+    public static final String SEGMENT_READ_BYTES = "store.segment_read_bytes";            // Dynamic Counter
+    public static final String SEGMENT_WRITE_BYTES = "store.segment_write_bytes";          // Dynamic Counter
 
     //hdfs stats
     public static final String HDFS_READ_LATENCY = "hdfs_read_latency_ms";   // Timer
@@ -35,28 +35,28 @@ public final class MetricsNames {
     public static final String DELETE_STREAM = "stream_deleted";    // Histogram
 
     // Transaction request Operations (Dynamic)
-    public static final String CREATE_TRANSACTION = "transactions_created";   // Dynamic Counter
-    public static final String COMMIT_TRANSACTION = "transactions_committed"; // Dynamic Counter
-    public static final String ABORT_TRANSACTION = "transactions_aborted";    // Dynamic Counter
-    public static final String OPEN_TRANSACTIONS = "transactions_opened";     // Dynamic Gauge
-    public static final String TIMEDOUT_TRANSACTIONS = "transactions_timedout";     // Dynamic Counter
+    public static final String CREATE_TRANSACTION = "controller.transactions_created";   // Dynamic Counter
+    public static final String COMMIT_TRANSACTION = "controller.transactions_committed"; // Dynamic Counter
+    public static final String ABORT_TRANSACTION = "controller.transactions_aborted";    // Dynamic Counter
+    public static final String OPEN_TRANSACTIONS = "controller.transactions_opened";     // Dynamic Gauge
+    public static final String TIMEDOUT_TRANSACTIONS = "controller.transactions_timedout";     // Dynamic Counter
 
     // Stream segment counts (Dynamic)
-    public static final String SEGMENTS_COUNT = "segments_count";   // Dynamic Gauge
-    public static final String SEGMENTS_SPLITS = "segment_splits"; // Dynamic Counter
-    public static final String SEGMENTS_MERGES = "segment_merges"; // Dynamic Counter
+    public static final String SEGMENTS_COUNT = "controller.segments_count";   // Dynamic Gauge
+    public static final String SEGMENTS_SPLITS = "controller.segment_splits"; // Dynamic Counter
+    public static final String SEGMENTS_MERGES = "controller.segment_merges"; // Dynamic Counter
 
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
     }
 
     public static String nameFromStream(String metric, String scope, String stream) {
-        String name = scope + "." + stream + "." + metric;
+        String name = metric + "." + scope + "." + stream;
         return escapeSpecialChar(name);
     }
 
     public static String nameFromSegment(String metric, String segmentName) {
-        String name = segmentName + "." + metric;
+        String name = metric + "." + segmentName;
         return escapeSpecialChar(name);
     }
 }

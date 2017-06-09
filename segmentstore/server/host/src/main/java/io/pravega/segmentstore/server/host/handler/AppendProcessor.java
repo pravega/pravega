@@ -70,7 +70,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final int HIGH_WATER_MARK = 128 * 1024;
     private static final int LOW_WATER_MARK = 64 * 1024;
 
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("host");
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("store");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
