@@ -313,8 +313,7 @@ public class FSStorage implements Storage {
                 throw new CompletionException(new StreamSegmentSealedException(handle.getSegmentName()));
             } else if (ioe instanceof NoSuchFileException) {
                 throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName(), ioe));
-            }
-            else {
+            } else {
                 throw new CompletionException(ioe);
             }
         }
