@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.BitConverter;
@@ -19,15 +20,14 @@ import io.pravega.controller.store.stream.tables.Create;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import io.pravega.client.stream.StreamConfiguration;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -249,11 +249,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
-        CompletableFuture<Integer> epochFuture = getActiveEpoch().thenApply(AbstractMap.SimpleEntry::getKey);
-        return epochFuture.thenCompose(epoch -> store.getChildren(getEpochPath(epoch)))
-                .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(
-                        Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epochFuture.join(), txId)))
-                )));
+        return getActiveEpoch()
+                .thenCompose(epoch -> store.getChildren(getEpochPath(epoch.getKey()))
+                        .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(
+                                Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))))
+                        )));
     }
 
     @Override

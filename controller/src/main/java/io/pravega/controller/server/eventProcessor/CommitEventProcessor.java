@@ -92,20 +92,19 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        streamMetadataStore.getActiveEpoch(scope, stream, context, executor).thenComposeAsync(pair -> {
-            List<Integer> segments = pair.getValue();
-            int activeEpoch = pair.getKey();
-            // Note, transaction's epoch either equals stream's current epoch or is one more than it,
-            // because stream scale operation ensures that all transactions in current epoch are
-            // complete before transitioning the stream to new epoch.
-            if (activeEpoch == epoch) {
-                // If the transaction's epoch is same as the stream's current epoch, commit it.
-                return completeCommit(scope, stream, epoch, segments, txnId, context)
-                        .thenCompose(x -> FutureHelpers.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)));
-            } else {
-                // Otherwise, postpone commit operation until the stream transitions to next epoch.
-                return postponeCommitEvent(event);
-            }
+        streamMetadataStore.getActiveEpoch(scope, stream, context, executor)
+                .thenComposeAsync(pair -> {
+                    // Note, transaction's epoch either equals stream's current epoch or is one more than it,
+                    // because stream scale operation ensures that all transactions in current epoch are
+                    // complete before transitioning the stream to new epoch.
+                    if (epoch <= pair.getKey()) {
+                        // If the transaction's epoch is same as the stream's current epoch, commit it.
+                        return completeCommit(scope, stream, epoch, txnId, context)
+                                .thenCompose(x -> FutureHelpers.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)));
+                    } else {
+                        // Otherwise, postpone commit operation until the stream transitions to next epoch.
+                        return postponeCommitEvent(event);
+                    }
         }).whenCompleteAsync((result, error) -> {
             if (error != null) {
                 log.error("Failed committing transaction {} on stream {}/{}", txnId, scope, stream);
@@ -121,12 +120,12 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     private CompletableFuture<Void> completeCommit(final String scope,
                                                    final String stream,
                                                    final int epoch,
-                                                   final List<Integer> segments,
                                                    final UUID txnId,
                                                    final OperationContext context) {
-        return notifyCommitToHost(scope, stream, segments, txnId).thenComposeAsync(x ->
-                streamMetadataStore.commitTransaction(scope, stream, epoch, txnId, context, executor), executor)
-                .thenApply(x -> null);
+        return streamMetadataStore.getSegmentsInEpoch(scope, stream, epoch, context, executor)
+                .thenComposeAsync(segments -> notifyCommitToHost(scope, stream, segments, txnId).thenComposeAsync(x ->
+                        streamMetadataStore.commitTransaction(scope, stream, epoch, txnId, context, executor), executor)
+                        .thenApply(x -> null));
     }
 
     private CompletableFuture<Void> postponeCommitEvent(CommitEvent event) {

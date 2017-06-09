@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream.tables;
 
+import io.pravega.controller.store.stream.DataNotFoundException;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.SegmentNotFoundException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -489,9 +490,26 @@ public class TableHelper {
      * @param historyTableData history table
      * @return active epoch
      */
-    public static AbstractMap.SimpleEntry<Integer, List<Integer>> getActiveEpoch(byte[] historyTableData) {
+    public static Pair<Integer, List<Integer>> getActiveEpoch(byte[] historyTableData) {
         HistoryRecord historyRecord = HistoryRecord.readLatestRecord(historyTableData, true).get();
-        return new AbstractMap.SimpleEntry<>(historyRecord.getEpoch(), historyRecord.getSegments());
+        return new ImmutablePair<>(historyRecord.getEpoch(), historyRecord.getSegments());
+    }
+
+    /**
+     * Return segments in the epoch.
+     * @param historyTableData history table
+     * @param epoch            epoch
+     *
+     * @return segments in the epoch
+     */
+    public static List<Integer> getSegmentsInEpoch(byte[] historyTableData, int epoch) {
+        Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyTableData, false);
+
+        while (record.isPresent() && record.get().getEpoch() > epoch) {
+            record = HistoryRecord.fetchPrevious(record.get(), historyTableData);
+        }
+
+        return record.orElseThrow(() -> new DataNotFoundException("epoch not found in history table")).getSegments();
     }
 
     /**
@@ -499,9 +517,9 @@ public class TableHelper {
      * @param historyTableData history table
      * @return active epoch
      */
-    public static AbstractMap.SimpleEntry<Integer, List<Integer>> getLatestEpoch(byte[] historyTableData) {
+    public static Pair<Integer, List<Integer>> getLatestEpoch(byte[] historyTableData) {
         HistoryRecord historyRecord = HistoryRecord.readLatestRecord(historyTableData, false).get();
-        return new AbstractMap.SimpleEntry<>(historyRecord.getEpoch(), historyRecord.getSegments());
+        return new ImmutablePair<>(historyRecord.getEpoch(), historyRecord.getSegments());
     }
 
     /**

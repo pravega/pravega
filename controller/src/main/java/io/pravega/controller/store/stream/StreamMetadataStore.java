@@ -14,6 +14,7 @@ import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -453,18 +454,34 @@ public interface StreamMetadataStore {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
+     * Returns the segments in the epoch of the specified stream.
+     *
+     * @param scope    scope.
+     * @param stream   stream.
+     * @param epoch    epoch.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
+     */
+    CompletableFuture<List<Integer>> getSegmentsInEpoch(final String scope,
+                                                        final String stream,
+                                                        final int epoch,
+                                                        final OperationContext context,
+                                                        final Executor executor);
+
+    /**
      * Returns the currently active epoch of the specified stream.
      *
      * @param scope    scope.
      * @param stream   stream.
      * @param context  operation context
      * @param executor callers executor
-     * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
+     * @return         active epoch number
      */
-    CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch(final String scope,
-                                                                          final String stream,
-                                                                          final OperationContext context,
-                                                                          final Executor executor);
+    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(final String scope,
+                                                                   final String stream,
+                                                                   final OperationContext context,
+                                                                   final Executor executor);
 
     /**
      * Api to mark a segment as cold.

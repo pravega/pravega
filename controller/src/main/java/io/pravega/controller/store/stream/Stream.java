@@ -295,13 +295,20 @@ interface Stream {
      * Returns the latest stream epoch.
      * @return latest stream epoch.
      */
-    CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch();
+    CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch();
+
+    /**
+     * Returns the currently active stream epoch.
+     * @param epoch epoch number
+     * @return currently active stream epoch.
+     */
+    CompletableFuture<List<Integer>> getSegmentsInEpoch(int epoch);
 
     /**
      * Returns the currently active stream epoch.
      * @return currently active stream epoch.
      */
-    CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch();
+    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

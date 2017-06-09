@@ -87,12 +87,12 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        streamMetadataStore.getActiveSegments(event.getScope(), event.getStream(), context, executor)
+        streamMetadataStore.getSegmentsInEpoch(event.getScope(), event.getStream(), epoch, context, executor)
                 .thenCompose(segments ->
                         FutureHelpers.allOfWithResults(
                                 segments.stream()
                                         .parallel()
-                                        .map(segment -> notifyAbortToHost(scope, stream, segment.getNumber(), txId))
+                                        .map(segment -> notifyAbortToHost(scope, stream, segment, txId))
                                         .collect(Collectors.toList())))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, epoch, txId, context, executor))
                 .thenCompose(x -> FutureHelpers.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)))

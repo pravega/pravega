@@ -403,8 +403,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         } else {
                                             result.completeExceptionally(ex);
                                         }
+                                    } else {
+                                        result.complete(true);
                                     }
-                                    result.complete(true);
                                 });
                     } else {
                         result.complete(false);
@@ -685,13 +686,18 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getLatestEpoch() {
+    public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch() {
+        return getHistoryTable().thenApply(table -> TableHelper.getActiveEpoch(table.getData()));
+    }
+
+    @Override
+    public CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch() {
         return getHistoryTable().thenApply(table -> TableHelper.getLatestEpoch(table.getData()));
     }
 
     @Override
-    public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch() {
-        return getHistoryTable().thenApply(table -> TableHelper.getActiveEpoch(table.getData()));
+    public CompletableFuture<List<Integer>> getSegmentsInEpoch(int epoch) {
+        return getHistoryTable().thenApply(table -> TableHelper.getSegmentsInEpoch(table.getData(), epoch));
     }
 
     @Override
