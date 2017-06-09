@@ -12,21 +12,25 @@ package io.pravega.segmentstore.server.reading;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the CacheManager class.
  */
 public class CacheManagerTests extends ThreadPooledTestSuite {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
+
     @Override
     protected int getThreadPoolSize() {
         return 3;

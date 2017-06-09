@@ -19,12 +19,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for DataFrameOutputStream class.
  */
 public class DataFrameOutputStreamTests {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
+
     /**
      * Tests the basic functionality of startNewRecord(), endRecord() and discardRecord().
      */

@@ -9,17 +9,21 @@
  */
 package io.pravega.segmentstore.server.writer;
 
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Random;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the AckCalculator class.
  */
 public class AckCalculatorTests {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
+
     /**
      * Tests the getHighestCommittedSequenceNumber method.
      */

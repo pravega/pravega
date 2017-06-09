@@ -68,9 +68,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
-
     @Rule
-    public Timeout globalTimeout = new Timeout(TEST_TIMEOUT_MILLIS, TimeUnit.SECONDS);
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     /**
      * Tests the ability of the OperationProcessor to process Operations in a failure-free environment.

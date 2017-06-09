@@ -14,19 +14,23 @@ import lombok.Cleanup;
 import lombok.val;
 import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Tests the ExistsOperation class.
  */
 public class ExistsOperationTests extends FileSystemOperationTestBase {
     // We introduce the separator into the name here, to make sure we can still extract the values correctly from there.
-    private static final String SEGMENT_NAME = "segment"+FileSystemOperation.PART_SEPARATOR+"segment";
+    private static final String SEGMENT_NAME = "segment" + FileSystemOperation.PART_SEPARATOR + "segment";
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
 
     /**
      * Tests the ExistsOperation in various scenarios.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testExists() throws Exception {
         final int epoch = 1;
         final int offset = 0;

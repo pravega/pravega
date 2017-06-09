@@ -19,7 +19,9 @@ import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the WriteOperation class.
@@ -29,11 +31,13 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
     private static final int FILE_COUNT = 10;
     private static final int WRITES_PER_FILE = 10;
     private static final int WRITE_SIZE = 100;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
 
     /**
      * Tests a normal write across many epochs.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testNormalWrite() throws Exception {
         val rnd = new Random(0);
         @Cleanup
@@ -92,7 +96,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the current file (previously empty) has disappeared due to it being fenced out.
      * Expected behavior: StorageNotPrimaryException with no side effects.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testFenceOutMissingFile() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -116,7 +120,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the current file (non-empty) has been marked as read-only due to it being fenced out.
      * Expected behavior: StorageNotPrimaryException with no side effects.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testFenceOutReadOnlyFile() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

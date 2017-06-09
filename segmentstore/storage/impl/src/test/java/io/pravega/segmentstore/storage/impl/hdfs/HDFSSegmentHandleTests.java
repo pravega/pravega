@@ -14,12 +14,17 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.val;
 import org.apache.hadoop.fs.Path;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for HDFSSegmentHandle.
  */
 public class HDFSSegmentHandleTests {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
+
     /**
      * Tests the ability to replace files in a handle.
      */

@@ -66,8 +66,7 @@ import org.junit.Assert;
  * Base class for all Operation Log-based classes (i.e., DurableLog and OperationProcessor).
  */
 abstract class OperationLogTestBase extends ThreadPooledTestSuite {
-    protected static final int TEST_TIMEOUT_MILLIS = 30000;
-    protected static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
+    protected static final Duration TIMEOUT = Duration.ofMillis(30000);
     private static final Supplier<CompletableFuture<Void>> NO_OP_METADATA_CLEANUP = () -> CompletableFuture.completedFuture(null);
     private static final int MAX_SEGMENT_COUNT = 1000 * 1000;
 
