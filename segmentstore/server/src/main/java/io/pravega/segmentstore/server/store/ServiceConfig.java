@@ -175,7 +175,4 @@ public class ServiceConfig {
         return Inet4Address.getLocalHost().getHostAddress();
     }
 
-    public String getStorageImplementation() {
-        return storageImplementation;
-    }
 }
