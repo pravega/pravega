@@ -34,7 +34,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.timeout.TimeoutService;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import com.google.common.base.Preconditions;
@@ -66,7 +65,6 @@ public class ControllerService {
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private final TimeoutService timeoutService;
     private final SegmentHelper segmentHelper;
     private final Executor executor;
     private final Cluster cluster;
@@ -235,41 +233,16 @@ public class ControllerService {
     @SuppressWarnings("ReturnCount")
     public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream,
                                                                                final long lease,
-                                                                               final long maxExecutionTime,
+                                                                               final long maxExecutionPeriod,
                                                                                final long scaleGracePeriod) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
-        if (lease <= 0) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("lease should be a positive number"));
-        }
-        if (maxExecutionTime <= 0) {
-            return FutureHelpers.failedFuture(
-                    new IllegalArgumentException("maxExecutionTime should be a positive number"));
-        }
-        if (scaleGracePeriod <= 0) {
-            return FutureHelpers.failedFuture(
-                    new IllegalArgumentException("scaleGracePeriod should be a positive number"));
-        }
-
-        // If scaleGracePeriod is larger than maxScaleGracePeriod return error
-        if (scaleGracePeriod > timeoutService.getMaxScaleGracePeriod()) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("scaleGracePeriod too large, max value is "
-                                                                            + timeoutService.getMaxScaleGracePeriod()));
-        }
-
-        // If lease value is too large return error
-        if (lease > scaleGracePeriod || lease > maxExecutionTime || lease > timeoutService.getMaxLeaseValue()) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("lease value too large, max value is "
-            + Math.min(scaleGracePeriod, Math.min(maxExecutionTime, timeoutService.getMaxLeaseValue()))));
-        }
-
-        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionTime, scaleGracePeriod, null)
+        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, null)
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
-                    timeoutService.addTxn(scope, stream, data.getId(), data.getVersion(), lease,
-                            data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
-                    return new ImmutablePair<>(data.getId(), getSegmentRanges(pair.getValue(), scope, stream));
+                    List<Segment> segments = pair.getValue();
+                    return new ImmutablePair<>(data.getId(), getSegmentRanges(segments, scope, stream));
                 });
     }
 
@@ -295,7 +268,6 @@ public class ControllerService {
                         // TODO: return appropriate failures to user.
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        timeoutService.removeTxn(scope, stream, txId);
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
@@ -312,63 +284,22 @@ public class ControllerService {
                         // TODO: return appropriate failures to user.
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        timeoutService.removeTxn(scope, stream, txId);
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
     }
 
-    public CompletableFuture<PingTxnStatus> pingTransaction(final String scope, final String stream, final TxnId txnId,
-                                                         final long lease) {
+    public CompletableFuture<PingTxnStatus> pingTransaction(final String scope,
+                                                            final String stream,
+                                                            final TxnId txnId,
+                                                            final long lease,
+                                                            final boolean switchOver) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
         UUID txId = ModelHelper.encode(txnId);
 
-        if (!timeoutService.isRunning()) {
-            return CompletableFuture.completedFuture(
-                    PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.DISCONNECTED).build());
-        }
-
-        if (timeoutService.containsTxn(scope, stream, txId)) {
-            // If timeout service knows about this transaction, try to increase its lease.
-            PingTxnStatus status = timeoutService.pingTxn(scope, stream, txId, lease);
-
-            return CompletableFuture.completedFuture(status);
-        }
-        // Otherwise, first check whether lease value is within necessary bounds, and then
-        // start owning the transaction timeout management by updating the txn node data in the store,
-        // thus updating its version.
-        // Pass this transaction metadata along with its version to timeout service, and ask timeout service to
-        // start managing timeout for this transaction.
-        return streamStore.getTransactionData(scope, stream, txId, null, executor)
-                .thenApply(txnData -> {
-                    // sanity check for lease value
-                    if (lease > txnData.getScaleGracePeriod() || lease > timeoutService.getMaxLeaseValue()) {
-                        return PingTxnStatus.Status.LEASE_TOO_LARGE;
-                    } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
-                        return PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED;
-                    } else {
-                        return PingTxnStatus.Status.OK;
-                    }
-                })
-                .thenCompose(status -> {
-                    if (status == PingTxnStatus.Status.OK) {
-                        // If lease value if within necessary bounds, update the transaction node data, thus
-                        // updating its version.
-                        return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, null)
-                                .thenApply(data -> {
-                                    // Let timeout service start managing timeout for the transaction.
-                                    timeoutService.addTxn(scope, stream, txId, data.getVersion(), lease,
-                                            data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
-
-                                    return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build();
-                                });
-                    } else {
-                        return CompletableFuture.completedFuture(
-                                PingTxnStatus.newBuilder().setStatus(status).build());
-                    }
-                });
+        return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, switchOver, null);
     }
 
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream,

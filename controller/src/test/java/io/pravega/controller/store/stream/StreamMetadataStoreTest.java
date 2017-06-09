@@ -90,13 +90,13 @@ public abstract class StreamMetadataStoreTest {
         List<Segment> segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(2, segments.size());
 
-        List<Integer> historicalSegments = store.getActiveSegments(scope, stream1, 10, null, executor).get();
+        List<Integer> historicalSegments = store.getActiveSegments(scope, stream1, 10L, null, executor).get();
         assertEquals(2, historicalSegments.size());
 
         segments = store.getActiveSegments(scope, stream2, null, executor).get();
         assertEquals(3, segments.size());
 
-        historicalSegments = store.getActiveSegments(scope, stream2, 10, null, executor).get();
+        historicalSegments = store.getActiveSegments(scope, stream2, 10L, null, executor).get();
         assertEquals(3, historicalSegments.size());
 
         // endregion

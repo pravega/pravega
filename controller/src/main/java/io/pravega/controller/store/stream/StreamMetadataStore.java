@@ -192,6 +192,22 @@ public interface StreamMetadataStore {
     CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
+     * Get segments active in the specified epoch.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param epoch    stream epoch.
+     * @param executor callers executor
+     * @param context  operation context
+     * @return currently active segments
+     */
+    CompletableFuture<List<Segment>> getActiveSegments(final String scope,
+                                                       final String name,
+                                                       final int epoch,
+                                                       final OperationContext context,
+                                                       final Executor executor);
+
+    /**
      * Get active segments at given timestamp.
      *
      * @param scope     stream scope

@@ -496,14 +496,14 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease, boolean switchOver) {
         long traceId = LoggerHelpers.traceEnter(log, "pingTransaction", stream, txId, lease);
 
         RPCAsyncCallback<PingTxnStatus> callback = new RPCAsyncCallback<>();
         client.pingTransaction(PingTxnRequest.newBuilder().setStreamInfo(
                 ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                                        .setTxnId(ModelHelper.decode(txId))
-                                       .setLease(lease).build(),
+                                       .setLease(lease).setSwitchOver(switchOver).build(),
                                callback);
         return FutureHelpers.toVoidExpecting(callback.getFuture(),
                                              PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),

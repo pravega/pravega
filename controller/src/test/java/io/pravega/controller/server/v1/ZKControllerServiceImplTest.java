@@ -31,9 +31,6 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -62,7 +59,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private StreamMetadataTasks streamMetadataTasks;
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private TimeoutService timeoutService;
     private Cluster cluster;
 
     @Override
@@ -94,8 +90,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
                 streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory);
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                TimeoutServiceConfig.defaultConfig());
 
         cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -104,7 +98,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         latch.await();
 
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executorService, cluster);
+                streamTransactionMetadataTasks, new SegmentHelper(), executorService, cluster);
         controllerService = new ControllerServiceImpl(controller);
     }
 
@@ -112,10 +106,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     public void tearDown() throws Exception {
         if (executorService != null) {
             executorService.shutdown();
-        }
-        if (timeoutService != null) {
-            timeoutService.stopAsync();
-            timeoutService.awaitTerminated();
         }
         if (streamMetadataTasks != null) {
             streamMetadataTasks.close();

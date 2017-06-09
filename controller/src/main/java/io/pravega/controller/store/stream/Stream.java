@@ -231,8 +231,8 @@ interface Stream {
      * @return        a pair containing transaction status and its epoch.
      */
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
-                                                                                   final boolean commit,
-                                                                                   final Optional<Integer> version);
+                                                                       final boolean commit,
+                                                                       final Optional<Integer> version);
 
     /**
      * Returns transaction's status

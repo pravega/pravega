@@ -152,7 +152,7 @@ public class TxnSweeper {
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
         return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
-                transactionMetadataTasks.abortTxnBody(failedHost, scope, stream, txnId, version, null)
+                transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null)
                         .thenApplyAsync(status -> null, executor), executor);
     }
 }

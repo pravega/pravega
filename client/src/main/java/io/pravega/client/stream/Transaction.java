@@ -70,9 +70,11 @@ public interface Transaction<Type> {
      * Send a transaction heartbeat and increase transaction's timeout by lease amount of milliseconds.
      *
      * @param lease Additional amount of time in milliseconds by which to increase transaction's timeout.
+     * @param switchOver Boolean indicating whether the previous successful ping request was performed on a different
+     *                   controller process by the client.
      * @throws PingFailedException Ping failed.
      */
-    void ping(long lease) throws PingFailedException;
+    void ping(long lease, boolean switchOver) throws PingFailedException;
 
     /**
      * Causes all messages previously written to the transaction to go into the stream contiguously.

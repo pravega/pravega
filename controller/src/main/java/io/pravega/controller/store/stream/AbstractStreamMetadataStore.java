@@ -295,6 +295,19 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
 
     @Override
+    public CompletableFuture<List<Segment>> getActiveSegments(final String scope,
+                                                              final String name,
+                                                              final int epoch,
+                                                              final OperationContext context,
+                                                              final Executor executor) {
+        final Stream stream = getStream(scope, name, context);
+        // TODO: change this to correctly fetch active segments in specified epoch after merge with PR #1368 lock-free scale
+        return withCompletion(stream.getActiveSegments().thenComposeAsync(currentSegments ->
+                FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment)
+                        .collect(Collectors.toList())), executor), executor);
+    }
+
+    @Override
     public CompletableFuture<List<Integer>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, name, context);
         return withCompletion(stream.getActiveSegments(timestamp), executor);

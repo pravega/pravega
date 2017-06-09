@@ -214,6 +214,7 @@ message PingTxnRequest {
     StreamInfo streamInfo = 1;
     TxnId txnId = 2;
     int64 lease = 3;
+    bool  switchOver = 4;
 }
 
 message SuccessorResponse {

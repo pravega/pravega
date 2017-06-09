@@ -24,9 +24,6 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -62,7 +59,6 @@ public class ControllerServiceTest {
 
     private final StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
 
-    private final TimeoutService timeoutService;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final ConnectionFactoryImpl connectionFactory;
@@ -89,11 +85,9 @@ public class ControllerServiceTest {
                 taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, segmentHelper, executor, "host", connectionFactory);
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                TimeoutServiceConfig.defaultConfig());
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                timeoutService, new SegmentHelper(), executor, null);
+                new SegmentHelper(), executor, null);
     }
 
     @Before
@@ -135,8 +129,6 @@ public class ControllerServiceTest {
 
     @After
     public void tearDown() throws Exception {
-        timeoutService.stopAsync();
-        timeoutService.awaitTerminated();
         streamTransactionMetadataTasks.close();
         streamMetadataTasks.close();
         connectionFactory.close();

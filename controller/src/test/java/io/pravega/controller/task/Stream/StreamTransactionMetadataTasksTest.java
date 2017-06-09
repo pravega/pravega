@@ -44,9 +44,7 @@ import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
+import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
@@ -108,7 +106,6 @@ public class StreamTransactionMetadataTasksTest {
     private SegmentHelper segmentHelperMock;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks txnTasks;
-    private TimeoutService timeoutService;
     private ConnectionFactory connectionFactory;
 
     private static class SequenceAnswer<T> implements Answer<T> {
@@ -153,8 +150,6 @@ public class StreamTransactionMetadataTasksTest {
 
     @After
     public void teardown() throws Exception {
-        timeoutService.stopAsync();
-        timeoutService.awaitTerminated();
         streamMetadataTasks.close();
         zkClient.close();
         zkServer.close();
@@ -194,9 +189,8 @@ public class StreamTransactionMetadataTasksTest {
                 abortWriter);
 
         // Create ControllerService.
-        timeoutService = new TimerWheelTimeoutService(txnTasks, TimeoutServiceConfig.defaultConfig());
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
-                timeoutService, segmentHelperMock, executor, null);
+                segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
@@ -227,7 +221,7 @@ public class StreamTransactionMetadataTasksTest {
         Assert.assertEquals(TxnStatus.ABORTING, status);
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void failOverTests() throws CheckpointStoreException, InterruptedException {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
@@ -235,8 +229,7 @@ public class StreamTransactionMetadataTasksTest {
         EventStreamReader<CommitEvent> commitReader = commitWriter.getReader();
         EventStreamReader<AbortEvent> abortReader = abortWriter.getReader();
 
-        timeoutService = new TimerWheelTimeoutService(txnTasks, TimeoutServiceConfig.defaultConfig());
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks, timeoutService,
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         // Create test scope and stream.
@@ -260,14 +253,16 @@ public class StreamTransactionMetadataTasksTest {
 
         // Ping another txn from failedHost.
         UUID txnId = UUID.randomUUID();
-        streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000, null, executor).join();
-        VersionedTransactionData tx4 = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 10000, null).join();
+        streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 30000, 30000, null, executor).join();
+        PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 10000, false, null).join();
+        VersionedTransactionData tx4 = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, executor).join();
 
         // Validate versions of all txn
         Assert.assertEquals(0, tx1.getVersion());
         Assert.assertEquals(0, tx2.getVersion());
         Assert.assertEquals(0, tx3.getVersion());
         Assert.assertEquals(1, tx4.getVersion());
+        Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
 
         // Validate the txn index.
         Assert.assertEquals(1, streamStore.listHostsOwningTxn().join().size());
@@ -357,8 +352,7 @@ public class StreamTransactionMetadataTasksTest {
                 connectionFactory);
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream", abortWriter);
 
-        timeoutService = new TimerWheelTimeoutService(txnTasks, TimeoutServiceConfig.defaultConfig());
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks, timeoutService,
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);

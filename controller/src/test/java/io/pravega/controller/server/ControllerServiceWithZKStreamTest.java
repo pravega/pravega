@@ -24,9 +24,6 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -62,7 +59,6 @@ public class ControllerServiceWithZKStreamTest {
 
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private TimeoutService timeoutService;
     private ConnectionFactoryImpl connectionFactory;
 
     @Before
@@ -86,16 +82,12 @@ public class ControllerServiceWithZKStreamTest {
                 executor, "host", connectionFactory);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelperMock, executor, "host", connectionFactory);
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                TimeoutServiceConfig.defaultConfig());
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, segmentHelperMock, executor, null);
+                streamTransactionMetadataTasks, segmentHelperMock, executor, null);
     }
 
     @After
     public void teardown() throws Exception {
-        timeoutService.stopAsync();
-        timeoutService.awaitTerminated();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         zkClient.close();
