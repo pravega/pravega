@@ -62,9 +62,9 @@ import java.util.stream.Collectors;
 public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
 
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
-    private static final int NUM_WRITERS = 20;
-    private static final int NUM_READERS = 20;
-    private static final long NUM_EVENTS = 20000;
+    private static final int NUM_WRITERS = 10;
+    private static final int NUM_READERS = 10;
+    private static final long NUM_EVENTS = 10000;
     private static final long NUM_EVENTS_BY_WRITER = 1000;
     private AtomicBoolean stopReadFlag;
     private AtomicLong eventData;
@@ -167,8 +167,8 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
 
         String scope = "testMultiReaderWriterScope" + new Random().nextInt(Integer.MAX_VALUE);
         String readerGroupName = "testMultiReaderWriterReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
-        //20  readers -> 20 stream segments ( to have max read parallelism)
-        ScalingPolicy scalingPolicy = ScalingPolicy.fixed(20);
+        //10  readers -> 10 stream segments ( to have max read parallelism)
+        ScalingPolicy scalingPolicy = ScalingPolicy.fixed(10);
         StreamConfiguration config = StreamConfiguration.builder().scope(scope)
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
         //get Controller Uri
