@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.collect.Iterators;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.SequencedItemList;
@@ -18,19 +19,22 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.containers.InMemoryStateStore;
-import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.containers.InMemoryStateStore;
 import io.pravega.segmentstore.server.containers.StreamSegmentMapper;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -95,7 +99,8 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     /**
      * Creates a number of StreamSegments in the given Metadata and OperationLog.
      */
-    HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
+    HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata,
+                                                     OperationLog durableLog, Storage storage) {
         StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), NO_OP_METADATA_CLEANUP,
                 storage, ForkJoinPool.commonPool());
         HashSet<Long> result = new HashSet<>();
@@ -113,7 +118,8 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     /**
      * Updates the given Container Metadata to have a number of Transactions mapped to the given StreamSegment Ids.
      */
-    AbstractMap<Long, Long> createTransactionsInMetadata(HashSet<Long> streamSegmentIds, int transactionsPerStreamSegment, UpdateableContainerMetadata containerMetadata) {
+    AbstractMap<Long, Long> createTransactionsInMetadata(HashSet<Long> streamSegmentIds, int transactionsPerStreamSegment,
+                                                         UpdateableContainerMetadata containerMetadata) {
         assert transactionsPerStreamSegment <= MAX_SEGMENT_COUNT : "cannot have more than " + MAX_SEGMENT_COUNT + " Transactions per StreamSegment for this test.";
         HashMap<Long, Long> result = new HashMap<>();
         for (long streamSegmentId : streamSegmentIds) {
@@ -175,7 +181,8 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
      * <li> A set of StreamSegmentSeal Operations (based on the sealStreamSegments arg).
      * </ol>
      */
-    List<Operation> generateOperations(Collection<Long> streamSegmentIds, Map<Long, Long> transactionIds, int appendsPerStreamSegment, int metadataCheckpointsEvery, boolean mergeTransactions, boolean sealStreamSegments) {
+    List<Operation> generateOperations(Collection<Long> streamSegmentIds, Map<Long, Long> transactionIds, int appendsPerStreamSegment,
+                                       int metadataCheckpointsEvery, boolean mergeTransactions, boolean sealStreamSegments) {
         List<Operation> result = new ArrayList<>();
 
         // Add some appends.
@@ -244,15 +251,20 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
 
     //region Verification
 
-    void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, Map<Long, Long> transactions, Collection<OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectTransactionsMerged, boolean expectSegmentsSealed) {
+    void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds,
+                               Map<Long, Long> transactions, Collection<OperationWithCompletion> operations,
+                               ContainerMetadata metadata, boolean expectTransactionsMerged, boolean expectSegmentsSealed) {
         // Verify that transactions are merged
         for (long transactionId : transactions.keySet()) {
             SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(transactionId);
             if (invalidStreamSegmentIds.contains(transactionId)) {
-                Assert.assertTrue("Unexpected data for a Transaction that was invalid.", transactionMetadata == null || transactionMetadata.getDurableLogLength() == 0);
+                Assert.assertTrue("Unexpected data for a Transaction that was invalid.",
+                        transactionMetadata == null || transactionMetadata.getDurableLogLength() == 0);
             } else {
-                Assert.assertEquals("Unexpected Transaction seal state for Transaction " + transactionId, expectTransactionsMerged, transactionMetadata.isSealed());
-                Assert.assertEquals("Unexpected Transaction merge state for Transaction " + transactionId, expectTransactionsMerged, transactionMetadata.isMerged());
+                Assert.assertEquals("Unexpected Transaction seal state for Transaction " + transactionId,
+                        expectTransactionsMerged, transactionMetadata.isSealed());
+                Assert.assertEquals("Unexpected Transaction merge state for Transaction " + transactionId,
+                        expectTransactionsMerged, transactionMetadata.isMerged());
             }
         }
 
@@ -261,10 +273,13 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         for (long streamSegmentId : streamSegmentIds) {
             SegmentMetadata segmentMetadata = metadata.getStreamSegmentMetadata(streamSegmentId);
             if (invalidStreamSegmentIds.contains(streamSegmentId)) {
-                Assert.assertTrue("Unexpected data for a StreamSegment that was invalid.", segmentMetadata == null || segmentMetadata.getDurableLogLength() == 0);
+                Assert.assertTrue("Unexpected data for a StreamSegment that was invalid.",
+                        segmentMetadata == null || segmentMetadata.getDurableLogLength() == 0);
             } else {
-                Assert.assertEquals("Unexpected seal state for StreamSegment " + streamSegmentId, expectSegmentsSealed, segmentMetadata.isSealed());
-                Assert.assertEquals("Unexpected length for StreamSegment " + streamSegmentId, (int) expectedLengths.getOrDefault(streamSegmentId, 0), segmentMetadata.getDurableLogLength());
+                Assert.assertEquals("Unexpected seal state for StreamSegment " + streamSegmentId,
+                        expectSegmentsSealed, segmentMetadata.isSealed());
+                Assert.assertEquals("Unexpected length for StreamSegment " + streamSegmentId,
+                        (int) expectedLengths.getOrDefault(streamSegmentId, 0), segmentMetadata.getDurableLogLength());
             }
         }
     }
@@ -283,11 +298,25 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 readLength += length;
                 int streamSegmentOffset = expectedLengths.getOrDefault(e.getKey(), 0);
                 expectedLengths.put(e.getKey(), streamSegmentOffset + length);
-                AssertExtensions.assertStreamEquals(String.format("Unexpected data returned from ReadIndex. StreamSegmentId = %d, Offset = %d.", e.getKey(), streamSegmentOffset), e.getValue(), entry.getData(), length);
+                AssertExtensions.assertStreamEquals(String.format("Unexpected data returned from ReadIndex. StreamSegmentId = %d, Offset = %d.",
+                        e.getKey(), streamSegmentOffset), e.getValue(), entry.getData(), length);
             }
 
             Assert.assertEquals("Not enough bytes were read from the ReadIndex for StreamSegment " + e.getKey(), expectedLength, readLength);
         }
+    }
+
+    boolean isExpectedExceptionForNonDataCorruption(Throwable ex) {
+        return ex instanceof IOException
+                || ex instanceof DurableDataLogException
+                || ex instanceof ObjectClosedException;
+    }
+
+    boolean isExpectedExceptionForDataCorruption(Throwable ex) {
+        return ex instanceof DataCorruptionException
+                || ex instanceof IllegalContainerStateException
+                || ex instanceof ObjectClosedException
+                || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException));
     }
 
     /**
@@ -299,7 +328,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         for (OperationWithCompletion o : operations) {
             Assert.assertTrue("Operation is not completed.", o.completion.isDone());
             if (o.completion.isCompletedExceptionally()) {
-                // This is failed operation; ignore it.
+                // This is a failed operation; ignore it.
                 continue;
             }
 

@@ -24,7 +24,7 @@ import org.junit.Test;
  * Unit tests for InMemoryDurableDataLog.
  */
 public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
-    private static final int WRITE_COUNT = 250;
+    private static final int WRITE_COUNT = 1000;
     private final Supplier<Integer> nextContainerId = new AtomicInteger()::incrementAndGet;
     private InMemoryDurableDataLogFactory factory;
 

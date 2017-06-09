@@ -15,7 +15,7 @@ import java.time.Duration;
  * Provides a customizable way of measuring elapsed time.
  */
 public abstract class AbstractTimer {
-    protected static final int NANOS_TO_MILLIS = 1000 * 1000;
+    public static final int NANOS_TO_MILLIS = 1000 * 1000;
 
     /**
      * Gets the elapsed time, in nanoseconds.
