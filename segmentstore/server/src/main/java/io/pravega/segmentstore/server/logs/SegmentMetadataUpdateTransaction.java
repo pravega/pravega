@@ -593,6 +593,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         if (this.merged) {
             target.markMerged();
         }
+
+        if (this.deleted) {
+            target.markDeleted();
+        }
     }
 
     private void ensureSegmentId(SegmentOperation operation) {
