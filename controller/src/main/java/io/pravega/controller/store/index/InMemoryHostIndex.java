@@ -44,13 +44,18 @@ public class InMemoryHostIndex implements HostIndex {
     public CompletableFuture<Void> addEntity(String hostId, String entity, byte[] entityData) {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
-        if (hostTable.containsKey(hostId)) {
-            hostTable.get(hostId).put(entity, entityData);
-        } else {
-            ConcurrentSkipListMap<String, byte[]> children = new ConcurrentSkipListMap<>();
-            children.put(entity, entityData);
-            hostTable.put(hostId, children);
-        }
+        hostTable.compute(hostId, (key, listMap) -> {
+            if (listMap != null) {
+                // HostId is mapped to a non-null listMap, add new mapping into listMap.
+                listMap.put(entity, entityData);
+                return listMap;
+            } else {
+                // HostId has no mapping in the hostTable, create a new listMap, which is mapped to hostId in hostTable.
+                ConcurrentSkipListMap<String, byte[]> children = new ConcurrentSkipListMap<>();
+                children.put(entity, entityData);
+                return children;
+            }
+        });
         return CompletableFuture.completedFuture(null);
     }
 
@@ -69,13 +74,20 @@ public class InMemoryHostIndex implements HostIndex {
                                                 final boolean deleteEmptyHost) {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
-        if (hostTable.containsKey(hostId)) {
-            ConcurrentSkipListMap<String, byte[]> value = hostTable.get(hostId);
-            value.remove(entity);
-            if (deleteEmptyHost && value.size() == 0) {
-                hostTable.remove(hostId);
+        hostTable.compute(hostId, (key, listMap) -> {
+            if (listMap != null) {
+                listMap.remove(entity);
+                if (deleteEmptyHost && listMap.isEmpty()) {
+                    // Mapping (hostId, listMap) would be removed on returning null.
+                    return null;
+                } else {
+                    return listMap;
+                }
+            } else {
+                // Mapping (hostId, listMap) would be removed on returning null.
+                return null;
             }
-        }
+        });
         return CompletableFuture.completedFuture(null);
     }
 

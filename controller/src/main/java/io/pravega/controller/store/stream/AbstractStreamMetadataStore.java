@@ -469,7 +469,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, int version) {
-        return hostIndex.addEntity(hostId, getTxnResourceString(txn), ByteBuffer.allocate(4).putInt(version).array());
+        return hostIndex.addEntity(hostId, getTxnResourceString(txn), ByteBuffer.allocate(Integer.BYTES).putInt(version).array());
     }
 
     @Override

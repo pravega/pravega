@@ -104,12 +104,12 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     public CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
                                                          final String owner,
                                                          final String tag) {
-        synchronized (lockTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(resource);
-                Preconditions.checkNotNull(owner);
-                Preconditions.checkNotNull(tag);
+        return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(resource);
+            Preconditions.checkNotNull(owner);
+            Preconditions.checkNotNull(tag);
 
+            synchronized (lockTable) {
                 LockData lockData = lockTable.get(resource);
 
                 if (lockData == null) {
@@ -122,7 +122,7 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
                         return Optional.empty();
                     }
                 }
-            }, executor);
-        }
+            }
+        }, executor);
     }
 }

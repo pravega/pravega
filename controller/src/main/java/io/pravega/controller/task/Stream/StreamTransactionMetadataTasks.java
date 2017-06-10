@@ -386,6 +386,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * 2. If process fails before responding to the client, then since txn is present in the host-txn index,
      * some other controller process shall abort the txn after maxLeaseValue
      *
+     * Store read/update operation is not invoked on receiving ping request for a txn that is being tracked in the
+     * timeout service if switchOver is false. Otherwise, if the txn is not being tracked in the timeout service, or
+     * if switchOver is true then txn node in the store is read and updated.
+     *
      * @param scope      scope name.
      * @param stream     stream name.
      * @param txnId      txn id.
